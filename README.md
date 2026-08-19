@@ -1,75 +1,36 @@
-# React + TypeScript + Vite
+# ERJV POS
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+![Status](https://img.shields.io/badge/Status-In%20Development-blue)
+![Version](https://img.shields.io/badge/Version-1.0.0-lightgrey)
 
-Currently, two official plugins are available:
+ERJV POS is a production-ready Point of Sale frontend designed to handle seamless checkout transactions, secure authentication, and robust back-office management. Built with a focus on performance and maintainability, it separates terminal operations from dashboard analytics for an optimal user experience.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Features
 
-## React Compiler
+* **Dual Interface System:** 
+  * **POS Terminal:** Lightning-fast, keyboard-friendly checkout interface for cashiers.
+  * **Admin Dashboard:** Comprehensive back-office views for inventory, sales reports, and settings.
+* **Secure Authentication:** JWT-based login system with protected route wrappers.
+* **Optimized Performance:** Lazy-loaded routes and split-code architecture to ensure the terminal never hangs.
+* **Scalable UI:** Built with a custom, reusable component library (Cards, Modals, Tables) for consistent design.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Tech Stack
 
-## Expanding the ESLint configuration
+* **Framework:** React 18
+* **Language:** TypeScript 
+* **Styling:** Tailwind CSS
+* **State Management:** Zustand / Redux (Update as needed)
+* **Routing:** React Router v6
+* **Network:** Axios (with custom interceptors)
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## Getting Started
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+### Prerequisites
+Make sure you have Node.js (v16+) and npm/yarn installed on your machine.
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+### Installation
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-
-```
-
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-
-```
+1. **Clone the repository**
+   ```bash
+   git clone [https://github.com/yourusername/erjv-pos.git](https://github.com/yourusername/erjv-pos.git)
+   cd erjv-pos
