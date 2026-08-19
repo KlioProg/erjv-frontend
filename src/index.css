@@ -1,0 +1,31 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: 'DM Sans', 'Segoe UI', sans-serif;
+  --font-mono: 'Space Mono', Consolas, monospace;
+  --color-ink: #20201d;
+  --color-muted: #77736a;
+  --color-line: #d9d2c5;
+  --color-paper: #fbfaf7;
+  --color-orange: #d85c3d;
+  --color-orange-dark: #b7432c;
+  --color-cream: #f2eee7;
+}
+
+:root {
+  color: var(--color-ink);
+  background: var(--color-cream);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+#root { min-height: 100svh; }
+
+body { margin: 0; }
+
+@keyframes auth-panel-in {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
