@@ -1,4 +1,4 @@
-export type AuthMode = 'login' | 'signup'
+export type AuthMode = 'login' | 'signup' | 'forgot-password'
 
 export type LoginRequest = {
   email: string
@@ -12,4 +12,10 @@ export type SignupRequest = {
   password: string
 }
 
-export type AuthRequest = LoginRequest | SignupRequest
+export type ForgotPasswordRequest = {
+  email: string
+}
+
+export type AuthRequest = LoginRequest | SignupRequest | ForgotPasswordRequest
+
+
