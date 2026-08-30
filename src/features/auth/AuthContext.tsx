@@ -259,77 +259,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const role = payload.role || 'STAFF'
     const fullName = payload.fullName?.trim() || cleanEmail.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase())
 
-    // 0. Strict Primary-Key-Style Uniqueness Validation (Email & Full Name)
-    const normalizedEmail = cleanEmail.toLowerCase()
-    const normalizedName = fullName.toLowerCase().trim()
-
-    const existingEmails = new Set<string>()
-    const existingNames = new Set<string>()
-
-    // Seed defaults
-    INITIAL_DB_USERS.forEach((u) => {
-      existingEmails.add(u.email.toLowerCase())
-      if (u.fullName) existingNames.add(u.fullName.toLowerCase().trim())
-    })
-
-    // Local DB users
-    try {
-      const rawDb = localStorage.getItem('erjv_db_users_v6')
-      if (rawDb) {
-        const dbUsers = JSON.parse(rawDb)
-        dbUsers.forEach((u: { email?: string; fullName?: string }) => {
-          if (u.email) existingEmails.add(u.email.toLowerCase())
-          if (u.fullName) existingNames.add(u.fullName.toLowerCase().trim())
-        })
-      }
-    } catch {
-      // Ignore
-    }
-
-    // Registered users
-    try {
-      const rawReg = localStorage.getItem('erjv_registered_users')
-      if (rawReg) {
-        const regUsers = JSON.parse(rawReg)
-        regUsers.forEach((u: { email?: string; fullName?: string }) => {
-          if (u.email) existingEmails.add(u.email.toLowerCase())
-          if (u.fullName) existingNames.add(u.fullName.toLowerCase().trim())
-        })
-      }
-    } catch {
-      // Ignore
-    }
-
-    // Employees directory
-    try {
-      const rawEmps = localStorage.getItem('erjv_db_employees_v6')
-      if (rawEmps) {
-        const emps = JSON.parse(rawEmps)
-        emps.forEach((e: { email?: string; firstName?: string; lastName?: string }) => {
-          if (e.email) existingEmails.add(e.email.toLowerCase())
-          if (e.firstName && e.lastName) {
-            existingNames.add(`${e.firstName} ${e.lastName}`.toLowerCase().trim())
-          }
-        })
-      }
-    } catch {
-      // Ignore
-    }
-
-    if (existingEmails.has(normalizedEmail)) {
-      setIsLoading(false)
-      throw new Error('Email is already registered.')
-    }
-
-    if (existingNames.has(normalizedName)) {
-      setIsLoading(false)
-      throw new Error('Name is already taken.')
-    }
-
     try {
       let registeredUser: SafeUserResponse
 
-      // 1. Attempt backend registration
+      // 1. Attempt backend registration (Backend database is the single source of truth)
       try {
         registeredUser = await registerApi({
           fullName,
