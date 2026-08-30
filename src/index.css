@@ -89,6 +89,29 @@
   border-color: var(--border);
 }
 
+/* Global Interactive Cursor Pointer Rules */
+button,
+[role="button"],
+a,
+input[type="button"],
+input[type="submit"],
+input[type="reset"],
+input[type="checkbox"],
+input[type="radio"],
+select,
+summary,
+[data-radix-collection-item],
+[tabindex="0"]:not(input):not(textarea) {
+  cursor: pointer;
+}
+
+button:disabled,
+[role="button"][aria-disabled="true"],
+input:disabled,
+select:disabled {
+  cursor: not-allowed;
+}
+
 body {
   margin: 0;
   min-width: 320px;
