@@ -1,11 +1,12 @@
 import { useState, type FormEvent } from 'react'
-import { Mail, Lock, Eye, EyeOff, LogIn } from 'lucide-react'
+import { Mail, Lock, Eye, EyeOff, LogIn, Sparkles } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Spinner } from '@/components/ui/spinner'
+import { useAuth } from '@/features/auth/AuthContext'
 import useFormValidation from './useFormValidation'
 
 type LoginFormProps = {
@@ -23,27 +24,33 @@ export default function LoginForm({
   errorMessage,
   successMessage,
 }: LoginFormProps) {
+  const { setDemoUser } = useAuth()
   const emailVal = useFormValidation()
   const passVal = useFormValidation()
+
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [rememberMe, setRememberMe] = useState(false)
 
-  function handleSubmit(e: FormEvent<HTMLFormElement>) {
-    const form = e.currentTarget
-    const emailInput = form.elements.namedItem('email') as HTMLInputElement | null
-    const passInput = form.elements.namedItem('password') as HTMLInputElement | null
+  const handleFillAdmin = () => {
+    setEmail('owner@example.com')
+    setPassword('plain-password')
+    emailVal.setMessage('')
+    passVal.setMessage('')
+  }
 
-    const email = emailInput?.value.trim() ?? ''
-    const password = passInput?.value ?? ''
+  function handleSubmit(e: FormEvent<HTMLFormElement>) {
+    const trimmedEmail = email.trim()
 
     emailVal.setMessage('')
     passVal.setMessage('')
 
     let invalid = false
-    const emailInvalid = !email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+    const emailInvalid = !trimmedEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)
     const passInvalid = !password || password.length < 8
 
-    if (!email) {
+    if (!trimmedEmail) {
       emailVal.setMessage('Please enter your work email.')
       invalid = true
     } else if (emailInvalid) {
@@ -61,8 +68,6 @@ export default function LoginForm({
 
     if (invalid) {
       e.preventDefault()
-      if (emailInvalid) emailInput?.focus()
-      else if (passInvalid) passInput?.focus()
       return
     }
 
@@ -70,10 +75,19 @@ export default function LoginForm({
   }
 
   return (
-    <form className="flex flex-col gap-4" onSubmit={handleSubmit} noValidate>
+    <form className="flex flex-col gap-3.5" onSubmit={handleSubmit} noValidate>
       {errorMessage && (
         <Alert variant="destructive">
-          <AlertDescription>{errorMessage}</AlertDescription>
+          <AlertDescription className="flex flex-col gap-1">
+            <span>{errorMessage}</span>
+            <button
+              type="button"
+              onClick={() => setDemoUser('OWNER')}
+              className="text-left font-semibold underline hover:opacity-80 pt-1"
+            >
+              Click here to enter with Demo Admin session instead →
+            </button>
+          </AlertDescription>
         </Alert>
       )}
 
@@ -83,10 +97,20 @@ export default function LoginForm({
         </Alert>
       )}
 
+      {/* Email input */}
       <div className="flex flex-col gap-1.5" data-invalid={emailVal.message ? true : undefined}>
-        <Label htmlFor="login-email" className="text-xs font-semibold text-foreground/90">
-          Email address
-        </Label>
+        <div className="flex items-center justify-between">
+          <Label htmlFor="login-email" className="text-xs font-semibold text-foreground/90">
+            Email address
+          </Label>
+          <button
+            type="button"
+            onClick={handleFillAdmin}
+            className="text-[11px] font-medium text-primary hover:underline"
+          >
+            Autofill admin
+          </button>
+        </div>
         <div className="relative">
           <Mail className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
           <Input
@@ -94,11 +118,15 @@ export default function LoginForm({
             name="email"
             type="email"
             autoComplete="email"
-            placeholder="you@business.com"
+            placeholder="owner@example.com"
+            value={email}
+            onChange={(e) => {
+              setEmail(e.target.value)
+              if (emailVal.message) emailVal.setMessage('')
+            }}
             className="pl-9"
             aria-invalid={emailVal.message ? true : undefined}
             disabled={isSubmitting}
-            onChange={() => emailVal.message && emailVal.setMessage('')}
           />
         </div>
         {emailVal.message && (
@@ -106,6 +134,7 @@ export default function LoginForm({
         )}
       </div>
 
+      {/* Password input */}
       <div className="flex flex-col gap-1.5" data-invalid={passVal.message ? true : undefined}>
         <div className="flex items-center justify-between">
           <Label htmlFor="login-password" className="text-xs font-semibold text-foreground/90">
@@ -119,12 +148,16 @@ export default function LoginForm({
             name="password"
             type={showPassword ? 'text' : 'password'}
             autoComplete="current-password"
-            placeholder="Enter your password"
+            placeholder="plain-password"
+            value={password}
+            onChange={(e) => {
+              setPassword(e.target.value)
+              if (passVal.message) passVal.setMessage('')
+            }}
             className="pl-9 pr-10"
             minLength={8}
             aria-invalid={passVal.message ? true : undefined}
             disabled={isSubmitting}
-            onChange={() => passVal.message && passVal.setMessage('')}
           />
           <button
             type="button"
@@ -168,14 +201,14 @@ export default function LoginForm({
 
       <Button
         type="submit"
-        className="mt-2 w-full font-semibold shadow-md"
+        className="mt-1 w-full font-semibold shadow-md"
         size="lg"
         disabled={isSubmitting}
       >
         {isSubmitting ? (
           <>
             <Spinner data-icon="inline-start" />
-            Connecting...
+            Connecting to server...
           </>
         ) : (
           <>
@@ -184,6 +217,20 @@ export default function LoginForm({
           </>
         )}
       </Button>
+
+      {/* 1-Click Instant Demo Login Option */}
+      <div className="mt-1 pt-2 border-t text-center">
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          onClick={() => setDemoUser('OWNER')}
+          className="w-full text-xs font-medium gap-1.5 h-8.5"
+        >
+          <Sparkles className="size-3.5 text-primary" />
+          Instant Admin Preview (Bypass Auth)
+        </Button>
+      </div>
     </form>
   )
 }
