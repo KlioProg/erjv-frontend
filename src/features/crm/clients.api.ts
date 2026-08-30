@@ -1,4 +1,4 @@
-import { apiClient } from '@/lib/api-client'
+import { apiClient, extractArray } from '@/lib/api-client'
 import type {
   Client,
   CreateClientPayload,
@@ -14,7 +14,7 @@ function getStoredClients(): Client[] {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (raw) return JSON.parse(raw)
   } catch {
-    // Ignore JSON error
+    // Ignore JSON parse error
   }
   localStorage.setItem(STORAGE_KEY, JSON.stringify(INITIAL_CLIENTS))
   return INITIAL_CLIENTS
@@ -26,10 +26,11 @@ function saveStoredClients(items: Client[]) {
 
 export async function fetchClientsApi(): Promise<Client[]> {
   try {
-    const { data } = await apiClient.get<Client[]>('/clients')
-    if (Array.isArray(data) && data.length > 0) {
-      saveStoredClients(data)
-      return data
+    const response = await apiClient.get('/clients')
+    const list = extractArray<Client>(response.data)
+    if (Array.isArray(response.data) || list.length > 0) {
+      saveStoredClients(list)
+      return list.filter((c) => c.isActive)
     }
   } catch {
     // Graceful fallback

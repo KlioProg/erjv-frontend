@@ -46,10 +46,11 @@ function setStored<T>(key: string, value: T) {
 
 export async function fetchEmployeesApi(): Promise<Employee[]> {
   try {
-    const { data } = await apiClient.get<Employee[]>('/employees')
-    if (Array.isArray(data) && data.length > 0) {
-      setStored(EMPLOYEES_STORAGE_KEY, data)
-      return data
+    const response = await apiClient.get('/employees')
+    const list = extractArray<Employee>(response.data)
+    if (Array.isArray(response.data) || list.length > 0) {
+      setStored(EMPLOYEES_STORAGE_KEY, list)
+      return list.filter((e) => e.isActive !== false)
     }
   } catch {
     // Graceful fallback
@@ -256,10 +257,11 @@ export async function deactivateEmployeeApi(id: number): Promise<Employee> {
 
 export async function fetchJobsApi(): Promise<Job[]> {
   try {
-    const { data } = await apiClient.get<Job[]>('/jobs')
-    if (Array.isArray(data) && data.length > 0) {
-      setStored(JOBS_STORAGE_KEY, data)
-      return data
+    const response = await apiClient.get('/jobs')
+    const list = extractArray<Job>(response.data)
+    if (Array.isArray(response.data) || list.length > 0) {
+      setStored(JOBS_STORAGE_KEY, list)
+      return list.filter((j) => j.isActive !== false)
     }
   } catch {
     // Graceful fallback

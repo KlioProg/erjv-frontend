@@ -1,4 +1,4 @@
-import { apiClient } from '@/lib/api-client'
+import { apiClient, extractArray } from '@/lib/api-client'
 import type {
   CreateDeliveryVehiclePayload,
   DeliveryVehicle,
@@ -27,10 +27,11 @@ function saveStoredVehicles(items: DeliveryVehicle[]) {
 
 export async function fetchDeliveryVehiclesApi(): Promise<DeliveryVehicle[]> {
   try {
-    const { data } = await apiClient.get<DeliveryVehicle[]>('/delivery-vehicles')
-    if (Array.isArray(data) && data.length > 0) {
-      saveStoredVehicles(data)
-      return data
+    const response = await apiClient.get('/delivery-vehicles')
+    const list = extractArray<DeliveryVehicle>(response.data)
+    if (Array.isArray(response.data) || list.length > 0) {
+      saveStoredVehicles(list)
+      return list
     }
   } catch {
     // Graceful fallback
@@ -40,9 +41,10 @@ export async function fetchDeliveryVehiclesApi(): Promise<DeliveryVehicle[]> {
 
 export async function fetchAvailableVehiclesApi(): Promise<DeliveryVehicle[]> {
   try {
-    const { data } = await apiClient.get<DeliveryVehicle[]>('/delivery-vehicles/available')
-    if (Array.isArray(data) && data.length > 0) {
-      return data
+    const response = await apiClient.get('/delivery-vehicles/available')
+    const list = extractArray<DeliveryVehicle>(response.data)
+    if (Array.isArray(response.data) || list.length > 0) {
+      return list
     }
   } catch {
     // Graceful fallback

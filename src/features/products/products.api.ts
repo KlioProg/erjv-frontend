@@ -1,4 +1,4 @@
-import { apiClient } from '@/lib/api-client'
+import { apiClient, extractArray } from '@/lib/api-client'
 import type {
   CreateInventoryItemPayload,
   InventoryItemResponse,
@@ -26,10 +26,11 @@ function saveStoredProducts(items: InventoryItemResponse[]) {
 
 export async function fetchProductsApi(): Promise<InventoryItemResponse[]> {
   try {
-    const { data } = await apiClient.get<InventoryItemResponse[]>('/inventory-items')
-    if (Array.isArray(data) && data.length > 0) {
-      saveStoredProducts(data)
-      return data
+    const response = await apiClient.get('/inventory-items')
+    const list = extractArray<InventoryItemResponse>(response.data)
+    if (Array.isArray(response.data) || list.length > 0) {
+      saveStoredProducts(list)
+      return list.filter((p) => p.isActive !== false)
     }
   } catch {
     // Graceful fallback

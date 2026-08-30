@@ -1,4 +1,4 @@
-import { apiClient } from '@/lib/api-client'
+import { apiClient, extractArray } from '@/lib/api-client'
 import type {
   CreateWarehousePayload,
   UpdateWarehouseDetailsPayload,
@@ -26,10 +26,11 @@ function saveStoredWarehouses(items: Warehouse[]) {
 
 export async function fetchWarehousesApi(): Promise<Warehouse[]> {
   try {
-    const { data } = await apiClient.get<Warehouse[]>('/warehouses')
-    if (Array.isArray(data) && data.length > 0) {
-      saveStoredWarehouses(data)
-      return data.filter((w) => w.isActive)
+    const response = await apiClient.get('/warehouses')
+    const list = extractArray<Warehouse>(response.data)
+    if (Array.isArray(response.data) || list.length > 0) {
+      saveStoredWarehouses(list)
+      return list.filter((w) => w.isActive)
     }
   } catch {
     // Graceful fallback
@@ -39,10 +40,11 @@ export async function fetchWarehousesApi(): Promise<Warehouse[]> {
 
 export async function fetchAllWarehousesApi(): Promise<Warehouse[]> {
   try {
-    const { data } = await apiClient.get<Warehouse[]>('/warehouses/all')
-    if (Array.isArray(data) && data.length > 0) {
-      saveStoredWarehouses(data)
-      return data
+    const response = await apiClient.get('/warehouses/all')
+    const list = extractArray<Warehouse>(response.data)
+    if (Array.isArray(response.data) || list.length > 0) {
+      saveStoredWarehouses(list)
+      return list
     }
   } catch {
     // Graceful fallback

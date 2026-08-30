@@ -1,4 +1,4 @@
-import { apiClient } from '@/lib/api-client'
+import { apiClient, extractArray } from '@/lib/api-client'
 import type {
   AdjustStockQuantityPayload,
   CreateStockItemPayload,
@@ -28,10 +28,11 @@ function saveStoredStock(items: StockItemWithRelations[]) {
 
 export async function fetchStockItemsApi(): Promise<StockItemWithRelations[]> {
   try {
-    const { data } = await apiClient.get<StockItemWithRelations[]>('/stock-items')
-    if (Array.isArray(data) && data.length > 0) {
-      saveStoredStock(data)
-      return data
+    const response = await apiClient.get('/stock-items')
+    const list = extractArray<StockItemWithRelations>(response.data)
+    if (Array.isArray(response.data) || list.length > 0) {
+      saveStoredStock(list)
+      return list
     }
   } catch {
     // Graceful fallback
