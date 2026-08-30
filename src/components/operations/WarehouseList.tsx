@@ -7,9 +7,10 @@ import {
   Search,
   MoreVertical,
   Edit2,
-  Trash2,
   Boxes,
   CheckCircle2,
+  Archive,
+  RotateCcw,
 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -20,31 +21,39 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import {
+  useAllWarehouses,
   useDeactivateWarehouse,
-  useWarehouses,
+  useReactivateWarehouse,
 } from '@/features/logistics/warehouses.hooks'
 import { useStockItems } from '@/features/logistics/stock-items.hooks'
 import { useAuth } from '@/features/auth/AuthContext'
 import type { Warehouse } from '@/features/logistics/warehouses.types'
 import { WarehouseModal } from './WarehouseModal'
-
 import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal'
 
 export function WarehouseList() {
-  const { data: warehouses = [], isLoading } = useWarehouses()
+  const { data: allWarehouses = [], isLoading } = useAllWarehouses()
   const { data: stockItems = [] } = useStockItems()
   const deactivateMutation = useDeactivateWarehouse()
+  const reactivateMutation = useReactivateWarehouse()
   const { isOwner, isAdmin } = useAuth()
 
+  const [activeTab, setActiveTab] = useState<'ACTIVE' | 'ARCHIVED'>('ACTIVE')
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedWarehouse, setSelectedWarehouse] = useState<Warehouse | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [warehouseToDeactivate, setWarehouseToDeactivate] = useState<Warehouse | null>(null)
+  const [warehouseToArchive, setWarehouseToArchive] = useState<Warehouse | null>(null)
 
-  const filteredWarehouses = warehouses.filter(
+  const activeWarehouses = allWarehouses.filter((w) => w.isActive !== false)
+  const archivedWarehouses = allWarehouses.filter((w) => w.isActive === false)
+
+  const currentList = activeTab === 'ACTIVE' ? activeWarehouses : archivedWarehouses
+
+  const filteredWarehouses = currentList.filter(
     (w) =>
       w.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       w.address.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -61,33 +70,99 @@ export function WarehouseList() {
     setIsModalOpen(true)
   }
 
-  const handleDeactivate = (warehouse: Warehouse) => {
-    setWarehouseToDeactivate(warehouse)
+  const handleArchive = (warehouse: Warehouse) => {
+    setWarehouseToArchive(warehouse)
   }
 
-  const confirmDeactivate = async () => {
-    if (warehouseToDeactivate) {
-      await deactivateMutation.mutateAsync(warehouseToDeactivate.id)
-      setWarehouseToDeactivate(null)
+  const confirmArchive = async () => {
+    if (warehouseToArchive) {
+      await deactivateMutation.mutateAsync(warehouseToArchive.id)
+      setWarehouseToArchive(null)
     }
+  }
+
+  const handleRestore = async (warehouse: Warehouse) => {
+    await reactivateMutation.mutateAsync(warehouse.id)
   }
 
   return (
     <div className="flex flex-col gap-5">
-      {/* Header with Search and New Warehouse Button */}
+      {/* Overview & Quick Stats Bar */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        <div className="flex items-center gap-3 p-3.5 rounded-2xl bg-card border border-border/80 shadow-xs">
+          <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+            <WarehouseIcon className="size-5" />
+          </div>
+          <div>
+            <div className="text-xl font-extrabold text-foreground">{allWarehouses.length}</div>
+            <div className="text-[11px] text-muted-foreground font-medium">Total Facilities</div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3 p-3.5 rounded-2xl bg-card border border-border/80 shadow-xs">
+          <div className="flex size-10 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600">
+            <CheckCircle2 className="size-5" />
+          </div>
+          <div>
+            <div className="text-xl font-extrabold text-foreground">{activeWarehouses.length}</div>
+            <div className="text-[11px] text-muted-foreground font-medium">Active Distribution Hubs</div>
+          </div>
+        </div>
+
+        <div className="col-span-2 sm:col-span-1 flex items-center gap-3 p-3.5 rounded-2xl bg-card border border-border/80 shadow-xs">
+          <div className="flex size-10 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600">
+            <Archive className="size-5" />
+          </div>
+          <div>
+            <div className="text-xl font-extrabold text-foreground">{archivedWarehouses.length}</div>
+            <div className="text-[11px] text-muted-foreground font-medium">Archived Facilities</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Header with Search, Active/Archived Filter Tabs, and New Warehouse Button */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-        <div className="relative w-full sm:w-80">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
-          <Input
-            placeholder="Search warehouses & distribution depots..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-9 h-9 text-xs"
-          />
+        <div className="flex flex-1 flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full sm:w-auto">
+          <div className="relative flex-1 sm:max-w-xs">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
+            <Input
+              placeholder="Search warehouses & distribution depots..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-9 h-9 text-xs"
+            />
+          </div>
+
+          <div className="flex items-center gap-1.5 p-1 rounded-xl bg-muted/60 border border-border/70">
+            <button
+              type="button"
+              onClick={() => setActiveTab('ACTIVE')}
+              className={`px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+                activeTab === 'ACTIVE'
+                  ? 'bg-background text-foreground shadow-2xs border border-border/60'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <CheckCircle2 className="size-3.5 text-emerald-600" />
+              Active Hubs ({activeWarehouses.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('ARCHIVED')}
+              className={`px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+                activeTab === 'ARCHIVED'
+                  ? 'bg-background text-foreground shadow-2xs border border-border/60'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <Archive className="size-3.5 text-amber-600" />
+              Archived ({archivedWarehouses.length})
+            </button>
+          </div>
         </div>
 
         {(isOwner || isAdmin) && (
-          <Button onClick={handleCreate} size="sm" className="gap-1.5 shadow-xs font-semibold">
+          <Button onClick={handleCreate} size="sm" className="gap-1.5 shadow-xs font-semibold cursor-pointer">
             <Plus className="size-4" />
             Register Warehouse
           </Button>
@@ -102,18 +177,30 @@ export function WarehouseList() {
       ) : filteredWarehouses.length === 0 ? (
         <Card className="border-dashed bg-muted/20">
           <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-            <WarehouseIcon className="size-10 text-muted-foreground/50 mb-3" />
-            <h3 className="text-sm font-semibold text-foreground">No warehouses found</h3>
-            <p className="text-xs text-muted-foreground mt-1 max-w-xs">
-              {searchTerm
-                ? 'No warehouse facilities matched your search terms.'
-                : 'Register your central logistics complex, regional depots, and fulfillment hubs.'}
-            </p>
-            {(isOwner || isAdmin) && !searchTerm && (
-              <Button onClick={handleCreate} size="sm" variant="outline" className="mt-4 gap-1.5">
-                <Plus className="size-3.5" />
-                Register First Warehouse
-              </Button>
+            {activeTab === 'ARCHIVED' ? (
+              <>
+                <Archive className="size-10 text-muted-foreground/50 mb-3" />
+                <h3 className="text-sm font-semibold text-foreground">No archived warehouses</h3>
+                <p className="text-xs text-muted-foreground mt-1 max-w-xs">
+                  When you archive a warehouse facility, its data and stored stocks are safely preserved here and can be restored anytime.
+                </p>
+              </>
+            ) : (
+              <>
+                <WarehouseIcon className="size-10 text-muted-foreground/50 mb-3" />
+                <h3 className="text-sm font-semibold text-foreground">No active warehouses found</h3>
+                <p className="text-xs text-muted-foreground mt-1 max-w-xs">
+                  {searchTerm
+                    ? 'No active facilities matched your search query.'
+                    : 'Register your central logistics complex, regional depots, and fulfillment hubs.'}
+                </p>
+                {(isOwner || isAdmin) && !searchTerm && (
+                  <Button onClick={handleCreate} size="sm" variant="outline" className="mt-4 gap-1.5 cursor-pointer">
+                    <Plus className="size-3.5" />
+                    Register First Warehouse
+                  </Button>
+                )}
+              </>
             )}
           </CardContent>
         </Card>
@@ -122,16 +209,25 @@ export function WarehouseList() {
           {filteredWarehouses.map((wh) => {
             const whStock = stockItems.filter((s) => s.warehouseId === wh.id)
             const totalUnits = whStock.reduce((acc, s) => acc + parseFloat(s.quantity), 0)
+            const isArchived = wh.isActive === false
 
             return (
               <Card
                 key={wh.id}
-                className="group relative overflow-hidden transition-all duration-200 hover:shadow-md hover:border-primary/40 border-border/80 rounded-2xl"
+                className={`group relative overflow-hidden transition-all duration-200 hover:shadow-md border-border/80 rounded-2xl ${
+                  isArchived ? 'opacity-85 bg-muted/30 border-dashed' : 'hover:border-primary/40'
+                }`}
               >
                 <CardContent className="p-5 flex flex-col justify-between h-full gap-4">
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-start gap-3">
-                      <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary group-hover:scale-105 transition-transform">
+                      <div
+                        className={`flex size-10 shrink-0 items-center justify-center rounded-xl transition-transform ${
+                          isArchived
+                            ? 'bg-amber-500/15 text-amber-600'
+                            : 'bg-primary/10 text-primary group-hover:scale-105'
+                        }`}
+                      >
                         <WarehouseIcon className="size-5" />
                       </div>
                       <div>
@@ -151,24 +247,37 @@ export function WarehouseList() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="size-7 text-muted-foreground hover:text-foreground"
+                            className="size-7 text-muted-foreground hover:text-foreground cursor-pointer"
                           >
                             <MoreVertical className="size-4" />
                             <span className="sr-only">Warehouse actions</span>
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => handleEdit(wh)} className="gap-2 text-xs">
-                            <Edit2 className="size-3.5" />
-                            Edit Details
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => handleDeactivate(wh)}
-                            className="gap-2 text-xs text-destructive focus:text-destructive cursor-pointer"
-                          >
-                            <Trash2 className="size-3.5" />
-                            Deactivate Warehouse
-                          </DropdownMenuItem>
+                          {!isArchived ? (
+                            <>
+                              <DropdownMenuItem onClick={() => handleEdit(wh)} className="gap-2 text-xs cursor-pointer">
+                                <Edit2 className="size-3.5" />
+                                Edit Details
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                onClick={() => handleArchive(wh)}
+                                className="gap-2 text-xs text-amber-600 focus:text-amber-700 cursor-pointer"
+                              >
+                                <Archive className="size-3.5" />
+                                Archive Warehouse
+                              </DropdownMenuItem>
+                            </>
+                          ) : (
+                            <DropdownMenuItem
+                              onClick={() => handleRestore(wh)}
+                              className="gap-2 text-xs text-emerald-600 focus:text-emerald-700 font-bold cursor-pointer"
+                            >
+                              <RotateCcw className="size-3.5" />
+                              Restore Facility
+                            </DropdownMenuItem>
+                          )}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     )}
@@ -178,7 +287,7 @@ export function WarehouseList() {
                   <div className="grid grid-cols-2 gap-2 pt-3 border-t border-border/60 text-xs">
                     <div className="flex flex-col gap-0.5">
                       <span className="text-[10px] text-muted-foreground uppercase font-semibold">
-                        Stored Inventory
+                        Preserved Stock
                       </span>
                       <div className="flex items-center gap-1.5 font-extrabold text-foreground text-sm">
                         <Boxes className="size-3.5 text-primary" />
@@ -188,7 +297,7 @@ export function WarehouseList() {
 
                     <div className="flex flex-col gap-0.5">
                       <span className="text-[10px] text-muted-foreground uppercase font-semibold">
-                        Allocated SKUs
+                        Tracked SKUs
                       </span>
                       <span className="font-semibold text-foreground text-xs">
                         {whStock.length} Product SKUs
@@ -196,15 +305,38 @@ export function WarehouseList() {
                     </div>
                   </div>
 
+                  {/* Contact & Status Bar with Direct Action */}
                   <div className="flex items-center justify-between pt-2 text-[11px] text-muted-foreground border-t border-border/40">
                     <div className="flex items-center gap-1.5">
                       <Phone className="size-3" />
                       <span>{wh.contactNumber || 'No phone set'}</span>
                     </div>
-                    <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-600 border-emerald-500/20 font-semibold gap-1">
-                      <CheckCircle2 className="size-2.5" />
-                      Active Hub
-                    </Badge>
+
+                    {isArchived ? (
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="text-[10px] bg-amber-500/10 text-amber-600 border-amber-500/25 font-semibold gap-1">
+                          <Archive className="size-2.5" />
+                          Archived
+                        </Badge>
+                        {(isOwner || isAdmin) && (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => handleRestore(wh)}
+                            disabled={reactivateMutation.isPending}
+                            className="h-6 px-2 text-[10px] font-bold text-emerald-700 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 rounded-md gap-1 cursor-pointer"
+                          >
+                            <RotateCcw className="size-2.5" />
+                            Restore
+                          </Button>
+                        )}
+                      </div>
+                    ) : (
+                      <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-600 border-emerald-500/20 font-semibold gap-1">
+                        <CheckCircle2 className="size-2.5" />
+                        Active Hub
+                      </Badge>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -213,21 +345,23 @@ export function WarehouseList() {
         </div>
       )}
 
+      {/* Main Warehouse Modal */}
       <WarehouseModal
         warehouse={selectedWarehouse}
         open={isModalOpen}
         onClose={() => setIsModalOpen(false)}
       />
 
+      {/* Archive / Soft-Delete Confirmation Modal */}
       <ConfirmDeleteModal
-        open={!!warehouseToDeactivate}
-        onClose={() => setWarehouseToDeactivate(null)}
-        onConfirm={confirmDeactivate}
-        title="Deactivate Warehouse Facility"
-        description="Are you sure you want to deactivate this warehouse facility? Active stock allocations and transfers will be paused."
-        itemName={warehouseToDeactivate?.name}
-        itemDetails={warehouseToDeactivate ? `Address: ${warehouseToDeactivate.address}` : undefined}
-        confirmText="Deactivate Warehouse"
+        open={!!warehouseToArchive}
+        onClose={() => setWarehouseToArchive(null)}
+        onConfirm={confirmArchive}
+        title="Archive Warehouse Facility"
+        description="Are you sure you want to archive this warehouse facility? All stored inventory counts, address information, and past logs are safely preserved. You can restore this facility at any time from the Archived Facilities tab."
+        itemName={warehouseToArchive?.name}
+        itemDetails={warehouseToArchive ? `Address: ${warehouseToArchive.address}` : undefined}
+        confirmText="Archive Warehouse"
         variant="destructive"
       />
     </div>

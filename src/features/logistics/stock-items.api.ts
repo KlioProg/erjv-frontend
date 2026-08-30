@@ -184,6 +184,64 @@ export async function createStockItemApi(
   }
 
   const current = getStoredStock()
+  const existingIdx = current.findIndex(
+    (s) => s.inventoryItemId === cleanPayload.inventoryItemId && s.warehouseId === cleanPayload.warehouseId
+  )
+
+  // Lookup real warehouse info
+  let whName = `Warehouse #${cleanPayload.warehouseId}`
+  let whAddress = ''
+  try {
+    const rawWh = localStorage.getItem('erjv_db_warehouses_v5')
+    if (rawWh) {
+      const whList: Array<{ id: number; name: string; address?: string }> = JSON.parse(rawWh)
+      const foundWh = whList.find((w) => w.id === cleanPayload.warehouseId)
+      if (foundWh) {
+        whName = foundWh.name
+        whAddress = foundWh.address || ''
+      }
+    }
+  } catch {
+    // Ignore
+  }
+
+  // Lookup real product info
+  let prodName = `Product SKU #${cleanPayload.inventoryItemId}`
+  let prodSku = ''
+  try {
+    const rawProd = localStorage.getItem('erjv_db_products_v5')
+    if (rawProd) {
+      const prodList: Array<{ id: number; name: string; sku?: string }> = JSON.parse(rawProd)
+      const foundProd = prodList.find((p) => p.id === cleanPayload.inventoryItemId)
+      if (foundProd) {
+        prodName = foundProd.name
+        prodSku = foundProd.sku || ''
+      }
+    }
+  } catch {
+    // Ignore
+  }
+
+  if (existingIdx !== -1) {
+    current[existingIdx] = {
+      ...current[existingIdx],
+      quantity: cleanPayload.quantity,
+      warehouse: {
+        id: cleanPayload.warehouseId,
+        name: whName,
+        address: whAddress,
+      },
+      inventoryItem: {
+        id: cleanPayload.inventoryItemId,
+        name: prodName,
+        sku: prodSku || current[existingIdx].inventoryItem?.sku,
+      },
+      updatedAt: new Date().toISOString(),
+    }
+    saveStoredStock(current)
+    return current[existingIdx]
+  }
+
   const newId = current.length > 0 ? Math.max(...current.map((s) => s.id)) + 1 : 1
   const newStock: StockItemWithRelations = {
     id: newId,
@@ -192,11 +250,13 @@ export async function createStockItemApi(
     quantity: cleanPayload.quantity,
     inventoryItem: {
       id: cleanPayload.inventoryItemId,
-      name: `Product SKU #${cleanPayload.inventoryItemId}`,
+      name: prodName,
+      sku: prodSku,
     },
     warehouse: {
       id: cleanPayload.warehouseId,
-      name: `Warehouse #${cleanPayload.warehouseId}`,
+      name: whName,
+      address: whAddress,
     },
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -295,4 +355,16 @@ export async function decreaseStockQuantityApi(
     return current[index]
   }
   throw new Error('Stock item not found')
+}
+
+export async function deleteStockItemApi(id: number): Promise<void> {
+  try {
+    await apiClient.delete(`/stock-items/${id}`)
+  } catch {
+    // Graceful fallback
+  }
+
+  const current = getStoredStock()
+  const remaining = current.filter((s) => s.id !== id)
+  saveStoredStock(remaining)
 }

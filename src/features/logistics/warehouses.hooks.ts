@@ -3,6 +3,7 @@ import { toast } from 'sonner'
 import {
   createWarehouseApi,
   deactivateWarehouseApi,
+  fetchAllWarehousesApi,
   fetchWarehousesApi,
   reactivateWarehouseApi,
   updateWarehouseDetailsApi,
@@ -19,6 +20,13 @@ export function useWarehouses() {
   return useQuery({
     queryKey: WAREHOUSES_QUERY_KEY,
     queryFn: fetchWarehousesApi,
+  })
+}
+
+export function useAllWarehouses() {
+  return useQuery({
+    queryKey: [...WAREHOUSES_QUERY_KEY, 'all'],
+    queryFn: fetchAllWarehousesApi,
   })
 }
 

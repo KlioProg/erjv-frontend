@@ -1,15 +1,15 @@
 import { useState } from 'react'
 import {
-  Boxes,
-  Search,
+  Package,
   Plus,
-  ArrowUpDown,
-  Barcode,
-  Warehouse as WarehouseIcon,
-  PackageCheck,
+  Search,
   MoreVertical,
   Edit2,
   Trash2,
+  Boxes,
+  ArrowUpDown,
+  Tag,
+  Warehouse as WarehouseIcon,
 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -20,17 +20,17 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useProducts, useDeactivateProduct } from '@/features/products/products.hooks'
-import { useStockItems } from '@/features/logistics/stock-items.hooks'
+import { useStockItems, useDeleteStockItem } from '@/features/logistics/stock-items.hooks'
 import { useWarehouses } from '@/features/logistics/warehouses.hooks'
 import { useAuth } from '@/features/auth/AuthContext'
 import { InventoryItemModal } from './InventoryItemModal'
 import { StockAdjustModal } from './StockAdjustModal'
 import type { InventoryItemResponse } from '@/features/products/products.types'
 import type { StockItemWithRelations } from '@/features/logistics/stock-items.types'
-
 import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal'
 
 export function InventoryStockList() {
@@ -38,6 +38,7 @@ export function InventoryStockList() {
   const { data: stockItems = [], isLoading: isLoadingStock } = useStockItems()
   const { data: warehouses = [] } = useWarehouses()
   const deactivateProductMutation = useDeactivateProduct()
+  const deleteStockMutation = useDeleteStockItem()
   const { isOwner, isAdmin } = useAuth()
 
   const [searchTerm, setSearchTerm] = useState('')
@@ -47,8 +48,14 @@ export function InventoryStockList() {
   const [isCatalogModalOpen, setIsCatalogModalOpen] = useState(false)
   const [selectedProductForEdit, setSelectedProductForEdit] = useState<InventoryItemResponse | null>(null)
   const [selectedStockForAdjust, setSelectedStockForAdjust] = useState<StockItemWithRelations | null>(null)
+  const [selectedProductForAllocate, setSelectedProductForAllocate] = useState<InventoryItemResponse | null>(null)
   const [isAdjustModalOpen, setIsAdjustModalOpen] = useState(false)
   const [productToDelete, setProductToDelete] = useState<InventoryItemResponse | null>(null)
+  const [stockToDelete, setStockToDelete] = useState<{
+    stock: StockItemWithRelations
+    prodName: string
+    whName: string
+  } | null>(null)
 
   // Map total units per product across all warehouses
   const productStockMap = new Map<number, number>()
@@ -95,76 +102,101 @@ export function InventoryStockList() {
   }
 
   const handleAdjustStock = (stock: StockItemWithRelations) => {
+    setSelectedProductForAllocate(null)
     setSelectedStockForAdjust(stock)
     setIsAdjustModalOpen(true)
+  }
+
+  const handleAllocateStock = (prod: InventoryItemResponse) => {
+    setSelectedStockForAdjust(null)
+    setSelectedProductForAllocate(prod)
+    setIsAdjustModalOpen(true)
+  }
+
+  const handleRemoveStockAllocation = (
+    stock: StockItemWithRelations,
+    prodName: string,
+    whName: string
+  ) => {
+    setStockToDelete({ stock, prodName, whName })
+  }
+
+  const confirmRemoveStock = async () => {
+    if (stockToDelete) {
+      await deleteStockMutation.mutateAsync(stockToDelete.stock.id)
+      setStockToDelete(null)
+    }
   }
 
   const isLoading = isLoadingProducts || isLoadingStock
 
   return (
     <div className="flex flex-col gap-5">
-      {/* Top Controls Bar */}
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 bg-card/80 p-3 rounded-2xl border border-border/80 shadow-2xs">
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full md:w-auto">
-          {/* Search Input */}
-          <div className="relative w-full sm:w-80">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
+      {/* Header controls and Search */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div className="flex flex-1 flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full sm:w-auto">
+          <div className="relative flex-1 sm:max-w-xs">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
             <Input
-              placeholder="Search products, SKU codes, categories..."
+              placeholder="Search product name, SKU, barcode..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-9.5 h-10 text-xs font-medium rounded-xl"
+              className="pl-9 h-9 text-xs"
             />
           </div>
 
-          {/* Warehouse Filter Selector */}
-          <select
-            value={selectedWarehouseFilter}
-            onChange={(e) => setSelectedWarehouseFilter(e.target.value)}
-            className="h-10 rounded-xl border border-input bg-background px-3 text-xs font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            <option value="ALL">All Warehouses & Storage Hubs</option>
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
+            <Button
+              variant={selectedWarehouseFilter === 'ALL' ? 'secondary' : 'ghost'}
+              size="sm"
+              onClick={() => setSelectedWarehouseFilter('ALL')}
+              className="h-8 text-xs font-semibold cursor-pointer"
+            >
+              All Warehouses
+            </Button>
             {warehouses.map((wh) => (
-              <option key={wh.id} value={wh.id.toString()}>
-                {wh.name}
-              </option>
+              <Button
+                key={wh.id}
+                variant={selectedWarehouseFilter === String(wh.id) ? 'secondary' : 'ghost'}
+                size="sm"
+                onClick={() => setSelectedWarehouseFilter(String(wh.id))}
+                className="h-8 text-xs whitespace-nowrap cursor-pointer"
+              >
+                {wh.name.split(' ')[0]}
+              </Button>
             ))}
-          </select>
+          </div>
         </div>
 
-        {/* Action Button */}
         {(isOwner || isAdmin) && (
-          <Button
-            onClick={handleCreateProduct}
-            size="sm"
-            className="h-10 px-4 gap-2 rounded-xl font-bold shadow-xs transition-transform active:scale-95"
-          >
-            <Plus className="size-4" />
-            Register Product SKU
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button onClick={handleCreateProduct} size="sm" className="gap-1.5 shadow-xs font-semibold cursor-pointer">
+              <Plus className="size-4" />
+              Register Product SKU
+            </Button>
+          </div>
         )}
       </div>
 
-      {/* Main Product Catalog & Multi-Depot Inventory Table */}
+      {/* Main Product Cards & Stock Breakdowns */}
       {isLoading ? (
-        <div className="flex flex-col items-center justify-center py-20 text-muted-foreground gap-3">
-          <Spinner className="size-7 text-primary" />
-          <span className="text-xs font-semibold">Loading Inventory Catalog & Multi-Warehouse Stock from Database...</span>
+        <div className="flex items-center justify-center py-16 text-muted-foreground">
+          <Spinner className="mr-2 size-5" /> Loading catalog and stock balances...
         </div>
       ) : filteredProducts.length === 0 ? (
         <Card className="border-dashed bg-muted/20">
-          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-            <Boxes className="size-12 text-muted-foreground/50 mb-3" />
-            <h3 className="text-base font-bold text-foreground">No inventory items found in database</h3>
-            <p className="text-xs text-muted-foreground mt-1 max-w-sm">
-              {searchTerm
-                ? 'No catalog items match your search filter or selected warehouse.'
-                : 'Register your first product SKU directly into the database to track stock, pricing, and distribution.'}
+          <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+            <Package className="size-10 text-muted-foreground/50 mb-3" />
+            <h3 className="text-sm font-semibold text-foreground">No catalog items found</h3>
+            <p className="text-xs text-muted-foreground mt-1 max-w-xs">
+              {searchTerm || selectedWarehouseFilter !== 'ALL'
+                ? 'No products match your search filter or selected warehouse.'
+                : 'Get started by creating your wholesale and retail inventory products.'}
             </p>
-            {(isOwner || isAdmin) && !searchTerm && (
-              <Button onClick={handleCreateProduct} size="sm" className="mt-4 gap-1.5 rounded-xl font-semibold">
+            {(isOwner || isAdmin) && !searchTerm && selectedWarehouseFilter === 'ALL' && (
+              <Button onClick={handleCreateProduct} size="sm" variant="outline" className="mt-4 gap-1.5 cursor-pointer">
                 <Plus className="size-3.5" />
-                Register Product SKU
+                Register First Product SKU
               </Button>
             )}
           </CardContent>
@@ -172,126 +204,92 @@ export function InventoryStockList() {
       ) : (
         <div className="flex flex-col gap-4">
           {filteredProducts.map((prod) => {
-            const totalUnits = productStockMap.get(prod.id) || 0
             const stockInHubs = stockItems.filter((s) => s.inventoryItemId === prod.id)
-            const is50kg = prod.name.includes('50kg') || prod.sku.includes('50KG')
-            const is25kg = prod.name.includes('25kg') || prod.sku.includes('25KG')
-            const isOil = prod.name.toLowerCase().includes('oil') || prod.sku.includes('OIL')
-            const isSugar = prod.name.toLowerCase().includes('sugar') || prod.sku.includes('SUG')
-            const isFlour = prod.name.toLowerCase().includes('flour') || prod.sku.includes('FLR')
+            const totalStockUnits = productStockMap.get(prod.id) || 0
 
             return (
               <Card
                 key={prod.id}
-                className="overflow-hidden border-border/80 bg-card hover:border-primary/50 transition-all duration-200 shadow-2xs rounded-2xl"
+                className="overflow-hidden border-border/80 shadow-xs hover:border-primary/40 transition-all rounded-2xl"
               >
-                <div className="p-5 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-5">
-                  {/* Left Column: Product Info & EXPANDED SKU Display */}
-                  <div className="flex flex-col gap-3 max-w-xl">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h4 className="text-base font-extrabold text-foreground tracking-tight leading-tight">
-                        {prod.name}
-                      </h4>
-                      {isOil && (
-                        <Badge variant="outline" className="bg-amber-500/10 text-amber-700 border-amber-500/20 font-bold text-[10px] px-2 py-0.5 rounded-md">
-                          Cooking Oil / Liquid
-                        </Badge>
-                      )}
-                      {isSugar && (
-                        <Badge variant="outline" className="bg-blue-500/10 text-blue-700 border-blue-500/20 font-bold text-[10px] px-2 py-0.5 rounded-md">
-                          Refined Sugar
-                        </Badge>
-                      )}
-                      {isFlour && (
-                        <Badge variant="outline" className="bg-purple-500/10 text-purple-700 border-purple-500/20 font-bold text-[10px] px-2 py-0.5 rounded-md">
-                          Bakery Flour
-                        </Badge>
-                      )}
-                      {!isOil && !isSugar && !isFlour && is50kg && (
-                        <Badge variant="outline" className="bg-emerald-500/10 text-emerald-700 border-emerald-500/20 font-bold text-[10px] px-2 py-0.5 rounded-md">
-                          50kg Wholesale Sack
-                        </Badge>
-                      )}
-                      {!isOil && !isSugar && !isFlour && is25kg && (
-                        <Badge variant="outline" className="bg-teal-500/10 text-teal-700 border-teal-500/20 font-bold text-[10px] px-2 py-0.5 rounded-md">
-                          25kg Retail Sack
-                        </Badge>
-                      )}
-                    </div>
-
-                    {/* EXPANDED PROMINENT SKU DISPLAY */}
-                    <div className="flex items-center gap-2">
-                      <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-muted/80 border border-border/90 text-foreground font-mono text-xs font-bold tracking-wider shadow-2xs">
-                        <Barcode className="size-4 text-primary shrink-0" />
-                        <span className="select-all">{prod.sku}</span>
+                <div className="p-5">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    {/* Product Basic Info */}
+                    <div className="flex items-start gap-3.5 min-w-0 flex-1">
+                      <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary shadow-2xs">
+                        <Package className="size-5" />
                       </div>
-                      <span className="text-[11px] text-muted-foreground font-medium">
-                        ID: #{prod.id.toString().padStart(4, '0')}
-                      </span>
-                    </div>
-
-                    {prod.description && (
-                      <p className="text-xs text-muted-foreground leading-relaxed">
-                        {prod.description}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Right Column: LARGE UNIT PRICE & Total Stock Badge */}
-                  <div className="flex flex-row lg:flex-col items-start lg:items-end justify-between w-full lg:w-auto gap-4 pt-4 lg:pt-0 border-t lg:border-t-0 border-border/60">
-                    {/* LARGE HIGH-CONTRAST UNIT PRICE */}
-                    <div className="flex flex-col items-start lg:items-end">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                        Wholesale Unit Price
-                      </span>
-                      <div className="flex items-baseline gap-1 mt-0.5">
-                        <span className="text-2xl sm:text-3xl font-black text-foreground tracking-tight">
-                          ₱{prod.unitPrice.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                        </span>
-                        <span className="text-xs font-bold text-muted-foreground">
-                          / unit
-                        </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h4 className="text-sm font-bold text-foreground truncate">
+                            {prod.name}
+                          </h4>
+                          <Badge variant="outline" className="font-mono text-[10px] px-1.5 py-0 bg-muted/50 border-border text-foreground font-bold">
+                            <Tag className="size-2.5 mr-1 text-primary" />
+                            {prod.sku}
+                          </Badge>
+                        </div>
+                        {prod.description && (
+                          <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
+                            {prod.description}
+                          </p>
+                        )}
                       </div>
                     </div>
 
-                    {/* Aggregate Stock Counter & Action Controls */}
-                    <div className="flex items-center gap-2">
-                      <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 font-bold text-xs">
-                        <PackageCheck className="size-3.5" />
-                        <span>{totalUnits.toLocaleString()} Units in Warehouses</span>
+                    {/* Stock Overview & Price */}
+                    <div className="flex items-center gap-6 self-end sm:self-center">
+                      <div className="text-right">
+                        <span className="text-[10px] text-muted-foreground uppercase font-semibold block">
+                          Total Stock (All Hubs)
+                        </span>
+                        <div className="flex items-center justify-end gap-1.5 font-extrabold text-foreground text-sm">
+                          <Boxes className="size-3.5 text-primary" />
+                          <span>
+                            {totalStockUnits.toLocaleString()}{' '}
+                            <span className="text-xs font-normal text-muted-foreground">units</span>
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="text-right pl-4 border-l border-border/60">
+                        <span className="text-[10px] text-muted-foreground uppercase font-semibold block">
+                          Wholesale Price
+                        </span>
+                        <span className="text-sm font-bold text-foreground block">
+                          ₱{prod.unitPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
                       </div>
 
                       {(isOwner || isAdmin) && (
-                        <div className="flex items-center gap-1">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleEditProduct(prod)}
-                            className="h-7 px-2.5 text-xs font-semibold rounded-lg"
-                          >
-                            <Edit2 className="size-3 mr-1" />
-                            Edit
-                          </Button>
-
+                        <div className="flex items-center gap-1.5">
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="size-7 text-muted-foreground hover:text-foreground rounded-lg"
+                                className="size-8 text-muted-foreground hover:text-foreground cursor-pointer"
                               >
-                                <MoreVertical className="size-3.5" />
-                                <span className="sr-only">Product actions</span>
+                                <MoreVertical className="size-4" />
+                                <span className="sr-only">Product options</span>
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                               <DropdownMenuItem
                                 onClick={() => handleEditProduct(prod)}
-                                className="gap-2 text-xs"
+                                className="gap-2 text-xs cursor-pointer"
                               >
                                 <Edit2 className="size-3.5" />
-                                Edit Specifications
+                                Edit SKU & Pricing
                               </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => handleAllocateStock(prod)}
+                                className="gap-2 text-xs font-semibold text-primary cursor-pointer"
+                              >
+                                <Plus className="size-3.5" />
+                                Allocate Stock to Warehouse
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
                               <DropdownMenuItem
                                 onClick={() => handleDeleteProduct(prod)}
                                 className="gap-2 text-xs text-destructive focus:text-destructive cursor-pointer"
@@ -309,46 +307,87 @@ export function InventoryStockList() {
 
                 {/* Warehouse Breakdown Sub-Panel */}
                 <div className="bg-muted/30 border-t border-border/60 px-5 py-3.5">
-                  <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center justify-between mb-2.5">
                     <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground/90 flex items-center gap-1.5">
                       <WarehouseIcon className="size-3.5 text-primary" />
                       Warehouse Stock Allocation & Adjustments
                     </span>
+
+                    {(isOwner || isAdmin) && stockInHubs.length > 0 && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleAllocateStock(prod)}
+                        className="h-6.5 px-2.5 text-[11px] font-bold text-primary hover:text-primary/90 hover:bg-primary/10 rounded-lg gap-1 cursor-pointer"
+                      >
+                        <Plus className="size-3 text-primary" />
+                        Allocate to Warehouse
+                      </Button>
+                    )}
                   </div>
 
                   {stockInHubs.length === 0 ? (
-                    <div className="text-xs text-muted-foreground italic py-1">
-                      No stock units allocated yet. Click Adjust to receive inventory units into a warehouse.
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3.5 rounded-xl bg-card border border-dashed border-border/80 text-xs">
+                      <span className="text-muted-foreground font-medium">
+                        No stock units allocated to any warehouse facility yet.
+                      </span>
+                      {(isOwner || isAdmin) && (
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => handleAllocateStock(prod)}
+                          className="h-7 text-xs font-bold gap-1 cursor-pointer"
+                        >
+                          <Plus className="size-3.5 text-primary" />
+                          Allocate Stock to Warehouse
+                        </Button>
+                      )}
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5">
-                      {stockInHubs.map((stock) => (
-                        <div
-                          key={stock.id}
-                          className="flex items-center justify-between p-2.5 rounded-xl bg-card border border-border/80 shadow-2xs hover:border-primary/40 transition-colors"
-                        >
-                          <div className="min-w-0 pr-2">
-                            <span className="text-xs font-bold text-foreground truncate block">
-                              {stock.warehouse?.name || `Warehouse #${stock.warehouseId}`}
-                            </span>
-                            <span className="text-xs font-extrabold text-primary block mt-0.5">
-                              {parseFloat(stock.quantity).toLocaleString()} <span className="text-[10px] font-normal text-muted-foreground">units</span>
-                            </span>
-                          </div>
+                      {stockInHubs.map((stock) => {
+                        const wh = stock.warehouse || warehouses.find((w) => w.id === stock.warehouseId)
+                        const whDisplayName = wh?.name || `Warehouse #${stock.warehouseId}`
 
-                          {(isOwner || isAdmin) && (
-                            <Button
-                              variant="secondary"
-                              size="sm"
-                              onClick={() => handleAdjustStock(stock)}
-                              className="h-7 px-2 text-[11px] font-bold rounded-lg gap-1 shrink-0"
-                            >
-                              <ArrowUpDown className="size-3 text-primary" />
-                              Adjust
-                            </Button>
-                          )}
-                        </div>
-                      ))}
+                        return (
+                          <div
+                            key={stock.id}
+                            className="flex items-center justify-between p-2.5 rounded-xl bg-card border border-border/80 shadow-2xs hover:border-primary/40 transition-colors"
+                          >
+                            <div className="min-w-0 pr-2">
+                              <span className="text-xs font-bold text-foreground truncate block" title={whDisplayName}>
+                                {whDisplayName}
+                              </span>
+                              <span className="text-xs font-extrabold text-primary block mt-0.5">
+                                {parseFloat(stock.quantity).toLocaleString()} <span className="text-[10px] font-normal text-muted-foreground">units</span>
+                              </span>
+                            </div>
+
+                            {(isOwner || isAdmin) && (
+                              <div className="flex items-center gap-1 shrink-0">
+                                <Button
+                                  variant="secondary"
+                                  size="sm"
+                                  onClick={() => handleAdjustStock(stock)}
+                                  className="h-7 px-2 text-[11px] font-bold rounded-lg gap-1 cursor-pointer"
+                                >
+                                  <ArrowUpDown className="size-3 text-primary" />
+                                  Adjust
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => handleRemoveStockAllocation(stock, prod.name, whDisplayName)}
+                                  className="size-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg cursor-pointer"
+                                  title={`Remove allocation from ${whDisplayName}`}
+                                >
+                                  <Trash2 className="size-3.5" />
+                                </Button>
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
                     </div>
                   )}
                 </div>
@@ -365,14 +404,19 @@ export function InventoryStockList() {
         onClose={() => setIsCatalogModalOpen(false)}
       />
 
-      {/* Stock Adjust Modal */}
+      {/* Stock Adjust & Allocation Modal */}
       <StockAdjustModal
         stockItem={selectedStockForAdjust}
+        inventoryItem={selectedProductForAllocate}
         open={isAdjustModalOpen}
-        onClose={() => setIsAdjustModalOpen(false)}
+        onClose={() => {
+          setIsAdjustModalOpen(false)
+          setSelectedStockForAdjust(null)
+          setSelectedProductForAllocate(null)
+        }}
       />
 
-      {/* Themed Confirm Delete Modal */}
+      {/* Product Delete Confirmation Modal */}
       <ConfirmDeleteModal
         open={!!productToDelete}
         onClose={() => setProductToDelete(null)}
@@ -382,6 +426,19 @@ export function InventoryStockList() {
         itemName={productToDelete?.name}
         itemDetails={productToDelete ? `SKU: ${productToDelete.sku} • ₱${productToDelete.unitPrice.toFixed(2)} / unit` : undefined}
         confirmText="Delete Product SKU"
+        variant="destructive"
+      />
+
+      {/* Remove Warehouse Stock Allocation Confirmation Modal */}
+      <ConfirmDeleteModal
+        open={!!stockToDelete}
+        onClose={() => setStockToDelete(null)}
+        onConfirm={confirmRemoveStock}
+        title="Remove Stock Allocation from Warehouse"
+        description={`Are you sure you want to remove the inventory allocation of this product from ${stockToDelete?.whName}? The product will no longer be tracked at this facility until re-allocated.`}
+        itemName={stockToDelete?.prodName}
+        itemDetails={stockToDelete ? `Facility: ${stockToDelete.whName} • Current: ${parseFloat(stockToDelete.stock.quantity).toLocaleString()} units` : undefined}
+        confirmText="Remove Allocation"
         variant="destructive"
       />
     </div>

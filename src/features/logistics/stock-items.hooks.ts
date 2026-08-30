@@ -3,6 +3,7 @@ import { toast } from 'sonner'
 import {
   createStockItemApi,
   decreaseStockQuantityApi,
+  deleteStockItemApi,
   fetchStockByItemApi,
   fetchStockByWarehouseApi,
   fetchStockItemsApi,
@@ -100,6 +101,20 @@ export function useDecreaseStock() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: STOCK_ITEMS_QUERY_KEY })
       toast.success('Stock decreased successfully')
+    },
+    onError: (err) => {
+      toast.error(getErrorMessage(err))
+    },
+  })
+}
+
+export function useDeleteStockItem() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: number) => deleteStockItemApi(id),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: STOCK_ITEMS_QUERY_KEY })
+      toast.success('Warehouse stock allocation removed')
     },
     onError: (err) => {
       toast.error(getErrorMessage(err))
