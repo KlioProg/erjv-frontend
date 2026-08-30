@@ -1,4 +1,15 @@
 import { useState, type FormEvent } from 'react'
+import { ShieldCheck } from 'lucide-react'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  CardFooter,
+} from '@/components/ui/card'
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import { Separator } from '@/components/ui/separator'
 import { ErjvPosLogo } from '../ui/ErjvPosLogo'
 import ForgotPasswordModal from './ForgotPasswordModal'
 import LoginForm from './LoginForm'
@@ -10,8 +21,6 @@ type AuthCardProps = {
   mode: AuthMode
   onModeChange: (mode: AuthMode) => void
 }
-
-const tabClasses = 'relative z-10 w-1/2 rounded-lg border-0 bg-transparent py-1.5 text-xs transition-colors duration-200'
 
 export function AuthCard({ mode, onModeChange }: AuthCardProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -68,38 +77,75 @@ export function AuthCard({ mode, onModeChange }: AuthCardProps) {
   }
 
   const isLogin = mode === 'login'
+
   return (
-    <section className="w-full rounded-xl border border-[#dfe3e8] bg-white px-4 pb-4 pt-6 shadow-[0_4px_18px_rgba(37,47,58,.06)] sm:px-5 sm:pb-5 sm:pt-7" aria-labelledby="auth-title">
-      <ErjvPosLogo />
-      <h1 className="mt-5 text-center text-[22px] font-medium tracking-[-.04em]" id="auth-title">{isLogin ? 'Welcome back!' : 'Create an account'}</h1>
-      <p className="text-center text-xs text-muted">Sign up to your ERJVPOS account!</p>
+    <div className="w-full">
+      <Card className="w-full border-border/80 bg-card/95 backdrop-blur-sm shadow-xl ring-1 ring-black/5 sm:rounded-3xl">
+        <CardHeader className="items-center pb-3 text-center">
+          <ErjvPosLogo className="mb-1" />
+          <CardTitle className="mt-1 text-2xl font-bold tracking-tight text-foreground">
+            {isLogin ? 'Welcome back' : 'Get started today'}
+          </CardTitle>
+          <CardDescription className="text-xs text-muted-foreground">
+            {isLogin
+              ? 'Sign in to access your register, analytics & inventory'
+              : 'Create your enterprise store account in under a minute'}
+          </CardDescription>
+        </CardHeader>
 
-      <div className="relative my-5 flex rounded-xl bg-[#f1f4f8] p-1" role="tablist" aria-label="Authentication options">
-        <span className={`absolute inset-y-1 w-[calc(50%-4px)] rounded-lg bg-white shadow-sm transition-transform duration-200 ease-out ${isLogin ? 'translate-x-0' : 'translate-x-full'}`} aria-hidden="true" />
-        <button className={`${tabClasses} ${isLogin ? 'font-medium text-ink' : 'text-muted'}`} type="button" role="tab" aria-selected={isLogin} onClick={() => onModeChange('login')}>Login</button>
-        <button className={`${tabClasses} ${!isLogin ? 'font-medium text-ink' : 'text-muted'}`} type="button" role="tab" aria-selected={!isLogin} onClick={() => onModeChange('signup')}>Sign up</button>
-      </div>
+        <CardContent className="space-y-4 px-6 pb-6">
+          <Tabs
+            value={mode}
+            onValueChange={(val) => {
+              setErrorMessage('')
+              setSuccessMessage('')
+              onModeChange(val as AuthMode)
+            }}
+            className="w-full"
+          >
+            <TabsList className="grid w-full grid-cols-2 p-1 bg-secondary/80">
+              <TabsTrigger value="login">
+                Sign In
+              </TabsTrigger>
+              <TabsTrigger value="signup">
+                Register
+              </TabsTrigger>
+            </TabsList>
 
-      <div key={mode} className="animate-[auth-panel-in_240ms_ease-out] rounded-lg border border-[#dfe3e8] p-3.5 sm:p-4">
-        <h2 className="text-center text-sm font-medium">{isLogin ? 'Log in back!' : 'Create an Account'}</h2>
-        <p className="mb-5 text-center text-[8px] text-muted">{isLogin ? 'Login to start and check!' : 'Sign up to start and check!'}</p>
-        {isLogin ? (
-            <LoginForm
-              onSubmit={handleLoginSubmit}
-              onForgotPasswordClick={() => setIsForgotPasswordOpen(true)}
-              isSubmitting={isSubmitting}
-              errorMessage={errorMessage}
-              successMessage={successMessage}
-            />
-        ) : (
-          <SignupForm onSubmit={handleSignupSubmit} isSubmitting={isSubmitting} errorMessage={errorMessage} successMessage={successMessage} />
-        )}
-      </div>
+            <TabsContent value="login" className="mt-4 focus-visible:outline-none">
+              <LoginForm
+                onSubmit={handleLoginSubmit}
+                onForgotPasswordClick={() => setIsForgotPasswordOpen(true)}
+                isSubmitting={isSubmitting}
+                errorMessage={errorMessage}
+                successMessage={successMessage}
+              />
+            </TabsContent>
+
+            <TabsContent value="signup" className="mt-4 focus-visible:outline-none">
+              <SignupForm
+                onSubmit={handleSignupSubmit}
+                isSubmitting={isSubmitting}
+                errorMessage={errorMessage}
+                successMessage={successMessage}
+              />
+            </TabsContent>
+          </Tabs>
+        </CardContent>
+
+        <Separator />
+
+        <CardFooter className="flex items-center justify-center gap-1.5 py-4 text-center text-[11px] text-muted-foreground">
+          <ShieldCheck className="size-3.5 text-muted-foreground/70" />
+          <span>Encrypted 256-bit SSL connection</span>
+        </CardFooter>
+      </Card>
+
       <ForgotPasswordModal
         open={isForgotPasswordOpen}
         onClose={() => setIsForgotPasswordOpen(false)}
         onSubmit={handleForgotPasswordSubmit}
       />
-    </section>
+    </div>
   )
 }

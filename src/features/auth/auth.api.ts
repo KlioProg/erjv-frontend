@@ -1,19 +1,25 @@
-import type { AuthRequest, AuthMode } from './auth.types'
+import { apiClient } from '@/lib/api-client'
+import type {
+  AuthTokensResponse,
+  LoginRequest,
+  RegisterRequest,
+  SafeUserResponse,
+} from './auth.types'
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api'
-
-export async function submitAuthRequest(
-  mode: AuthMode,
-  payload: AuthRequest,
-): Promise<void> {
-  const response = await fetch(`${API_BASE_URL}/auth/${mode}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
-    body: JSON.stringify(payload),
+export async function loginApi(payload: LoginRequest): Promise<AuthTokensResponse> {
+  const { data } = await apiClient.post<AuthTokensResponse>('/auth/login', {
+    email: payload.email,
+    password: payload.password,
   })
+  return data
+}
 
-  if (!response.ok) {
-    throw new Error('Unable to complete the authentication request.')
-  }
+export async function registerApi(payload: RegisterRequest): Promise<SafeUserResponse> {
+  const { data } = await apiClient.post<SafeUserResponse>('/auth/register', payload)
+  return data
+}
+
+export async function getProfileApi(): Promise<SafeUserResponse> {
+  const { data } = await apiClient.get<SafeUserResponse>('/auth/profile')
+  return data
 }
