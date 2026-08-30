@@ -1,10 +1,8 @@
 import { useState } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { Sparkles, ArrowRight } from 'lucide-react'
 import { AuthCard } from './components/auth/AuthCard'
-import { StaffingDashboard } from './components/staffing/StaffingDashboard'
+import { MainDashboard } from './components/dashboard/MainDashboard'
 import { Toaster } from './components/ui/sonner'
-import { Button } from './components/ui/button'
 import { AuthProvider, useAuth } from './features/auth/AuthContext'
 import type { AuthMode } from './features/auth/auth.types'
 
@@ -19,11 +17,11 @@ const queryClient = new QueryClient({
 })
 
 function AppContent() {
-  const { isAuthenticated, setDemoUser } = useAuth()
+  const { isAuthenticated } = useAuth()
   const [mode, setMode] = useState<AuthMode>('login')
 
   if (isAuthenticated) {
-    return <StaffingDashboard />
+    return <MainDashboard />
   }
 
   return (
@@ -40,20 +38,6 @@ function AppContent() {
 
       <div className="w-full max-w-[440px] animate-in fade-in-50 zoom-in-95 duration-300">
         <AuthCard mode={mode} onModeChange={setMode} />
-
-        {/* Demo Fast Track Banner */}
-        <div className="mt-4 flex items-center justify-center">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setDemoUser('OWNER')}
-            className="text-xs text-muted-foreground hover:text-foreground border-dashed bg-card/60 backdrop-blur-xs gap-1.5 shadow-xs"
-          >
-            <Sparkles className="size-3 text-primary" />
-            Quick Demo: Enter Staffing & POS Dashboard
-            <ArrowRight className="size-3" />
-          </Button>
-        </div>
       </div>
     </main>
   )

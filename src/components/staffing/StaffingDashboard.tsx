@@ -23,7 +23,11 @@ import { RoleGroupingView } from './RoleGroupingView'
 import { UserRolesList } from './UserRolesList'
 import { ProductListModal } from '../products/ProductListModal'
 
-export function StaffingDashboard() {
+type StaffingDashboardProps = {
+  onSwitchToOperations?: () => void
+}
+
+export function StaffingDashboard({ onSwitchToOperations }: StaffingDashboardProps = {}) {
   const { user, logout } = useAuth()
   const { data: employees = [] } = useEmployees()
   const { data: jobs = [] } = useJobs()
@@ -48,12 +52,24 @@ export function StaffingDashboard() {
             <div className="hidden md:flex items-center gap-1.5 pl-6 border-l border-border">
               <Badge variant="secondary" className="gap-1 text-[11px] font-semibold text-primary bg-primary/10">
                 <Sparkles className="size-3" />
-                Staffing & Operations
+                Staffing & HR Management
               </Badge>
             </div>
           </div>
 
           <div className="flex items-center gap-3">
+            {onSwitchToOperations && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-xs font-semibold h-8.5 gap-1.5 shadow-2xs border-primary/30 text-primary hover:bg-primary/10"
+                onClick={onSwitchToOperations}
+              >
+                <Layers className="size-3.5" />
+                Operations & Logistics
+              </Button>
+            )}
+
             {/* View Products Preview Button */}
             <Button
               variant="outline"

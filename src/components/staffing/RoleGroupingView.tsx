@@ -2,19 +2,17 @@ import { useState } from 'react'
 import {
   Users,
   Briefcase,
-  UserCheck,
   UserX,
-  Plus,
+  UserPlus,
   Shield,
 } from 'lucide-react'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import {
   Select,
   SelectContent,
-  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -27,17 +25,18 @@ import {
   useAssignEmployeeJob,
   useRemoveEmployeeJob,
 } from '@/features/staffing/staffing.hooks'
-import type { Job } from '@/features/staffing/staffing.types'
+import type { Job, Employee } from '@/features/staffing/staffing.types'
+import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal'
 
 // Single role section with member cards and quick assignment
-function RoleSection({ job }: { job: Job }) {
+function RoleSection({ job, allEmployees }: { job: Job; allEmployees: Employee[] }) {
   const { data: members = [], isLoading } = useJobEmployees(job.id)
-  const { data: allEmployees = [] } = useEmployees()
   const assignMutation = useAssignEmployeeJob()
   const removeMutation = useRemoveEmployeeJob()
 
   const [selectedEmpId, setSelectedEmpId] = useState<string>('')
   const [isAssigning, setIsAssigning] = useState(false)
+  const [memberToRemove, setMemberToRemove] = useState<{ employeeId: number; name: string } | null>(null)
 
   // Unassigned employees for this specific job
   const assignedEmployeeIds = members.map((m) => m.employeeId)
@@ -55,17 +54,33 @@ function RoleSection({ job }: { job: Job }) {
     setIsAssigning(false)
   }
 
-  const handleRemove = async (employeeId: number) => {
-    if (window.confirm('Remove this employee from this role?')) {
+  const handleRemove = (employeeId: number, name: string) => {
+    setMemberToRemove({ employeeId, name })
+  }
+
+  const confirmRemove = async () => {
+    if (memberToRemove) {
       await removeMutation.mutateAsync({
-        employeeId,
+        employeeId: memberToRemove.employeeId,
         jobId: job.id,
       })
+      setMemberToRemove(null)
     }
   }
 
   return (
     <Card className="border border-border shadow-xs overflow-hidden">
+      <ConfirmDeleteModal
+        open={!!memberToRemove}
+        onClose={() => setMemberToRemove(null)}
+        onConfirm={confirmRemove}
+        title="Remove Employee from Role"
+        description="Are you sure you want to unassign this employee from this position? They will no longer hold this designation."
+        itemName={memberToRemove?.name}
+        itemDetails={`Role: ${job.name}`}
+        confirmText="Remove from Role"
+        variant="destructive"
+      />
       <CardHeader className="bg-muted/30 p-4 border-b">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
           <div className="flex items-center gap-2.5">
@@ -79,67 +94,65 @@ function RoleSection({ job }: { job: Job }) {
                   {members.length} {members.length === 1 ? 'member' : 'members'}
                 </Badge>
               </div>
-              {job.description && (
-                <CardDescription className="text-[11px] text-muted-foreground mt-0.5">
-                  {job.description}
-                </CardDescription>
-              )}
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {job.description || 'General operational department and staff roles.'}
+              </p>
             </div>
           </div>
 
-          <Button
-            variant="outline"
-            size="sm"
-            className="text-xs h-8 font-medium"
-            onClick={() => setIsAssigning(!isAssigning)}
-          >
-            <Plus data-icon="inline-start" className="size-3.5" />
-            {isAssigning ? 'Close' : 'Assign Staff'}
-          </Button>
-        </div>
-
-        {/* Quick Assign Form */}
-        {isAssigning && (
-          <div className="mt-3 pt-3 border-t flex flex-col sm:flex-row items-center gap-2 animate-in fade-in-50 duration-200">
-            <div className="w-full sm:w-64">
-              <Select value={selectedEmpId} onValueChange={setSelectedEmpId}>
-                <SelectTrigger className="h-8 text-xs">
-                  <SelectValue placeholder="Select employee to assign..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            {isAssigning ? (
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <Select value={selectedEmpId} onValueChange={setSelectedEmpId}>
+                  <SelectTrigger className="w-full sm:w-56 h-8 text-xs bg-card">
+                    <SelectValue placeholder="Select active employee..." />
+                  </SelectTrigger>
+                  <SelectContent>
                     {availableToAssign.length === 0 ? (
                       <SelectItem value="none" disabled>
-                        All active staff are assigned to this role
+                        All active staff assigned
                       </SelectItem>
                     ) : (
                       availableToAssign.map((emp) => (
-                        <SelectItem key={emp.id} value={String(emp.id)}>
+                        <SelectItem key={emp.id} value={emp.id.toString()}>
                           {emp.firstName} {emp.lastName}
                         </SelectItem>
                       ))
                     )}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            </div>
-            <Button
-              size="sm"
-              className="h-8 text-xs font-semibold w-full sm:w-auto"
-              onClick={handleAssign}
-              disabled={!selectedEmpId || selectedEmpId === 'none' || assignMutation.isPending}
-            >
-              {assignMutation.isPending ? (
-                <Spinner className="size-3" />
-              ) : (
-                <>
-                  <UserCheck data-icon="inline-start" className="size-3.5" />
-                  Confirm Assignment
-                </>
-              )}
-            </Button>
+                  </SelectContent>
+                </Select>
+
+                <Button
+                  size="sm"
+                  className="h-8 text-xs px-2.5"
+                  onClick={handleAssign}
+                  disabled={!selectedEmpId || selectedEmpId === 'none' || assignMutation.isPending}
+                >
+                  {assignMutation.isPending ? <Spinner className="size-3" /> : 'Assign'}
+                </Button>
+
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 text-xs px-2"
+                  onClick={() => setIsAssigning(false)}
+                >
+                  Cancel
+                </Button>
+              </div>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs gap-1 shadow-2xs"
+                onClick={() => setIsAssigning(true)}
+              >
+                <UserPlus className="size-3.5 text-primary" />
+                Assign Member
+              </Button>
+            )}
           </div>
-        )}
+        </div>
       </CardHeader>
 
       <CardContent className="p-4">
@@ -186,8 +199,8 @@ function RoleSection({ job }: { job: Job }) {
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="size-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                    onClick={() => handleRemove(m.employeeId)}
+                    className="size-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10 cursor-pointer"
+                    onClick={() => handleRemove(m.employeeId, `${emp.firstName} ${emp.lastName}`)}
                     title="Remove from role"
                   >
                     <UserX className="size-3.5" />
@@ -249,7 +262,7 @@ export function RoleGroupingView() {
       ) : (
         <div className="flex flex-col gap-4">
           {jobs.map((job) => (
-            <RoleSection key={job.id} job={job} />
+            <RoleSection key={job.id} job={job} allEmployees={employees} />
           ))}
         </div>
       )}

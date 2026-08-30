@@ -19,15 +19,16 @@ export async function submitLogin(formData: FormData) {
 export async function submitSignup(formData: FormData) {
   const email = String(formData.get('email')).trim()
   const password = String(formData.get('password'))
+  const role = (String(formData.get('role')) || 'STAFF') as 'OWNER' | 'ADMIN' | 'STAFF'
 
   const payload: RegisterRequest = {
     email,
     password,
-    role: 'OWNER',
+    role,
   }
 
   const user = await registerApi(payload)
-  return `Account created successfully for ${user.email}. You can now sign in.`
+  return `Account created successfully for ${user.email} (${user.role}). You can now sign in.`
 }
 
 export async function submitForgotPassword(email: string) {

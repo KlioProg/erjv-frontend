@@ -14,7 +14,9 @@ import { ErjvPosLogo } from '../ui/ErjvPosLogo'
 import ForgotPasswordModal from './ForgotPasswordModal'
 import LoginForm from './LoginForm'
 import SignupForm from './SignupForm'
-import { submitForgotPassword, submitLogin, submitSignup } from './authHandlers'
+import { submitSignup } from './authHandlers'
+import { useAuth } from '@/features/auth/AuthContext'
+import { getErrorMessage } from '@/lib/api-client'
 import type { AuthMode } from '../../features/auth/auth.types'
 
 type AuthCardProps = {
@@ -23,6 +25,7 @@ type AuthCardProps = {
 }
 
 export function AuthCard({ mode, onModeChange }: AuthCardProps) {
+  const { login } = useAuth()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
   const [successMessage, setSuccessMessage] = useState('')
@@ -35,12 +38,15 @@ export function AuthCard({ mode, onModeChange }: AuthCardProps) {
     setSuccessMessage('')
 
     const formData = new FormData(event.currentTarget)
+    const email = String(formData.get('email')).trim()
+    const password = String(formData.get('password'))
+    const rememberMe = formData.get('rememberMe') === 'on' || formData.get('rememberMe') === 'true'
 
     try {
-      const msg = await submitLogin(formData)
-      setSuccessMessage(msg)
-    } catch {
-      setErrorMessage('We could not reach the server. Please try again.')
+      await login({ email, password }, rememberMe)
+      setSuccessMessage('Signed in successfully.')
+    } catch (err) {
+      setErrorMessage(getErrorMessage(err))
     } finally {
       setIsSubmitting(false)
     }
@@ -65,15 +71,12 @@ export function AuthCard({ mode, onModeChange }: AuthCardProps) {
     try {
       const msg = await submitSignup(formData)
       setSuccessMessage(msg)
-    } catch {
-      setErrorMessage('We could not reach the server. Please try again.')
+      onModeChange('login')
+    } catch (err) {
+      setErrorMessage(getErrorMessage(err))
     } finally {
       setIsSubmitting(false)
     }
-  }
-
-  async function handleForgotPasswordSubmit(email: string) {
-    return submitForgotPassword(email)
   }
 
   const isLogin = mode === 'login'
@@ -144,7 +147,10 @@ export function AuthCard({ mode, onModeChange }: AuthCardProps) {
       <ForgotPasswordModal
         open={isForgotPasswordOpen}
         onClose={() => setIsForgotPasswordOpen(false)}
-        onSubmit={handleForgotPasswordSubmit}
+        onSuccessReset={(email) => {
+          setSuccessMessage(`Password updated for ${email}. Please log in with your new password.`)
+          onModeChange('login')
+        }}
       />
     </div>
   )

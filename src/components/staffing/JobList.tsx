@@ -27,6 +27,8 @@ function JobStaffCount({ jobId }: { jobId: number }) {
   )
 }
 
+import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal'
+
 export function JobList() {
   const { data: jobs = [], isLoading, error } = useJobs()
   const deactivateMutation = useDeactivateJob()
@@ -34,6 +36,7 @@ export function JobList() {
 
   const [selectedJob, setSelectedJob] = useState<Job | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [jobToDeactivate, setJobToDeactivate] = useState<Job | null>(null)
 
   const handleCreate = () => {
     setSelectedJob(null)
@@ -45,9 +48,14 @@ export function JobList() {
     setIsModalOpen(true)
   }
 
-  const handleDeactivate = async (id: number) => {
-    if (window.confirm('Are you sure you want to deactivate this job position?')) {
-      await deactivateMutation.mutateAsync(id)
+  const handleDeactivate = (job: Job) => {
+    setJobToDeactivate(job)
+  }
+
+  const confirmDeactivate = async () => {
+    if (jobToDeactivate) {
+      await deactivateMutation.mutateAsync(jobToDeactivate.id)
+      setJobToDeactivate(null)
     }
   }
 
@@ -138,8 +146,8 @@ export function JobList() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-7 text-xs px-2 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                      onClick={() => handleDeactivate(job.id)}
+                      className="h-7 text-xs px-2 text-destructive hover:bg-destructive/10 hover:text-destructive cursor-pointer"
+                      onClick={() => handleDeactivate(job)}
                     >
                       <Archive className="size-3 mr-1" />
                       Deactivate
@@ -148,7 +156,7 @@ export function JobList() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-7 text-xs px-2 text-primary hover:bg-primary/10"
+                      className="h-7 text-xs px-2 text-primary hover:bg-primary/10 cursor-pointer"
                       onClick={() => handleReactivate(job.id)}
                     >
                       <RefreshCw className="size-3 mr-1" />
@@ -166,6 +174,18 @@ export function JobList() {
         job={selectedJob}
         open={isModalOpen}
         onClose={() => setIsModalOpen(false)}
+      />
+
+      <ConfirmDeleteModal
+        open={!!jobToDeactivate}
+        onClose={() => setJobToDeactivate(null)}
+        onConfirm={confirmDeactivate}
+        title="Deactivate Job Position"
+        description="Are you sure you want to deactivate this position? Staff members assigned to this role will no longer have this designation active."
+        itemName={jobToDeactivate?.name}
+        itemDetails={jobToDeactivate?.description || undefined}
+        confirmText="Deactivate Position"
+        variant="destructive"
       />
     </div>
   )

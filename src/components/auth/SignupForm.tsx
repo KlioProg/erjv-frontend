@@ -149,6 +149,12 @@ export default function SignupForm({
         )}
       </div>
 
+      <input type="hidden" name="role" value="STAFF" />
+
+      <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 text-[11px] text-muted-foreground leading-relaxed">
+        <span className="font-bold text-foreground">Standard Staff Access:</span> New accounts are registered as staff members. Administrative and managerial permissions are granted by the Super Admin / Owner in Staffing Management.
+      </div>
+
       <div className="flex flex-col gap-1.5" data-invalid={passVal.message ? true : undefined}>
         <Label htmlFor="signup-password" className="text-xs font-semibold text-foreground/90">
           Password
