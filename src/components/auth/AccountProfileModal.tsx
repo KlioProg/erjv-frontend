@@ -27,6 +27,7 @@ import { Badge } from '@/components/ui/badge'
 import { Spinner } from '@/components/ui/spinner'
 import { toast } from 'sonner'
 import { useAuth } from '@/features/auth/AuthContext'
+import { useQueryClient } from '@tanstack/react-query'
 
 type AccountProfileModalProps = {
   open: boolean
@@ -43,8 +44,10 @@ const AVATAR_PRESETS = [
 
 function AccountProfileForm({ onClose }: { onClose: () => void }) {
   const { user, updateProfile } = useAuth()
+  const queryClient = useQueryClient()
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
+  const [fullName, setFullName] = useState(user?.fullName || '')
   const [bio, setBio] = useState(user?.bio || '')
   const [avatarUrl, setAvatarUrl] = useState<string | null>(user?.avatarUrl || null)
   const [customUrlInput, setCustomUrlInput] = useState('')
@@ -92,10 +95,13 @@ function AccountProfileForm({ onClose }: { onClose: () => void }) {
 
     try {
       await updateProfile({
+        fullName: fullName.trim() || undefined,
         avatarUrl,
         bio: bio.trim() || null,
       })
-      toast.success('Profile photo and personal notes saved successfully!')
+      queryClient.invalidateQueries({ queryKey: ['users'] })
+      queryClient.invalidateQueries({ queryKey: ['employees'] })
+      toast.success('Profile details and photo saved successfully!')
       onClose()
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Failed to update profile.')
@@ -104,7 +110,7 @@ function AccountProfileForm({ onClose }: { onClose: () => void }) {
     }
   }
 
-  const displayName = user?.fullName || (user?.email ? user.email.split('@')[0] : 'User')
+  const displayName = fullName.trim() || user?.fullName || (user?.email ? user.email.split('@')[0] : 'User')
   const userInitial = displayName.charAt(0).toUpperCase()
 
   return (
@@ -142,11 +148,11 @@ function AccountProfileForm({ onClose }: { onClose: () => void }) {
             <div className="flex items-center justify-center sm:justify-start gap-2">
               <span className="text-xs font-bold text-foreground">Profile Picture</span>
               <Badge variant="outline" className="text-[10px] bg-primary/10 text-primary border-primary/20">
-                {user?.role || 'STAFF'}
+                {user?.role || 'OWNER'}
               </Badge>
             </div>
             <p className="text-[11px] text-muted-foreground">
-              Images are saved in self-contained Base64 or cloud URLs so they persist when moving to any PC.
+              Saved in self-contained Base64 or cloud URLs so it persists across all PCs.
             </p>
             <div className="flex items-center justify-center sm:justify-start gap-2 pt-1 flex-wrap">
               <Button
@@ -157,7 +163,7 @@ function AccountProfileForm({ onClose }: { onClose: () => void }) {
                 className="h-7 text-xs font-semibold gap-1.5 cursor-pointer"
               >
                 <Upload className="size-3 text-primary" />
-                Upload from PC
+                Upload Photo
               </Button>
 
               <Button
@@ -233,18 +239,34 @@ function AccountProfileForm({ onClose }: { onClose: () => void }) {
         </div>
       </div>
 
-      {/* User Info Overview */}
-      <div className="flex items-center justify-between p-3 rounded-xl bg-muted/20 border border-border/60 text-xs">
-        <div className="flex items-center gap-2 min-w-0">
-          <User className="size-4 text-primary shrink-0" />
-          <div className="flex flex-col min-w-0">
-            <span className="font-bold text-foreground truncate">{displayName}</span>
-            <span className="text-[11px] text-muted-foreground font-mono truncate">{user?.email}</span>
-          </div>
+      {/* Full Display Name (Only Owner can edit) */}
+      <div className="flex flex-col gap-1.5">
+        <div className="flex items-center justify-between">
+          <Label htmlFor="prof-name" className="text-xs font-semibold text-foreground">
+            Display Name
+          </Label>
+          {user?.role !== 'OWNER' && (
+            <span className="text-[10px] text-muted-foreground font-medium">
+              (Managed by Owner)
+            </span>
+          )}
         </div>
-        <Badge variant="outline" className="font-bold text-[10px] text-primary bg-primary/10 border-primary/20 shrink-0">
-          {user?.role || 'STAFF'}
-        </Badge>
+        <div className="relative">
+          <User className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
+          <Input
+            id="prof-name"
+            placeholder="Your full display name..."
+            value={fullName}
+            onChange={(e) => setFullName(e.target.value)}
+            disabled={user?.role !== 'OWNER'}
+            className="pl-10 text-xs h-9 disabled:opacity-75 disabled:bg-muted/50"
+          />
+        </div>
+        <p className="text-[10px] text-muted-foreground">
+          {user?.role === 'OWNER'
+            ? 'As Enterprise Owner, you can change your display name across all modules.'
+            : 'Staff and Admin display names are set upon registration and managed centrally.'}
+        </p>
       </div>
 
       {/* Personal Description / Notes */}
@@ -271,7 +293,7 @@ function AccountProfileForm({ onClose }: { onClose: () => void }) {
       <DialogFooter className="gap-2 pt-2 border-t sm:justify-between">
         <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
           <Shield className="size-3.5 text-emerald-600 shrink-0" />
-          <span>Role: <strong className="text-foreground">{user?.role}</strong></span>
+          <span>Role: <strong className="text-foreground">{user?.role || 'OWNER'}</strong></span>
         </div>
 
         <div className="flex items-center gap-2">
@@ -309,7 +331,7 @@ export function AccountProfileModal({ open, onClose }: AccountProfileModalProps)
             Customize Profile & Picture
           </DialogTitle>
           <DialogDescription className="text-xs text-muted-foreground">
-            Upload your account photo and manage your personal description or notes.
+            Customize your display name, account photo, and personal description or notes.
           </DialogDescription>
         </DialogHeader>
 

@@ -4,6 +4,8 @@ import {
   Search,
   CheckCircle2,
   Calendar,
+  Shield,
+  Sparkles,
 } from 'lucide-react'
 import {
   Table,
@@ -27,31 +29,41 @@ import {
 import { Spinner } from '@/components/ui/spinner'
 import { useUsers, useUpdateUserRole, useEmployees } from '@/features/staffing/staffing.hooks'
 import type { UserRole } from '@/features/auth/auth.types'
+import { toast } from 'sonner'
+import { useQueryClient } from '@tanstack/react-query'
 
 export function UserRolesList() {
   const { data: users = [], isLoading, error } = useUsers()
   const { data: employees = [] } = useEmployees()
   const updateRoleMutation = useUpdateUserRole()
+  const queryClient = useQueryClient()
 
   const [searchQuery, setSearchQuery] = useState('')
   const [updatingId, setUpdatingId] = useState<number | null>(null)
 
   const filteredUsers = users.filter((u) =>
-    u.email.toLowerCase().includes(searchQuery.toLowerCase())
+    u.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (u.fullName && u.fullName.toLowerCase().includes(searchQuery.toLowerCase()))
   )
 
-  const handleRoleChange = async (userId: number, role: UserRole) => {
+  const getLinkedEmployee = (userId: number, email?: string) => {
+    return employees.find(
+      (e) => e.userId === userId || (email && e.email?.toLowerCase() === email.toLowerCase())
+    )
+  }
+
+  const handleRoleChange = async (userId: number, role: UserRole, targetName: string) => {
     setUpdatingId(userId)
     try {
       await updateRoleMutation.mutateAsync({ id: userId, role })
+      queryClient.invalidateQueries({ queryKey: ['users'] })
+      queryClient.invalidateQueries({ queryKey: ['employees'] })
+      toast.success(`Role updated to ${role} for ${targetName}!`)
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to update user role.')
     } finally {
       setUpdatingId(null)
     }
-  }
-
-  // Find linked employee for a user
-  const getLinkedEmployee = (userId: number) => {
-    return employees.find((e) => e.userId === userId)
   }
 
   return (
@@ -59,19 +71,22 @@ export function UserRolesList() {
       {/* Search Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div>
-          <h3 className="text-base font-bold text-foreground">User Accounts & System Roles</h3>
+          <h3 className="text-base font-bold text-foreground flex items-center gap-2">
+            <Shield className="size-4 text-primary" />
+            User Accounts & System Roles
+          </h3>
           <p className="text-xs text-muted-foreground">
-            Manage authentication accounts and system permission levels (Owner, Admin, Staff).
+            Assign system permission tiers (<strong className="text-primary font-bold">OWNER</strong>, <strong className="text-foreground font-semibold">ADMIN</strong>, or <strong className="text-muted-foreground">STAFF</strong>) to any registered user from the database.
           </p>
         </div>
 
-        <div className="relative w-full sm:w-64">
+        <div className="relative w-full sm:w-72">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
           <Input
-            placeholder="Search by user email..."
+            placeholder="Search by name or email..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9 bg-card"
+            className="pl-9 bg-card text-xs h-9"
           />
         </div>
       </div>
@@ -98,7 +113,7 @@ export function UserRolesList() {
             <TableHeader className="bg-muted/40">
               <TableRow>
                 <TableHead>User Account</TableHead>
-                <TableHead>Linked Employee Profile</TableHead>
+                <TableHead>Linked Staff Profile</TableHead>
                 <TableHead>Registered Date</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">System Role</TableHead>
@@ -106,32 +121,43 @@ export function UserRolesList() {
             </TableHeader>
             <TableBody>
               {filteredUsers.map((u) => {
-                const linkedEmp = getLinkedEmployee(u.id)
+                const linkedEmp = getLinkedEmployee(u.id, u.email)
                 const isUpdating = updatingId === u.id
+                const displayName =
+                  u.fullName ||
+                  (linkedEmp ? `${linkedEmp.firstName} ${linkedEmp.lastName}` : u.email.split('@')[0])
+                const initial = displayName.charAt(0).toUpperCase()
 
                 return (
                   <TableRow key={u.id} className="hover:bg-muted/30">
                     <TableCell>
                       <div className="flex items-center gap-3">
-                        <Avatar className="size-8 ring-1 ring-border">
+                        <Avatar className="size-8.5 ring-1 ring-border shadow-2xs">
                           <AvatarFallback className="bg-primary/10 text-primary text-xs font-bold">
-                            {u.email.charAt(0).toUpperCase()}
+                            {initial}
                           </AvatarFallback>
                         </Avatar>
-                        <div className="flex flex-col">
-                          <span className="font-semibold text-foreground text-xs">{u.email}</span>
-                          <span className="text-[10px] text-muted-foreground">User ID #{u.id}</span>
+                        <div className="flex flex-col min-w-0">
+                          <span className="font-bold text-foreground text-xs leading-snug truncate">
+                            {displayName}
+                          </span>
+                          <span className="text-[11px] text-muted-foreground font-mono truncate">
+                            {u.email}
+                          </span>
                         </div>
                       </div>
                     </TableCell>
 
                     <TableCell>
                       {linkedEmp ? (
-                        <div className="flex items-center gap-1.5 text-xs text-foreground">
-                          <CheckCircle2 className="size-3.5 text-emerald-600" />
-                          <span className="font-medium">
+                        <div className="flex items-center gap-1.5 text-xs text-foreground font-medium">
+                          <CheckCircle2 className="size-3.5 text-emerald-600 shrink-0" />
+                          <span>
                             {linkedEmp.firstName} {linkedEmp.lastName}
                           </span>
+                          <Badge variant="outline" className="text-[9px] py-0 px-1 text-muted-foreground font-normal">
+                            Staff #{linkedEmp.id}
+                          </Badge>
                         </div>
                       ) : (
                         <span className="text-xs text-muted-foreground/60">Not linked</span>
@@ -162,10 +188,10 @@ export function UserRolesList() {
                       <div className="inline-flex items-center justify-end w-36">
                         <Select
                           value={u.role}
-                          onValueChange={(val) => handleRoleChange(u.id, val as UserRole)}
+                          onValueChange={(val) => handleRoleChange(u.id, val as UserRole, displayName)}
                           disabled={isUpdating}
                         >
-                          <SelectTrigger className="h-8 text-xs font-semibold">
+                          <SelectTrigger className="h-8 text-xs font-semibold cursor-pointer">
                             {isUpdating ? (
                               <Spinner className="size-3 mr-1" />
                             ) : (
@@ -175,13 +201,15 @@ export function UserRolesList() {
                           <SelectContent align="end">
                             <SelectGroup>
                               <SelectItem value="OWNER">
-                                <span className="font-bold text-primary">OWNER</span>
+                                <span className="font-bold text-primary flex items-center gap-1.5">
+                                  <Sparkles className="size-3" /> OWNER
+                                </span>
                               </SelectItem>
                               <SelectItem value="ADMIN">
-                                <span className="font-semibold text-foreground">ADMIN</span>
+                                <span className="font-semibold text-foreground">ADMIN (Operations)</span>
                               </SelectItem>
                               <SelectItem value="STAFF">
-                                <span className="text-muted-foreground">STAFF</span>
+                                <span className="text-muted-foreground">STAFF (Restricted)</span>
                               </SelectItem>
                             </SelectGroup>
                           </SelectContent>
