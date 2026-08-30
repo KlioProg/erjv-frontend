@@ -46,10 +46,10 @@ export function getErrorMessage(error: unknown): string {
       if (Array.isArray(resData.message)) {
         return resData.message.join(', ')
       }
-      if (typeof resData.message === 'string' && resData.message !== 'Internal server error') {
+      if (typeof resData.message === 'string' && resData.message.trim()) {
         return resData.message
       }
-      if (resData.error && resData.error !== 'Internal Server Error') {
+      if (typeof resData.error === 'string' && resData.error.trim()) {
         return resData.error
       }
     }
@@ -60,7 +60,7 @@ export function getErrorMessage(error: unknown): string {
       return 'You do not have permission to perform this action.'
     }
     if (axiosErr.response?.status === 500) {
-      return 'Backend database service error. Please check database connection.'
+      return 'Backend database service error (500). Please check backend terminal logs.'
     }
     return axiosErr.message || 'Network error communicating with server.'
   }

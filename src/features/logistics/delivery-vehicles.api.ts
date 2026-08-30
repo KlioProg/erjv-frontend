@@ -66,13 +66,22 @@ export async function fetchVehicleByIdApi(id: number): Promise<DeliveryVehicle> 
 export async function createVehicleApi(
   payload: CreateDeliveryVehiclePayload
 ): Promise<DeliveryVehicle> {
-  const cleanPayload = {
+  const numCap = payload.capacity !== undefined && payload.capacity !== null && payload.capacity !== ''
+    ? parseFloat(String(payload.capacity))
+    : null
+
+  const cleanPayload: Record<string, unknown> = {
     plateNumber: payload.plateNumber.trim().toUpperCase(),
     vehicleType: payload.vehicleType.trim(),
     ...(payload.model?.trim() ? { model: payload.model.trim() } : {}),
-    ...(payload.capacity?.trim() ? { capacity: payload.capacity.trim() } : {}),
     ...(payload.status ? { status: payload.status } : {}),
     ...(payload.destinationLocation?.trim() ? { destinationLocation: payload.destinationLocation.trim() } : {}),
+  }
+
+  if (numCap !== null && !isNaN(numCap)) {
+    cleanPayload.capacity = numCap
+  } else if (payload.capacity) {
+    cleanPayload.capacity = String(payload.capacity).trim()
   }
 
   const { data } = await apiClient.post<DeliveryVehicle>('/delivery-vehicles', cleanPayload)

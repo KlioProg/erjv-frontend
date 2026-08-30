@@ -134,25 +134,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             localStorage.setItem('erjv_current_user', JSON.stringify(normalized))
           }
         } catch {
-          let jwtPayload: Record<string, unknown> | null = null
-          try {
-            const parts = token.split('.')
-            if (parts.length === 3) {
-              jwtPayload = JSON.parse(atob(parts[1]))
-            }
-          } catch {
-            // Ignore
-          }
-
-          const storedUser = localStorage.getItem('erjv_current_user')
-          if (storedUser && isMounted) {
-            const parsed = JSON.parse(storedUser)
-            const merged = { ...parsed, ...(jwtPayload || {}) }
-            setUser(normalizeUser(merged))
-          } else if (jwtPayload && isMounted) {
-            setUser(normalizeUser(jwtPayload))
-          } else if (isMounted) {
-            localStorage.removeItem('erjv_access_token')
+          // Token is invalid or user was wiped from database - clear and show Login screen
+          localStorage.removeItem('erjv_access_token')
+          localStorage.removeItem('erjv_current_user')
+          if (isMounted) {
             setToken(null)
             setUser(null)
           }
@@ -162,12 +147,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
         }
       } else {
-        const storedUser = localStorage.getItem('erjv_current_user')
-        if (storedUser && isMounted) {
-          setUser(normalizeUser(JSON.parse(storedUser)))
-          setToken('demo-token')
-        }
+        // No valid token - always show Login / Sign Up screen
+        localStorage.removeItem('erjv_access_token')
+        localStorage.removeItem('erjv_current_user')
         if (isMounted) {
+          setToken(null)
+          setUser(null)
           setIsLoading(false)
         }
       }
