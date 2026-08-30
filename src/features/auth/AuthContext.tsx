@@ -63,26 +63,39 @@ export function normalizeUser(rawUser: (Partial<SafeUserResponse> & Record<strin
       updatedAt: new Date().toISOString(),
     }
   }
-  const rawRole = rawUser.role ?? rawUser.userRole ?? rawUser.roleName
+
+  // Handle nested envelopes like { user: { ... } } or { data: { ... } }
+  const userObj = (
+    rawUser.user && typeof rawUser.user === 'object'
+      ? rawUser.user
+      : rawUser.data && typeof rawUser.data === 'object'
+      ? rawUser.data
+      : rawUser
+  ) as Record<string, unknown>
+
+  const rawRole = userObj.role ?? userObj.userRole ?? userObj.roleName ?? rawUser.role ?? rawUser.userRole
   const resolvedRole = normalizeUserRole(rawRole)
+
   return {
-    id: Number(rawUser.id) || 1,
-    email: rawUser.email || '',
+    id: Number(userObj.id ?? rawUser.id) || 1,
+    email: String(userObj.email ?? rawUser.email ?? ''),
     fullName:
-      rawUser.fullName ||
-      (rawUser.firstName ? `${rawUser.firstName} ${rawUser.lastName || ''}`.trim() : null) ||
-      (rawUser.name ? String(rawUser.name).trim() : null) ||
+      (userObj.fullName as string) ||
+      (rawUser.fullName as string) ||
+      (userObj.firstName ? `${String(userObj.firstName)} ${String(userObj.lastName || '')}`.trim() : null) ||
+      (userObj.name ? String(userObj.name).trim() : null) ||
       null,
-    phone: rawUser.phone || null,
-    avatarUrl: rawUser.avatarUrl || null,
+    phone: (userObj.phone as string) || (rawUser.phone as string) || null,
+    avatarUrl: (userObj.avatarUrl as string) || (rawUser.avatarUrl as string) || null,
     jobTitle:
-      rawUser.jobTitle ||
+      (userObj.jobTitle as string) ||
+      (rawUser.jobTitle as string) ||
       (resolvedRole === 'OWNER' ? 'Enterprise Owner' : resolvedRole === 'ADMIN' ? 'System Administrator' : 'Staff Member'),
-    bio: rawUser.bio || null,
+    bio: (userObj.bio as string) || (rawUser.bio as string) || null,
     role: resolvedRole,
-    isActive: rawUser.isActive !== false,
-    createdAt: rawUser.createdAt || new Date().toISOString(),
-    updatedAt: rawUser.updatedAt || new Date().toISOString(),
+    isActive: userObj.isActive !== false && rawUser.isActive !== false,
+    createdAt: String(userObj.createdAt ?? rawUser.createdAt ?? new Date().toISOString()),
+    updatedAt: String(userObj.updatedAt ?? rawUser.updatedAt ?? new Date().toISOString()),
   }
 }
 
@@ -121,9 +134,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             localStorage.setItem('erjv_current_user', JSON.stringify(normalized))
           }
         } catch {
+          let jwtPayload: Record<string, unknown> | null = null
+          try {
+            const parts = token.split('.')
+            if (parts.length === 3) {
+              jwtPayload = JSON.parse(atob(parts[1]))
+            }
+          } catch {
+            // Ignore
+          }
+
           const storedUser = localStorage.getItem('erjv_current_user')
           if (storedUser && isMounted) {
-            setUser(normalizeUser(JSON.parse(storedUser)))
+            const parsed = JSON.parse(storedUser)
+            const merged = { ...parsed, ...(jwtPayload || {}) }
+            setUser(normalizeUser(merged))
+          } else if (jwtPayload && isMounted) {
+            setUser(normalizeUser(jwtPayload))
           } else if (isMounted) {
             localStorage.removeItem('erjv_access_token')
             setToken(null)
@@ -161,12 +188,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       // 1. Try real backend API authentication
       try {
-        const { accessToken } = await loginApi({ email: cleanEmail, password: cleanPassword })
+        const loginRes = (await loginApi({ email: cleanEmail, password: cleanPassword })) as Record<string, unknown>
+        const accessToken = (loginRes.accessToken || loginRes.token || loginRes.access_token) as string | undefined
         if (accessToken) {
           localStorage.setItem('erjv_access_token', accessToken)
           setToken(accessToken)
-          const profile = await getProfileApi()
-          const normalized = normalizeUser(profile)
+
+          let profile = (loginRes.user || loginRes.profile || null) as Record<string, unknown> | null
+          if (!profile) {
+            try {
+              profile = await getProfileApi() as unknown as Record<string, unknown>
+            } catch {
+              // Ignore
+            }
+          }
+
+          if (!profile) {
+            try {
+              const parts = accessToken.split('.')
+              if (parts.length === 3) {
+                profile = JSON.parse(atob(parts[1]))
+              }
+            } catch {
+              // Ignore
+            }
+          }
+
+          const normalized = normalizeUser(profile || { email: cleanEmail })
           setUser(normalized)
           localStorage.setItem('erjv_current_user', JSON.stringify(normalized))
 
