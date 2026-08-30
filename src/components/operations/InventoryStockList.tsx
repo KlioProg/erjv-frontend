@@ -68,7 +68,8 @@ export function InventoryStockList() {
   const filteredProducts = products.filter((p) => {
     const matchesSearch =
       p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (p.sku && p.sku.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (p.variety && p.variety.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (p.description && p.description.toLowerCase().includes(searchTerm.toLowerCase()))
 
     if (selectedWarehouseFilter === 'ALL') return matchesSearch

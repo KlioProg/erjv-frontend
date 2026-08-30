@@ -52,11 +52,14 @@ export async function fetchProductByIdApi(id: number): Promise<InventoryItemResp
 export async function createProductApi(
   payload: CreateInventoryItemPayload
 ): Promise<InventoryItemResponse> {
+  const numPrice = Number(payload.unitPrice) || 0
   const cleanPayload = {
     name: payload.name.trim(),
-    sku: payload.sku.trim().toUpperCase(),
-    unitPrice: Number(payload.unitPrice),
+    unit: (payload.unit?.trim() || 'kg'),
+    unitPrice: numPrice.toFixed(2),
+    ...(payload.variety?.trim() ? { variety: payload.variety.trim() } : {}),
     ...(payload.description?.trim() ? { description: payload.description.trim() } : {}),
+    isActive: true,
   }
 
   const { data } = await apiClient.post<InventoryItemResponse>('/inventory-items', cleanPayload)
@@ -74,62 +77,37 @@ export async function updateProductDetailsApi(
 ): Promise<InventoryItemResponse> {
   const cleanPayload = {
     ...(payload.name ? { name: payload.name.trim() } : {}),
-    ...(payload.sku ? { sku: payload.sku.trim().toUpperCase() } : {}),
+    ...(payload.unit ? { unit: payload.unit.trim() } : {}),
+    ...(payload.variety !== undefined ? { variety: payload.variety?.trim() || null } : {}),
     ...(payload.description !== undefined ? { description: payload.description?.trim() || null } : {}),
   }
 
-  try {
-    const { data } = await apiClient.patch<InventoryItemResponse>(
-      `/inventory-items/${id}/details`,
-      cleanPayload
-    )
-    if (data) return data
-  } catch {
-    // Graceful fallback
+  const { data } = await apiClient.patch<InventoryItemResponse>(
+    `/inventory-items/${id}/details`,
+    cleanPayload
+  )
+  if (data && data.id) {
+    const current = getStoredProducts()
+    saveStoredProducts(current.map((p) => (p.id === id ? data : p)))
+    return data
   }
-
-  const current = getStoredProducts()
-  const index = current.findIndex((p) => p.id === id)
-  if (index !== -1) {
-    current[index] = {
-      ...current[index],
-      name: cleanPayload.name ?? current[index].name,
-      sku: cleanPayload.sku ?? current[index].sku,
-      description: cleanPayload.description !== undefined ? cleanPayload.description : current[index].description,
-      updatedAt: new Date().toISOString(),
-    }
-    saveStoredProducts(current)
-    return current[index]
-  }
-  throw new Error('Product not found')
+  throw new Error('Failed to update product in database')
 }
 
 export async function updateProductPriceApi(
   id: number,
   unitPrice: number
 ): Promise<InventoryItemResponse> {
-  try {
-    const { data } = await apiClient.patch<InventoryItemResponse>(
-      `/inventory-items/${id}/unit-price`,
-      { unitPrice: Number(unitPrice) }
-    )
-    if (data) return data
-  } catch {
-    // Graceful fallback
+  const { data } = await apiClient.patch<InventoryItemResponse>(
+    `/inventory-items/${id}/unit-price`,
+    { unitPrice: Number(unitPrice).toFixed(2) }
+  )
+  if (data && data.id) {
+    const current = getStoredProducts()
+    saveStoredProducts(current.map((p) => (p.id === id ? data : p)))
+    return data
   }
-
-  const current = getStoredProducts()
-  const index = current.findIndex((p) => p.id === id)
-  if (index !== -1) {
-    current[index] = {
-      ...current[index],
-      unitPrice: Number(unitPrice),
-      updatedAt: new Date().toISOString(),
-    }
-    saveStoredProducts(current)
-    return current[index]
-  }
-  throw new Error('Product not found')
+  throw new Error('Failed to update product price in database')
 }
 
 export async function deactivateProductApi(id: number): Promise<InventoryItemResponse> {

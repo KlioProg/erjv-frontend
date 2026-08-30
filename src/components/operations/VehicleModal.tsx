@@ -90,7 +90,6 @@ function VehicleFormContent({
             vehicleType: vehicleType.trim(),
             model: model.trim() || null,
             capacity: parsedCap !== null ? parsedCap.toFixed(2) : null,
-            destinationLocation: destinationLocation.trim() || null,
           },
         })
       } else {
@@ -100,7 +99,6 @@ function VehicleFormContent({
           model: model.trim() || null,
           capacity: parsedCap !== null ? parsedCap.toFixed(2) : null,
           status,
-          destinationLocation: destinationLocation.trim() || null,
           isActive: true,
         })
       }

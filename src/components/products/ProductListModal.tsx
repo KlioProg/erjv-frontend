@@ -32,7 +32,8 @@ export function ProductListModal({ open, onClose }: ProductListModalProps) {
   const filtered = products.filter(
     (p) =>
       p.name.toLowerCase().includes(search.toLowerCase()) ||
-      p.sku.toLowerCase().includes(search.toLowerCase())
+      (p.sku && p.sku.toLowerCase().includes(search.toLowerCase())) ||
+      (p.variety && p.variety.toLowerCase().includes(search.toLowerCase()))
   )
 
   return (

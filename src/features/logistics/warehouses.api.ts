@@ -91,27 +91,13 @@ export async function updateWarehouseDetailsApi(
     ...(payload.contactNumber !== undefined ? { contactNumber: payload.contactNumber?.trim() || null } : {}),
   }
 
-  try {
-    const { data } = await apiClient.patch<Warehouse>(`/warehouses/${id}/details`, cleanPayload)
-    if (data) return data
-  } catch {
-    // Graceful fallback
+  const { data } = await apiClient.patch<Warehouse>(`/warehouses/${id}/details`, cleanPayload)
+  if (data && data.id) {
+    const current = getStoredWarehouses()
+    saveStoredWarehouses(current.map((w) => (w.id === id ? data : w)))
+    return data
   }
-
-  const current = getStoredWarehouses()
-  const index = current.findIndex((w) => w.id === id)
-  if (index !== -1) {
-    current[index] = {
-      ...current[index],
-      name: cleanPayload.name ?? current[index].name,
-      address: cleanPayload.address ?? current[index].address,
-      contactNumber: cleanPayload.contactNumber !== undefined ? cleanPayload.contactNumber : current[index].contactNumber,
-      updatedAt: new Date().toISOString(),
-    }
-    saveStoredWarehouses(current)
-    return current[index]
-  }
-  throw new Error('Warehouse not found')
+  throw new Error('Failed to update warehouse in database')
 }
 
 export async function deactivateWarehouseApi(id: number): Promise<Warehouse> {

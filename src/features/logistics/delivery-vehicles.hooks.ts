@@ -67,19 +67,14 @@ export function useUpdateVehicleStatus() {
     mutationFn: ({
       id,
       status,
-      destinationLocation,
     }: {
       id: number
       status: VehicleStatus
       destinationLocation?: string | null
-    }) => updateVehicleStatusApi(id, status, destinationLocation),
+    }) => updateVehicleStatusApi(id, status),
     onSuccess: (v) => {
       void queryClient.invalidateQueries({ queryKey: VEHICLES_QUERY_KEY })
-      toast.success(
-        `Vehicle "${v.plateNumber}" status set to ${v.status}${
-          v.destinationLocation ? ` (En route to: ${v.destinationLocation})` : ''
-        }`
-      )
+      toast.success(`Vehicle "${v.plateNumber}" status set to ${v.status}`)
     },
     onError: (err) => {
       toast.error(getErrorMessage(err))

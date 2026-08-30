@@ -66,22 +66,14 @@ export async function fetchVehicleByIdApi(id: number): Promise<DeliveryVehicle> 
 export async function createVehicleApi(
   payload: CreateDeliveryVehiclePayload
 ): Promise<DeliveryVehicle> {
-  const numCap = payload.capacity !== undefined && payload.capacity !== null && payload.capacity !== ''
-    ? parseFloat(String(payload.capacity))
-    : null
-
+  const parsedCap = payload.capacity ? parseFloat(String(payload.capacity)) : null
   const cleanPayload: Record<string, unknown> = {
     plateNumber: payload.plateNumber.trim().toUpperCase(),
     vehicleType: payload.vehicleType.trim(),
     ...(payload.model?.trim() ? { model: payload.model.trim() } : {}),
+    ...(parsedCap !== null && !isNaN(parsedCap) ? { capacity: parsedCap.toFixed(2) } : {}),
     ...(payload.status ? { status: payload.status } : {}),
-    ...(payload.destinationLocation?.trim() ? { destinationLocation: payload.destinationLocation.trim() } : {}),
-  }
-
-  if (numCap !== null && !isNaN(numCap)) {
-    cleanPayload.capacity = numCap
-  } else if (payload.capacity) {
-    cleanPayload.capacity = String(payload.capacity).trim()
+    isActive: true,
   }
 
   const { data } = await apiClient.post<DeliveryVehicle>('/delivery-vehicles', cleanPayload)
@@ -97,12 +89,12 @@ export async function updateVehicleDetailsApi(
   id: number,
   payload: UpdateDeliveryVehicleDetailsPayload
 ): Promise<DeliveryVehicle> {
-  const cleanPayload = {
+  const parsedCap = payload.capacity ? parseFloat(String(payload.capacity)) : null
+  const cleanPayload: Record<string, unknown> = {
     ...(payload.plateNumber ? { plateNumber: payload.plateNumber.trim().toUpperCase() } : {}),
     ...(payload.vehicleType ? { vehicleType: payload.vehicleType.trim() } : {}),
     ...(payload.model !== undefined ? { model: payload.model?.trim() || null } : {}),
-    ...(payload.capacity !== undefined ? { capacity: payload.capacity?.trim() || null } : {}),
-    ...(payload.destinationLocation !== undefined ? { destinationLocation: payload.destinationLocation?.trim() || null } : {}),
+    ...(parsedCap !== null && !isNaN(parsedCap) ? { capacity: parsedCap.toFixed(2) } : {}),
   }
 
   const { data } = await apiClient.patch<DeliveryVehicle>(
@@ -119,37 +111,17 @@ export async function updateVehicleDetailsApi(
 
 export async function updateVehicleStatusApi(
   id: number,
-  status: VehicleStatus,
-  destinationLocation?: string | null
+  status: VehicleStatus
 ): Promise<DeliveryVehicle> {
-  try {
-    const { data } = await apiClient.patch<DeliveryVehicle>(`/delivery-vehicles/${id}/status`, {
-      status,
-      ...(destinationLocation !== undefined ? { destinationLocation } : {}),
-    })
-    if (data) return data
-  } catch {
-    // Graceful fallback
+  const { data } = await apiClient.patch<DeliveryVehicle>(`/delivery-vehicles/${id}/status`, {
+    status,
+  })
+  if (data && data.id) {
+    const current = getStoredVehicles()
+    saveStoredVehicles(current.map((v) => (v.id === id ? data : v)))
+    return data
   }
-
-  const current = getStoredVehicles()
-  const index = current.findIndex((v) => v.id === id)
-  if (index !== -1) {
-    current[index] = {
-      ...current[index],
-      status,
-      destinationLocation:
-        destinationLocation !== undefined
-          ? destinationLocation
-          : status === 'AVAILABLE'
-          ? null
-          : current[index].destinationLocation,
-      updatedAt: new Date().toISOString(),
-    }
-    saveStoredVehicles(current)
-    return current[index]
-  }
-  throw new Error('Vehicle not found')
+  throw new Error('Failed to update vehicle status in database')
 }
 
 export async function deactivateVehicleApi(id: number): Promise<DeliveryVehicle> {

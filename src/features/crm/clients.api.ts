@@ -80,29 +80,13 @@ export async function updateClientDetailsApi(
     ...(payload.email !== undefined ? { email: payload.email?.trim() || null } : {}),
   }
 
-  try {
-    const { data } = await apiClient.patch<Client>(`/clients/${id}/details`, cleanPayload)
-    if (data) return data
-  } catch {
-    // Graceful fallback
+  const { data } = await apiClient.patch<Client>(`/clients/${id}/details`, cleanPayload)
+  if (data && data.id) {
+    const current = getStoredClients()
+    saveStoredClients(current.map((c) => (c.id === id ? data : c)))
+    return data
   }
-
-  const current = getStoredClients()
-  const index = current.findIndex((c) => c.id === id)
-  if (index !== -1) {
-    current[index] = {
-      ...current[index],
-      name: cleanPayload.name ?? current[index].name,
-      contactPerson: cleanPayload.contactPerson !== undefined ? cleanPayload.contactPerson : current[index].contactPerson,
-      phone: cleanPayload.phone !== undefined ? cleanPayload.phone : current[index].phone,
-      email: cleanPayload.email !== undefined ? cleanPayload.email : current[index].email,
-      address: cleanPayload.address ?? current[index].address,
-      updatedAt: new Date().toISOString(),
-    }
-    saveStoredClients(current)
-    return current[index]
-  }
-  throw new Error('Client not found')
+  throw new Error('Failed to update client in database')
 }
 
 export async function deactivateClientApi(id: number): Promise<Client> {
