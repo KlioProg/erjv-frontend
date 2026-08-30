@@ -134,10 +134,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             localStorage.setItem('erjv_current_user', JSON.stringify(normalized))
           }
         } catch {
-          // Token is invalid or user was wiped from database - clear and show Login screen
-          localStorage.removeItem('erjv_access_token')
-          localStorage.removeItem('erjv_current_user')
-          if (isMounted) {
+          // If /auth/profile endpoint is not present or fails, decode the JWT token payload
+          let jwtPayload: Record<string, unknown> | null = null
+          try {
+            const parts = token.split('.')
+            if (parts.length === 3) {
+              jwtPayload = JSON.parse(atob(parts[1]))
+            }
+          } catch {
+            // Ignore
+          }
+
+          const storedUser = localStorage.getItem('erjv_current_user')
+          if (storedUser && isMounted) {
+            const parsed = JSON.parse(storedUser)
+            const merged = { ...parsed, ...(jwtPayload || {}) }
+            setUser(normalizeUser(merged))
+          } else if (jwtPayload && isMounted) {
+            setUser(normalizeUser(jwtPayload))
+          } else if (isMounted) {
+            localStorage.removeItem('erjv_access_token')
             setToken(null)
             setUser(null)
           }
@@ -147,9 +163,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
         }
       } else {
-        // No valid token - always show Login / Sign Up screen
-        localStorage.removeItem('erjv_access_token')
-        localStorage.removeItem('erjv_current_user')
         if (isMounted) {
           setToken(null)
           setUser(null)
@@ -176,13 +189,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const loginRes = (await loginApi({ email: cleanEmail, password: cleanPassword })) as Record<string, unknown>
         const accessToken = (loginRes.accessToken || loginRes.token || loginRes.access_token) as string | undefined
         if (accessToken) {
-          localStorage.setItem('erjv_access_token', accessToken)
-          setToken(accessToken)
-
           let profile = (loginRes.user || loginRes.profile || null) as Record<string, unknown> | null
           if (!profile) {
             try {
-              profile = await getProfileApi() as unknown as Record<string, unknown>
+              profile = (await getProfileApi()) as unknown as Record<string, unknown>
             } catch {
               // Ignore
             }
@@ -200,8 +210,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
 
           const normalized = normalizeUser(profile || { email: cleanEmail })
-          setUser(normalized)
           localStorage.setItem('erjv_current_user', JSON.stringify(normalized))
+          localStorage.setItem('erjv_access_token', accessToken)
+          setUser(normalized)
+          setToken(accessToken)
 
           // Save session
           const expiryTime = Date.now() + (rememberMe ? THIRTY_DAYS_MS : ONE_DAY_MS)
@@ -210,6 +222,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             localStorage.setItem('erjv_remember_me', 'true')
             localStorage.setItem('erjv_remembered_email', cleanEmail)
           }
+          setIsLoading(false)
           return
         }
       } catch {
