@@ -18,6 +18,24 @@ apiClient.interceptors.request.use((config) => {
   }
   return config
 })
+// Universal response unwrapper for array endpoints
+export function extractArray<T = Record<string, unknown>>(data: unknown): T[] {
+  if (Array.isArray(data)) return data as T[]
+  if (data && typeof data === 'object') {
+    const obj = data as Record<string, unknown>
+    if (Array.isArray(obj.data)) return obj.data as T[]
+    if (Array.isArray(obj.users)) return obj.users as T[]
+    if (Array.isArray(obj.items)) return obj.items as T[]
+    if (Array.isArray(obj.results)) return obj.results as T[]
+    if (Array.isArray(obj.employees)) return obj.employees as T[]
+    if (Array.isArray(obj.jobs)) return obj.jobs as T[]
+    if (Array.isArray(obj.warehouses)) return obj.warehouses as T[]
+    if (Array.isArray(obj.vehicles)) return obj.vehicles as T[]
+    if (Array.isArray(obj.clients)) return obj.clients as T[]
+    if (Array.isArray(obj.products)) return obj.products as T[]
+  }
+  return []
+}
 
 // Format error messages from NestJS ValidationPipe or exceptions
 export function getErrorMessage(error: unknown): string {

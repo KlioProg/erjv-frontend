@@ -1,4 +1,4 @@
-import { apiClient } from '@/lib/api-client'
+import { apiClient, extractArray } from '@/lib/api-client'
 import { normalizeUserRole } from '../auth/AuthContext'
 import type { UserRole } from '../auth/auth.types'
 import type {
@@ -541,9 +541,10 @@ export async function replaceJobsForEmployeeApi(
 
 export async function fetchUsersApi(): Promise<UserAccount[]> {
   try {
-    const { data } = await apiClient.get<Array<Record<string, unknown>>>('/users')
-    if (Array.isArray(data) && data.length > 0) {
-      const mapped: UserAccount[] = data.map((u) => ({
+    const response = await apiClient.get('/users')
+    const rawList = extractArray(response.data)
+    if (Array.isArray(response.data) || rawList.length > 0) {
+      const mapped: UserAccount[] = rawList.map((u) => ({
         id: Number(u.id) || 1,
         email: String(u.email || ''),
         fullName:
