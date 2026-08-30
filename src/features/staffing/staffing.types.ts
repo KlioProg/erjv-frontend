@@ -79,6 +79,7 @@ export type EmployeeJobWithEmployee = EmployeeJob & {
 export type UserAccount = {
   id: number
   email: string
+  fullName?: string | null
   role: UserRole
   isActive: boolean
   createdAt: string

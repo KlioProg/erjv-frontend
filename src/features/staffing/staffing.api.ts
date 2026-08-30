@@ -53,80 +53,11 @@ const INITIAL_JOBS: Job[] = [
   },
 ]
 
-const INITIAL_EMPLOYEES: Employee[] = [
-  {
-    id: 1,
-    firstName: 'Marcus',
-    lastName: 'Villaruel',
-    email: 'marcus.v@erjvpos.com',
-    phone: '+63 (917) 555-0199',
-    address: 'Davao City',
-    hireDate: '2023-01-15',
-    isActive: true,
-    userId: 1,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 2,
-    firstName: 'Sarah',
-    lastName: 'Chen-Santos',
-    email: 'sarah.chen@erjvpos.com',
-    phone: '+63 (918) 555-0245',
-    address: 'Panabo City',
-    hireDate: '2023-03-20',
-    isActive: true,
-    userId: 2,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 3,
-    firstName: 'Danilo',
-    lastName: 'Reyes',
-    email: 'danilo.reyes@erjvpos.com',
-    phone: '+63 (920) 555-0388',
-    address: 'Toril, Davao City',
-    hireDate: '2023-06-10',
-    isActive: true,
-    userId: 3,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-]
+const INITIAL_EMPLOYEES: Employee[] = []
 
-const INITIAL_EMPLOYEE_JOBS: { employeeId: number; jobId: number }[] = [
-  { employeeId: 1, jobId: 1 },
-  { employeeId: 2, jobId: 2 },
-  { employeeId: 3, jobId: 3 },
-]
+const INITIAL_EMPLOYEE_JOBS: { employeeId: number; jobId: number }[] = []
 
-const INITIAL_USERS: UserAccount[] = [
-  {
-    id: 1,
-    email: 'owner@erjvpos.com',
-    role: 'OWNER',
-    isActive: true,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 2,
-    email: 'admin@erjvpos.com',
-    role: 'ADMIN',
-    isActive: true,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 3,
-    email: 'staff@erjvpos.com',
-    role: 'STAFF',
-    isActive: true,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-]
+const INITIAL_USERS: UserAccount[] = []
 
 function getStored<T>(key: string, initial: T): T {
   try {
@@ -155,7 +86,55 @@ export async function fetchEmployeesApi(): Promise<Employee[]> {
   } catch {
     // Graceful fallback
   }
-  return getStored<Employee[]>(EMPLOYEES_STORAGE_KEY, INITIAL_EMPLOYEES).filter((e) => e.isActive)
+
+  const emps = getStored<Employee[]>(EMPLOYEES_STORAGE_KEY, INITIAL_EMPLOYEES)
+
+  // Auto-sync any registered users into the employees directory
+  try {
+    const rawDbUsers = localStorage.getItem('erjv_db_users_v5')
+    const dbUsers = rawDbUsers ? JSON.parse(rawDbUsers) : []
+
+    dbUsers.forEach((u: { id: number; email: string; fullName?: string; phone?: string | null }) => {
+      const exists = emps.some(
+        (e) => (e.email && e.email.toLowerCase() === u.email.toLowerCase()) || e.userId === u.id
+      )
+      if (!exists) {
+        const nameParts = (u.fullName || u.email.split('@')[0]).trim().split(' ')
+        const firstName = nameParts[0] || 'Staff'
+        const lastName = nameParts.slice(1).join(' ') || 'Member'
+        emps.push({
+          id: u.id,
+          firstName,
+          lastName,
+          email: u.email,
+          phone: u.phone || null,
+          address: null,
+          hireDate: new Date().toISOString().split('T')[0],
+          isActive: true,
+          userId: u.id,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        })
+      } else {
+        // Ensure name is up to date if user updated full name
+        const idx = emps.findIndex(
+          (e) => (e.email && e.email.toLowerCase() === u.email.toLowerCase()) || e.userId === u.id
+        )
+        if (idx !== -1 && u.fullName) {
+          const nameParts = u.fullName.trim().split(' ')
+          emps[idx].firstName = nameParts[0] || emps[idx].firstName
+          emps[idx].lastName = nameParts.slice(1).join(' ') || emps[idx].lastName
+          if (u.phone) emps[idx].phone = u.phone
+          if (!emps[idx].userId) emps[idx].userId = u.id
+        }
+      }
+    })
+    setStored(EMPLOYEES_STORAGE_KEY, emps)
+  } catch {
+    // Ignore
+  }
+
+  return emps.filter((e) => e.isActive)
 }
 
 export async function fetchEmployeeByIdApi(id: number): Promise<Employee> {
@@ -603,31 +582,38 @@ export async function fetchUsersApi(): Promise<UserAccount[]> {
     // Graceful fallback
   }
 
-  const baseUsers = getStored<UserAccount[]>(USERS_STORAGE_KEY, INITIAL_USERS)
-
-  // Merge any newly registered accounts from public sign up
+  // Load from local database (erjv_db_users_v5)
   try {
-    const rawReg = localStorage.getItem('erjv_registered_users')
-    if (rawReg) {
-      const regList: Array<{ email: string; role?: UserRole }> = JSON.parse(rawReg)
-      regList.forEach((reg, idx) => {
-        if (!baseUsers.some((u) => u.email.toLowerCase() === reg.email.toLowerCase())) {
-          baseUsers.push({
-            id: 100 + idx + 1,
-            email: reg.email,
-            role: reg.role || 'STAFF',
-            isActive: true,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          })
-        }
-      })
-      setStored(USERS_STORAGE_KEY, baseUsers)
+    const rawDb = localStorage.getItem('erjv_db_users_v5')
+    if (rawDb) {
+      const dbUsers: Array<{
+        id: number
+        email: string
+        fullName?: string | null
+        role: UserRole
+        isActive?: boolean
+        createdAt?: string
+        updatedAt?: string
+      }> = JSON.parse(rawDb)
+
+      const mappedUsers: UserAccount[] = dbUsers.map((u) => ({
+        id: u.id,
+        email: u.email,
+        fullName: u.fullName || null,
+        role: u.role || 'STAFF',
+        isActive: u.isActive !== undefined ? u.isActive : true,
+        createdAt: u.createdAt || new Date().toISOString(),
+        updatedAt: u.updatedAt || new Date().toISOString(),
+      }))
+
+      setStored(USERS_STORAGE_KEY, mappedUsers)
+      return mappedUsers
     }
   } catch {
     // Ignore
   }
 
+  const baseUsers = getStored<UserAccount[]>(USERS_STORAGE_KEY, INITIAL_USERS)
   return baseUsers
 }
 
@@ -639,28 +625,65 @@ export async function updateUserRoleApi(id: number, role: UserRole): Promise<Use
     // Graceful fallback
   }
 
-  const list = getStored<UserAccount[]>(USERS_STORAGE_KEY, INITIAL_USERS)
-  const index = list.findIndex((u) => u.id === id)
-  if (index !== -1) {
-    list[index].role = role
-    setStored(USERS_STORAGE_KEY, list)
+  // 1. Update in USERS_STORAGE_KEY (erjv_db_users_v5)
+  let updatedUser: UserAccount | null = null
 
-    // Also sync with registered users storage
-    try {
-      const rawReg = localStorage.getItem('erjv_registered_users')
-      if (rawReg) {
-        const regList: Array<{ email: string; role?: UserRole }> = JSON.parse(rawReg)
-        const regIdx = regList.findIndex((r) => r.email.toLowerCase() === list[index].email.toLowerCase())
-        if (regIdx !== -1) {
-          regList[regIdx].role = role
-          localStorage.setItem('erjv_registered_users', JSON.stringify(regList))
+  try {
+    const rawDb = localStorage.getItem('erjv_db_users_v5')
+    if (rawDb) {
+      const dbUsers = JSON.parse(rawDb)
+      const idx = dbUsers.findIndex((u: { id: number }) => u.id === id)
+      if (idx !== -1) {
+        dbUsers[idx].role = role
+        dbUsers[idx].updatedAt = new Date().toISOString()
+        localStorage.setItem('erjv_db_users_v5', JSON.stringify(dbUsers))
+        updatedUser = {
+          id: dbUsers[idx].id,
+          email: dbUsers[idx].email,
+          fullName: dbUsers[idx].fullName || null,
+          role: dbUsers[idx].role,
+          isActive: dbUsers[idx].isActive !== undefined ? dbUsers[idx].isActive : true,
+          createdAt: dbUsers[idx].createdAt || new Date().toISOString(),
+          updatedAt: dbUsers[idx].updatedAt || new Date().toISOString(),
         }
       }
-    } catch {
-      // Ignore
     }
-
-    return list[index]
+  } catch {
+    // Ignore
   }
+
+  // 2. Also sync with registered users storage
+  try {
+    const rawReg = localStorage.getItem('erjv_registered_users')
+    if (rawReg && updatedUser) {
+      const regList: Array<{ email: string; role?: UserRole }> = JSON.parse(rawReg)
+      const regIdx = regList.findIndex((r) => r.email.toLowerCase() === updatedUser?.email.toLowerCase())
+      if (regIdx !== -1) {
+        regList[regIdx].role = role
+        localStorage.setItem('erjv_registered_users', JSON.stringify(regList))
+      }
+    }
+  } catch {
+    // Ignore
+  }
+
+  // 3. If current logged in user was modified, update their session
+  try {
+    const rawCurrent = localStorage.getItem('erjv_current_user')
+    if (rawCurrent && updatedUser) {
+      const currentUser = JSON.parse(rawCurrent)
+      if (currentUser.email.toLowerCase() === updatedUser.email.toLowerCase() || currentUser.id === updatedUser.id) {
+        currentUser.role = role
+        localStorage.setItem('erjv_current_user', JSON.stringify(currentUser))
+      }
+    }
+  } catch {
+    // Ignore
+  }
+
+  if (updatedUser) {
+    return updatedUser
+  }
+
   throw new Error('User not found')
 }

@@ -18,6 +18,7 @@ import {
   useCreateEmployee,
   useUpdateEmployeeProfile,
   useUsers,
+  useEmployees,
 } from '@/features/staffing/staffing.hooks'
 import type { Employee } from '@/features/staffing/staffing.types'
 import { getErrorMessage } from '@/lib/api-client'
@@ -39,6 +40,7 @@ function EmployeeFormContent({
   const createMutation = useCreateEmployee()
   const updateMutation = useUpdateEmployeeProfile()
   const { data: users = [] } = useUsers()
+  const { data: allEmployees = [] } = useEmployees()
 
   const [firstName, setFirstName] = useState(employee?.firstName || '')
   const [lastName, setLastName] = useState(employee?.lastName || '')
@@ -66,6 +68,28 @@ function EmployeeFormContent({
 
     if (!hireDate) {
       setErrorMsg('Hire date is required.')
+      return
+    }
+
+    const cleanEmail = email.trim().toLowerCase()
+    const targetFullName = `${firstName.trim()} ${lastName.trim()}`.toLowerCase()
+
+    // Uniqueness validation (exclude current employee when editing)
+    const duplicateEmail = allEmployees.find(
+      (emp) => emp.id !== employee?.id && emp.email && emp.email.toLowerCase() === cleanEmail
+    )
+    if (cleanEmail && duplicateEmail) {
+      setErrorMsg('Email is already registered.')
+      return
+    }
+
+    const duplicateName = allEmployees.find(
+      (emp) =>
+        emp.id !== employee?.id &&
+        `${emp.firstName} ${emp.lastName}`.toLowerCase().trim() === targetFullName
+    )
+    if (duplicateName) {
+      setErrorMsg('Name is already registered.')
       return
     }
 

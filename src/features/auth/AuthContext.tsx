@@ -23,44 +23,20 @@ type AuthContextType = {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-const INITIAL_DB_USERS = [
-  {
-    id: 1,
-    email: 'owner@erjvpos.com',
-    fullName: 'Marcus Villaruel',
-    phone: '+63 (917) 555-0199',
-    jobTitle: 'Enterprise Owner & Founder',
-    bio: 'Oversees whole operations, logistics complexes, and business acquisitions.',
-    avatarUrl: null,
-    password: 'plain-password',
-    role: 'OWNER' as const,
-    isActive: true,
-  },
-  {
-    id: 2,
-    email: 'admin@erjvpos.com',
-    fullName: 'Sarah Chen-Santos',
-    phone: '+63 (918) 555-0245',
-    jobTitle: 'System Operations Administrator',
-    bio: 'Leads staffing, warehouse allocation protocols, and fleet management.',
-    avatarUrl: null,
-    password: 'plain-password',
-    role: 'ADMIN' as const,
-    isActive: true,
-  },
-  {
-    id: 3,
-    email: 'staff@erjvpos.com',
-    fullName: 'Danilo Reyes',
-    phone: '+63 (920) 555-0388',
-    jobTitle: 'Senior Logistics Specialist',
-    bio: 'Responsible for inventory intake, cross-docking, and delivery dispatches.',
-    avatarUrl: null,
-    password: 'plain-password',
-    role: 'STAFF' as const,
-    isActive: true,
-  },
-]
+const INITIAL_DB_USERS: Array<{
+  id: number
+  email: string
+  fullName: string | null
+  phone: string | null
+  jobTitle: string | null
+  bio: string | null
+  avatarUrl: string | null
+  password?: string
+  role: 'OWNER' | 'ADMIN' | 'STAFF'
+  isActive: boolean
+  createdAt?: string
+  updatedAt?: string
+}> = []
 
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000
 const ONE_DAY_MS = 24 * 60 * 60 * 1000
@@ -223,18 +199,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       // STRICT CHECK: If account is not found in database, REJECT LOGIN!
       if (!foundUser) {
-        throw new Error(`Account not found. No registered account was found with "${payload.email}". Please check your email or click "Register" to create an account.`)
+        throw new Error('Account not found.')
       }
 
       // Verify active status
       if (foundUser.isActive === false) {
-        throw new Error('This account has been deactivated. Please contact your system administrator.')
+        throw new Error('Account is deactivated.')
       }
 
       // Verify password if recorded
       if (foundUser.password && cleanPassword && foundUser.password !== 'plain-password') {
         if (foundUser.password !== cleanPassword) {
-          throw new Error('Incorrect password. Please verify your credentials and try again.')
+          throw new Error('Incorrect password.')
         }
       }
 
@@ -281,6 +257,73 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const cleanEmail = payload.email.trim().toLowerCase()
     const role = payload.role || 'STAFF'
     const fullName = payload.fullName?.trim() || cleanEmail.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase())
+
+    // 0. Strict Primary-Key-Style Uniqueness Validation (Email & Full Name)
+    const normalizedEmail = cleanEmail.toLowerCase()
+    const normalizedName = fullName.toLowerCase().trim()
+
+    const existingEmails = new Set<string>()
+    const existingNames = new Set<string>()
+
+    // Seed defaults
+    INITIAL_DB_USERS.forEach((u) => {
+      existingEmails.add(u.email.toLowerCase())
+      if (u.fullName) existingNames.add(u.fullName.toLowerCase().trim())
+    })
+
+    // Local DB users
+    try {
+      const rawDb = localStorage.getItem('erjv_db_users_v5')
+      if (rawDb) {
+        const dbUsers = JSON.parse(rawDb)
+        dbUsers.forEach((u: { email?: string; fullName?: string }) => {
+          if (u.email) existingEmails.add(u.email.toLowerCase())
+          if (u.fullName) existingNames.add(u.fullName.toLowerCase().trim())
+        })
+      }
+    } catch {
+      // Ignore
+    }
+
+    // Registered users
+    try {
+      const rawReg = localStorage.getItem('erjv_registered_users')
+      if (rawReg) {
+        const regUsers = JSON.parse(rawReg)
+        regUsers.forEach((u: { email?: string; fullName?: string }) => {
+          if (u.email) existingEmails.add(u.email.toLowerCase())
+          if (u.fullName) existingNames.add(u.fullName.toLowerCase().trim())
+        })
+      }
+    } catch {
+      // Ignore
+    }
+
+    // Employees directory
+    try {
+      const rawEmps = localStorage.getItem('erjv_db_employees_v5')
+      if (rawEmps) {
+        const emps = JSON.parse(rawEmps)
+        emps.forEach((e: { email?: string; firstName?: string; lastName?: string }) => {
+          if (e.email) existingEmails.add(e.email.toLowerCase())
+          if (e.firstName && e.lastName) {
+            existingNames.add(`${e.firstName} ${e.lastName}`.toLowerCase().trim())
+          }
+        })
+      }
+    } catch {
+      // Ignore
+    }
+
+    if (existingEmails.has(normalizedEmail)) {
+      setIsLoading(false)
+      throw new Error('Email is already registered.')
+    }
+
+    if (existingNames.has(normalizedName)) {
+      setIsLoading(false)
+      throw new Error('Name is already taken.')
+    }
 
     try {
       let registeredUser: SafeUserResponse
@@ -358,6 +401,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Ignore
       }
 
+      // 4. Automatically add to Staff Directory (erjv_db_employees_v5)
+      try {
+        const rawEmps = localStorage.getItem('erjv_db_employees_v5')
+        const currentEmps = rawEmps ? JSON.parse(rawEmps) : []
+        const nameParts = fullName.trim().split(' ')
+        const firstName = nameParts[0] || 'Staff'
+        const lastName = nameParts.slice(1).join(' ') || 'Member'
+
+        const existingIdx = currentEmps.findIndex(
+          (e: { email?: string; userId?: number }) =>
+            (e.email && e.email.toLowerCase() === cleanEmail) || e.userId === registeredUser.id
+        )
+
+        const newEmp = {
+          id: registeredUser.id,
+          firstName,
+          lastName,
+          email: cleanEmail,
+          phone: payload.phone || null,
+          address: null,
+          hireDate: new Date().toISOString().split('T')[0],
+          isActive: true,
+          userId: registeredUser.id,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        }
+
+        if (existingIdx !== -1) {
+          currentEmps[existingIdx] = { ...currentEmps[existingIdx], ...newEmp }
+        } else {
+          currentEmps.push(newEmp)
+        }
+
+        localStorage.setItem('erjv_db_employees_v5', JSON.stringify(currentEmps))
+      } catch {
+        // Ignore
+      }
+
       return registeredUser
     } finally {
       setIsLoading(false)
@@ -369,9 +450,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       throw new Error('No user is currently logged in.')
     }
 
+    const isOwner = user.role === 'OWNER'
+    const newFullName = (isOwner && payload.fullName !== undefined) ? payload.fullName.trim() : user.fullName
+
     const updatedUser: SafeUserResponse = {
       ...user,
-      fullName: payload.fullName !== undefined ? payload.fullName.trim() : user.fullName,
+      fullName: newFullName,
       phone: payload.phone !== undefined ? payload.phone : user.phone,
       avatarUrl: payload.avatarUrl !== undefined ? payload.avatarUrl : user.avatarUrl,
       jobTitle: payload.jobTitle !== undefined ? payload.jobTitle : user.jobTitle,
