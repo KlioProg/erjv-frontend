@@ -16,6 +16,7 @@ const INITIAL_VEHICLES: DeliveryVehicle[] = [
     model: 'Isuzu Giga 10-Wheeler Heavy Cargo Carrier',
     capacity: '25,000 kg',
     status: 'AVAILABLE',
+    destinationLocation: null,
     isActive: true,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -27,6 +28,7 @@ const INITIAL_VEHICLES: DeliveryVehicle[] = [
     model: 'Hino 500 Series 6-Wheeler Wing Van',
     capacity: '12,000 kg',
     status: 'IN_DELIVERY',
+    destinationLocation: 'Gaisano Grand Mall Complex, J.P. Laurel Ave, Davao City',
     isActive: true,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -38,6 +40,7 @@ const INITIAL_VEHICLES: DeliveryVehicle[] = [
     model: 'Fuso Canter 4-Wheeler Closed Van',
     capacity: '4,500 kg',
     status: 'AVAILABLE',
+    destinationLocation: null,
     isActive: true,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -49,6 +52,7 @@ const INITIAL_VEHICLES: DeliveryVehicle[] = [
     model: 'UD Trucks Quester Heavy Dropside Hauler',
     capacity: '30,000 kg',
     status: 'MAINTENANCE',
+    destinationLocation: null,
     isActive: true,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -115,6 +119,7 @@ export async function createVehicleApi(
     ...(payload.model?.trim() ? { model: payload.model.trim() } : {}),
     ...(payload.capacity?.trim() ? { capacity: payload.capacity.trim() } : {}),
     ...(payload.status ? { status: payload.status } : {}),
+    ...(payload.destinationLocation?.trim() ? { destinationLocation: payload.destinationLocation.trim() } : {}),
   }
 
   try {
@@ -137,6 +142,7 @@ export async function createVehicleApi(
     model: cleanPayload.model || null,
     capacity: cleanPayload.capacity || null,
     status: (cleanPayload.status as VehicleStatus) || 'AVAILABLE',
+    destinationLocation: cleanPayload.destinationLocation || null,
     isActive: true,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -155,6 +161,7 @@ export async function updateVehicleDetailsApi(
     ...(payload.vehicleType ? { vehicleType: payload.vehicleType.trim() } : {}),
     ...(payload.model !== undefined ? { model: payload.model?.trim() || null } : {}),
     ...(payload.capacity !== undefined ? { capacity: payload.capacity?.trim() || null } : {}),
+    ...(payload.destinationLocation !== undefined ? { destinationLocation: payload.destinationLocation?.trim() || null } : {}),
   }
 
   try {
@@ -176,6 +183,7 @@ export async function updateVehicleDetailsApi(
       vehicleType: cleanPayload.vehicleType ?? current[index].vehicleType,
       model: cleanPayload.model !== undefined ? cleanPayload.model : current[index].model,
       capacity: cleanPayload.capacity !== undefined ? cleanPayload.capacity : current[index].capacity,
+      destinationLocation: cleanPayload.destinationLocation !== undefined ? cleanPayload.destinationLocation : current[index].destinationLocation,
       updatedAt: new Date().toISOString(),
     }
     saveStoredVehicles(current)
@@ -186,11 +194,13 @@ export async function updateVehicleDetailsApi(
 
 export async function updateVehicleStatusApi(
   id: number,
-  status: VehicleStatus
+  status: VehicleStatus,
+  destinationLocation?: string | null
 ): Promise<DeliveryVehicle> {
   try {
     const { data } = await apiClient.patch<DeliveryVehicle>(`/delivery-vehicles/${id}/status`, {
       status,
+      ...(destinationLocation !== undefined ? { destinationLocation } : {}),
     })
     if (data) return data
   } catch {
@@ -203,6 +213,12 @@ export async function updateVehicleStatusApi(
     current[index] = {
       ...current[index],
       status,
+      destinationLocation:
+        destinationLocation !== undefined
+          ? destinationLocation
+          : status === 'AVAILABLE'
+          ? null
+          : current[index].destinationLocation,
       updatedAt: new Date().toISOString(),
     }
     saveStoredVehicles(current)

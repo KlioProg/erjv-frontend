@@ -14,6 +14,7 @@ export type DeliveryVehicle = {
   model: string | null
   capacity: string | null
   status: VehicleStatus
+  destinationLocation?: string | null
   isActive: boolean
   createdAt: string
   updatedAt: string
@@ -25,6 +26,7 @@ export type CreateDeliveryVehiclePayload = {
   model?: string | null
   capacity?: string | null
   status?: VehicleStatus
+  destinationLocation?: string | null
   isActive?: boolean
 }
 
@@ -33,8 +35,10 @@ export type UpdateDeliveryVehicleDetailsPayload = {
   vehicleType?: string
   model?: string | null
   capacity?: string | null
+  destinationLocation?: string | null
 }
 
 export type UpdateDeliveryVehicleStatusPayload = {
   status: VehicleStatus
+  destinationLocation?: string | null
 }

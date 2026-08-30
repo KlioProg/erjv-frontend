@@ -10,12 +10,24 @@ import {
   Clock,
   Wrench,
   AlertOctagon,
+  MapPin,
+  Building2,
+  Navigation,
 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Spinner } from '@/components/ui/spinner'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,6 +40,7 @@ import {
   useDeliveryVehicles,
   useUpdateVehicleStatus,
 } from '@/features/logistics/delivery-vehicles.hooks'
+import { useClients } from '@/features/crm/clients.hooks'
 import {
   VEHICLE_STATUSES,
   type DeliveryVehicle,
@@ -71,6 +84,7 @@ function VehicleStatusBadge({ status }: { status: VehicleStatus }) {
 
 export function VehicleList() {
   const { data: vehicles = [], isLoading } = useDeliveryVehicles()
+  const { data: clients = [] } = useClients()
   const deactivateMutation = useDeactivateVehicle()
   const statusMutation = useUpdateVehicleStatus()
 
@@ -80,11 +94,16 @@ export function VehicleList() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [vehicleToDeactivate, setVehicleToDeactivate] = useState<DeliveryVehicle | null>(null)
 
+  // Dispatch Destination Quick Modal state
+  const [vehicleForDispatch, setVehicleForDispatch] = useState<DeliveryVehicle | null>(null)
+  const [dispatchLocation, setDispatchLocation] = useState('')
+
   const filteredVehicles = vehicles.filter((v) => {
     const matchesSearch =
       v.plateNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (v.model && v.model.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      v.vehicleType.toLowerCase().includes(searchTerm.toLowerCase())
+      v.vehicleType.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (v.destinationLocation && v.destinationLocation.toLowerCase().includes(searchTerm.toLowerCase()))
 
     const matchesStatus =
       statusFilter.toUpperCase() === 'ALL' || v.status === statusFilter
@@ -107,7 +126,27 @@ export function VehicleList() {
   }
 
   const handleStatusChange = async (id: number, status: VehicleStatus) => {
-    await statusMutation.mutateAsync({ id, status })
+    if (status === 'IN_DELIVERY') {
+      const v = vehicles.find((veh) => veh.id === id)
+      if (v) {
+        setVehicleForDispatch(v)
+        setDispatchLocation(v.destinationLocation || '')
+        return
+      }
+    }
+    await statusMutation.mutateAsync({ id, status, destinationLocation: null })
+  }
+
+  const handleConfirmDispatch = async () => {
+    if (vehicleForDispatch) {
+      await statusMutation.mutateAsync({
+        id: vehicleForDispatch.id,
+        status: 'IN_DELIVERY',
+        destinationLocation: dispatchLocation.trim() || 'Client Location in Transit',
+      })
+      setVehicleForDispatch(null)
+      setDispatchLocation('')
+    }
   }
 
   const handleDeactivate = (vehicle: DeliveryVehicle) => {
@@ -172,7 +211,7 @@ export function VehicleList() {
           <div className="relative flex-1 sm:max-w-xs">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
             <Input
-              placeholder="Search plate, vehicle type, model..."
+              placeholder="Search plate, type, destination..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-9 h-9 text-xs"
@@ -202,7 +241,7 @@ export function VehicleList() {
           </div>
         </div>
 
-        <Button onClick={handleCreate} size="sm" className="gap-1.5 shadow-xs">
+        <Button onClick={handleCreate} size="sm" className="gap-1.5 shadow-xs cursor-pointer">
           <Plus className="size-4" />
           Register Vehicle
         </Button>
@@ -219,14 +258,14 @@ export function VehicleList() {
             <Truck className="size-10 text-muted-foreground/50 mb-3" />
             <h3 className="text-sm font-semibold text-foreground">No vehicles found</h3>
             <p className="text-xs text-muted-foreground mt-1 max-w-xs">
-              {searchTerm || statusFilter !== 'all'
-                ? 'No delivery assets match your selected filters.'
-                : 'Register your store delivery trucks, vans, and fleet units to track availability in real-time.'}
+              {searchTerm || statusFilter !== 'ALL'
+                ? 'No transport vehicles match your search query or status filter.'
+                : 'Register your first delivery truck or cargo hauler.'}
             </p>
-            {!searchTerm && statusFilter === 'all' && (
-              <Button onClick={handleCreate} size="sm" variant="outline" className="mt-4 gap-1.5">
+            {!searchTerm && statusFilter === 'ALL' && (
+              <Button onClick={handleCreate} size="sm" className="mt-4 gap-1.5 cursor-pointer">
                 <Plus className="size-3.5" />
-                Register First Vehicle
+                Register Transport Asset
               </Button>
             )}
           </CardContent>
@@ -234,25 +273,40 @@ export function VehicleList() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredVehicles.map((vehicle) => {
+            const isInDelivery = vehicle.status === 'IN_DELIVERY'
+            const isAvailable = vehicle.status === 'AVAILABLE'
+            const isMaintenance = vehicle.status === 'MAINTENANCE'
+
+            const iconBg = isAvailable
+              ? 'bg-emerald-500/10 text-emerald-600'
+              : isInDelivery
+              ? 'bg-blue-500/10 text-blue-600'
+              : isMaintenance
+              ? 'bg-amber-500/10 text-amber-600'
+              : 'bg-destructive/10 text-destructive'
+
             return (
               <Card
                 key={vehicle.id}
-                className="group relative overflow-hidden transition-all duration-200 hover:shadow-md hover:border-primary/40 border-border/80"
+                className="group relative overflow-hidden transition-all duration-200 hover:shadow-md border-border/80 rounded-2xl flex flex-col justify-between hover:border-primary/40"
               >
-                <CardContent className="p-5 flex flex-col justify-between h-full gap-4">
+                <CardContent className="p-5 flex flex-col justify-between h-full gap-3.5">
+                  {/* Card Header */}
                   <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-start gap-3">
-                      <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary group-hover:scale-105 transition-transform">
+                    <div className="flex items-start gap-3 min-w-0">
+                      <div
+                        className={`flex size-10 shrink-0 items-center justify-center rounded-xl transition-transform group-hover:scale-105 ${iconBg}`}
+                      >
                         <Truck className="size-5" />
                       </div>
-                      <div>
-                        <div className="flex items-center gap-2">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-mono text-sm font-extrabold text-foreground tracking-tight">
                             {vehicle.plateNumber}
                           </span>
                           <VehicleStatusBadge status={vehicle.status} />
                         </div>
-                        <p className="text-xs text-muted-foreground font-medium mt-0.5">
+                        <p className="text-xs text-muted-foreground font-medium mt-0.5 truncate">
                           {vehicle.vehicleType}
                         </p>
                       </div>
@@ -263,16 +317,16 @@ export function VehicleList() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="size-7 text-muted-foreground hover:text-foreground"
+                          className="size-7 text-muted-foreground hover:text-foreground cursor-pointer shrink-0"
                         >
                           <MoreVertical className="size-4" />
                           <span className="sr-only">Vehicle actions</span>
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => handleEdit(vehicle)} className="gap-2 text-xs">
+                        <DropdownMenuItem onClick={() => handleEdit(vehicle)} className="gap-2 text-xs cursor-pointer">
                           <Edit2 className="size-3.5" />
-                          Edit Details
+                          Edit Details & Route
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <div className="px-2 py-1 text-[10px] font-bold text-muted-foreground uppercase">
@@ -282,7 +336,9 @@ export function VehicleList() {
                           <DropdownMenuItem
                             key={st}
                             onClick={() => handleStatusChange(vehicle.id, st)}
-                            className={`gap-2 text-xs ${vehicle.status === st ? 'font-bold text-primary' : ''}`}
+                            className={`gap-2 text-xs cursor-pointer ${
+                              vehicle.status === st ? 'font-bold text-primary' : ''
+                            }`}
                           >
                             {st === 'AVAILABLE' && <CheckCircle2 className="size-3.5 text-emerald-500" />}
                             {st === 'IN_DELIVERY' && <Clock className="size-3.5 text-blue-500" />}
@@ -303,6 +359,62 @@ export function VehicleList() {
                     </DropdownMenu>
                   </div>
 
+                  {/* Uniform Status & Route Banner for ALL Cards */}
+                  <div className="min-h-[58px] flex items-center">
+                    {isInDelivery ? (
+                      <div className="w-full flex items-start gap-2.5 p-2.5 rounded-xl bg-blue-500/10 border border-blue-500/25">
+                        <MapPin className="size-4 text-blue-600 shrink-0 mt-0.5" />
+                        <div className="min-w-0 flex-1">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-blue-700 block">
+                            En Route To Destination:
+                          </span>
+                          <span
+                            className="font-bold text-foreground text-xs block truncate"
+                            title={vehicle.destinationLocation || 'Commercial Client Location (In Transit)'}
+                          >
+                            {vehicle.destinationLocation || 'Commercial Client Location (In Transit)'}
+                          </span>
+                        </div>
+                      </div>
+                    ) : isAvailable ? (
+                      <div className="w-full flex items-center gap-2.5 p-2.5 rounded-xl bg-emerald-500/5 border border-emerald-500/15">
+                        <CheckCircle2 className="size-4 text-emerald-600 shrink-0" />
+                        <div className="min-w-0 flex-1">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 block">
+                            Dispatch Ready:
+                          </span>
+                          <span className="font-medium text-muted-foreground text-xs block truncate">
+                            Stationed in Central Depot • Ready for loading
+                          </span>
+                        </div>
+                      </div>
+                    ) : isMaintenance ? (
+                      <div className="w-full flex items-center gap-2.5 p-2.5 rounded-xl bg-amber-500/5 border border-amber-500/15">
+                        <Wrench className="size-4 text-amber-600 shrink-0" />
+                        <div className="min-w-0 flex-1">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700 block">
+                            Fleet Servicing:
+                          </span>
+                          <span className="font-medium text-muted-foreground text-xs block truncate">
+                            Under routine maintenance & safety inspection
+                          </span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="w-full flex items-center gap-2.5 p-2.5 rounded-xl bg-destructive/5 border border-destructive/15">
+                        <AlertOctagon className="size-4 text-destructive shrink-0" />
+                        <div className="min-w-0 flex-1">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-destructive block">
+                            Off-Duty:
+                          </span>
+                          <span className="font-medium text-muted-foreground text-xs block truncate">
+                            Temporarily removed from active dispatch
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
                   {/* Model & Capacity Specs */}
                   <div className="grid grid-cols-2 gap-2 pt-3 border-t border-border/60 text-xs">
                     <div className="flex flex-col gap-0.5">
@@ -316,10 +428,10 @@ export function VehicleList() {
 
                     <div className="flex flex-col gap-0.5">
                       <span className="text-[10px] text-muted-foreground uppercase font-semibold">
-                        Operational Status
+                        Model / Vehicle Make
                       </span>
-                      <span className="font-semibold text-xs text-foreground">
-                        {vehicle.status.replace(/_/g, ' ')}
+                      <span className="font-semibold text-xs text-foreground truncate" title={vehicle.model || 'Standard'}>
+                        {vehicle.model || 'Standard Unit'}
                       </span>
                     </div>
                   </div>
@@ -332,7 +444,7 @@ export function VehicleList() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="h-6 text-[11px] text-muted-foreground hover:text-foreground px-2"
+                          className="h-6 text-[11px] font-semibold text-muted-foreground hover:text-foreground px-2 cursor-pointer"
                         >
                           Update Status ▾
                         </Button>
@@ -342,8 +454,12 @@ export function VehicleList() {
                           <DropdownMenuItem
                             key={st}
                             onClick={() => handleStatusChange(vehicle.id, st)}
-                            className="gap-2 text-xs"
+                            className="gap-2 text-xs cursor-pointer"
                           >
+                            {st === 'AVAILABLE' && <CheckCircle2 className="size-3.5 text-emerald-500" />}
+                            {st === 'IN_DELIVERY' && <Clock className="size-3.5 text-blue-500" />}
+                            {st === 'MAINTENANCE' && <Wrench className="size-3.5 text-amber-500" />}
+                            {st === 'OUT_OF_SERVICE' && <AlertOctagon className="size-3.5 text-destructive" />}
                             {st.replace(/_/g, ' ')}
                           </DropdownMenuItem>
                         ))}
@@ -357,12 +473,100 @@ export function VehicleList() {
         </div>
       )}
 
+      {/* Main Vehicle Edit / Register Modal */}
       <VehicleModal
         vehicle={selectedVehicle}
         open={isModalOpen}
         onClose={() => setIsModalOpen(false)}
       />
 
+      {/* Quick Dispatch Destination Assignment Dialog */}
+      <Dialog open={!!vehicleForDispatch} onOpenChange={(open) => !open && setVehicleForDispatch(null)}>
+        <DialogContent className="sm:max-w-[460px]">
+          <DialogHeader>
+            <div className="flex size-11 items-center justify-center rounded-2xl bg-blue-500/10 text-blue-600 mb-2 shadow-2xs">
+              <Navigation className="size-5" />
+            </div>
+            <DialogTitle className="text-xl font-bold tracking-tight">
+              Dispatch Vehicle on Delivery Route
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Set the delivery destination location for vehicle{' '}
+              <span className="font-mono font-bold text-foreground">{vehicleForDispatch?.plateNumber}</span>.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex flex-col gap-3.5 py-2">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="dispatch-dest" className="text-xs font-semibold text-foreground">
+                Destination Address / Client Location <span className="text-primary">*</span>
+              </Label>
+              <div className="relative">
+                <MapPin className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-blue-600 pointer-events-none" />
+                <Input
+                  id="dispatch-dest"
+                  placeholder="e.g. Gaisano Grand Mall Complex, J.P. Laurel Ave, Davao City"
+                  value={dispatchLocation}
+                  onChange={(e) => setDispatchLocation(e.target.value)}
+                  className="pl-10 text-xs font-medium"
+                  autoFocus
+                />
+              </div>
+            </div>
+
+            {/* Quick Client Selection */}
+            {clients.length > 0 && (
+              <div className="flex flex-col gap-1.5 p-3 rounded-xl bg-muted/40 border border-border/70">
+                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                  <Building2 className="size-3" /> Quick pick from registered commercial clients:
+                </span>
+                <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
+                  {clients.map((c) => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => setDispatchLocation(`${c.name} - ${c.address}`)}
+                      className="px-2.5 py-1 rounded-lg bg-card hover:bg-primary/10 hover:border-primary/40 border border-border/80 text-[11px] font-medium text-foreground transition-colors text-left cursor-pointer"
+                    >
+                      <span className="font-bold block truncate max-w-[240px]">{c.name}</span>
+                      <span className="text-[10px] text-muted-foreground block truncate max-w-[240px]">{c.address}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="gap-2 pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setVehicleForDispatch(null)}
+              disabled={statusMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={handleConfirmDispatch}
+              disabled={statusMutation.isPending}
+              className="bg-blue-600 hover:bg-blue-700 text-white font-bold gap-1.5 shadow-xs cursor-pointer"
+            >
+              {statusMutation.isPending ? (
+                <>
+                  <Spinner data-icon="inline-start" /> Dispatching...
+                </>
+              ) : (
+                <>
+                  <Navigation className="size-3.5" /> Dispatch Vehicle
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Themed Deactivation Modal */}
       <ConfirmDeleteModal
         open={!!vehicleToDeactivate}
         onClose={() => setVehicleToDeactivate(null)}

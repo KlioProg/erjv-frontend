@@ -66,12 +66,25 @@ export async function fetchWarehousesApi(): Promise<Warehouse[]> {
     const { data } = await apiClient.get<Warehouse[]>('/warehouses')
     if (Array.isArray(data) && data.length > 0) {
       saveStoredWarehouses(data)
-      return data
+      return data.filter((w) => w.isActive)
     }
   } catch {
     // Graceful fallback
   }
   return getStoredWarehouses().filter((w) => w.isActive)
+}
+
+export async function fetchAllWarehousesApi(): Promise<Warehouse[]> {
+  try {
+    const { data } = await apiClient.get<Warehouse[]>('/warehouses/all')
+    if (Array.isArray(data) && data.length > 0) {
+      saveStoredWarehouses(data)
+      return data
+    }
+  } catch {
+    // Graceful fallback
+  }
+  return getStoredWarehouses()
 }
 
 export async function fetchWarehouseByIdApi(id: number): Promise<Warehouse> {

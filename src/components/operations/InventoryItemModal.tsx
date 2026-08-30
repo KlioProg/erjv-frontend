@@ -1,5 +1,13 @@
 import { useState, type FormEvent } from 'react'
-import { Package, Tag, FileText, Barcode, HelpCircle, Sparkles } from 'lucide-react'
+import {
+  Package,
+  Tag,
+  FileText,
+  Barcode,
+  HelpCircle,
+  Sparkles,
+  Warehouse as WarehouseIcon,
+} from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -19,6 +27,8 @@ import {
   useUpdateProductDetails,
   useDeactivateProduct,
 } from '@/features/products/products.hooks'
+import { useWarehouses } from '@/features/logistics/warehouses.hooks'
+import { useCreateStockItem } from '@/features/logistics/stock-items.hooks'
 import type { InventoryItemResponse } from '@/features/products/products.types'
 import { getErrorMessage } from '@/lib/api-client'
 import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal'
@@ -40,6 +50,8 @@ function ItemFormContent({
   const createMutation = useCreateProduct()
   const updateMutation = useUpdateProductDetails()
   const deactivateMutation = useDeactivateProduct()
+  const createStockMutation = useCreateStockItem()
+  const { data: warehouses = [] } = useWarehouses()
 
   const [name, setName] = useState(item?.name || '')
   const [sku, setSku] = useState(item?.sku || '')
@@ -49,6 +61,16 @@ function ItemFormContent({
   const [description, setDescription] = useState(item?.description || '')
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = useState(false)
+
+  // Warehouse Initial Stock Allocations map: { [warehouseId]: quantityString }
+  const [warehouseAllocations, setWarehouseAllocations] = useState<Record<number, string>>({})
+
+  const handleWarehouseQtyChange = (whId: number, qty: string) => {
+    setWarehouseAllocations((prev) => ({
+      ...prev,
+      [whId]: qty,
+    }))
+  }
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
@@ -79,13 +101,49 @@ function ItemFormContent({
             description: description.trim() || null,
           },
         })
+
+        // Also save any newly specified warehouse allocations
+        const entries = Object.entries(warehouseAllocations)
+        for (const [whIdStr, qtyStr] of entries) {
+          const parsedQty = parseFloat(qtyStr)
+          if (!isNaN(parsedQty) && parsedQty > 0) {
+            const whObj = warehouses.find((w) => w.id === Number(whIdStr))
+            await createStockMutation.mutateAsync({
+              payload: {
+                inventoryItemId: item.id,
+                warehouseId: Number(whIdStr),
+                quantity: parsedQty.toFixed(2),
+              },
+              itemName: item.name,
+              whName: whObj?.name,
+            })
+          }
+        }
       } else {
-        await createMutation.mutateAsync({
+        const newProduct = await createMutation.mutateAsync({
           name: name.trim(),
           sku: sku.trim().toUpperCase(),
           unitPrice: parsedPrice,
           description: description.trim() || null,
         })
+
+        // Automatically allocate initial stock to specified warehouses
+        const entries = Object.entries(warehouseAllocations)
+        for (const [whIdStr, qtyStr] of entries) {
+          const parsedQty = parseFloat(qtyStr)
+          if (!isNaN(parsedQty) && parsedQty > 0) {
+            const whObj = warehouses.find((w) => w.id === Number(whIdStr))
+            await createStockMutation.mutateAsync({
+              payload: {
+                inventoryItemId: newProduct.id,
+                warehouseId: Number(whIdStr),
+                quantity: parsedQty.toFixed(2),
+              },
+              itemName: newProduct.name,
+              whName: whObj?.name,
+            })
+          }
+        }
       }
       onClose()
     } catch (err) {
@@ -93,7 +151,8 @@ function ItemFormContent({
     }
   }
 
-  const isPending = createMutation.isPending || updateMutation.isPending
+  const isPending =
+    createMutation.isPending || updateMutation.isPending || createStockMutation.isPending
 
   return (
     <>
@@ -106,8 +165,8 @@ function ItemFormContent({
         </DialogTitle>
         <DialogDescription className="text-xs text-muted-foreground leading-relaxed">
           {isEditing
-            ? 'Update product catalog item specifications, packaging units, and handling notes.'
-            : 'Register a product SKU to track multi-warehouse inventory, pricing, and distribution.'}
+            ? 'Update product catalog item specifications, packaging units, and warehouse allocations.'
+            : 'Register a product SKU to track multi-warehouse inventory, pricing, and distribution across 1, 2, or all storage hubs.'}
         </DialogDescription>
       </DialogHeader>
 
@@ -167,21 +226,21 @@ function ItemFormContent({
               <button
                 type="button"
                 onClick={() => setSku('OIL-PALM-20L-CARB')}
-                className="px-2 py-0.5 rounded-md bg-background border border-border font-mono hover:bg-muted font-bold text-foreground"
+                className="px-2 py-0.5 rounded-md bg-background border border-border font-mono hover:bg-muted font-bold text-foreground cursor-pointer"
               >
                 OIL-PALM-20L
               </button>
               <button
                 type="button"
                 onClick={() => setSku('RICE-KOH-RED-50KG')}
-                className="px-2 py-0.5 rounded-md bg-background border border-border font-mono hover:bg-muted font-bold text-foreground"
+                className="px-2 py-0.5 rounded-md bg-background border border-border font-mono hover:bg-muted font-bold text-foreground cursor-pointer"
               >
                 RICE-KOH-50KG
               </button>
               <button
                 type="button"
                 onClick={() => setSku('SUG-REF-WHT-50KG')}
-                className="px-2 py-0.5 rounded-md bg-background border border-border font-mono hover:bg-muted font-bold text-foreground"
+                className="px-2 py-0.5 rounded-md bg-background border border-border font-mono hover:bg-muted font-bold text-foreground cursor-pointer"
               >
                 SUG-REF-50KG
               </button>
@@ -223,11 +282,54 @@ function ItemFormContent({
               required={!isEditing}
             />
           </div>
+        </div>
+
+        {/* Multi-Warehouse Stock Allocation Section */}
+        <div className="flex flex-col gap-2 p-4 rounded-2xl bg-card border border-border/80 shadow-2xs">
+          <div className="flex items-center justify-between">
+            <Label className="text-xs font-bold text-foreground flex items-center gap-1.5">
+              <WarehouseIcon className="size-4 text-primary" />
+              Warehouse Stock Distribution (Assign across 1, 2, or All Facilities)
+            </Label>
+            <span className="text-[11px] text-muted-foreground font-medium">Optional initial allocation</span>
+          </div>
+
           <p className="text-[11px] text-muted-foreground">
-            {isEditing
-              ? 'To update the base selling price after registration, use the product pricing update API.'
-              : 'Base unit price applied during POS billing and commercial invoice issuance.'}
+            Specify how many units of this product to store in each warehouse hub upon creation:
           </p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+            {warehouses.map((wh) => {
+              const currentVal = warehouseAllocations[wh.id] || ''
+              return (
+                <div
+                  key={wh.id}
+                  className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-muted/40 border border-border/70"
+                >
+                  <div className="min-w-0 flex-1">
+                    <span className="text-xs font-bold text-foreground block truncate" title={wh.name}>
+                      {wh.name}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground block truncate">
+                      {wh.address}
+                    </span>
+                  </div>
+
+                  <div className="w-24 shrink-0">
+                    <Input
+                      type="number"
+                      step="1"
+                      min="0"
+                      placeholder="0 units"
+                      value={currentVal}
+                      onChange={(e) => handleWarehouseQtyChange(wh.id, e.target.value)}
+                      className="h-8 text-xs font-bold text-right"
+                    />
+                  </div>
+                </div>
+              )
+            })}
+          </div>
         </div>
 
         {/* Description */}
@@ -243,7 +345,7 @@ function ItemFormContent({
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               className="pl-9 text-xs"
-              rows={3}
+              rows={2}
             />
           </div>
         </div>
@@ -268,14 +370,14 @@ function ItemFormContent({
             <Button type="button" variant="outline" onClick={onClose} disabled={isPending}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isPending} className="font-semibold shadow-xs">
+            <Button type="submit" disabled={isPending} className="font-semibold shadow-xs cursor-pointer">
               {isPending ? (
                 <>
                   <Spinner data-icon="inline-start" />
-                  {isEditing ? 'Saving...' : 'Registering SKU...'}
+                  {isEditing ? 'Saving...' : 'Registering SKU & Stocks...'}
                 </>
               ) : (
-                <>{isEditing ? 'Save Product Changes' : 'Register Product SKU'}</>
+                <>{isEditing ? 'Save Product Changes' : 'Register SKU & Allocate Stocks'}</>
               )}
             </Button>
           </div>
@@ -309,7 +411,7 @@ function ItemFormContent({
 export function InventoryItemModal({ item, open, onClose }: InventoryItemModalProps) {
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-      <DialogContent className="sm:max-w-[560px]">
+      <DialogContent className="sm:max-w-[620px] max-h-[90vh] overflow-y-auto">
         {open && (
           <ItemFormContent
             key={item ? `item-${item.id}` : 'new-item'}
