@@ -6,58 +6,9 @@ import type {
   VehicleStatus,
 } from './delivery-vehicles.types'
 
-const STORAGE_KEY = 'erjv_db_vehicles_v5'
+const STORAGE_KEY = 'erjv_db_vehicles_v6'
 
-const INITIAL_VEHICLES: DeliveryVehicle[] = [
-  {
-    id: 1,
-    plateNumber: 'ABC-1234',
-    vehicleType: '10-Wheeler Heavy Cargo Carrier',
-    model: 'Isuzu Giga 10-Wheeler Heavy Cargo Carrier',
-    capacity: '25,000 kg',
-    status: 'AVAILABLE',
-    destinationLocation: null,
-    isActive: true,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 2,
-    plateNumber: 'XYZ-5678',
-    vehicleType: '6-Wheeler Wing Van',
-    model: 'Hino 500 Series 6-Wheeler Wing Van',
-    capacity: '12,000 kg',
-    status: 'IN_DELIVERY',
-    destinationLocation: 'Gaisano Grand Mall Complex, J.P. Laurel Ave, Davao City',
-    isActive: true,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 3,
-    plateNumber: 'DAV-9012',
-    vehicleType: '4-Wheeler Closed Van',
-    model: 'Fuso Canter 4-Wheeler Closed Van',
-    capacity: '4,500 kg',
-    status: 'AVAILABLE',
-    destinationLocation: null,
-    isActive: true,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 4,
-    plateNumber: 'MND-3456',
-    vehicleType: 'Heavy Dropside Hauler',
-    model: 'UD Trucks Quester Heavy Dropside Hauler',
-    capacity: '30,000 kg',
-    status: 'MAINTENANCE',
-    destinationLocation: null,
-    isActive: true,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-]
+const INITIAL_VEHICLES: DeliveryVehicle[] = []
 
 function getStoredVehicles(): DeliveryVehicle[] {
   try {

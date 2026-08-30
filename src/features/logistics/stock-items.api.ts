@@ -7,105 +7,9 @@ import type {
   StockItemWithRelations,
 } from './stock-items.types'
 
-const STORAGE_KEY = 'erjv_db_stock_items_v5'
+const STORAGE_KEY = 'erjv_db_stock_items_v6'
 
-const INITIAL_STOCK_ITEMS: StockItemWithRelations[] = [
-  {
-    id: 1,
-    quantity: '350.00',
-    inventoryItemId: 1,
-    warehouseId: 1,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    inventoryItem: {
-      id: 1,
-      name: 'Kohaku Red Premium Rice (50kg Sack)',
-      sku: 'RICE-KOH-RED-50KG',
-      unitPrice: 1350.0,
-    },
-    warehouse: {
-      id: 1,
-      name: 'Central Logistics & Distribution Complex',
-      address: 'Lanang Logistics Industrial Park, Davao City',
-    },
-  },
-  {
-    id: 2,
-    quantity: '220.00',
-    inventoryItemId: 2,
-    warehouseId: 1,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    inventoryItem: {
-      id: 2,
-      name: 'Premium Palm Cooking Oil (20L Carboy)',
-      sku: 'OIL-PALM-20L-CARB',
-      unitPrice: 1150.0,
-    },
-    warehouse: {
-      id: 1,
-      name: 'Central Logistics & Distribution Complex',
-      address: 'Lanang Logistics Industrial Park, Davao City',
-    },
-  },
-  {
-    id: 3,
-    quantity: '180.00',
-    inventoryItemId: 3,
-    warehouseId: 4,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    inventoryItem: {
-      id: 3,
-      name: 'Refined Pure Coconut Cooking Oil (17kg Tin)',
-      sku: 'OIL-COC-17KG-TIN',
-      unitPrice: 1280.0,
-    },
-    warehouse: {
-      id: 4,
-      name: 'Matina Dry & Liquid Storage Facility',
-      address: 'McArthur Highway, Matina Enclaves, Davao City',
-    },
-  },
-  {
-    id: 4,
-    quantity: '290.00',
-    inventoryItemId: 6,
-    warehouseId: 1,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    inventoryItem: {
-      id: 6,
-      name: 'Premium Refined White Sugar (50kg Sack)',
-      sku: 'SUG-REF-WHT-50KG',
-      unitPrice: 3450.0,
-    },
-    warehouse: {
-      id: 1,
-      name: 'Central Logistics & Distribution Complex',
-      address: 'Lanang Logistics Industrial Park, Davao City',
-    },
-  },
-  {
-    id: 5,
-    quantity: '400.00',
-    inventoryItemId: 7,
-    warehouseId: 3,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    inventoryItem: {
-      id: 7,
-      name: 'First Class Hard Wheat Bakery Flour (25kg Bag)',
-      sku: 'FLR-HRD-WHT-25KG',
-      unitPrice: 980.0,
-    },
-    warehouse: {
-      id: 3,
-      name: 'Toril Wholesale Distribution Hub',
-      address: 'Crossing Bayabas, Toril District, Davao City',
-    },
-  },
-]
+const INITIAL_STOCK_ITEMS: StockItemWithRelations[] = []
 
 function getStoredStock(): StockItemWithRelations[] {
   try {
@@ -192,7 +96,7 @@ export async function createStockItemApi(
   let whName = `Warehouse #${cleanPayload.warehouseId}`
   let whAddress = ''
   try {
-    const rawWh = localStorage.getItem('erjv_db_warehouses_v5')
+    const rawWh = localStorage.getItem('erjv_db_warehouses_v6')
     if (rawWh) {
       const whList: Array<{ id: number; name: string; address?: string }> = JSON.parse(rawWh)
       const foundWh = whList.find((w) => w.id === cleanPayload.warehouseId)
@@ -209,7 +113,7 @@ export async function createStockItemApi(
   let prodName = `Product SKU #${cleanPayload.inventoryItemId}`
   let prodSku = ''
   try {
-    const rawProd = localStorage.getItem('erjv_db_products_v5')
+    const rawProd = localStorage.getItem('erjv_db_products_v6')
     if (rawProd) {
       const prodList: Array<{ id: number; name: string; sku?: string }> = JSON.parse(rawProd)
       const foundProd = prodList.find((p) => p.id === cleanPayload.inventoryItemId)

@@ -5,90 +5,9 @@ import type {
   UpdateInventoryItemDetailsPayload,
 } from './products.types'
 
-const STORAGE_KEY = 'erjv_db_products_v5'
+const STORAGE_KEY = 'erjv_db_products_v6'
 
-const INITIAL_PRODUCTS: InventoryItemResponse[] = [
-  {
-    id: 1,
-    name: 'Kohaku Red Premium Rice (50kg Sack)',
-    sku: 'RICE-KOH-RED-50KG',
-    unitPrice: 1350.0,
-    description: 'First grade fragrant polished white rice, 50kg wholesale sack',
-    isActive: true,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 2,
-    name: 'Premium Palm Cooking Oil (20L Carboy)',
-    sku: 'OIL-PALM-20L-CARB',
-    unitPrice: 1150.0,
-    description: 'High-smoke point refined palm cooking oil, 20L heavy duty carboy container',
-    isActive: true,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 3,
-    name: 'Refined Pure Coconut Cooking Oil (17kg Tin)',
-    sku: 'OIL-COC-17KG-TIN',
-    unitPrice: 1280.0,
-    description: 'Premium culinary grade pure coconut oil, 17kg commercial tin with seal',
-    isActive: true,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 4,
-    name: 'Kohaku Yellow Special Grain (50kg Sack)',
-    sku: 'RICE-KOH-YEL-50KG',
-    unitPrice: 1450.0,
-    description: 'Export quality long-grain white rice, 50kg sack for supermarket retail',
-    isActive: true,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 5,
-    name: 'Premium Thai Jasmine Fragrant Rice (25kg Sack)',
-    sku: 'RICE-JAS-THAI-25KG',
-    unitPrice: 1250.0,
-    description: 'Imported fragrant Thai Jasmine grains, 25kg retail packaging',
-    isActive: true,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 6,
-    name: 'Premium Refined White Sugar (50kg Sack)',
-    sku: 'SUG-REF-WHT-50KG',
-    unitPrice: 3450.0,
-    description: 'Commercial bakery grade pure refined cane sugar, 50kg wholesale bag',
-    isActive: true,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 7,
-    name: 'First Class Hard Wheat Bakery Flour (25kg Bag)',
-    sku: 'FLR-HRD-WHT-25KG',
-    unitPrice: 980.0,
-    description: 'High-protein bread flour for commercial bakeries & food manufacturers, 25kg bag',
-    isActive: true,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 8,
-    name: 'Sinandomeng Special Well-Milled Rice (50kg Sack)',
-    sku: 'RICE-SIN-SPEC-50KG',
-    unitPrice: 1180.0,
-    description: 'Local standard soft grain variety, ideal for food services & canteens, 50kg sack',
-    isActive: true,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-]
+const INITIAL_PRODUCTS: InventoryItemResponse[] = []
 
 function getStoredProducts(): InventoryItemResponse[] {
   try {

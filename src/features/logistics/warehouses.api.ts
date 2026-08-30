@@ -5,46 +5,9 @@ import type {
   Warehouse,
 } from './warehouses.types'
 
-const STORAGE_KEY = 'erjv_db_warehouses_v5'
+const STORAGE_KEY = 'erjv_db_warehouses_v6'
 
-const INITIAL_WAREHOUSES: Warehouse[] = [
-  {
-    id: 1,
-    name: 'Central Logistics & Distribution Complex',
-    address: 'Lanang Logistics Industrial Park, Davao City',
-    contactNumber: '+63 (82) 234-5678',
-    isActive: true,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 2,
-    name: 'Panabo Regional Fulfillment Depot',
-    address: 'National Highway Km 32, Panabo City, Davao del Norte',
-    contactNumber: '+63 (84) 628-9012',
-    isActive: true,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 3,
-    name: 'Toril Wholesale Distribution Hub',
-    address: 'Crossing Bayabas, Toril District, Davao City',
-    contactNumber: '+63 (82) 291-3456',
-    isActive: true,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 4,
-    name: 'Matina Dry & Liquid Storage Facility',
-    address: 'McArthur Highway, Matina Enclaves, Davao City',
-    contactNumber: '+63 (82) 297-7890',
-    isActive: true,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-]
+const INITIAL_WAREHOUSES: Warehouse[] = []
 
 function getStoredWarehouses(): Warehouse[] {
   try {

@@ -132,7 +132,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Continue to check database fallback
       }
 
-      // 2. Strict Database Verification (Check against erjv_db_users_v5 and erjv_registered_users)
+      // 2. Strict Database Verification (Check against erjv_db_users_v6 and erjv_registered_users)
       let databaseUsers: Array<{
         id: number
         email: string
@@ -147,7 +147,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }> = []
 
       try {
-        const rawDb = localStorage.getItem('erjv_db_users_v5')
+        const rawDb = localStorage.getItem('erjv_db_users_v6')
         if (rawDb) {
           databaseUsers = JSON.parse(rawDb)
         }
@@ -157,7 +157,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (databaseUsers.length === 0) {
         databaseUsers = INITIAL_DB_USERS
-        localStorage.setItem('erjv_db_users_v5', JSON.stringify(INITIAL_DB_USERS))
+        localStorage.setItem('erjv_db_users_v6', JSON.stringify(INITIAL_DB_USERS))
       }
 
       let registeredAccounts: Array<{
@@ -273,7 +273,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Local DB users
     try {
-      const rawDb = localStorage.getItem('erjv_db_users_v5')
+      const rawDb = localStorage.getItem('erjv_db_users_v6')
       if (rawDb) {
         const dbUsers = JSON.parse(rawDb)
         dbUsers.forEach((u: { email?: string; fullName?: string }) => {
@@ -301,7 +301,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Employees directory
     try {
-      const rawEmps = localStorage.getItem('erjv_db_employees_v5')
+      const rawEmps = localStorage.getItem('erjv_db_employees_v6')
       if (rawEmps) {
         const emps = JSON.parse(rawEmps)
         emps.forEach((e: { email?: string; firstName?: string; lastName?: string }) => {
@@ -352,9 +352,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
-      // 2. Persist account into Database (erjv_db_users_v5)
+      // 2. Persist account into Database (erjv_db_users_v6)
       try {
-        const rawDb = localStorage.getItem('erjv_db_users_v5')
+        const rawDb = localStorage.getItem('erjv_db_users_v6')
         const currentDb = rawDb ? JSON.parse(rawDb) : INITIAL_DB_USERS
         const filteredDb = currentDb.filter((u: { email: string }) => u.email.toLowerCase() !== cleanEmail)
         const newDbUser = {
@@ -371,7 +371,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         }
-        localStorage.setItem('erjv_db_users_v5', JSON.stringify([...filteredDb, newDbUser]))
+        localStorage.setItem('erjv_db_users_v6', JSON.stringify([...filteredDb, newDbUser]))
       } catch {
         // Ignore
       }
@@ -401,9 +401,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Ignore
       }
 
-      // 4. Automatically add to Staff Directory (erjv_db_employees_v5)
+      // 4. Automatically add to Staff Directory (erjv_db_employees_v6)
       try {
-        const rawEmps = localStorage.getItem('erjv_db_employees_v5')
+        const rawEmps = localStorage.getItem('erjv_db_employees_v6')
         const currentEmps = rawEmps ? JSON.parse(rawEmps) : []
         const nameParts = fullName.trim().split(' ')
         const firstName = nameParts[0] || 'Staff'
@@ -434,7 +434,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           currentEmps.push(newEmp)
         }
 
-        localStorage.setItem('erjv_db_employees_v5', JSON.stringify(currentEmps))
+        localStorage.setItem('erjv_db_employees_v6', JSON.stringify(currentEmps))
       } catch {
         // Ignore
       }
@@ -479,9 +479,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Graceful fallback to local persistence
     }
 
-    // 2. Update in erjv_db_users_v5
+    // 2. Update in erjv_db_users_v6
     try {
-      const rawDb = localStorage.getItem('erjv_db_users_v5')
+      const rawDb = localStorage.getItem('erjv_db_users_v6')
       if (rawDb) {
         const currentDb = JSON.parse(rawDb)
         const idx = currentDb.findIndex((u: { email: string }) => u.email.toLowerCase() === user.email.toLowerCase())
@@ -494,7 +494,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             jobTitle: updatedUser.jobTitle,
             bio: updatedUser.bio,
           }
-          localStorage.setItem('erjv_db_users_v5', JSON.stringify(currentDb))
+          localStorage.setItem('erjv_db_users_v6', JSON.stringify(currentDb))
         }
       }
     } catch {

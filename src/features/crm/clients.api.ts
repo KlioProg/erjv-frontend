@@ -5,54 +5,9 @@ import type {
   UpdateClientDetailsPayload,
 } from './clients.types'
 
-const STORAGE_KEY = 'erjv_db_clients_v5'
+const STORAGE_KEY = 'erjv_db_clients_v6'
 
-const INITIAL_CLIENTS: Client[] = [
-  {
-    id: 1,
-    name: 'Gaisano Grand Supermarkets Wholesale Div',
-    contactPerson: 'Roberto Tan (Procurement Dir)',
-    phone: '+63 (82) 221-8900',
-    email: 'procurement@gaisanogrand.com.ph',
-    address: 'Gaisano Mall Complex, J.P. Laurel Ave, Davao City',
-    isActive: true,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 2,
-    name: 'Mindanao Food Service & Commissary Corp',
-    contactPerson: 'Chef Elena Ramos',
-    phone: '+63 (82) 298-4455',
-    email: 'elena.ramos@mindanaofoodcorp.com',
-    address: 'Ecoland Phase 2, Matina, Davao City',
-    isActive: true,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 3,
-    name: 'Gold Ribbon Artisan Bakeries & Pastry Chain',
-    contactPerson: 'Carlos Mendoza (Master Baker)',
-    phone: '+63 (84) 216-7788',
-    email: 'supply@goldribbonbakes.com',
-    address: 'Poblacion Commercial Zone, Panabo City',
-    isActive: true,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 4,
-    name: 'South Davao General Rice & FMCG Traders',
-    contactPerson: 'Haji Ibrahim Abubakar',
-    phone: '+63 (82) 291-5566',
-    email: 'ibrahim.traders@davaobusiness.ph',
-    address: 'Toril Public Market Commercial Arcade, Davao City',
-    isActive: true,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-]
+const INITIAL_CLIENTS: Client[] = []
 
 function getStoredClients(): Client[] {
   try {

@@ -13,45 +13,12 @@ import type {
   UserAccount,
 } from './staffing.types'
 
-const EMPLOYEES_STORAGE_KEY = 'erjv_db_employees_v5'
-const JOBS_STORAGE_KEY = 'erjv_db_jobs_v5'
-const EMPLOYEE_JOBS_STORAGE_KEY = 'erjv_db_employee_jobs_v5'
-const USERS_STORAGE_KEY = 'erjv_db_users_v5'
+const EMPLOYEES_STORAGE_KEY = 'erjv_db_employees_v6'
+const JOBS_STORAGE_KEY = 'erjv_db_jobs_v6'
+const EMPLOYEE_JOBS_STORAGE_KEY = 'erjv_db_employee_jobs_v6'
+const USERS_STORAGE_KEY = 'erjv_db_users_v6'
 
-const INITIAL_JOBS: Job[] = [
-  {
-    id: 1,
-    name: 'Operations Director',
-    description: 'Executive oversight for supply chain, warehousing facilities, and distribution logistics.',
-    isActive: true,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 2,
-    name: 'Warehouse & Depot Supervisor',
-    description: 'Direct management of receiving, physical inventory audits, and outbound dispatch operations.',
-    isActive: true,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 3,
-    name: 'Senior Logistics Hauler Driver',
-    description: 'Operation of heavy commercial transport, highway cargo distribution, and multi-depot transfers.',
-    isActive: true,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 4,
-    name: 'POS Billing & Cashier Specialist',
-    description: 'Commercial invoice generation, point-of-sale customer checkout, and daily sales reconciliation.',
-    isActive: true,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-]
+const INITIAL_JOBS: Job[] = []
 
 const INITIAL_EMPLOYEES: Employee[] = []
 
@@ -91,7 +58,7 @@ export async function fetchEmployeesApi(): Promise<Employee[]> {
 
   // Auto-sync any registered users into the employees directory
   try {
-    const rawDbUsers = localStorage.getItem('erjv_db_users_v5')
+    const rawDbUsers = localStorage.getItem('erjv_db_users_v6')
     const dbUsers = rawDbUsers ? JSON.parse(rawDbUsers) : []
 
     dbUsers.forEach((u: { id: number; email: string; fullName?: string; phone?: string | null }) => {
@@ -582,9 +549,9 @@ export async function fetchUsersApi(): Promise<UserAccount[]> {
     // Graceful fallback
   }
 
-  // Load from local database (erjv_db_users_v5)
+  // Load from local database (erjv_db_users_v6)
   try {
-    const rawDb = localStorage.getItem('erjv_db_users_v5')
+    const rawDb = localStorage.getItem('erjv_db_users_v6')
     if (rawDb) {
       const dbUsers: Array<{
         id: number
@@ -625,18 +592,18 @@ export async function updateUserRoleApi(id: number, role: UserRole): Promise<Use
     // Graceful fallback
   }
 
-  // 1. Update in USERS_STORAGE_KEY (erjv_db_users_v5)
+  // 1. Update in USERS_STORAGE_KEY (erjv_db_users_v6)
   let updatedUser: UserAccount | null = null
 
   try {
-    const rawDb = localStorage.getItem('erjv_db_users_v5')
+    const rawDb = localStorage.getItem('erjv_db_users_v6')
     if (rawDb) {
       const dbUsers = JSON.parse(rawDb)
       const idx = dbUsers.findIndex((u: { id: number }) => u.id === id)
       if (idx !== -1) {
         dbUsers[idx].role = role
         dbUsers[idx].updatedAt = new Date().toISOString()
-        localStorage.setItem('erjv_db_users_v5', JSON.stringify(dbUsers))
+        localStorage.setItem('erjv_db_users_v6', JSON.stringify(dbUsers))
         updatedUser = {
           id: dbUsers[idx].id,
           email: dbUsers[idx].email,
