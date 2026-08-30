@@ -1,7 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useContext, useEffect, useState } from 'react'
-import { getProfileApi, loginApi, registerApi } from './auth.api'
-import type { LoginRequest, RegisterRequest, SafeUserResponse } from './auth.types'
+import { getProfileApi, loginApi, registerApi, updateProfileApi } from './auth.api'
+import type { LoginRequest, RegisterRequest, SafeUserResponse, UpdateUserProfilePayload } from './auth.types'
 
 type AuthContextType = {
   user: SafeUserResponse | null
@@ -15,6 +15,7 @@ type AuthContextType = {
   canManageOperations: boolean
   login: (payload: LoginRequest, rememberMe?: boolean) => Promise<void>
   register: (payload: RegisterRequest) => Promise<SafeUserResponse>
+  updateProfile: (payload: UpdateUserProfilePayload) => Promise<SafeUserResponse>
   logout: () => void
   setDemoUser: (role?: 'OWNER' | 'ADMIN' | 'STAFF') => void
   switchRole: (role: 'OWNER' | 'ADMIN' | 'STAFF') => void
@@ -23,9 +24,42 @@ type AuthContextType = {
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 const INITIAL_DB_USERS = [
-  { id: 1, email: 'owner@erjvpos.com', password: 'plain-password', role: 'OWNER' as const, isActive: true },
-  { id: 2, email: 'admin@erjvpos.com', password: 'plain-password', role: 'ADMIN' as const, isActive: true },
-  { id: 3, email: 'staff@erjvpos.com', password: 'plain-password', role: 'STAFF' as const, isActive: true },
+  {
+    id: 1,
+    email: 'owner@erjvpos.com',
+    fullName: 'Marcus Villaruel',
+    phone: '+63 (917) 555-0199',
+    jobTitle: 'Enterprise Owner & Founder',
+    bio: 'Oversees whole operations, logistics complexes, and business acquisitions.',
+    avatarUrl: null,
+    password: 'plain-password',
+    role: 'OWNER' as const,
+    isActive: true,
+  },
+  {
+    id: 2,
+    email: 'admin@erjvpos.com',
+    fullName: 'Sarah Chen-Santos',
+    phone: '+63 (918) 555-0245',
+    jobTitle: 'System Operations Administrator',
+    bio: 'Leads staffing, warehouse allocation protocols, and fleet management.',
+    avatarUrl: null,
+    password: 'plain-password',
+    role: 'ADMIN' as const,
+    isActive: true,
+  },
+  {
+    id: 3,
+    email: 'staff@erjvpos.com',
+    fullName: 'Danilo Reyes',
+    phone: '+63 (920) 555-0388',
+    jobTitle: 'Senior Logistics Specialist',
+    bio: 'Responsible for inventory intake, cross-docking, and delivery dispatches.',
+    avatarUrl: null,
+    password: 'plain-password',
+    role: 'STAFF' as const,
+    isActive: true,
+  },
 ]
 
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000
@@ -118,18 +152,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
           return
         }
-      } catch (backendErr: unknown) {
-        // If backend actively returned an unauthorized/forbidden response, check local database
-        const msg = backendErr instanceof Error ? backendErr.message : ''
-        if (msg && !msg.toLowerCase().includes('network') && !msg.toLowerCase().includes('failed to fetch')) {
-          // If backend provided a specific error (e.g. 401), we can continue to check database
-        }
+      } catch {
+        // Continue to check database fallback
       }
 
       // 2. Strict Database Verification (Check against erjv_db_users_v5 and erjv_registered_users)
       let databaseUsers: Array<{
         id: number
         email: string
+        fullName?: string | null
+        phone?: string | null
+        avatarUrl?: string | null
+        jobTitle?: string | null
+        bio?: string | null
         password?: string
         role: 'OWNER' | 'ADMIN' | 'STAFF'
         isActive?: boolean
@@ -151,6 +186,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       let registeredAccounts: Array<{
         email: string
+        fullName?: string
+        phone?: string
+        avatarUrl?: string
+        jobTitle?: string
+        bio?: string
         password?: string
         role: 'OWNER' | 'ADMIN' | 'STAFF'
       }> = []
@@ -171,6 +211,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const foundUser = foundInDb || (foundInRegistered ? {
         id: Math.floor(Math.random() * 9000) + 100,
         email: foundInRegistered.email,
+        fullName: foundInRegistered.fullName || null,
+        phone: foundInRegistered.phone || null,
+        avatarUrl: foundInRegistered.avatarUrl || null,
+        jobTitle: foundInRegistered.jobTitle || null,
+        bio: foundInRegistered.bio || null,
         password: foundInRegistered.password,
         role: foundInRegistered.role,
         isActive: true,
@@ -193,10 +238,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
+      // Format clean display name
+      const displayName = foundUser.fullName || cleanEmail.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase())
+
       // Successfully authenticated against database
       const loggedInUser: SafeUserResponse = {
         id: foundUser.id,
         email: foundUser.email,
+        fullName: displayName,
+        phone: foundUser.phone || null,
+        avatarUrl: foundUser.avatarUrl || null,
+        jobTitle: foundUser.jobTitle || (foundUser.role === 'OWNER' ? 'Enterprise Owner' : foundUser.role === 'ADMIN' ? 'System Administrator' : 'Staff Member'),
+        bio: foundUser.bio || null,
         role: foundUser.role,
         isActive: true,
         createdAt: new Date().toISOString(),
@@ -227,6 +280,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsLoading(true)
     const cleanEmail = payload.email.trim().toLowerCase()
     const role = payload.role || 'STAFF'
+    const fullName = payload.fullName?.trim() || cleanEmail.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase())
 
     try {
       let registeredUser: SafeUserResponse
@@ -234,6 +288,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // 1. Attempt backend registration
       try {
         registeredUser = await registerApi({
+          fullName,
           email: cleanEmail,
           password: payload.password,
           role,
@@ -242,6 +297,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         registeredUser = {
           id: Math.floor(Math.random() * 9000) + 100,
           email: cleanEmail,
+          fullName,
+          phone: payload.phone || null,
+          avatarUrl: payload.avatarUrl || null,
+          jobTitle: payload.jobTitle || 'Staff Member',
+          bio: payload.bio || null,
           role,
           isActive: true,
           createdAt: new Date().toISOString(),
@@ -257,6 +317,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const newDbUser = {
           id: registeredUser.id,
           email: cleanEmail,
+          fullName,
+          phone: payload.phone || null,
+          avatarUrl: payload.avatarUrl || null,
+          jobTitle: payload.jobTitle || 'Staff Member',
+          bio: payload.bio || null,
           password: payload.password,
           role,
           isActive: true,
@@ -279,6 +344,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             ...filteredReg,
             {
               email: cleanEmail,
+              fullName,
+              phone: payload.phone || null,
+              avatarUrl: payload.avatarUrl || null,
+              jobTitle: payload.jobTitle || 'Staff Member',
+              bio: payload.bio || null,
               password: payload.password,
               role,
             },
@@ -294,6 +364,84 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
+  const updateProfile = async (payload: UpdateUserProfilePayload): Promise<SafeUserResponse> => {
+    if (!user) {
+      throw new Error('No user is currently logged in.')
+    }
+
+    const updatedUser: SafeUserResponse = {
+      ...user,
+      fullName: payload.fullName !== undefined ? payload.fullName.trim() : user.fullName,
+      phone: payload.phone !== undefined ? payload.phone : user.phone,
+      avatarUrl: payload.avatarUrl !== undefined ? payload.avatarUrl : user.avatarUrl,
+      jobTitle: payload.jobTitle !== undefined ? payload.jobTitle : user.jobTitle,
+      bio: payload.bio !== undefined ? payload.bio : user.bio,
+      updatedAt: new Date().toISOString(),
+    }
+
+    setUser(updatedUser)
+    localStorage.setItem('erjv_current_user', JSON.stringify(updatedUser))
+
+    // 1. Try updating via Backend API
+    try {
+      await updateProfileApi({
+        fullName: updatedUser.fullName || undefined,
+        phone: updatedUser.phone,
+        avatarUrl: updatedUser.avatarUrl,
+        jobTitle: updatedUser.jobTitle,
+        bio: updatedUser.bio,
+      })
+    } catch {
+      // Graceful fallback to local persistence
+    }
+
+    // 2. Update in erjv_db_users_v5
+    try {
+      const rawDb = localStorage.getItem('erjv_db_users_v5')
+      if (rawDb) {
+        const currentDb = JSON.parse(rawDb)
+        const idx = currentDb.findIndex((u: { email: string }) => u.email.toLowerCase() === user.email.toLowerCase())
+        if (idx !== -1) {
+          currentDb[idx] = {
+            ...currentDb[idx],
+            fullName: updatedUser.fullName,
+            phone: updatedUser.phone,
+            avatarUrl: updatedUser.avatarUrl,
+            jobTitle: updatedUser.jobTitle,
+            bio: updatedUser.bio,
+          }
+          localStorage.setItem('erjv_db_users_v5', JSON.stringify(currentDb))
+        }
+      }
+    } catch {
+      // Ignore
+    }
+
+    // 3. Update in erjv_registered_users
+    try {
+      const rawReg = localStorage.getItem('erjv_registered_users')
+      if (rawReg) {
+        const currentReg = JSON.parse(rawReg)
+        const idx = currentReg.findIndex((u: { email: string }) => u.email.toLowerCase() === user.email.toLowerCase())
+        if (idx !== -1) {
+          currentReg[idx] = {
+            ...currentReg[idx],
+            fullName: updatedUser.fullName,
+            phone: updatedUser.phone,
+            avatarUrl: updatedUser.avatarUrl,
+            jobTitle: updatedUser.jobTitle,
+            bio: updatedUser.bio,
+          }
+          localStorage.setItem('erjv_registered_users', JSON.stringify(currentReg))
+        }
+      }
+    } catch {
+      // Ignore
+    }
+
+    return updatedUser
+  }
+
   const logout = () => {
     localStorage.removeItem('erjv_access_token')
     localStorage.removeItem('erjv_current_user')
@@ -306,6 +454,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const demo: SafeUserResponse = {
       id: 1,
       email: `${demoRole.toLowerCase()}@erjvpos.com`,
+      fullName: demoRole === 'OWNER' ? 'Marcus Villaruel' : demoRole === 'ADMIN' ? 'Sarah Chen-Santos' : 'Danilo Reyes',
+      jobTitle: demoRole === 'OWNER' ? 'Enterprise Owner' : demoRole === 'ADMIN' ? 'System Administrator' : 'Staff Member',
       role: demoRole,
       isActive: true,
       createdAt: new Date().toISOString(),
@@ -351,6 +501,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         canManageOperations,
         login,
         register,
+        updateProfile,
         logout,
         setDemoUser,
         switchRole,
