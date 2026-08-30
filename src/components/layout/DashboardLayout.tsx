@@ -15,10 +15,11 @@ import {
   Sparkles,
   Building2,
   ChevronDown,
+  UserCog,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -31,6 +32,7 @@ import { ErjvPosLogo } from '@/components/ui/ErjvPosLogo'
 import { useAuth } from '@/features/auth/AuthContext'
 import { useProducts } from '@/features/products/products.hooks'
 import { ProductListModal } from '../products/ProductListModal'
+import { AccountProfileModal } from '../auth/AccountProfileModal'
 
 export type NavItemKey =
   | 'inventory'
@@ -93,8 +95,10 @@ export function DashboardLayout({
   const { data: products = [] } = useProducts()
   const [isMobileOpen, setIsMobileOpen] = useState(false)
   const [isProductsModalOpen, setIsProductsModalOpen] = useState(false)
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false)
 
-  const userInitial = user?.email ? user.email.charAt(0).toUpperCase() : 'U'
+  const displayName = user?.fullName || (user?.email ? user.email.split('@')[0] : 'User Account')
+  const userInitial = displayName.charAt(0).toUpperCase()
 
   // Filter out admin-only items if user is Staff
   const visibleGroups = NAV_GROUPS.map((group) => ({
@@ -121,9 +125,8 @@ export function DashboardLayout({
 
       {/* Sidebar Navigation */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex w-72 flex-col justify-between border-r border-border/80 bg-card/95 backdrop-blur-md transition-transform duration-300 lg:sticky lg:top-0 lg:h-screen lg:shrink-0 ${
-          isMobileOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full lg:translate-x-0'
-        }`}
+        className={`fixed inset-y-0 left-0 z-50 flex w-72 flex-col justify-between border-r border-border/80 bg-card/95 backdrop-blur-md transition-transform duration-300 lg:sticky lg:top-0 lg:h-screen lg:shrink-0 ${isMobileOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full lg:translate-x-0'
+          }`}
       >
         {/* Sidebar Header & Nav list */}
         <div className="flex flex-col min-h-0 flex-1">
@@ -158,19 +161,17 @@ export function DashboardLayout({
                           onSelectTab(item.key)
                           setIsMobileOpen(false)
                         }}
-                        className={`group relative flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-xs font-semibold transition-all duration-150 cursor-pointer ${
-                          isActive
+                        className={`group relative flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-xs font-semibold transition-all duration-150 cursor-pointer ${isActive
                             ? 'bg-primary text-primary-foreground shadow-sm shadow-primary/25'
                             : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
-                        }`}
+                          }`}
                       >
                         <div className="flex items-center gap-3">
                           <Icon
-                            className={`size-4 shrink-0 transition-transform group-hover:scale-110 ${
-                              isActive
+                            className={`size-4 shrink-0 transition-transform group-hover:scale-110 ${isActive
                                 ? 'text-primary-foreground'
                                 : 'text-muted-foreground group-hover:text-foreground'
-                            }`}
+                              }`}
                           />
                           <span>{item.label}</span>
                         </div>
@@ -194,16 +195,19 @@ export function DashboardLayout({
               <div className="flex items-center justify-between gap-2.5 p-2 rounded-xl bg-muted/50 border border-border/70 cursor-pointer hover:bg-muted/90 transition-colors">
                 <div className="flex items-center gap-2.5 min-w-0">
                   <Avatar className="size-9 border border-primary/20 bg-primary/10 shrink-0">
+                    {user?.avatarUrl && (
+                      <AvatarImage src={user.avatarUrl} alt={displayName} className="object-cover" />
+                    )}
                     <AvatarFallback className="bg-primary/10 text-primary font-extrabold text-xs">
                       {userInitial}
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex flex-col min-w-0 text-left">
-                    <span className="text-xs font-bold leading-snug text-foreground truncate max-w-[130px]">
-                      {user?.email ? user.email.split('@')[0] : 'User Account'}
+                    <span className="text-xs font-bold leading-snug text-foreground truncate max-w-[130px]" title={displayName}>
+                      {displayName}
                     </span>
                     <div className="flex items-center gap-1.5 mt-0.5">
-                      <span className="inline-block size-1.5 rounded-full bg-emerald-500" />
+                      <span className="inline-block size-1.5 rounded-full bg-emerald-500 shrink-0" />
                       <span className="text-[10px] font-extrabold text-primary tracking-tight uppercase">
                         {user?.role || 'OWNER'}
                       </span>
@@ -213,21 +217,30 @@ export function DashboardLayout({
                 <ChevronDown className="size-3.5 text-muted-foreground shrink-0" />
               </div>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" side="top" className="w-60 mb-2">
+            <DropdownMenuContent align="end" side="top" className="w-64 mb-2">
               <DropdownMenuLabel className="text-xs font-bold">
                 Active Session
               </DropdownMenuLabel>
-              <div className="px-2 py-1.5 text-xs text-muted-foreground flex flex-col gap-1 bg-muted/40 rounded-lg mx-1">
-                <span className="font-semibold text-foreground truncate">{user?.email || 'Logged In'}</span>
-                <div className="flex items-center gap-1.5">
-                  <Badge variant="outline" className="font-bold text-[9px] text-primary bg-primary/10 py-0 px-1.5">
+              <div className="px-2.5 py-2 text-xs text-muted-foreground flex flex-col gap-1 bg-muted/40 rounded-xl mx-1 border border-border/60">
+                <span className="font-bold text-foreground truncate text-sm">{displayName}</span>
+                <span className="text-[11px] text-muted-foreground truncate font-mono">{user?.email || 'Logged In'}</span>
+                <div className="flex items-center gap-1.5 mt-1">
+                  <Badge variant="outline" className="font-bold text-[9px] text-primary bg-primary/10 py-0 px-1.5 border-primary/20">
                     {user?.role || 'OWNER'}
                   </Badge>
                   <span className="text-[10px] text-emerald-600 font-semibold">● Online</span>
                 </div>
               </div>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={logout} className="text-destructive gap-2 text-xs cursor-pointer font-semibold">
+              <DropdownMenuItem
+                onClick={() => setIsProfileModalOpen(true)}
+                className="gap-2 text-xs cursor-pointer font-semibold py-2"
+              >
+                <UserCog className="size-4 text-primary" />
+                <span>Customize Profile</span>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={logout} className="text-destructive gap-2 text-xs cursor-pointer font-semibold py-2">
                 <LogOut className="size-3.5" />
                 Sign Out
               </DropdownMenuItem>
@@ -273,11 +286,10 @@ export function DashboardLayout({
 
             <Badge
               variant="outline"
-              className={`hidden sm:flex text-[11px] font-medium gap-1.5 ${
-                isStaff
+              className={`hidden sm:flex text-[11px] font-medium gap-1.5 ${isStaff
                   ? 'bg-blue-500/10 text-blue-600 border-blue-500/20'
                   : 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20'
-              }`}
+                }`}
             >
               <span className={`size-1.5 rounded-full ${isStaff ? 'bg-blue-500' : 'bg-emerald-500'} animate-pulse`} />
               {user?.role || 'OWNER'} Mode
@@ -305,6 +317,11 @@ export function DashboardLayout({
       <ProductListModal
         open={isProductsModalOpen}
         onClose={() => setIsProductsModalOpen(false)}
+      />
+
+      <AccountProfileModal
+        open={isProfileModalOpen}
+        onClose={() => setIsProfileModalOpen(false)}
       />
     </div>
   )

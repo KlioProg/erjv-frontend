@@ -58,6 +58,7 @@ export function AuthCard({ mode, onModeChange }: AuthCardProps) {
     setSuccessMessage('')
 
     const formData = new FormData(event.currentTarget)
+    const fullName = String(formData.get('fullName') || '').trim()
     const email = String(formData.get('email')).trim()
     const password = String(formData.get('password'))
     const confirm = String(formData.get('confirmPassword'))
@@ -70,8 +71,8 @@ export function AuthCard({ mode, onModeChange }: AuthCardProps) {
     }
 
     try {
-      const newUser = await register({ email, password, role })
-      setSuccessMessage(`Account created successfully for ${newUser.email}! You can now sign in.`)
+      const newUser = await register({ fullName, email, password, role })
+      setSuccessMessage(`Account created successfully for ${newUser.fullName || newUser.email}! You can now sign in.`)
       onModeChange('login')
     } catch (err) {
       setErrorMessage(getErrorMessage(err))

@@ -8,9 +8,14 @@ export type LoginRequest = {
 }
 
 export type RegisterRequest = {
+  fullName?: string
   email: string
   password: string
   role?: UserRole
+  phone?: string
+  avatarUrl?: string
+  jobTitle?: string
+  bio?: string
 }
 
 // Extended signup request for UI form
@@ -32,10 +37,23 @@ export type AuthTokensResponse = {
 export type SafeUserResponse = {
   id: number
   email: string
+  fullName?: string | null
+  phone?: string | null
+  avatarUrl?: string | null
+  jobTitle?: string | null
+  bio?: string | null
   role: UserRole
   isActive: boolean
   createdAt: string
   updatedAt: string
+}
+
+export type UpdateUserProfilePayload = {
+  fullName?: string
+  phone?: string | null
+  avatarUrl?: string | null
+  jobTitle?: string | null
+  bio?: string | null
 }
 
 export type AuthRequest = LoginRequest | RegisterRequest | ForgotPasswordRequest

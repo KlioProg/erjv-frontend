@@ -344,7 +344,7 @@ export function InventoryStockList() {
                       )}
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                       {stockInHubs.map((stock) => {
                         const wh = stock.warehouse || warehouses.find((w) => w.id === stock.warehouseId)
                         const whDisplayName = wh?.name || `Warehouse #${stock.warehouseId}`
@@ -352,15 +352,20 @@ export function InventoryStockList() {
                         return (
                           <div
                             key={stock.id}
-                            className="flex items-center justify-between p-2.5 rounded-xl bg-card border border-border/80 shadow-2xs hover:border-primary/40 transition-colors"
+                            className="flex items-center justify-between p-3.5 rounded-2xl bg-card border border-border/80 shadow-2xs hover:border-primary/40 transition-all gap-3"
                           >
-                            <div className="min-w-0 pr-2">
-                              <span className="text-xs font-bold text-foreground truncate block" title={whDisplayName}>
+                            <div className="min-w-0 flex-1">
+                              <span className="text-xs font-bold text-foreground truncate block leading-tight" title={whDisplayName}>
                                 {whDisplayName}
                               </span>
-                              <span className="text-xs font-extrabold text-primary block mt-0.5">
-                                {parseFloat(stock.quantity).toLocaleString()} <span className="text-[10px] font-normal text-muted-foreground">units</span>
-                              </span>
+                              <div className="flex items-baseline gap-1.5 mt-1.5">
+                                <span className="text-sm font-extrabold text-primary tracking-tight">
+                                  {parseFloat(stock.quantity).toLocaleString()}
+                                </span>
+                                <span className="text-[11px] font-medium text-muted-foreground">
+                                  units
+                                </span>
+                              </div>
                             </div>
 
                             {(isOwner || isAdmin) && (
@@ -369,7 +374,7 @@ export function InventoryStockList() {
                                   variant="secondary"
                                   size="sm"
                                   onClick={() => handleAdjustStock(stock)}
-                                  className="h-7 px-2 text-[11px] font-bold rounded-lg gap-1 cursor-pointer"
+                                  className="h-7.5 px-2.5 text-[11px] font-bold rounded-xl gap-1 cursor-pointer"
                                 >
                                   <ArrowUpDown className="size-3 text-primary" />
                                   Adjust
@@ -378,7 +383,7 @@ export function InventoryStockList() {
                                   variant="ghost"
                                   size="icon"
                                   onClick={() => handleRemoveStockAllocation(stock, prod.name, whDisplayName)}
-                                  className="size-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg cursor-pointer"
+                                  className="size-7.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-xl cursor-pointer"
                                   title={`Remove allocation from ${whDisplayName}`}
                                 >
                                   <Trash2 className="size-3.5" />
