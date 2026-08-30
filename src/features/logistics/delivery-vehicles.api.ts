@@ -75,34 +75,13 @@ export async function createVehicleApi(
     ...(payload.destinationLocation?.trim() ? { destinationLocation: payload.destinationLocation.trim() } : {}),
   }
 
-  try {
-    const { data } = await apiClient.post<DeliveryVehicle>('/delivery-vehicles', cleanPayload)
-    if (data && data.id) {
-      const current = getStoredVehicles()
-      saveStoredVehicles([data, ...current.filter((v) => v.id !== data.id)])
-      return data
-    }
-  } catch {
-    // Gracefully persist locally if database responds with 500
+  const { data } = await apiClient.post<DeliveryVehicle>('/delivery-vehicles', cleanPayload)
+  if (data && data.id) {
+    const current = getStoredVehicles()
+    saveStoredVehicles([data, ...current.filter((v) => v.id !== data.id)])
+    return data
   }
-
-  const current = getStoredVehicles()
-  const newId = current.length > 0 ? Math.max(...current.map((v) => v.id)) + 1 : 1
-  const newVeh: DeliveryVehicle = {
-    id: newId,
-    plateNumber: cleanPayload.plateNumber,
-    vehicleType: cleanPayload.vehicleType,
-    model: cleanPayload.model || null,
-    capacity: cleanPayload.capacity || null,
-    status: (cleanPayload.status as VehicleStatus) || 'AVAILABLE',
-    destinationLocation: cleanPayload.destinationLocation || null,
-    isActive: true,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  }
-
-  saveStoredVehicles([newVeh, ...current])
-  return newVeh
+  throw new Error('Failed to create vehicle in database')
 }
 
 export async function updateVehicleDetailsApi(
@@ -117,32 +96,16 @@ export async function updateVehicleDetailsApi(
     ...(payload.destinationLocation !== undefined ? { destinationLocation: payload.destinationLocation?.trim() || null } : {}),
   }
 
-  try {
-    const { data } = await apiClient.patch<DeliveryVehicle>(
-      `/delivery-vehicles/${id}/details`,
-      cleanPayload
-    )
-    if (data) return data
-  } catch {
-    // Graceful fallback
+  const { data } = await apiClient.patch<DeliveryVehicle>(
+    `/delivery-vehicles/${id}/details`,
+    cleanPayload
+  )
+  if (data && data.id) {
+    const current = getStoredVehicles()
+    saveStoredVehicles(current.map((v) => (v.id === id ? data : v)))
+    return data
   }
-
-  const current = getStoredVehicles()
-  const index = current.findIndex((v) => v.id === id)
-  if (index !== -1) {
-    current[index] = {
-      ...current[index],
-      plateNumber: cleanPayload.plateNumber ?? current[index].plateNumber,
-      vehicleType: cleanPayload.vehicleType ?? current[index].vehicleType,
-      model: cleanPayload.model !== undefined ? cleanPayload.model : current[index].model,
-      capacity: cleanPayload.capacity !== undefined ? cleanPayload.capacity : current[index].capacity,
-      destinationLocation: cleanPayload.destinationLocation !== undefined ? cleanPayload.destinationLocation : current[index].destinationLocation,
-      updatedAt: new Date().toISOString(),
-    }
-    saveStoredVehicles(current)
-    return current[index]
-  }
-  throw new Error('Vehicle not found')
+  throw new Error('Failed to update vehicle in database')
 }
 
 export async function updateVehicleStatusApi(

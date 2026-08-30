@@ -72,31 +72,13 @@ export async function createWarehouseApi(
     ...(payload.contactNumber?.trim() ? { contactNumber: payload.contactNumber.trim() } : {}),
   }
 
-  try {
-    const { data } = await apiClient.post<Warehouse>('/warehouses', cleanPayload)
-    if (data && data.id) {
-      const current = getStoredWarehouses()
-      saveStoredWarehouses([data, ...current.filter((w) => w.id !== data.id)])
-      return data
-    }
-  } catch {
-    // Graceful fallback
+  const { data } = await apiClient.post<Warehouse>('/warehouses', cleanPayload)
+  if (data && data.id) {
+    const current = getStoredWarehouses()
+    saveStoredWarehouses([data, ...current.filter((w) => w.id !== data.id)])
+    return data
   }
-
-  const current = getStoredWarehouses()
-  const newId = current.length > 0 ? Math.max(...current.map((w) => w.id)) + 1 : 1
-  const newWh: Warehouse = {
-    id: newId,
-    name: cleanPayload.name,
-    address: cleanPayload.address,
-    contactNumber: cleanPayload.contactNumber || null,
-    isActive: true,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  }
-
-  saveStoredWarehouses([...current, newWh])
-  return newWh
+  throw new Error('Failed to create warehouse in database')
 }
 
 export async function updateWarehouseDetailsApi(

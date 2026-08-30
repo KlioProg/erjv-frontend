@@ -59,33 +59,13 @@ export async function createClientApi(payload: CreateClientPayload): Promise<Cli
     ...(payload.isActive !== undefined ? { isActive: payload.isActive } : {}),
   }
 
-  try {
-    const { data } = await apiClient.post<Client>('/clients', cleanPayload)
-    if (data && data.id) {
-      const current = getStoredClients()
-      saveStoredClients([data, ...current.filter((c) => c.id !== data.id)])
-      return data
-    }
-  } catch {
-    // Gracefully persist locally if database responds with 500
+  const { data } = await apiClient.post<Client>('/clients', cleanPayload)
+  if (data && data.id) {
+    const current = getStoredClients()
+    saveStoredClients([data, ...current.filter((c) => c.id !== data.id)])
+    return data
   }
-
-  const current = getStoredClients()
-  const newId = current.length > 0 ? Math.max(...current.map((c) => c.id)) + 1 : 1
-  const newClient: Client = {
-    id: newId,
-    name: cleanPayload.name,
-    contactPerson: cleanPayload.contactPerson || null,
-    phone: cleanPayload.phone || null,
-    email: cleanPayload.email || null,
-    address: cleanPayload.address,
-    isActive: true,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  }
-
-  saveStoredClients([newClient, ...current])
-  return newClient
+  throw new Error('Failed to create client in database')
 }
 
 export async function updateClientDetailsApi(

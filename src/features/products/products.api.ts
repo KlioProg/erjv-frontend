@@ -59,32 +59,13 @@ export async function createProductApi(
     ...(payload.description?.trim() ? { description: payload.description.trim() } : {}),
   }
 
-  try {
-    const { data } = await apiClient.post<InventoryItemResponse>('/inventory-items', cleanPayload)
-    if (data && data.id) {
-      const current = getStoredProducts()
-      saveStoredProducts([data, ...current.filter((p) => p.id !== data.id)])
-      return data
-    }
-  } catch {
-    // Gracefully persist locally if database responds with 500
+  const { data } = await apiClient.post<InventoryItemResponse>('/inventory-items', cleanPayload)
+  if (data && data.id) {
+    const current = getStoredProducts()
+    saveStoredProducts([data, ...current.filter((p) => p.id !== data.id)])
+    return data
   }
-
-  const current = getStoredProducts()
-  const newId = current.length > 0 ? Math.max(...current.map((p) => p.id)) + 1 : 1
-  const newItem: InventoryItemResponse = {
-    id: newId,
-    name: cleanPayload.name,
-    sku: cleanPayload.sku,
-    unitPrice: cleanPayload.unitPrice,
-    description: cleanPayload.description || null,
-    isActive: true,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  }
-
-  saveStoredProducts([newItem, ...current])
-  return newItem
+  throw new Error('Failed to create product in database')
 }
 
 export async function updateProductDetailsApi(
