@@ -1,5 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useContext, useEffect, useState } from 'react'
+import { getErrorMessage } from '@/lib/api-client'
 import { getProfileApi, loginApi, registerApi, updateProfileApi } from './auth.api'
 import type { LoginRequest, RegisterRequest, SafeUserResponse, UpdateUserProfilePayload } from './auth.types'
 
@@ -336,20 +337,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           password: payload.password,
           role,
         })
-      } catch {
-        registeredUser = {
-          id: Math.floor(Math.random() * 9000) + 100,
-          email: cleanEmail,
-          fullName,
-          phone: payload.phone || null,
-          avatarUrl: payload.avatarUrl || null,
-          jobTitle: payload.jobTitle || 'Staff Member',
-          bio: payload.bio || null,
-          role,
-          isActive: true,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
+      } catch (err: unknown) {
+        setIsLoading(false)
+        const errMsg = getErrorMessage(err)
+        if (
+          errMsg &&
+          (errMsg.toLowerCase().includes('already') ||
+            errMsg.toLowerCase().includes('duplicate') ||
+            errMsg.toLowerCase().includes('exist'))
+        ) {
+          throw new Error(errMsg.toLowerCase().includes('email') ? 'Email is already registered.' : errMsg, { cause: err })
         }
+        throw new Error("Can't reach database. Please try again.", { cause: err })
       }
 
       // 2. Persist account into Database (erjv_db_users_v6)
