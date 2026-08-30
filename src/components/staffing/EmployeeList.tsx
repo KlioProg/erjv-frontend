@@ -42,6 +42,7 @@ import {
 import type { Employee } from '@/features/staffing/staffing.types'
 import { EmployeeModal } from './EmployeeModal'
 import { PositionAssignModal } from './PositionAssignModal'
+import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal'
 
 // Inline helper subcomponent for displaying assigned positions badge
 function EmployeeJobBadges({ employeeId }: { employeeId: number }) {
@@ -80,8 +81,9 @@ export function EmployeeList() {
 
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null)
-  const [isModalOpen, setIsModalOpen] = useState(false)
   const [assigningEmployee, setAssigningEmployee] = useState<Employee | null>(null)
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [employeeToDeactivate, setEmployeeToDeactivate] = useState<Employee | null>(null)
 
   const filteredEmployees = employees.filter((emp) => {
     const fullName = `${emp.firstName} ${emp.lastName}`.toLowerCase()
@@ -105,9 +107,14 @@ export function EmployeeList() {
     setAssigningEmployee(emp)
   }
 
-  const handleDeactivate = async (id: number) => {
-    if (window.confirm('Are you sure you want to deactivate this employee?')) {
-      await deactivateMutation.mutateAsync(id)
+  const handleDeactivate = (emp: Employee) => {
+    setEmployeeToDeactivate(emp)
+  }
+
+  const confirmDeactivate = async () => {
+    if (employeeToDeactivate) {
+      await deactivateMutation.mutateAsync(employeeToDeactivate.id)
+      setEmployeeToDeactivate(null)
     }
   }
 
@@ -265,11 +272,11 @@ export function EmployeeList() {
                           <DropdownMenuSeparator />
                           <DropdownMenuGroup>
                             <DropdownMenuItem
-                              onClick={() => handleDeactivate(emp.id)}
-                              className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                              onClick={() => handleDeactivate(emp)}
+                              className="text-destructive focus:text-destructive focus:bg-destructive/10 cursor-pointer"
                             >
                               <Trash2 className="size-4 mr-2" />
-                              Deactivate
+                              Deactivate Employee
                             </DropdownMenuItem>
                           </DropdownMenuGroup>
                         </DropdownMenuContent>
@@ -295,6 +302,19 @@ export function EmployeeList() {
         employee={assigningEmployee}
         open={!!assigningEmployee}
         onClose={() => setAssigningEmployee(null)}
+      />
+
+      {/* Themed Deactivation Modal */}
+      <ConfirmDeleteModal
+        open={!!employeeToDeactivate}
+        onClose={() => setEmployeeToDeactivate(null)}
+        onConfirm={confirmDeactivate}
+        title="Deactivate Employee Profile"
+        description="Are you sure you want to deactivate this employee? They will no longer be listed in active staff rosters."
+        itemName={employeeToDeactivate ? `${employeeToDeactivate.firstName} ${employeeToDeactivate.lastName}` : undefined}
+        itemDetails={employeeToDeactivate ? `Email: ${employeeToDeactivate.email || 'N/A'} • Phone: ${employeeToDeactivate.phone || 'N/A'}` : undefined}
+        confirmText="Deactivate Employee"
+        variant="destructive"
       />
     </div>
   )
