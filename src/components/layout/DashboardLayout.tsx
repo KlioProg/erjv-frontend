@@ -209,7 +209,7 @@ export function DashboardLayout({
                     <div className="flex items-center gap-1.5 mt-0.5">
                       <span className="inline-block size-1.5 rounded-full bg-emerald-500 shrink-0" />
                       <span className="text-[10px] font-extrabold text-primary tracking-tight uppercase">
-                        {user?.role || 'OWNER'}
+                        {isOwner ? 'OWNER' : isAdmin ? 'ADMIN' : 'STAFF'}
                       </span>
                     </div>
                   </div>
@@ -226,7 +226,7 @@ export function DashboardLayout({
                 <span className="text-[11px] text-muted-foreground truncate font-mono">{user?.email || 'Logged In'}</span>
                 <div className="flex items-center gap-1.5 mt-1">
                   <Badge variant="outline" className="font-bold text-[9px] text-primary bg-primary/10 py-0 px-1.5 border-primary/20">
-                    {user?.role || 'OWNER'}
+                    {isOwner ? 'OWNER' : isAdmin ? 'ADMIN' : 'STAFF'}
                   </Badge>
                   <span className="text-[10px] text-emerald-600 font-semibold">● Online</span>
                 </div>

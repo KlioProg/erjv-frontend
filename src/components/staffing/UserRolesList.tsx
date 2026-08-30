@@ -28,6 +28,7 @@ import {
 } from '@/components/ui/select'
 import { Spinner } from '@/components/ui/spinner'
 import { useUsers, useUpdateUserRole, useEmployees } from '@/features/staffing/staffing.hooks'
+import { normalizeUserRole } from '@/features/auth/AuthContext'
 import type { UserRole } from '@/features/auth/auth.types'
 import { toast } from 'sonner'
 import { useQueryClient } from '@tanstack/react-query'
@@ -187,7 +188,7 @@ export function UserRolesList() {
                     <TableCell className="text-right">
                       <div className="inline-flex items-center justify-end w-36">
                         <Select
-                          value={u.role}
+                          value={normalizeUserRole(u.role || (u as unknown as Record<string, unknown>).userRole)}
                           onValueChange={(val) => handleRoleChange(u.id, val as UserRole, displayName)}
                           disabled={isUpdating}
                         >

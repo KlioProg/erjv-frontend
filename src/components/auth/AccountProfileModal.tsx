@@ -43,7 +43,7 @@ const AVATAR_PRESETS = [
 ]
 
 function AccountProfileForm({ onClose }: { onClose: () => void }) {
-  const { user, updateProfile } = useAuth()
+  const { user, updateProfile, isOwner } = useAuth()
   const queryClient = useQueryClient()
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
@@ -245,7 +245,7 @@ function AccountProfileForm({ onClose }: { onClose: () => void }) {
           <Label htmlFor="prof-name" className="text-xs font-semibold text-foreground">
             Display Name
           </Label>
-          {user?.role !== 'OWNER' && (
+          {!isOwner && (
             <span className="text-[10px] text-muted-foreground font-medium">
               (Managed by Owner)
             </span>
@@ -258,12 +258,12 @@ function AccountProfileForm({ onClose }: { onClose: () => void }) {
             placeholder="Your full display name..."
             value={fullName}
             onChange={(e) => setFullName(e.target.value)}
-            disabled={user?.role !== 'OWNER'}
+            disabled={!isOwner}
             className="pl-10 text-xs h-9 disabled:opacity-75 disabled:bg-muted/50"
           />
         </div>
         <p className="text-[10px] text-muted-foreground">
-          {user?.role === 'OWNER'
+          {isOwner
             ? 'As Enterprise Owner, you can change your display name across all modules.'
             : 'Staff and Admin display names are set upon registration and managed centrally.'}
         </p>

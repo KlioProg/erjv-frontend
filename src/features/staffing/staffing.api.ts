@@ -1,4 +1,5 @@
 import { apiClient } from '@/lib/api-client'
+import { normalizeUserRole } from '../auth/AuthContext'
 import type { UserRole } from '../auth/auth.types'
 import type {
   CreateEmployeePayload,
@@ -540,10 +541,23 @@ export async function replaceJobsForEmployeeApi(
 
 export async function fetchUsersApi(): Promise<UserAccount[]> {
   try {
-    const { data } = await apiClient.get<UserAccount[]>('/users')
+    const { data } = await apiClient.get<Array<Record<string, unknown>>>('/users')
     if (Array.isArray(data) && data.length > 0) {
-      setStored(USERS_STORAGE_KEY, data)
-      return data
+      const mapped: UserAccount[] = data.map((u) => ({
+        id: Number(u.id) || 1,
+        email: String(u.email || ''),
+        fullName:
+          (u.fullName as string) ||
+          (u.firstName ? `${String(u.firstName)} ${String(u.lastName || '')}`.trim() : null) ||
+          (u.name ? String(u.name).trim() : null) ||
+          null,
+        role: normalizeUserRole(u.role ?? u.userRole ?? u.roleName),
+        isActive: u.isActive !== false,
+        createdAt: String(u.createdAt || new Date().toISOString()),
+        updatedAt: String(u.updatedAt || new Date().toISOString()),
+      }))
+      setStored(USERS_STORAGE_KEY, mapped)
+      return mapped
     }
   } catch {
     // Graceful fallback
@@ -553,24 +567,20 @@ export async function fetchUsersApi(): Promise<UserAccount[]> {
   try {
     const rawDb = localStorage.getItem('erjv_db_users_v6')
     if (rawDb) {
-      const dbUsers: Array<{
-        id: number
-        email: string
-        fullName?: string | null
-        role: UserRole
-        isActive?: boolean
-        createdAt?: string
-        updatedAt?: string
-      }> = JSON.parse(rawDb)
+      const dbUsers: Array<Record<string, unknown>> = JSON.parse(rawDb)
 
       const mappedUsers: UserAccount[] = dbUsers.map((u) => ({
-        id: u.id,
-        email: u.email,
-        fullName: u.fullName || null,
-        role: u.role || 'STAFF',
-        isActive: u.isActive !== undefined ? u.isActive : true,
-        createdAt: u.createdAt || new Date().toISOString(),
-        updatedAt: u.updatedAt || new Date().toISOString(),
+        id: Number(u.id) || 1,
+        email: String(u.email || ''),
+        fullName:
+          (u.fullName as string) ||
+          (u.firstName ? `${String(u.firstName)} ${String(u.lastName || '')}`.trim() : null) ||
+          (u.name ? String(u.name).trim() : null) ||
+          null,
+        role: normalizeUserRole(u.role ?? u.userRole ?? u.roleName),
+        isActive: u.isActive !== false,
+        createdAt: String(u.createdAt || new Date().toISOString()),
+        updatedAt: String(u.updatedAt || new Date().toISOString()),
       }))
 
       setStored(USERS_STORAGE_KEY, mappedUsers)

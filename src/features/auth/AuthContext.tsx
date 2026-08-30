@@ -39,6 +39,53 @@ const INITIAL_DB_USERS: Array<{
   updatedAt?: string
 }> = []
 
+export function normalizeUserRole(rawRole: unknown): 'OWNER' | 'ADMIN' | 'STAFF' {
+  if (!rawRole) return 'STAFF'
+  const str = String(rawRole).trim().toUpperCase()
+  if (str === 'OWNER' || str.includes('OWNER') || str === 'SUPER_ADMIN' || str === 'SUPERADMIN') return 'OWNER'
+  if (str === 'ADMIN' || str.includes('ADMIN') || str === 'MANAGER' || str === 'OPERATIONS') return 'ADMIN'
+  return 'STAFF'
+}
+
+export function normalizeUser(rawUser: (Partial<SafeUserResponse> & Record<string, unknown>) | null | undefined): SafeUserResponse {
+  if (!rawUser) {
+    return {
+      id: 1,
+      email: '',
+      fullName: null,
+      phone: null,
+      avatarUrl: null,
+      jobTitle: 'Staff Member',
+      bio: null,
+      role: 'STAFF',
+      isActive: true,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }
+  }
+  const rawRole = rawUser.role ?? rawUser.userRole ?? rawUser.roleName
+  const resolvedRole = normalizeUserRole(rawRole)
+  return {
+    id: Number(rawUser.id) || 1,
+    email: rawUser.email || '',
+    fullName:
+      rawUser.fullName ||
+      (rawUser.firstName ? `${rawUser.firstName} ${rawUser.lastName || ''}`.trim() : null) ||
+      (rawUser.name ? String(rawUser.name).trim() : null) ||
+      null,
+    phone: rawUser.phone || null,
+    avatarUrl: rawUser.avatarUrl || null,
+    jobTitle:
+      rawUser.jobTitle ||
+      (resolvedRole === 'OWNER' ? 'Enterprise Owner' : resolvedRole === 'ADMIN' ? 'System Administrator' : 'Staff Member'),
+    bio: rawUser.bio || null,
+    role: resolvedRole,
+    isActive: rawUser.isActive !== false,
+    createdAt: rawUser.createdAt || new Date().toISOString(),
+    updatedAt: rawUser.updatedAt || new Date().toISOString(),
+  }
+}
+
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000
 const ONE_DAY_MS = 24 * 60 * 60 * 1000
 
@@ -69,12 +116,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         try {
           const profile = await getProfileApi()
           if (isMounted) {
-            setUser(profile)
+            const normalized = normalizeUser(profile)
+            setUser(normalized)
+            localStorage.setItem('erjv_current_user', JSON.stringify(normalized))
           }
         } catch {
           const storedUser = localStorage.getItem('erjv_current_user')
           if (storedUser && isMounted) {
-            setUser(JSON.parse(storedUser))
+            setUser(normalizeUser(JSON.parse(storedUser)))
           } else if (isMounted) {
             localStorage.removeItem('erjv_access_token')
             setToken(null)
@@ -88,7 +137,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } else {
         const storedUser = localStorage.getItem('erjv_current_user')
         if (storedUser && isMounted) {
-          setUser(JSON.parse(storedUser))
+          setUser(normalizeUser(JSON.parse(storedUser)))
           setToken('demo-token')
         }
         if (isMounted) {
@@ -117,8 +166,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           localStorage.setItem('erjv_access_token', accessToken)
           setToken(accessToken)
           const profile = await getProfileApi()
-          setUser(profile)
-          localStorage.setItem('erjv_current_user', JSON.stringify(profile))
+          const normalized = normalizeUser(profile)
+          setUser(normalized)
+          localStorage.setItem('erjv_current_user', JSON.stringify(normalized))
 
           // Save session
           const expiryTime = Date.now() + (rememberMe ? THIRTY_DAYS_MS : ONE_DAY_MS)
@@ -496,10 +546,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem('erjv_current_user', JSON.stringify(updatedUser))
   }
 
-  const role = user?.role
-  const isOwner = role === 'OWNER'
-  const isAdmin = role === 'ADMIN'
-  const isStaff = role === 'STAFF'
+  const userRecord = user as unknown as Record<string, unknown> | null
+  const userRole = normalizeUserRole(user?.role || userRecord?.userRole || userRecord?.roleName)
+  const isOwner = userRole === 'OWNER'
+  const isAdmin = userRole === 'ADMIN'
+  const isStaff = userRole === 'STAFF'
   const canManageStaff = isOwner || isAdmin
   const canManageOperations = isOwner || isAdmin
 

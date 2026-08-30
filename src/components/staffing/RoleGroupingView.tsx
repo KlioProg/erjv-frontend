@@ -28,6 +28,7 @@ import {
   useRemoveEmployeeJob,
   useUsers,
 } from '@/features/staffing/staffing.hooks'
+import { normalizeUserRole } from '@/features/auth/AuthContext'
 import type { Job, Employee } from '@/features/staffing/staffing.types'
 import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal'
 
@@ -225,9 +226,18 @@ export function RoleGroupingView() {
 
   const [viewMode, setViewMode] = useState<'SYSTEM_ROLE' | 'JOB_POSITION'>('SYSTEM_ROLE')
 
-  const ownerUsers = users.filter((u) => u.role === 'OWNER')
-  const adminUsers = users.filter((u) => u.role === 'ADMIN')
-  const staffUsers = users.filter((u) => u.role === 'STAFF')
+  const ownerUsers = users.filter((u) => {
+    const rec = u as unknown as Record<string, unknown>
+    return normalizeUserRole(u.role || rec.userRole) === 'OWNER'
+  })
+  const adminUsers = users.filter((u) => {
+    const rec = u as unknown as Record<string, unknown>
+    return normalizeUserRole(u.role || rec.userRole) === 'ADMIN'
+  })
+  const staffUsers = users.filter((u) => {
+    const rec = u as unknown as Record<string, unknown>
+    return normalizeUserRole(u.role || rec.userRole) === 'STAFF'
+  })
 
   const getLinkedEmployee = (userId: number, email?: string) => {
     return employees.find(
