@@ -14,7 +14,6 @@ import {
   ChevronRight,
   Sparkles,
   Building2,
-  CheckCircle2,
   ChevronDown,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -32,7 +31,6 @@ import { ErjvPosLogo } from '@/components/ui/ErjvPosLogo'
 import { useAuth } from '@/features/auth/AuthContext'
 import { useProducts } from '@/features/products/products.hooks'
 import { ProductListModal } from '../products/ProductListModal'
-import type { UserRole } from '@/features/auth/auth.types'
 
 export type NavItemKey =
   | 'inventory'
@@ -91,7 +89,7 @@ export function DashboardLayout({
   onSelectTab,
   children,
 }: DashboardLayoutProps) {
-  const { user, logout, isOwner, isAdmin, isStaff, switchRole } = useAuth()
+  const { user, logout, isOwner, isAdmin, isStaff } = useAuth()
   const { data: products = [] } = useProducts()
   const [isMobileOpen, setIsMobileOpen] = useState(false)
   const [isProductsModalOpen, setIsProductsModalOpen] = useState(false)
@@ -228,20 +226,6 @@ export function DashboardLayout({
                   <span className="text-[10px] text-emerald-600 font-semibold">● Online</span>
                 </div>
               </div>
-              <DropdownMenuSeparator />
-              <DropdownMenuLabel className="text-[10px] uppercase font-bold text-muted-foreground">
-                Role Permissions Preview
-              </DropdownMenuLabel>
-              {(['STAFF', 'ADMIN', 'OWNER'] as UserRole[]).map((r) => (
-                <DropdownMenuItem
-                  key={r}
-                  onClick={() => switchRole(r)}
-                  className="gap-2 text-xs cursor-pointer font-medium"
-                >
-                  {user?.role === r && <CheckCircle2 className="size-3.5 text-primary" />}
-                  <span>{r} View {r === 'STAFF' && '(Staff Only)'}</span>
-                </DropdownMenuItem>
-              ))}
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={logout} className="text-destructive gap-2 text-xs cursor-pointer font-semibold">
                 <LogOut className="size-3.5" />

@@ -130,3 +130,20 @@ body {
   background-color: rgba(194, 71, 76, 0.2);
   color: var(--foreground);
 }
+
+/* Smooth Accordion Roll-down Transition for Auth Form Switch */
+@keyframes authRollDown {
+  0% {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-auth-roll-down {
+  animation: authRollDown 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  will-change: opacity, transform;
+}

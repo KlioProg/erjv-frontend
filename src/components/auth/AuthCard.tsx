@@ -14,7 +14,6 @@ import { ErjvPosLogo } from '../ui/ErjvPosLogo'
 import ForgotPasswordModal from './ForgotPasswordModal'
 import LoginForm from './LoginForm'
 import SignupForm from './SignupForm'
-import { submitSignup } from './authHandlers'
 import { useAuth } from '@/features/auth/AuthContext'
 import { getErrorMessage } from '@/lib/api-client'
 import type { AuthMode } from '../../features/auth/auth.types'
@@ -25,7 +24,7 @@ type AuthCardProps = {
 }
 
 export function AuthCard({ mode, onModeChange }: AuthCardProps) {
-  const { login } = useAuth()
+  const { login, register } = useAuth()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
   const [successMessage, setSuccessMessage] = useState('')
@@ -59,9 +58,11 @@ export function AuthCard({ mode, onModeChange }: AuthCardProps) {
     setSuccessMessage('')
 
     const formData = new FormData(event.currentTarget)
-
+    const email = String(formData.get('email')).trim()
     const password = String(formData.get('password'))
     const confirm = String(formData.get('confirmPassword'))
+    const role = (String(formData.get('role')) || 'STAFF') as 'OWNER' | 'ADMIN' | 'STAFF'
+
     if (password !== confirm) {
       setErrorMessage('Passwords do not match.')
       setIsSubmitting(false)
@@ -69,8 +70,8 @@ export function AuthCard({ mode, onModeChange }: AuthCardProps) {
     }
 
     try {
-      const msg = await submitSignup(formData)
-      setSuccessMessage(msg)
+      const newUser = await register({ email, password, role })
+      setSuccessMessage(`Account created successfully for ${newUser.email}! You can now sign in.`)
       onModeChange('login')
     } catch (err) {
       setErrorMessage(getErrorMessage(err))
@@ -115,7 +116,10 @@ export function AuthCard({ mode, onModeChange }: AuthCardProps) {
               </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="login" className="mt-4 focus-visible:outline-none">
+            <TabsContent
+              value="login"
+              className="mt-4 focus-visible:outline-none animate-auth-roll-down"
+            >
               <LoginForm
                 onSubmit={handleLoginSubmit}
                 onForgotPasswordClick={() => setIsForgotPasswordOpen(true)}
@@ -125,7 +129,10 @@ export function AuthCard({ mode, onModeChange }: AuthCardProps) {
               />
             </TabsContent>
 
-            <TabsContent value="signup" className="mt-4 focus-visible:outline-none">
+            <TabsContent
+              value="signup"
+              className="mt-4 focus-visible:outline-none animate-auth-roll-down"
+            >
               <SignupForm
                 onSubmit={handleSignupSubmit}
                 isSubmitting={isSubmitting}
