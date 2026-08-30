@@ -41,6 +41,7 @@ import {
   useUpdateVehicleStatus,
 } from '@/features/logistics/delivery-vehicles.hooks'
 import { useClients } from '@/features/crm/clients.hooks'
+import { useAuth } from '@/features/auth/AuthContext'
 import {
   VEHICLE_STATUSES,
   type DeliveryVehicle,
@@ -87,6 +88,7 @@ export function VehicleList() {
   const { data: clients = [] } = useClients()
   const deactivateMutation = useDeactivateVehicle()
   const statusMutation = useUpdateVehicleStatus()
+  const { isOwner, isAdmin } = useAuth()
 
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('ALL')
@@ -241,10 +243,12 @@ export function VehicleList() {
           </div>
         </div>
 
-        <Button onClick={handleCreate} size="sm" className="gap-1.5 shadow-xs cursor-pointer">
-          <Plus className="size-4" />
-          Register Vehicle
-        </Button>
+        {(isOwner || isAdmin) && (
+          <Button onClick={handleCreate} size="sm" className="gap-1.5 shadow-xs cursor-pointer">
+            <Plus className="size-4" />
+            Register Vehicle
+          </Button>
+        )}
       </div>
 
       {/* Vehicle Fleet Cards Grid */}
@@ -312,51 +316,53 @@ export function VehicleList() {
                       </div>
                     </div>
 
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="size-7 text-muted-foreground hover:text-foreground cursor-pointer shrink-0"
-                        >
-                          <MoreVertical className="size-4" />
-                          <span className="sr-only">Vehicle actions</span>
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => handleEdit(vehicle)} className="gap-2 text-xs cursor-pointer">
-                          <Edit2 className="size-3.5" />
-                          Edit Details & Route
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <div className="px-2 py-1 text-[10px] font-bold text-muted-foreground uppercase">
-                          Change Status
-                        </div>
-                        {VEHICLE_STATUSES.map((st) => (
-                          <DropdownMenuItem
-                            key={st}
-                            onClick={() => handleStatusChange(vehicle.id, st)}
-                            className={`gap-2 text-xs cursor-pointer ${
-                              vehicle.status === st ? 'font-bold text-primary' : ''
-                            }`}
+                    {(isOwner || isAdmin) && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="size-7 text-muted-foreground hover:text-foreground cursor-pointer shrink-0"
                           >
-                            {st === 'AVAILABLE' && <CheckCircle2 className="size-3.5 text-emerald-500" />}
-                            {st === 'IN_DELIVERY' && <Clock className="size-3.5 text-blue-500" />}
-                            {st === 'MAINTENANCE' && <Wrench className="size-3.5 text-amber-500" />}
-                            {st === 'OUT_OF_SERVICE' && <AlertOctagon className="size-3.5 text-destructive" />}
-                            {st.replace(/_/g, ' ')}
+                            <MoreVertical className="size-4" />
+                            <span className="sr-only">Vehicle actions</span>
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => handleEdit(vehicle)} className="gap-2 text-xs cursor-pointer">
+                            <Edit2 className="size-3.5" />
+                            Edit Details & Route
                           </DropdownMenuItem>
-                        ))}
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          onClick={() => handleDeactivate(vehicle)}
-                          className="gap-2 text-xs text-destructive focus:text-destructive cursor-pointer"
-                        >
-                          <Trash2 className="size-3.5" />
-                          Deactivate Vehicle
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                          <DropdownMenuSeparator />
+                          <div className="px-2 py-1 text-[10px] font-bold text-muted-foreground uppercase">
+                            Change Status
+                          </div>
+                          {VEHICLE_STATUSES.map((st) => (
+                            <DropdownMenuItem
+                              key={st}
+                              onClick={() => handleStatusChange(vehicle.id, st)}
+                              className={`gap-2 text-xs cursor-pointer ${
+                                vehicle.status === st ? 'font-bold text-primary' : ''
+                              }`}
+                            >
+                              {st === 'AVAILABLE' && <CheckCircle2 className="size-3.5 text-emerald-500" />}
+                              {st === 'IN_DELIVERY' && <Clock className="size-3.5 text-blue-500" />}
+                              {st === 'MAINTENANCE' && <Wrench className="size-3.5 text-amber-500" />}
+                              {st === 'OUT_OF_SERVICE' && <AlertOctagon className="size-3.5 text-destructive" />}
+                              {st.replace(/_/g, ' ')}
+                            </DropdownMenuItem>
+                          ))}
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            onClick={() => handleDeactivate(vehicle)}
+                            className="gap-2 text-xs text-destructive focus:text-destructive cursor-pointer"
+                          >
+                            <Trash2 className="size-3.5" />
+                            Deactivate Vehicle
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )}
                   </div>
 
                   {/* Uniform Status & Route Banner for ALL Cards */}

@@ -14,6 +14,7 @@ import { Label } from '@/components/ui/label'
 import { Spinner } from '@/components/ui/spinner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
+  useWarehouses,
   useCreateWarehouse,
   useUpdateWarehouseDetails,
 } from '@/features/logistics/warehouses.hooks'
@@ -34,6 +35,7 @@ function WarehouseFormContent({
   onClose: () => void
 }) {
   const isEditing = !!warehouse
+  const { data: allWarehouses = [] } = useWarehouses()
   const createMutation = useCreateWarehouse()
   const updateMutation = useUpdateWarehouseDetails()
 
@@ -46,13 +48,22 @@ function WarehouseFormContent({
     e.preventDefault()
     setErrorMsg('')
 
-    if (!name.trim()) {
+    const cleanName = name.trim()
+    if (!cleanName) {
       setErrorMsg('Warehouse name is required.')
       return
     }
 
     if (!address.trim()) {
       setErrorMsg('Warehouse address / location is required.')
+      return
+    }
+
+    const isDuplicate = allWarehouses.some(
+      (w) => w.id !== warehouse?.id && w.name.toLowerCase().trim() === cleanName.toLowerCase()
+    )
+    if (isDuplicate) {
+      setErrorMsg(`A warehouse named "${cleanName}" already exists in the database.`)
       return
     }
 

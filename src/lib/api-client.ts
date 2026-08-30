@@ -37,35 +37,70 @@ export function extractArray<T = Record<string, unknown>>(data: unknown): T[] {
   return []
 }
 
-// Format error messages from NestJS ValidationPipe or exceptions
+// Format error messages from NestJS ValidationPipe, Prisma constraints, or HTTP exceptions
 export function getErrorMessage(error: unknown): string {
   if (axios.isAxiosError(error)) {
-    const axiosErr = error as AxiosError<{ message?: string | string[]; error?: string }>
+    const axiosErr = error as AxiosError<{ message?: string | string[]; error?: string; statusCode?: number }>
+    const status = axiosErr.response?.status
     const resData = axiosErr.response?.data
+    let serverMessage = ''
+
     if (resData) {
       if (Array.isArray(resData.message)) {
-        return resData.message.join(', ')
-      }
-      if (typeof resData.message === 'string' && resData.message.trim()) {
-        return resData.message
-      }
-      if (typeof resData.error === 'string' && resData.error.trim()) {
-        return resData.error
+        serverMessage = resData.message.join(', ')
+      } else if (typeof resData.message === 'string' && resData.message.trim()) {
+        serverMessage = resData.message
+      } else if (typeof resData.error === 'string' && resData.error.trim()) {
+        serverMessage = resData.error
       }
     }
-    if (axiosErr.response?.status === 401) {
-      return 'Unauthorized. Please log in with a valid account.'
+
+    const lower = serverMessage.toLowerCase()
+
+    // Handle database unique constraint / duplicate collisions
+    if (lower.includes('unique') || lower.includes('duplicate') || lower.includes('already exists') || lower.includes('p2002')) {
+      if (lower.includes('email')) {
+        return 'This email address is already registered in the database.'
+      }
+      if (lower.includes('name')) {
+        return 'A record with this name already exists in the database.'
+      }
+      if (lower.includes('plate') || lower.includes('platenumber')) {
+        return 'A vehicle with this plate number already exists in the database.'
+      }
+      return 'A record with duplicate unique details already exists in the database.'
     }
-    if (axiosErr.response?.status === 403) {
-      return 'You do not have permission to perform this action.'
+
+    if (status === 403 || lower.includes('forbidden')) {
+      return 'Access Denied (403): Your account role does not have permission to perform this action. Only Owners and Administrators can create, edit, or delete records.'
     }
-    if (axiosErr.response?.status === 500) {
-      return 'Backend database service error (500). Please check backend terminal logs.'
+
+    if (status === 401 || lower.includes('unauthorized')) {
+      return 'Account not found or invalid credentials. Please check your email and password or register a new account.'
     }
-    return axiosErr.message || 'Network error communicating with server.'
+
+    if (status === 404) {
+      return 'Requested resource was not found in the database.'
+    }
+
+    if (serverMessage && !serverMessage.toLowerCase().includes('internal server error')) {
+      return serverMessage
+    }
+
+    if (status === 500) {
+      return 'Database service error (500). Please ensure PostgreSQL is running.'
+    }
+
+    return axiosErr.message || 'Network communication error.'
   }
+
   if (error instanceof Error) {
+    const lower = error.message.toLowerCase()
+    if (lower.includes('forbidden') || lower.includes('403')) {
+      return 'Access Denied (403): Your account role does not have permission to perform this action.'
+    }
     return error.message
   }
+
   return 'An unexpected error occurred.'
 }

@@ -39,18 +39,18 @@ function PositionAssignContent({
   const replaceJobsMutation = useReplaceEmployeeJobs()
 
   const [selectedJobIds, setSelectedJobIds] = useState<number[]>(() =>
-    assignedJobs ? assignedJobs.map((ej) => ej.jobId) : []
+    assignedJobs ? assignedJobs.map((ej: { jobId: number }) => ej.jobId) : []
   )
   const [errorMsg, setErrorMsg] = useState('')
 
   // Sync selection when initial data loads
-  const currentAssignedIds = assignedJobs.map((ej) => ej.jobId)
+  const currentAssignedIds = assignedJobs.map((ej: { jobId: number }) => ej.jobId)
   const effectiveSelectedIds = selectedJobIds.length > 0 ? selectedJobIds : currentAssignedIds
 
   const handleToggle = (jobId: number) => {
     setSelectedJobIds((prev) => {
       const base = prev.length > 0 ? prev : currentAssignedIds
-      return base.includes(jobId) ? base.filter((id) => id !== jobId) : [...base, jobId]
+      return base.includes(jobId) ? base.filter((id: number) => id !== jobId) : [...base, jobId]
     })
   }
 

@@ -23,6 +23,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Spinner } from '@/components/ui/spinner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
+  useProducts,
   useCreateProduct,
   useUpdateProductDetails,
   useDeactivateProduct,
@@ -47,6 +48,7 @@ function ItemFormContent({
   onClose: () => void
 }) {
   const isEditing = !!item
+  const { data: allProducts = [] } = useProducts()
   const createMutation = useCreateProduct()
   const updateMutation = useUpdateProductDetails()
   const deactivateMutation = useDeactivateProduct()
@@ -76,8 +78,17 @@ function ItemFormContent({
     e.preventDefault()
     setErrorMsg('')
 
-    if (!name.trim()) {
+    const cleanName = name.trim()
+    if (!cleanName) {
       setErrorMsg('Product name is required.')
+      return
+    }
+
+    const isDuplicate = allProducts.some(
+      (p) => p.id !== item?.id && p.name.toLowerCase().trim() === cleanName.toLowerCase()
+    )
+    if (isDuplicate) {
+      setErrorMsg(`A product with the name "${cleanName}" already exists in the database.`)
       return
     }
 

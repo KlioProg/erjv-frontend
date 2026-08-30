@@ -14,6 +14,7 @@ import { Label } from '@/components/ui/label'
 import { Spinner } from '@/components/ui/spinner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
+  useClients,
   useCreateClient,
   useUpdateClientDetails,
 } from '@/features/crm/clients.hooks'
@@ -34,6 +35,7 @@ function ClientFormContent({
   onClose: () => void
 }) {
   const isEditing = !!client
+  const { data: allClients = [] } = useClients()
   const createMutation = useCreateClient()
   const updateMutation = useUpdateClientDetails()
 
@@ -48,7 +50,8 @@ function ClientFormContent({
     e.preventDefault()
     setErrorMsg('')
 
-    if (!name.trim()) {
+    const cleanName = name.trim()
+    if (!cleanName) {
       setErrorMsg('Client business/account name is required.')
       return
     }
@@ -56,6 +59,25 @@ function ClientFormContent({
     if (!address.trim()) {
       setErrorMsg('Billing / Delivery address is required.')
       return
+    }
+
+    const isNameDup = allClients.some(
+      (c) => c.id !== client?.id && c.name.toLowerCase().trim() === cleanName.toLowerCase()
+    )
+    if (isNameDup) {
+      setErrorMsg(`A client business named "${cleanName}" already exists in the database.`)
+      return
+    }
+
+    const cleanEmail = email.trim().toLowerCase()
+    if (cleanEmail) {
+      const isEmailDup = allClients.some(
+        (c) => c.id !== client?.id && c.email?.toLowerCase().trim() === cleanEmail
+      )
+      if (isEmailDup) {
+        setErrorMsg(`A client with email "${cleanEmail}" already exists in the database.`)
+        return
+      }
     }
 
     try {

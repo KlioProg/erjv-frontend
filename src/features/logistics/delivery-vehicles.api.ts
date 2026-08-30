@@ -6,61 +6,19 @@ import type {
   VehicleStatus,
 } from './delivery-vehicles.types'
 
-const STORAGE_KEY = 'erjv_db_vehicles_v6'
-
-const INITIAL_VEHICLES: DeliveryVehicle[] = []
-
-function getStoredVehicles(): DeliveryVehicle[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (raw) return JSON.parse(raw)
-  } catch {
-    // Ignore JSON parse error
-  }
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(INITIAL_VEHICLES))
-  return INITIAL_VEHICLES
-}
-
-function saveStoredVehicles(items: DeliveryVehicle[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(items))
-}
-
 export async function fetchDeliveryVehiclesApi(): Promise<DeliveryVehicle[]> {
-  try {
-    const response = await apiClient.get('/delivery-vehicles')
-    const list = extractArray<DeliveryVehicle>(response.data)
-    if (Array.isArray(response.data) || list.length > 0) {
-      saveStoredVehicles(list)
-      return list
-    }
-  } catch {
-    // Graceful fallback
-  }
-  return getStoredVehicles().filter((v) => v.isActive)
+  const response = await apiClient.get('/delivery-vehicles')
+  return extractArray<DeliveryVehicle>(response.data)
 }
 
 export async function fetchAvailableVehiclesApi(): Promise<DeliveryVehicle[]> {
-  try {
-    const response = await apiClient.get('/delivery-vehicles/available')
-    const list = extractArray<DeliveryVehicle>(response.data)
-    if (Array.isArray(response.data) || list.length > 0) {
-      return list
-    }
-  } catch {
-    // Graceful fallback
-  }
-  return getStoredVehicles().filter((v) => v.status === 'AVAILABLE' && v.isActive)
+  const response = await apiClient.get('/delivery-vehicles/available')
+  return extractArray<DeliveryVehicle>(response.data)
 }
 
 export async function fetchVehicleByIdApi(id: number): Promise<DeliveryVehicle> {
-  try {
-    const { data } = await apiClient.get<DeliveryVehicle>(`/delivery-vehicles/${id}`)
-    return data
-  } catch {
-    const found = getStoredVehicles().find((v) => v.id === id)
-    if (found) return found
-    throw new Error('Vehicle not found')
-  }
+  const { data } = await apiClient.get<DeliveryVehicle>(`/delivery-vehicles/${id}`)
+  return data
 }
 
 export async function createVehicleApi(
@@ -77,12 +35,7 @@ export async function createVehicleApi(
   }
 
   const { data } = await apiClient.post<DeliveryVehicle>('/delivery-vehicles', cleanPayload)
-  if (data && data.id) {
-    const current = getStoredVehicles()
-    saveStoredVehicles([data, ...current.filter((v) => v.id !== data.id)])
-    return data
-  }
-  throw new Error('Failed to create vehicle in database')
+  return data
 }
 
 export async function updateVehicleDetailsApi(
@@ -101,12 +54,7 @@ export async function updateVehicleDetailsApi(
     `/delivery-vehicles/${id}/details`,
     cleanPayload
   )
-  if (data && data.id) {
-    const current = getStoredVehicles()
-    saveStoredVehicles(current.map((v) => (v.id === id ? data : v)))
-    return data
-  }
-  throw new Error('Failed to update vehicle in database')
+  return data
 }
 
 export async function updateVehicleStatusApi(
@@ -116,54 +64,15 @@ export async function updateVehicleStatusApi(
   const { data } = await apiClient.patch<DeliveryVehicle>(`/delivery-vehicles/${id}/status`, {
     status,
   })
-  if (data && data.id) {
-    const current = getStoredVehicles()
-    saveStoredVehicles(current.map((v) => (v.id === id ? data : v)))
-    return data
-  }
-  throw new Error('Failed to update vehicle status in database')
+  return data
 }
 
 export async function deactivateVehicleApi(id: number): Promise<DeliveryVehicle> {
-  try {
-    const { data } = await apiClient.delete<DeliveryVehicle>(`/delivery-vehicles/${id}`)
-    if (data) return data
-  } catch {
-    // Graceful fallback
-  }
-
-  const current = getStoredVehicles()
-  const index = current.findIndex((v) => v.id === id)
-  if (index !== -1) {
-    current[index] = {
-      ...current[index],
-      isActive: false,
-      updatedAt: new Date().toISOString(),
-    }
-    saveStoredVehicles(current)
-    return current[index]
-  }
-  throw new Error('Vehicle not found')
+  const { data } = await apiClient.delete<DeliveryVehicle>(`/delivery-vehicles/${id}`)
+  return data
 }
 
 export async function reactivateVehicleApi(id: number): Promise<DeliveryVehicle> {
-  try {
-    const { data } = await apiClient.patch<DeliveryVehicle>(`/delivery-vehicles/${id}/reactivate`)
-    if (data) return data
-  } catch {
-    // Graceful fallback
-  }
-
-  const current = getStoredVehicles()
-  const index = current.findIndex((v) => v.id === id)
-  if (index !== -1) {
-    current[index] = {
-      ...current[index],
-      isActive: true,
-      updatedAt: new Date().toISOString(),
-    }
-    saveStoredVehicles(current)
-    return current[index]
-  }
-  throw new Error('Vehicle not found')
+  const { data } = await apiClient.patch<DeliveryVehicle>(`/delivery-vehicles/${id}/reactivate`)
+  return data
 }

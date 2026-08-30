@@ -28,6 +28,7 @@ import {
   useClients,
   useDeactivateClient,
 } from '@/features/crm/clients.hooks'
+import { useAuth } from '@/features/auth/AuthContext'
 import type { Client } from '@/features/crm/clients.types'
 import { ClientModal } from './ClientModal'
 
@@ -36,6 +37,7 @@ import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal'
 export function ClientList() {
   const { data: clients = [], isLoading } = useClients()
   const deactivateMutation = useDeactivateClient()
+  const { isOwner, isAdmin } = useAuth()
 
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedClient, setSelectedClient] = useState<Client | null>(null)
@@ -86,10 +88,12 @@ export function ClientList() {
           />
         </div>
 
-        <Button onClick={handleCreate} size="sm" className="gap-1.5 shadow-xs">
-          <Plus className="size-4" />
-          Register New Client
-        </Button>
+        {(isOwner || isAdmin) && (
+          <Button onClick={handleCreate} size="sm" className="gap-1.5 shadow-xs cursor-pointer">
+            <Plus className="size-4" />
+            Register New Client
+          </Button>
+        )}
       </div>
 
       {/* Clients Cards Grid */}
@@ -142,31 +146,33 @@ export function ClientList() {
                       </div>
                     </div>
 
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="size-7 text-muted-foreground hover:text-foreground"
-                        >
-                          <MoreVertical className="size-4" />
-                          <span className="sr-only">Client actions</span>
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => handleEdit(client)} className="gap-2 text-xs">
-                          <Edit2 className="size-3.5" />
-                          Edit Details
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => handleDeactivate(client)}
-                          className="gap-2 text-xs text-destructive focus:text-destructive cursor-pointer"
-                        >
-                          <Trash2 className="size-3.5" />
-                          Deactivate Client
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                    {(isOwner || isAdmin) && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="size-7 text-muted-foreground hover:text-foreground cursor-pointer"
+                          >
+                            <MoreVertical className="size-4" />
+                            <span className="sr-only">Client actions</span>
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => handleEdit(client)} className="gap-2 text-xs cursor-pointer">
+                            <Edit2 className="size-3.5" />
+                            Edit Details
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => handleDeactivate(client)}
+                            className="gap-2 text-xs text-destructive focus:text-destructive cursor-pointer"
+                          >
+                            <Trash2 className="size-3.5" />
+                            Deactivate Client
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )}
                   </div>
 
                   <div className="flex items-start gap-2 text-xs text-muted-foreground pt-1">

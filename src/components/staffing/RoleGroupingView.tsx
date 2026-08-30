@@ -43,7 +43,7 @@ function JobPositionSection({ job, allEmployees }: { job: Job; allEmployees: Emp
   const [memberToRemove, setMemberToRemove] = useState<{ employeeId: number; name: string } | null>(null)
 
   // Unassigned employees for this specific job
-  const assignedEmployeeIds = members.map((m) => m.employeeId)
+  const assignedEmployeeIds = members.map((m: { employeeId: number }) => m.employeeId)
   const availableToAssign = allEmployees.filter(
     (emp) => !assignedEmployeeIds.includes(emp.id) && emp.isActive
   )
@@ -170,7 +170,7 @@ function JobPositionSection({ job, allEmployees }: { job: Job; allEmployees: Emp
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-            {members.map((m) => {
+            {members.map((m: { employeeId: number; assignedAt?: string; employee: { firstName: string; lastName: string; phone?: string | null; email?: string | null } }) => {
               const emp = m.employee
               const initials = `${emp.firstName.charAt(0)}${emp.lastName.charAt(0)}`.toUpperCase()
 
@@ -191,7 +191,7 @@ function JobPositionSection({ job, allEmployees }: { job: Job; allEmployees: Emp
                       </span>
                       <span className="text-[10px] text-muted-foreground">
                         ID #{m.employeeId} •{' '}
-                        {new Date(m.assignedAt).toLocaleDateString(undefined, {
+                        {new Date(m.assignedAt || Date.now()).toLocaleDateString(undefined, {
                           month: 'short',
                           day: 'numeric',
                         })}

@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectVa
 import { Spinner } from '@/components/ui/spinner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
+  useDeliveryVehicles,
   useCreateVehicle,
   useUpdateVehicleDetails,
 } from '@/features/logistics/delivery-vehicles.hooks'
@@ -48,6 +49,7 @@ function VehicleFormContent({
   onClose: () => void
 }) {
   const isEditing = !!vehicle
+  const { data: allVehicles = [] } = useDeliveryVehicles()
   const createMutation = useCreateVehicle()
   const updateMutation = useUpdateVehicleDetails()
   const { data: clients = [] } = useClients()
@@ -64,8 +66,17 @@ function VehicleFormContent({
     e.preventDefault()
     setErrorMsg('')
 
-    if (!plateNumber.trim()) {
+    const cleanPlate = plateNumber.trim().toUpperCase()
+    if (!cleanPlate) {
       setErrorMsg('Vehicle plate number is required.')
+      return
+    }
+
+    const isDuplicatePlate = allVehicles.some(
+      (v) => v.id !== vehicle?.id && v.plateNumber.toUpperCase().trim() === cleanPlate
+    )
+    if (isDuplicatePlate) {
+      setErrorMsg(`A vehicle with plate number "${cleanPlate}" already exists in the database.`)
       return
     }
 

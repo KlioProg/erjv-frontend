@@ -14,7 +14,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Spinner } from '@/components/ui/spinner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { useCreateJob, useUpdateJobDetails } from '@/features/staffing/staffing.hooks'
+import { useJobs, useCreateJob, useUpdateJobDetails } from '@/features/staffing/staffing.hooks'
 import type { Job } from '@/features/staffing/staffing.types'
 import { getErrorMessage } from '@/lib/api-client'
 
@@ -32,6 +32,7 @@ function JobFormContent({
   onClose: () => void
 }) {
   const isEditing = !!job
+  const { data: allJobs = [] } = useJobs()
   const createMutation = useCreateJob()
   const updateMutation = useUpdateJobDetails()
 
@@ -43,8 +44,17 @@ function JobFormContent({
     e.preventDefault()
     setErrorMsg('')
 
-    if (!name.trim()) {
+    const cleanName = name.trim()
+    if (!cleanName) {
       setErrorMsg('Job position name is required.')
+      return
+    }
+
+    const isDuplicate = allJobs.some(
+      (j) => j.id !== job?.id && j.name.toLowerCase().trim() === cleanName.toLowerCase()
+    )
+    if (isDuplicate) {
+      setErrorMsg(`A job position titled "${cleanName}" already exists in the database.`)
       return
     }
 

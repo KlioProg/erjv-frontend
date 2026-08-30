@@ -62,7 +62,7 @@ function EmployeeJobBadges({ employeeId }: { employeeId: number }) {
 
   return (
     <div className="flex flex-wrap gap-1">
-      {assigned.map((ej) => (
+      {assigned.map((ej: { jobId: number; job: { name: string } }) => (
         <Badge
           key={ej.jobId}
           variant="secondary"

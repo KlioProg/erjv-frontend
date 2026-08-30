@@ -24,21 +24,6 @@ type AuthContextType = {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-const INITIAL_DB_USERS: Array<{
-  id: number
-  email: string
-  fullName: string | null
-  phone: string | null
-  jobTitle: string | null
-  bio: string | null
-  avatarUrl: string | null
-  password?: string
-  role: 'OWNER' | 'ADMIN' | 'STAFF'
-  isActive: boolean
-  createdAt?: string
-  updatedAt?: string
-}> = []
-
 export function normalizeUserRole(rawRole: unknown): 'OWNER' | 'ADMIN' | 'STAFF' {
   if (!rawRole) return 'STAFF'
   const str = String(rawRole).trim().toUpperCase()
@@ -69,8 +54,8 @@ export function normalizeUser(rawUser: (Partial<SafeUserResponse> & Record<strin
     rawUser.user && typeof rawUser.user === 'object'
       ? rawUser.user
       : rawUser.data && typeof rawUser.data === 'object'
-      ? rawUser.data
-      : rawUser
+        ? rawUser.data
+        : rawUser
   ) as Record<string, unknown>
 
   const rawRole = userObj.role ?? userObj.userRole ?? userObj.roleName ?? rawUser.role ?? rawUser.userRole
@@ -184,152 +169,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const cleanPassword = payload.password
 
     try {
-      // 1. Try real backend API authentication
+      const loginRes = await loginApi({ email: cleanEmail, password: cleanPassword })
+      const accessToken = loginRes.accessToken
+      if (!accessToken) {
+        throw new Error('No access token returned by server.')
+      }
+
+      localStorage.setItem('erjv_access_token', accessToken)
+      setToken(accessToken)
+
+      let profile: SafeUserResponse | null = null
       try {
-        const loginRes = (await loginApi({ email: cleanEmail, password: cleanPassword })) as Record<string, unknown>
-        const accessToken = (loginRes.accessToken || loginRes.token || loginRes.access_token) as string | undefined
-        if (accessToken) {
-          let profile = (loginRes.user || loginRes.profile || null) as Record<string, unknown> | null
-          if (!profile) {
-            try {
-              profile = (await getProfileApi()) as unknown as Record<string, unknown>
-            } catch {
-              // Ignore
-            }
-          }
-
-          if (!profile) {
-            try {
-              const parts = accessToken.split('.')
-              if (parts.length === 3) {
-                profile = JSON.parse(atob(parts[1]))
-              }
-            } catch {
-              // Ignore
-            }
-          }
-
-          const normalized = normalizeUser(profile || { email: cleanEmail })
-          localStorage.setItem('erjv_current_user', JSON.stringify(normalized))
-          localStorage.setItem('erjv_access_token', accessToken)
-          setUser(normalized)
-          setToken(accessToken)
-
-          // Save session
-          const expiryTime = Date.now() + (rememberMe ? THIRTY_DAYS_MS : ONE_DAY_MS)
-          localStorage.setItem('erjv_session_expiry', String(expiryTime))
-          if (rememberMe) {
-            localStorage.setItem('erjv_remember_me', 'true')
-            localStorage.setItem('erjv_remembered_email', cleanEmail)
-          }
-          setIsLoading(false)
-          return
-        }
+        profile = await getProfileApi()
       } catch {
-        // Continue to check database fallback
-      }
-
-      // 2. Strict Database Verification (Check against erjv_db_users_v6 and erjv_registered_users)
-      let databaseUsers: Array<{
-        id: number
-        email: string
-        fullName?: string | null
-        phone?: string | null
-        avatarUrl?: string | null
-        jobTitle?: string | null
-        bio?: string | null
-        password?: string
-        role: 'OWNER' | 'ADMIN' | 'STAFF'
-        isActive?: boolean
-      }> = []
-
-      try {
-        const rawDb = localStorage.getItem('erjv_db_users_v6')
-        if (rawDb) {
-          databaseUsers = JSON.parse(rawDb)
-        }
-      } catch {
-        // Ignore
-      }
-
-      if (databaseUsers.length === 0) {
-        databaseUsers = INITIAL_DB_USERS
-        localStorage.setItem('erjv_db_users_v6', JSON.stringify(INITIAL_DB_USERS))
-      }
-
-      let registeredAccounts: Array<{
-        email: string
-        fullName?: string
-        phone?: string
-        avatarUrl?: string
-        jobTitle?: string
-        bio?: string
-        password?: string
-        role: 'OWNER' | 'ADMIN' | 'STAFF'
-      }> = []
-
-      try {
-        const rawReg = localStorage.getItem('erjv_registered_users')
-        if (rawReg) {
-          registeredAccounts = JSON.parse(rawReg)
-        }
-      } catch {
-        // Ignore
-      }
-
-      // Search database for matching user
-      const foundInDb = databaseUsers.find((u) => u.email.toLowerCase() === cleanEmail)
-      const foundInRegistered = registeredAccounts.find((u) => u.email.toLowerCase() === cleanEmail)
-
-      const foundUser = foundInDb || (foundInRegistered ? {
-        id: Math.floor(Math.random() * 9000) + 100,
-        email: foundInRegistered.email,
-        fullName: foundInRegistered.fullName || null,
-        phone: foundInRegistered.phone || null,
-        avatarUrl: foundInRegistered.avatarUrl || null,
-        jobTitle: foundInRegistered.jobTitle || null,
-        bio: foundInRegistered.bio || null,
-        password: foundInRegistered.password,
-        role: foundInRegistered.role,
-        isActive: true,
-      } : null)
-
-      // STRICT CHECK: If account is not found in database, REJECT LOGIN!
-      if (!foundUser) {
-        throw new Error('Account not found.')
-      }
-
-      // Verify active status
-      if (foundUser.isActive === false) {
-        throw new Error('Account is deactivated.')
-      }
-
-      // Verify password if recorded
-      if (foundUser.password && cleanPassword && foundUser.password !== 'plain-password') {
-        if (foundUser.password !== cleanPassword) {
-          throw new Error('Incorrect password.')
+        try {
+          const parts = accessToken.split('.')
+          if (parts.length === 3) {
+            profile = JSON.parse(atob(parts[1]))
+          }
+        } catch {
+          // Ignore
         }
       }
 
-      // Format clean display name
-      const displayName = foundUser.fullName || cleanEmail.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase())
+      const normalized = normalizeUser(profile || { email: cleanEmail })
+      localStorage.setItem('erjv_current_user', JSON.stringify(normalized))
+      setUser(normalized)
 
-      // Successfully authenticated against database
-      const loggedInUser: SafeUserResponse = {
-        id: foundUser.id,
-        email: foundUser.email,
-        fullName: displayName,
-        phone: foundUser.phone || null,
-        avatarUrl: foundUser.avatarUrl || null,
-        jobTitle: foundUser.jobTitle || (foundUser.role === 'OWNER' ? 'Enterprise Owner' : foundUser.role === 'ADMIN' ? 'System Administrator' : 'Staff Member'),
-        bio: foundUser.bio || null,
-        role: foundUser.role,
-        isActive: true,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      }
-
-      // Store session
       const expiryTime = Date.now() + (rememberMe ? THIRTY_DAYS_MS : ONE_DAY_MS)
       localStorage.setItem('erjv_session_expiry', String(expiryTime))
       if (rememberMe) {
@@ -339,11 +205,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         localStorage.removeItem('erjv_remember_me')
         localStorage.removeItem('erjv_remembered_email')
       }
-
-      localStorage.setItem('erjv_current_user', JSON.stringify(loggedInUser))
-      localStorage.setItem('erjv_access_token', 'demo-token')
-      setToken('demo-token')
-      setUser(loggedInUser)
+    } catch (err) {
+      localStorage.removeItem('erjv_access_token')
+      localStorage.removeItem('erjv_current_user')
+      setToken(null)
+      setUser(null)
+      throw new Error(getErrorMessage(err))
     } finally {
       setIsLoading(false)
     }
@@ -353,121 +220,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsLoading(true)
     const cleanEmail = payload.email.trim().toLowerCase()
     const role = payload.role || 'STAFF'
-    const fullName = payload.fullName?.trim() || cleanEmail.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase())
 
     try {
-      let registeredUser: SafeUserResponse
-
-      // 1. Attempt backend registration (Backend database is the single source of truth)
-      try {
-        registeredUser = await registerApi({
-          fullName,
-          email: cleanEmail,
-          password: payload.password,
-          role,
-        })
-      } catch (err: unknown) {
-        setIsLoading(false)
-        const errMsg = getErrorMessage(err)
-        if (
-          errMsg &&
-          (errMsg.toLowerCase().includes('already') ||
-            errMsg.toLowerCase().includes('duplicate') ||
-            errMsg.toLowerCase().includes('exist'))
-        ) {
-          throw new Error(errMsg.toLowerCase().includes('email') ? 'Email is already registered.' : errMsg, { cause: err })
-        }
-        throw new Error("Can't reach database. Please try again.", { cause: err })
-      }
-
-      // 2. Persist account into Database (erjv_db_users_v6)
-      try {
-        const rawDb = localStorage.getItem('erjv_db_users_v6')
-        const currentDb = rawDb ? JSON.parse(rawDb) : INITIAL_DB_USERS
-        const filteredDb = currentDb.filter((u: { email: string }) => u.email.toLowerCase() !== cleanEmail)
-        const newDbUser = {
-          id: registeredUser.id,
-          email: cleanEmail,
-          fullName,
-          phone: payload.phone || null,
-          avatarUrl: payload.avatarUrl || null,
-          jobTitle: payload.jobTitle || 'Staff Member',
-          bio: payload.bio || null,
-          password: payload.password,
-          role,
-          isActive: true,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        }
-        localStorage.setItem('erjv_db_users_v6', JSON.stringify([...filteredDb, newDbUser]))
-      } catch {
-        // Ignore
-      }
-
-      // 3. Persist account into Registered credentials list (erjv_registered_users)
-      try {
-        const rawReg = localStorage.getItem('erjv_registered_users')
-        const currentReg = rawReg ? JSON.parse(rawReg) : []
-        const filteredReg = currentReg.filter((u: { email: string }) => u.email.toLowerCase() !== cleanEmail)
-        localStorage.setItem(
-          'erjv_registered_users',
-          JSON.stringify([
-            ...filteredReg,
-            {
-              email: cleanEmail,
-              fullName,
-              phone: payload.phone || null,
-              avatarUrl: payload.avatarUrl || null,
-              jobTitle: payload.jobTitle || 'Staff Member',
-              bio: payload.bio || null,
-              password: payload.password,
-              role,
-            },
-          ])
-        )
-      } catch {
-        // Ignore
-      }
-
-      // 4. Automatically add to Staff Directory (erjv_db_employees_v6)
-      try {
-        const rawEmps = localStorage.getItem('erjv_db_employees_v6')
-        const currentEmps = rawEmps ? JSON.parse(rawEmps) : []
-        const nameParts = fullName.trim().split(' ')
-        const firstName = nameParts[0] || 'Staff'
-        const lastName = nameParts.slice(1).join(' ') || 'Member'
-
-        const existingIdx = currentEmps.findIndex(
-          (e: { email?: string; userId?: number }) =>
-            (e.email && e.email.toLowerCase() === cleanEmail) || e.userId === registeredUser.id
-        )
-
-        const newEmp = {
-          id: registeredUser.id,
-          firstName,
-          lastName,
-          email: cleanEmail,
-          phone: payload.phone || null,
-          address: null,
-          hireDate: new Date().toISOString().split('T')[0],
-          isActive: true,
-          userId: registeredUser.id,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        }
-
-        if (existingIdx !== -1) {
-          currentEmps[existingIdx] = { ...currentEmps[existingIdx], ...newEmp }
-        } else {
-          currentEmps.push(newEmp)
-        }
-
-        localStorage.setItem('erjv_db_employees_v6', JSON.stringify(currentEmps))
-      } catch {
-        // Ignore
-      }
-
+      const registeredUser = await registerApi({
+        email: cleanEmail,
+        password: payload.password,
+        role,
+      })
       return registeredUser
+    } catch (err: unknown) {
+      throw new Error(getErrorMessage(err))
     } finally {
       setIsLoading(false)
     }
