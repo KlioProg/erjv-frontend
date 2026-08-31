@@ -15,10 +15,8 @@ import type {
   UpdateClientDetailsPayload,
 } from './clients.types'
 import { getErrorMessage } from '@/lib/api-client'
-import { addArchivedId, getArchivedIds, removeArchivedId } from '@/lib/archived-storage'
 
 export const CLIENTS_QUERY_KEY = ['clients'] as const
-const ARCHIVED_CLIENTS_KEY = 'erjv_archived_clients'
 
 export function useClients() {
   return useQuery({
@@ -41,22 +39,15 @@ export function useDeactivatedClients() {
       const activeIds = activeClients.map((c) => c.id)
       const maxId = activeIds.length > 0 ? Math.max(...activeIds) : 0
       const scanUpperLimit = Math.max(maxId + 5, 20)
-      const storedIds = getArchivedIds(ARCHIVED_CLIENTS_KEY)
 
-      const candidateIds = new Set<number>([
-        ...storedIds,
-        ...Array.from({ length: scanUpperLimit }, (_, i) => i + 1),
-      ])
-
+      const candidateIds = Array.from({ length: scanUpperLimit }, (_, i) => i + 1)
       const results: Client[] = []
-      const promises = Array.from(candidateIds).map(async (id) => {
+
+      const promises = candidateIds.map(async (id) => {
         try {
           const client = await fetchClientByIdApi(id)
           if (client && client.isActive === false) {
             results.push(client)
-            addArchivedId(ARCHIVED_CLIENTS_KEY, id)
-          } else if (client && client.isActive !== false) {
-            removeArchivedId(ARCHIVED_CLIENTS_KEY, id)
           }
         } catch {
           // If deleted or not found, skip
@@ -75,7 +66,6 @@ export function useCreateClient() {
   return useMutation({
     mutationFn: (payload: CreateClientPayload) => createClientApi(payload),
     onSuccess: (newClient) => {
-      removeArchivedId(ARCHIVED_CLIENTS_KEY, newClient.id)
       queryClient.setQueryData<Client[]>(['clients', 'deactivated'], (old = []) =>
         old.filter((c) => c.id !== newClient.id && c.name.toLowerCase() !== newClient.name.toLowerCase())
       )
@@ -114,7 +104,6 @@ export function useDeactivateClient() {
     onSuccess: ({ res, inputClient, id }) => {
       const targetId = res?.id || inputClient?.id || id
       const name = res?.name || inputClient?.name || 'Account'
-      addArchivedId(ARCHIVED_CLIENTS_KEY, targetId)
       if (res || inputClient) {
         const entry: Client = res || { ...(inputClient as Client), isActive: false }
         queryClient.setQueryData<Client[]>(['clients', 'deactivated'], (old = []) => [
@@ -139,7 +128,6 @@ export function useReactivateClient() {
       return await reactivateClientApi(id)
     },
     onSuccess: (data) => {
-      removeArchivedId(ARCHIVED_CLIENTS_KEY, data.id)
       queryClient.setQueryData<Client[]>(['clients', 'deactivated'], (old = []) =>
         old.filter((c) => c.id !== data.id)
       )

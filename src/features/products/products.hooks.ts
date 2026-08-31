@@ -15,15 +15,12 @@ import type {
   InventoryItemResponse,
   UpdateInventoryItemDetailsPayload,
 } from './products.types'
-import { addArchivedId, getArchivedIds, removeArchivedId } from '@/lib/archived-storage'
 
 export const productKeys = {
   all: ['products'] as const,
   lists: () => [...productKeys.all, 'list'] as const,
   detail: (id: number) => [...productKeys.all, 'detail', id] as const,
 }
-
-const ARCHIVED_PRODUCTS_KEY = 'erjv_archived_products'
 
 // React Query hook to fetch the product list
 export function useProducts() {
@@ -56,22 +53,15 @@ export function useDeactivatedProducts() {
       const activeIds = activeProducts.map((p) => p.id)
       const maxId = activeIds.length > 0 ? Math.max(...activeIds) : 0
       const scanUpperLimit = Math.max(maxId + 5, 20)
-      const storedIds = getArchivedIds(ARCHIVED_PRODUCTS_KEY)
 
-      const candidateIds = new Set<number>([
-        ...storedIds,
-        ...Array.from({ length: scanUpperLimit }, (_, i) => i + 1),
-      ])
-
+      const candidateIds = Array.from({ length: scanUpperLimit }, (_, i) => i + 1)
       const results: InventoryItemResponse[] = []
-      const promises = Array.from(candidateIds).map(async (id) => {
+
+      const promises = candidateIds.map(async (id) => {
         try {
           const p = await fetchProductByIdApi(id)
           if (p && p.isActive === false) {
             results.push(p)
-            addArchivedId(ARCHIVED_PRODUCTS_KEY, id)
-          } else if (p && p.isActive !== false) {
-            removeArchivedId(ARCHIVED_PRODUCTS_KEY, id)
           }
         } catch {
           // If deleted or not found, skip
@@ -91,7 +81,6 @@ export function useCreateProduct() {
   return useMutation({
     mutationFn: (payload: CreateInventoryItemPayload) => createProductApi(payload),
     onSuccess: (data) => {
-      removeArchivedId(ARCHIVED_PRODUCTS_KEY, data.id)
       queryClient.setQueryData<InventoryItemResponse[]>(['products', 'deactivated-products'], (old = []) =>
         old.filter((p) => p.id !== data.id && p.name.toLowerCase() !== data.name.toLowerCase())
       )
@@ -144,7 +133,6 @@ export function useDeactivateProduct() {
     onSuccess: ({ res, inputProduct, id }) => {
       const targetId = res?.id || inputProduct?.id || id
       const name = res?.name || inputProduct?.name || 'Product'
-      addArchivedId(ARCHIVED_PRODUCTS_KEY, targetId)
       if (res || inputProduct) {
         const entry: InventoryItemResponse = res || { ...(inputProduct as InventoryItemResponse), isActive: false }
         queryClient.setQueryData<InventoryItemResponse[]>(['products', 'deactivated-products'], (old = []) => [
@@ -168,7 +156,6 @@ export function useReactivateProduct() {
       return await reactivateProductApi(id)
     },
     onSuccess: (data) => {
-      removeArchivedId(ARCHIVED_PRODUCTS_KEY, data.id)
       queryClient.setQueryData<InventoryItemResponse[]>(['products', 'deactivated-products'], (old = []) =>
         old.filter((p) => p.id !== data.id)
       )

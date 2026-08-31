@@ -18,10 +18,8 @@ import type {
   VehicleStatus,
 } from './delivery-vehicles.types'
 import { getErrorMessage } from '@/lib/api-client'
-import { addArchivedId, getArchivedIds, removeArchivedId } from '@/lib/archived-storage'
 
 export const VEHICLES_QUERY_KEY = ['delivery-vehicles'] as const
-const ARCHIVED_VEHICLES_KEY = 'erjv_archived_vehicles'
 
 export function useDeliveryVehicles() {
   return useQuery({
@@ -51,23 +49,15 @@ export function useDeactivatedVehicles() {
       const activeIds = activeVehicles.map((v) => v.id)
       const maxId = activeIds.length > 0 ? Math.max(...activeIds) : 0
       const scanUpperLimit = Math.max(maxId + 5, 20)
-      const storedIds = getArchivedIds(ARCHIVED_VEHICLES_KEY)
 
-      // Create a set of all candidate IDs to query from database
-      const candidateIds = new Set<number>([
-        ...storedIds,
-        ...Array.from({ length: scanUpperLimit }, (_, i) => i + 1),
-      ])
-
+      const candidateIds = Array.from({ length: scanUpperLimit }, (_, i) => i + 1)
       const results: DeliveryVehicle[] = []
-      const promises = Array.from(candidateIds).map(async (id) => {
+
+      const promises = candidateIds.map(async (id) => {
         try {
           const v = await fetchVehicleByIdApi(id)
           if (v && v.isActive === false) {
             results.push(v)
-            addArchivedId(ARCHIVED_VEHICLES_KEY, id)
-          } else if (v && v.isActive !== false) {
-            removeArchivedId(ARCHIVED_VEHICLES_KEY, id)
           }
         } catch {
           // If not found in DB, skip
@@ -86,7 +76,6 @@ export function useCreateVehicle() {
   return useMutation({
     mutationFn: (payload: CreateDeliveryVehiclePayload) => createVehicleApi(payload),
     onSuccess: (newV) => {
-      removeArchivedId(ARCHIVED_VEHICLES_KEY, newV.id)
       queryClient.setQueryData<DeliveryVehicle[]>(['delivery-vehicles', 'deactivated'], (old = []) =>
         old.filter((v) => v.id !== newV.id && v.plateNumber.toUpperCase() !== newV.plateNumber.toUpperCase())
       )
@@ -140,7 +129,6 @@ export function useDeactivateVehicle() {
     onSuccess: ({ res, inputVehicle, id }) => {
       const targetId = res?.id || inputVehicle?.id || id
       const plate = res?.plateNumber || inputVehicle?.plateNumber || 'Fleet asset'
-      addArchivedId(ARCHIVED_VEHICLES_KEY, targetId)
       if (res || inputVehicle) {
         const entry: DeliveryVehicle = res || { ...(inputVehicle as DeliveryVehicle), isActive: false }
         queryClient.setQueryData<DeliveryVehicle[]>(['delivery-vehicles', 'deactivated'], (old = []) => [
@@ -165,7 +153,6 @@ export function useReactivateVehicle() {
       return await reactivateVehicleApi(id)
     },
     onSuccess: (data) => {
-      removeArchivedId(ARCHIVED_VEHICLES_KEY, data.id)
       queryClient.setQueryData<DeliveryVehicle[]>(['delivery-vehicles', 'deactivated'], (old = []) =>
         old.filter((v) => v.id !== data.id)
       )

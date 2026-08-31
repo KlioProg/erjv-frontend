@@ -1,7 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { getErrorMessage } from '@/lib/api-client'
-import { addArchivedId, getArchivedIds, removeArchivedId } from '@/lib/archived-storage'
 import type { UserRole } from '../auth/auth.types'
 import {
   assignEmployeeJobApi,
@@ -47,9 +46,6 @@ export const staffingKeys = {
   users: () => [...staffingKeys.all, 'users'] as const,
 }
 
-const ARCHIVED_EMPLOYEES_KEY = 'erjv_archived_employees'
-const ARCHIVED_JOBS_KEY = 'erjv_archived_jobs'
-
 // ===================== EMPLOYEE HOOKS =====================
 
 export function useEmployees() {
@@ -73,22 +69,15 @@ export function useDeactivatedEmployees() {
       const activeIds = activeEmployees.map((e) => e.id)
       const maxId = activeIds.length > 0 ? Math.max(...activeIds) : 0
       const scanUpperLimit = Math.max(maxId + 5, 20)
-      const storedIds = getArchivedIds(ARCHIVED_EMPLOYEES_KEY)
 
-      const candidateIds = new Set<number>([
-        ...storedIds,
-        ...Array.from({ length: scanUpperLimit }, (_, i) => i + 1),
-      ])
-
+      const candidateIds = Array.from({ length: scanUpperLimit }, (_, i) => i + 1)
       const results: Employee[] = []
-      const promises = Array.from(candidateIds).map(async (id) => {
+
+      const promises = candidateIds.map(async (id) => {
         try {
           const emp = await fetchEmployeeByIdApi(id)
           if (emp && emp.isActive === false) {
             results.push(emp)
-            addArchivedId(ARCHIVED_EMPLOYEES_KEY, id)
-          } else if (emp && emp.isActive !== false) {
-            removeArchivedId(ARCHIVED_EMPLOYEES_KEY, id)
           }
         } catch {
           // If deleted or not found, skip
@@ -107,7 +96,6 @@ export function useCreateEmployee() {
   return useMutation({
     mutationFn: (payload: CreateEmployeePayload) => createEmployeeApi(payload),
     onSuccess: (newEmp) => {
-      removeArchivedId(ARCHIVED_EMPLOYEES_KEY, newEmp.id)
       queryClient.setQueryData<Employee[]>(['staffing', 'deactivated-employees'], (old = []) =>
         old.filter((e) => e.id !== newEmp.id && e.email !== newEmp.email)
       )
@@ -175,7 +163,6 @@ export function useDeactivateEmployee() {
     onSuccess: ({ res, inputEmployee, id }) => {
       const targetId = res?.id || inputEmployee?.id || id
       const name = res ? `${res.firstName} ${res.lastName}` : inputEmployee ? `${inputEmployee.firstName} ${inputEmployee.lastName}` : 'Employee'
-      addArchivedId(ARCHIVED_EMPLOYEES_KEY, targetId)
       if (res || inputEmployee) {
         const entry: Employee = res || { ...(inputEmployee as Employee), isActive: false }
         queryClient.setQueryData<Employee[]>(['staffing', 'deactivated-employees'], (old = []) => [
@@ -208,13 +195,12 @@ export function useReactivateEmployee() {
       return res
     },
     onSuccess: (data) => {
-      removeArchivedId(ARCHIVED_EMPLOYEES_KEY, data.id)
       queryClient.setQueryData<Employee[]>(['staffing', 'deactivated-employees'], (old = []) =>
         old.filter((e) => e.id !== data.id)
       )
       void queryClient.invalidateQueries({ queryKey: staffingKeys.all })
       void queryClient.invalidateQueries({ queryKey: ['staffing', 'deactivated-employees'] })
-      toast.success(`Employee "${data.firstName} ${data.lastName}" profile restored in staff directory`)
+      toast.success(`Employee "${data.firstName} ${data.lastName}" profile updated`)
     },
     onError: (err) => {
       toast.error(getErrorMessage(err))
@@ -245,22 +231,15 @@ export function useDeactivatedJobs() {
       const activeIds = activeJobs.map((j) => j.id)
       const maxId = activeIds.length > 0 ? Math.max(...activeIds) : 0
       const scanUpperLimit = Math.max(maxId + 5, 20)
-      const storedIds = getArchivedIds(ARCHIVED_JOBS_KEY)
 
-      const candidateIds = new Set<number>([
-        ...storedIds,
-        ...Array.from({ length: scanUpperLimit }, (_, i) => i + 1),
-      ])
-
+      const candidateIds = Array.from({ length: scanUpperLimit }, (_, i) => i + 1)
       const results: Job[] = []
-      const promises = Array.from(candidateIds).map(async (id) => {
+
+      const promises = candidateIds.map(async (id) => {
         try {
           const job = await fetchJobByIdApi(id)
           if (job && job.isActive === false) {
             results.push(job)
-            addArchivedId(ARCHIVED_JOBS_KEY, id)
-          } else if (job && job.isActive !== false) {
-            removeArchivedId(ARCHIVED_JOBS_KEY, id)
           }
         } catch {
           // If deleted or not found, skip
@@ -279,7 +258,6 @@ export function useCreateJob() {
   return useMutation({
     mutationFn: (payload: CreateJobPayload) => createJobApi(payload),
     onSuccess: (newJob) => {
-      removeArchivedId(ARCHIVED_JOBS_KEY, newJob.id)
       queryClient.setQueryData<Job[]>(['staffing', 'deactivated-jobs'], (old = []) =>
         old.filter((j) => j.id !== newJob.id && j.name.toLowerCase() !== newJob.name.toLowerCase())
       )
@@ -318,7 +296,6 @@ export function useDeactivateJob() {
     onSuccess: ({ res, inputJob, id }) => {
       const targetId = res?.id || inputJob?.id || id
       const name = res?.name || inputJob?.name || 'Role'
-      addArchivedId(ARCHIVED_JOBS_KEY, targetId)
       if (res || inputJob) {
         const entry: Job = res || { ...(inputJob as Job), isActive: false }
         queryClient.setQueryData<Job[]>(['staffing', 'deactivated-jobs'], (old = []) => [
@@ -343,7 +320,6 @@ export function useReactivateJob() {
       return await reactivateJobApi(id)
     },
     onSuccess: (data) => {
-      removeArchivedId(ARCHIVED_JOBS_KEY, data.id)
       queryClient.setQueryData<Job[]>(['staffing', 'deactivated-jobs'], (old = []) =>
         old.filter((j) => j.id !== data.id)
       )

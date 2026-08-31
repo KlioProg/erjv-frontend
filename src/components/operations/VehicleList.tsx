@@ -393,7 +393,7 @@ export function VehicleList() {
                               <DropdownMenuContent align="end">
                                 <DropdownMenuItem onClick={() => handleEdit(vehicle)} className="gap-2 text-xs cursor-pointer">
                                   <Edit2 className="size-3.5" />
-                                  Edit Details & Route
+                                  Edit Vehicle Details
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                 <div className="px-2 py-1 text-[10px] font-bold text-muted-foreground uppercase">
@@ -435,10 +435,10 @@ export function VehicleList() {
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
-                        )}
-                      </div>
-                    )}
-                  </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
 
                   {/* Uniform Status Banner for ALL Cards */}
                   <div className="min-h-[58px] flex items-center">
@@ -500,7 +500,7 @@ export function VehicleList() {
                         Payload Capacity
                       </span>
                       <span className="font-extrabold text-foreground text-xs">
-                        {vehicle.capacity || 'Not specified'}
+                        {vehicle.capacity ? `${vehicle.capacity} kg` : 'Not specified'}
                       </span>
                     </div>
 
