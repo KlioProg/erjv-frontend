@@ -392,11 +392,7 @@ export function VehicleList() {
                           <span className="font-mono text-sm font-extrabold text-foreground tracking-tight">
                             {vehicle.plateNumber}
                           </span>
-                          {isArchived ? (
-                            <Badge variant="outline" className="border-amber-500/30 bg-amber-500/10 text-amber-600 text-[10px] font-bold">
-                              Deactivated
-                            </Badge>
-                          ) : (
+                          {!isArchived && (
                             <VehicleStatusBadge status={vehicle.status} />
                           )}
                         </div>
@@ -410,14 +406,14 @@ export function VehicleList() {
                       <div className="flex items-center gap-1.5">
                         {isArchived ? (
                           <Button
-                            variant="outline"
+                            variant="secondary"
                             size="sm"
                             onClick={() => handleReactivate(vehicle)}
                             disabled={reactivateMutation.isPending}
-                            className="h-7 text-xs font-bold gap-1 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-500/10 border-emerald-500/30 cursor-pointer"
+                            className="h-8.5 px-3.5 text-xs font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 rounded-xl gap-1.5 shadow-2xs cursor-pointer transition-all"
                           >
                             <RotateCcw className="size-3.5" />
-                            Reactivate
+                            Reactivate Fleet
                           </Button>
                         ) : (
                           <DropdownMenu>

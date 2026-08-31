@@ -24,6 +24,7 @@ import {
   useDecreaseStock,
   useIncreaseStock,
   useSetStockQuantity,
+  useStockItems,
 } from '@/features/logistics/stock-items.hooks'
 import { useWarehouses } from '@/features/logistics/warehouses.hooks'
 import type { StockItemWithRelations } from '@/features/logistics/stock-items.types'
@@ -47,22 +48,32 @@ function StockAdjustContent({
   onClose: () => void
 }) {
   const { data: warehouses = [] } = useWarehouses()
+  const { data: allStock = [] } = useStockItems()
   const createStockMutation = useCreateStockItem()
   const setQuantityMutation = useSetStockQuantity()
   const increaseMutation = useIncreaseStock()
   const decreaseMutation = useDecreaseStock()
 
+  const isExistingStock = !!stockItem
+  const existingAllocatedWhIds = !stockItem && inventoryItem
+    ? allStock.filter((s) => s.inventoryItemId === inventoryItem.id).map((s) => s.warehouseId)
+    : []
+  const availableWarehouses = warehouses.filter((w) => !existingAllocatedWhIds.includes(w.id))
+
   const [mode, setMode] = useState<'increase' | 'decrease' | 'set'>(
     stockItem ? 'increase' : 'set'
   )
-  const [selectedWarehouseId, setSelectedWarehouseId] = useState<string>(
-    stockItem ? String(stockItem.warehouseId) : warehouses[0]?.id ? String(warehouses[0].id) : ''
+  const [selectedWarehouseId, setSelectedWarehouseId] = useState<string>(() =>
+    stockItem
+      ? String(stockItem.warehouseId)
+      : availableWarehouses[0]?.id
+        ? String(availableWarehouses[0].id)
+        : ''
   )
   const [amount, setAmount] = useState('20')
   const [errorMsg, setErrorMsg] = useState('')
 
   const currentQty = stockItem ? parseFloat(stockItem.quantity) : 0
-  const isExistingStock = !!stockItem
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
@@ -208,25 +219,33 @@ function StockAdjustContent({
 
         {/* Warehouse selector if creating new allocation */}
         {!isExistingStock && (
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="stock-wh" className="text-xs font-semibold text-foreground/90">
-              Target Warehouse Facility <span className="text-primary">*</span>
-            </Label>
-            <Select value={selectedWarehouseId} onValueChange={setSelectedWarehouseId}>
-              <SelectTrigger id="stock-wh" className="h-10 text-xs">
-                <SelectValue placeholder="Select warehouse or storage depot..." />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  {warehouses.map((wh) => (
-                    <SelectItem key={wh.id} value={String(wh.id)} className="text-xs">
-                      {wh.name} ({wh.address})
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-          </div>
+          availableWarehouses.length === 0 ? (
+            <Alert className="my-1 border-amber-500/30 bg-amber-500/10 text-foreground">
+              <AlertDescription className="text-xs">
+                All registered warehouse hubs already have a stock allocation for this product. You can adjust quantities directly from the product stock list.
+              </AlertDescription>
+            </Alert>
+          ) : (
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="stock-wh" className="text-xs font-semibold text-foreground/90">
+                Target Warehouse Facility <span className="text-primary">*</span>
+              </Label>
+              <Select value={selectedWarehouseId} onValueChange={setSelectedWarehouseId}>
+                <SelectTrigger id="stock-wh" className="h-10 text-xs">
+                  <SelectValue placeholder="Select warehouse or storage depot..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    {availableWarehouses.map((wh) => (
+                      <SelectItem key={wh.id} value={String(wh.id)} className="text-xs">
+                        {wh.name} ({wh.address})
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </div>
+          )
         )}
 
         {/* Amount Input */}
@@ -274,14 +293,18 @@ function StockAdjustContent({
           <Button type="button" variant="outline" onClick={onClose} disabled={isPending}>
             Cancel
           </Button>
-          <Button type="submit" disabled={isPending} className="font-semibold shadow-xs">
+          <Button
+            type="submit"
+            disabled={isPending || (!isExistingStock && availableWarehouses.length === 0)}
+            className="font-semibold shadow-xs"
+          >
             {isPending ? (
               <>
                 <Spinner data-icon="inline-start" />
                 Updating Stock...
               </>
             ) : (
-              <>Apply Stock Adjustment</>
+              <>{!isExistingStock ? 'Allocate Stock' : 'Apply Stock Adjustment'}</>
             )}
           </Button>
         </DialogFooter>

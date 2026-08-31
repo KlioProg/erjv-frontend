@@ -167,11 +167,7 @@ export function JobList() {
                         {job.name}
                       </CardTitle>
                     </div>
-                    {isArchived ? (
-                      <Badge variant="outline" className="border-amber-500/30 bg-amber-500/10 text-amber-600 text-[10px] font-bold">
-                        Deactivated
-                      </Badge>
-                    ) : (
+                    {!isArchived && (
                       <Badge
                         variant="outline"
                         className="bg-emerald-500/10 text-emerald-600 border-emerald-500/25 text-[11px] font-semibold gap-1"
@@ -192,14 +188,14 @@ export function JobList() {
                   <div className="flex items-center gap-1.5">
                     {isArchived ? (
                       <Button
-                        variant="outline"
+                        variant="secondary"
                         size="sm"
-                        className="h-7 text-xs px-2 font-bold gap-1 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-500/10 border-emerald-500/30 cursor-pointer"
+                        className="h-8.5 px-3.5 text-xs font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 rounded-xl gap-1.5 shadow-2xs cursor-pointer transition-all"
                         onClick={() => handleReactivate(job)}
                         disabled={reactivateMutation.isPending}
                       >
-                        <RotateCcw className="size-3 mr-1" />
-                        Reactivate
+                        <RotateCcw className="size-3.5" />
+                        Reactivate Position
                       </Button>
                     ) : (
                       <>

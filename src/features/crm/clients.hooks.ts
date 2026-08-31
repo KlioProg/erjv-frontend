@@ -3,6 +3,7 @@ import { toast } from 'sonner'
 import {
   createClientApi,
   deactivateClientApi,
+  fetchClientByIdApi,
   fetchClientsApi,
   reactivateClientApi,
   searchClientsByNameApi,
@@ -14,8 +15,11 @@ import type {
   UpdateClientDetailsPayload,
 } from './clients.types'
 import { getErrorMessage } from '@/lib/api-client'
+import { addArchivedId, getArchivedIds, removeArchivedId } from '@/lib/archived-storage'
 
 export const CLIENTS_QUERY_KEY = ['clients'] as const
+const ARCHIVED_CLIENTS_KEY = 'erjv_archived_clients'
+
 export function useClients() {
   return useQuery({
     queryKey: CLIENTS_QUERY_KEY,
@@ -26,9 +30,25 @@ export function useClients() {
 export function useDeactivatedClients() {
   return useQuery<Client[]>({
     queryKey: ['clients', 'deactivated'],
-    queryFn: () => [],
-    initialData: [],
-    staleTime: Infinity,
+    queryFn: async () => {
+      const ids = getArchivedIds(ARCHIVED_CLIENTS_KEY)
+      if (ids.length === 0) return []
+      const results: Client[] = []
+      for (const id of ids) {
+        try {
+          const client = await fetchClientByIdApi(id)
+          if (client && client.isActive === false) {
+            results.push(client)
+          } else if (client && client.isActive !== false) {
+            removeArchivedId(ARCHIVED_CLIENTS_KEY, id)
+          }
+        } catch {
+          // If deleted, skip
+        }
+      }
+      return results
+    },
+    staleTime: 0,
   })
 }
 
@@ -37,6 +57,7 @@ export function useCreateClient() {
   return useMutation({
     mutationFn: (payload: CreateClientPayload) => createClientApi(payload),
     onSuccess: (newClient) => {
+      removeArchivedId(ARCHIVED_CLIENTS_KEY, newClient.id)
       queryClient.setQueryData<Client[]>(['clients', 'deactivated'], (old = []) =>
         old.filter((c) => c.id !== newClient.id && c.name.toLowerCase() !== newClient.name.toLowerCase())
       )
@@ -69,17 +90,23 @@ export function useDeactivateClient() {
   return useMutation({
     mutationFn: async (clientOrId: Client | number) => {
       const id = typeof clientOrId === 'number' ? clientOrId : clientOrId.id
-      return await deactivateClientApi(id)
+      const res = await deactivateClientApi(id)
+      return { res, inputClient: typeof clientOrId === 'object' ? clientOrId : null, id }
     },
-    onSuccess: (data) => {
-      if (data) {
+    onSuccess: ({ res, inputClient, id }) => {
+      const targetId = res?.id || inputClient?.id || id
+      const name = res?.name || inputClient?.name || 'Account'
+      addArchivedId(ARCHIVED_CLIENTS_KEY, targetId)
+      if (res || inputClient) {
+        const entry: Client = res || { ...(inputClient as Client), isActive: false }
         queryClient.setQueryData<Client[]>(['clients', 'deactivated'], (old = []) => [
-          ...old.filter((c) => c.id !== data.id),
-          { ...data, isActive: false },
+          ...old.filter((c) => c.id !== targetId),
+          { ...entry, isActive: false },
         ])
       }
       void queryClient.invalidateQueries({ queryKey: CLIENTS_QUERY_KEY })
-      toast.success(`Client "${data.name || 'Account'}" deactivated and moved to archive`)
+      void queryClient.invalidateQueries({ queryKey: ['clients', 'deactivated'] })
+      toast.success(`Client "${name}" deactivated and moved to archive`)
     },
     onError: (err) => {
       toast.error(getErrorMessage(err))
@@ -94,10 +121,12 @@ export function useReactivateClient() {
       return await reactivateClientApi(id)
     },
     onSuccess: (data) => {
+      removeArchivedId(ARCHIVED_CLIENTS_KEY, data.id)
       queryClient.setQueryData<Client[]>(['clients', 'deactivated'], (old = []) =>
         old.filter((c) => c.id !== data.id)
       )
       void queryClient.invalidateQueries({ queryKey: CLIENTS_QUERY_KEY })
+      void queryClient.invalidateQueries({ queryKey: ['clients', 'deactivated'] })
       toast.success(`Client "${data.name || 'Account'}" reactivated and restored to active directory`)
     },
     onError: (err) => {

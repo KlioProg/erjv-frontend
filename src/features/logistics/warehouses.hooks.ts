@@ -4,6 +4,7 @@ import {
   createWarehouseApi,
   deactivateWarehouseApi,
   fetchAllWarehousesApi,
+  fetchWarehouseByNameApi,
   fetchWarehousesApi,
   reactivateWarehouseApi,
   updateWarehouseDetailsApi,
@@ -11,6 +12,7 @@ import {
 import type {
   CreateWarehousePayload,
   UpdateWarehouseDetailsPayload,
+  Warehouse,
 } from './warehouses.types'
 import { getErrorMessage } from '@/lib/api-client'
 
@@ -30,12 +32,32 @@ export function useAllWarehouses() {
   })
 }
 
+export function useDeactivatedWarehouses() {
+  return useQuery<Warehouse[]>({
+    queryKey: ['warehouses', 'deactivated'],
+    queryFn: async () => {
+      try {
+        const all = await fetchAllWarehousesApi()
+        return all.filter((w) => w.isActive === false)
+      } catch {
+        return []
+      }
+    },
+    staleTime: 0,
+  })
+}
+
 export function useCreateWarehouse() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (payload: CreateWarehousePayload) => createWarehouseApi(payload),
     onSuccess: (newWh) => {
+      queryClient.setQueryData<Warehouse[]>(['warehouses', 'deactivated'], (old = []) =>
+        old.filter((w) => w.id !== newWh.id && w.name.toLowerCase() !== newWh.name.toLowerCase())
+      )
       void queryClient.invalidateQueries({ queryKey: WAREHOUSES_QUERY_KEY })
+      void queryClient.invalidateQueries({ queryKey: [...WAREHOUSES_QUERY_KEY, 'all'] })
+      void queryClient.invalidateQueries({ queryKey: ['warehouses', 'deactivated'] })
       void queryClient.invalidateQueries({ queryKey: ['stock-items'] })
       toast.success(`Warehouse "${newWh.name}" created successfully`)
     },
@@ -52,6 +74,7 @@ export function useUpdateWarehouseDetails() {
       updateWarehouseDetailsApi(id, payload),
     onSuccess: (updatedWh) => {
       void queryClient.invalidateQueries({ queryKey: WAREHOUSES_QUERY_KEY })
+      void queryClient.invalidateQueries({ queryKey: [...WAREHOUSES_QUERY_KEY, 'all'] })
       void queryClient.invalidateQueries({ queryKey: ['stock-items'] })
       toast.success(`Warehouse "${updatedWh.name}" updated successfully`)
     },
@@ -64,11 +87,26 @@ export function useUpdateWarehouseDetails() {
 export function useDeactivateWarehouse() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (id: number) => deactivateWarehouseApi(id),
-    onSuccess: () => {
+    mutationFn: async (whOrId: Warehouse | number) => {
+      const id = typeof whOrId === 'number' ? whOrId : whOrId.id
+      const res = await deactivateWarehouseApi(id)
+      return { res, inputWarehouse: typeof whOrId === 'object' ? whOrId : null, id }
+    },
+    onSuccess: ({ res, inputWarehouse, id }) => {
+      const targetId = res?.id || inputWarehouse?.id || id
+      const name = res?.name || inputWarehouse?.name || 'Facility'
+      if (res || inputWarehouse) {
+        const entry: Warehouse = res || { ...(inputWarehouse as Warehouse), isActive: false }
+        queryClient.setQueryData<Warehouse[]>(['warehouses', 'deactivated'], (old = []) => [
+          ...old.filter((w) => w.id !== targetId),
+          { ...entry, isActive: false },
+        ])
+      }
       void queryClient.invalidateQueries({ queryKey: WAREHOUSES_QUERY_KEY })
+      void queryClient.invalidateQueries({ queryKey: [...WAREHOUSES_QUERY_KEY, 'all'] })
+      void queryClient.invalidateQueries({ queryKey: ['warehouses', 'deactivated'] })
       void queryClient.invalidateQueries({ queryKey: ['stock-items'] })
-      toast.success('Warehouse deactivated')
+      toast.success(`Warehouse "${name}" deactivated and moved to archive`)
     },
     onError: (err) => {
       toast.error(getErrorMessage(err))
@@ -80,13 +118,20 @@ export function useReactivateWarehouse() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (id: number) => reactivateWarehouseApi(id),
-    onSuccess: () => {
+    onSuccess: (data) => {
+      queryClient.setQueryData<Warehouse[]>(['warehouses', 'deactivated'], (old = []) =>
+        old.filter((w) => w.id !== data.id)
+      )
       void queryClient.invalidateQueries({ queryKey: WAREHOUSES_QUERY_KEY })
+      void queryClient.invalidateQueries({ queryKey: [...WAREHOUSES_QUERY_KEY, 'all'] })
+      void queryClient.invalidateQueries({ queryKey: ['warehouses', 'deactivated'] })
       void queryClient.invalidateQueries({ queryKey: ['stock-items'] })
-      toast.success('Warehouse reactivated')
+      toast.success(`Warehouse "${data?.name || 'Facility'}" reactivated and restored to active hubs`)
     },
     onError: (err) => {
       toast.error(getErrorMessage(err))
     },
   })
 }
+
+export { fetchWarehouseByNameApi }

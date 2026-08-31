@@ -321,14 +321,14 @@ export function EmployeeList() {
                     <TableCell className="text-right">
                       {isArchived ? (
                         <Button
-                          variant="outline"
+                          variant="secondary"
                           size="sm"
                           onClick={() => handleReactivate(emp)}
                           disabled={reactivateMutation.isPending}
-                          className="gap-1.5 text-xs font-bold text-emerald-600 hover:text-emerald-700 hover:bg-emerald-500/10 border-emerald-500/30 cursor-pointer"
+                          className="h-8.5 px-3.5 gap-1.5 text-xs font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 rounded-xl shadow-2xs cursor-pointer transition-all"
                         >
                           <RotateCcw className="size-3.5" />
-                          Reactivate
+                          Reactivate Profile
                         </Button>
                       ) : (
                         <DropdownMenu>

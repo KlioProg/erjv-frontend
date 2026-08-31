@@ -26,6 +26,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import {
   useAllWarehouses,
+  useDeactivatedWarehouses,
   useDeactivateWarehouse,
   useReactivateWarehouse,
 } from '@/features/logistics/warehouses.hooks'
@@ -37,6 +38,7 @@ import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal'
 
 export function WarehouseList() {
   const { data: allWarehouses = [], isLoading } = useAllWarehouses()
+  const { data: deactivatedWarehouses = [] } = useDeactivatedWarehouses()
   const { data: stockItems = [] } = useStockItems()
   const deactivateMutation = useDeactivateWarehouse()
   const reactivateMutation = useReactivateWarehouse()
@@ -49,8 +51,12 @@ export function WarehouseList() {
   const [warehouseToArchive, setWarehouseToArchive] = useState<Warehouse | null>(null)
 
   const activeWarehouses = allWarehouses.filter((w) => w.isActive !== false)
-  const archivedWarehouses = allWarehouses.filter((w) => w.isActive === false)
+  const archivedWarehouses = [
+    ...allWarehouses.filter((w) => w.isActive === false),
+    ...deactivatedWarehouses.filter((dw) => !allWarehouses.some((w) => w.id === dw.id)),
+  ]
 
+  const totalWarehousesCount = activeWarehouses.length + archivedWarehouses.length
   const currentList = activeTab === 'ACTIVE' ? activeWarehouses : archivedWarehouses
 
   const filteredWarehouses = currentList.filter(
@@ -94,7 +100,7 @@ export function WarehouseList() {
             <WarehouseIcon className="size-5" />
           </div>
           <div>
-            <div className="text-xl font-extrabold text-foreground">{allWarehouses.length}</div>
+            <div className="text-xl font-extrabold text-foreground">{totalWarehousesCount}</div>
             <div className="text-[11px] text-muted-foreground font-medium">Total Facilities</div>
           </div>
         </div>
@@ -313,24 +319,18 @@ export function WarehouseList() {
                     </div>
 
                     {isArchived ? (
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="text-[10px] bg-amber-500/10 text-amber-600 border-amber-500/25 font-semibold gap-1">
-                          <Archive className="size-2.5" />
-                          Archived
-                        </Badge>
-                        {(isOwner || isAdmin) && (
-                          <Button
-                            size="sm"
-                            variant="secondary"
-                            onClick={() => handleRestore(wh)}
-                            disabled={reactivateMutation.isPending}
-                            className="h-6 px-2 text-[10px] font-bold text-emerald-700 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 rounded-md gap-1 cursor-pointer"
-                          >
-                            <RotateCcw className="size-2.5" />
-                            Restore
-                          </Button>
-                        )}
-                      </div>
+                      (isOwner || isAdmin) && (
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => handleRestore(wh)}
+                          disabled={reactivateMutation.isPending}
+                          className="h-8 px-3.5 text-xs font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 rounded-xl gap-1.5 shadow-2xs cursor-pointer transition-all ml-auto"
+                        >
+                          <RotateCcw className="size-3.5" />
+                          Restore Facility
+                        </Button>
+                      )
                     ) : (
                       <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-600 border-emerald-500/20 font-semibold gap-1">
                         <CheckCircle2 className="size-2.5" />

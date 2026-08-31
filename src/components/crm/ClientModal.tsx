@@ -171,9 +171,9 @@ function ClientFormContent({
       )}
 
       {deactivatedClientMatch && (
-        <div className="my-1 p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-950 dark:text-amber-200 flex items-start gap-3 shadow-2xs">
+        <div className="my-1 p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-950 dark:text-amber-200 flex items-start gap-3 shadow-2xs animate-in fade-in-0 zoom-in-95 slide-in-from-top-2 duration-300">
           <div className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-amber-500/20 text-amber-700 dark:text-amber-300 mt-0.5">
-            <RotateCcw className="size-4" />
+            <RotateCcw className="size-4 animate-in spin-in-180 duration-500" />
           </div>
           <div className="flex-1 text-xs">
             <p className="font-bold text-foreground">Deactivated Client Found</p>
@@ -193,48 +193,48 @@ function ClientFormContent({
             <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
             <Input
               id="client-name"
-              placeholder="e.g. Davao Fresh Supermarket, Matina Central Mart"
+              placeholder="e.g. Davao Central Supermarket, Lanang Retail Depot"
               value={name}
               onChange={(e) => {
                 setName(e.target.value)
                 if (deactivatedClientMatch) setDeactivatedClientMatch(null)
                 if (errorMsg) setErrorMsg('')
               }}
-              className="pl-9 h-10 text-sm"
+              className="pl-9 h-10 text-sm transition-all duration-200"
               required
             />
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="client-contact" className="text-xs font-semibold text-foreground/90">
-              Primary Contact Person
+              Contact Person
             </Label>
             <div className="relative">
               <User className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
               <Input
                 id="client-contact"
-                placeholder="e.g. Maria Reyes (Purchasing)"
+                placeholder="e.g. Juan dela Cruz"
                 value={contactPerson}
                 onChange={(e) => setContactPerson(e.target.value)}
-                className="pl-9 h-10 text-sm"
+                className="pl-9 h-10 text-sm transition-all duration-200"
               />
             </div>
           </div>
 
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="client-phone" className="text-xs font-semibold text-foreground/90">
-              Contact Number / Mobile
+              Phone Number
             </Label>
             <div className="relative">
               <Phone className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
               <Input
                 id="client-phone"
-                placeholder="0917-123-4567"
+                placeholder="e.g. 0917-123-4567"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
-                className="pl-9 h-10 text-sm"
+                className="pl-9 h-10 text-sm transition-all duration-200"
               />
             </div>
           </div>
@@ -242,33 +242,33 @@ function ClientFormContent({
 
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="client-email" className="text-xs font-semibold text-foreground/90">
-            Work Email / Billing Email
+            Email Address
           </Label>
           <div className="relative">
             <Mail className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
             <Input
               id="client-email"
               type="email"
-              placeholder="purchasing@clientdomain.com"
+              placeholder="e.g. purchasing@davaocentral.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="pl-9 h-10 text-sm"
+              className="pl-9 h-10 text-sm transition-all duration-200"
             />
           </div>
         </div>
 
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="client-address" className="text-xs font-semibold text-foreground/90">
-            Delivery / Store Location <span className="text-primary">*</span>
+            Delivery / Billing Address <span className="text-primary">*</span>
           </Label>
           <div className="relative">
             <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
             <Input
               id="client-address"
-              placeholder="e.g. Km. 5 Bajada, Davao City, Davao del Sur"
+              placeholder="e.g. Door 4, Commercial Center, JP Laurel Ave, Bajada, Davao City"
               value={address}
               onChange={(e) => setAddress(e.target.value)}
-              className="pl-9 h-10 text-sm"
+              className="pl-9 h-10 text-sm transition-all duration-200"
               required
             />
           </div>
@@ -283,7 +283,7 @@ function ClientFormContent({
               type="button"
               onClick={handleRestoreFoundClient}
               disabled={isPending}
-              className="gap-2 font-bold shadow-xs bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer"
+              className="gap-2 font-bold shadow-xs bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer transition-all duration-300 animate-in fade-in-0 zoom-in-95"
             >
               {reactivateMutation.isPending ? (
                 <>
@@ -298,7 +298,7 @@ function ClientFormContent({
               )}
             </Button>
           ) : (
-            <Button type="submit" disabled={isPending} className="font-semibold shadow-xs cursor-pointer">
+            <Button type="submit" disabled={isPending} className="font-semibold shadow-xs cursor-pointer transition-all duration-300">
               {isPending ? (
                 <>
                   <Spinner data-icon="inline-start" />

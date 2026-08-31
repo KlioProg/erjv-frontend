@@ -38,20 +38,17 @@ function PositionAssignContent({
   const { data: assignedJobs = [], isLoading: isLoadingAssigned } = useEmployeeJobs(employee.id)
   const replaceJobsMutation = useReplaceEmployeeJobs()
 
-  const [selectedJobIds, setSelectedJobIds] = useState<number[]>(() =>
-    assignedJobs ? assignedJobs.map((ej: { jobId: number }) => ej.jobId) : []
-  )
+  const [selectedJobIds, setSelectedJobIds] = useState<number[] | null>(null)
   const [errorMsg, setErrorMsg] = useState('')
 
-  // Sync selection when initial data loads
+  // Sync selection when initial data loads if not touched yet
   const currentAssignedIds = assignedJobs.map((ej: { jobId: number }) => ej.jobId)
-  const effectiveSelectedIds = selectedJobIds.length > 0 ? selectedJobIds : currentAssignedIds
+  const activeSelectedIds = selectedJobIds !== null ? selectedJobIds : currentAssignedIds
 
   const handleToggle = (jobId: number) => {
-    setSelectedJobIds((prev) => {
-      const base = prev.length > 0 ? prev : currentAssignedIds
-      return base.includes(jobId) ? base.filter((id: number) => id !== jobId) : [...base, jobId]
-    })
+    const base = activeSelectedIds
+    const next = base.includes(jobId) ? base.filter((id) => id !== jobId) : [...base, jobId]
+    setSelectedJobIds(next)
   }
 
   const handleSave = async () => {
@@ -59,7 +56,7 @@ function PositionAssignContent({
     try {
       await replaceJobsMutation.mutateAsync({
         employeeId: employee.id,
-        jobIds: effectiveSelectedIds,
+        jobIds: activeSelectedIds,
       })
       onClose()
     } catch (err) {
@@ -92,7 +89,7 @@ function PositionAssignContent({
       )}
 
       <div className="flex flex-col gap-2.5 py-2 max-h-[300px] overflow-y-auto">
-        {isLoadingJobs ? (
+        {isLoadingJobs || isLoadingAssigned ? (
           <div className="flex items-center justify-center py-6 text-muted-foreground">
             <Spinner className="mr-2 size-4" /> Loading positions...
           </div>
@@ -102,7 +99,7 @@ function PositionAssignContent({
           </p>
         ) : (
           allJobs.map((job) => {
-            const isChecked = effectiveSelectedIds.includes(job.id)
+            const isChecked = activeSelectedIds.includes(job.id)
             return (
               <div
                 key={job.id}
@@ -113,13 +110,15 @@ function PositionAssignContent({
                     : 'border-border hover:bg-muted/40'
                 }`}
               >
-                <Checkbox
-                  id={`job-${job.id}`}
-                  checked={isChecked}
-                  onCheckedChange={() => handleToggle(job.id)}
-                  className="mt-0.5"
-                />
-                <div className="flex flex-col gap-0.5">
+                <div onClick={(e) => e.stopPropagation()}>
+                  <Checkbox
+                    id={`job-${job.id}`}
+                    checked={isChecked}
+                    onCheckedChange={() => handleToggle(job.id)}
+                    className="mt-0.5"
+                  />
+                </div>
+                <div className="flex flex-col gap-0.5 pointer-events-none">
                   <Label
                     htmlFor={`job-${job.id}`}
                     className="text-xs font-semibold cursor-pointer text-foreground"

@@ -25,6 +25,7 @@ import {
   useProducts,
   useCreateProduct,
   useUpdateProductDetails,
+  useUpdateProductPrice,
   useDeactivateProduct,
   useReactivateProduct,
   fetchProductByNameApi,
@@ -52,6 +53,7 @@ function ItemFormContent({
   const { data: allProducts = [] } = useProducts()
   const createMutation = useCreateProduct()
   const updateMutation = useUpdateProductDetails()
+  const updatePriceMutation = useUpdateProductPrice()
   const deactivateMutation = useDeactivateProduct()
   const reactivateMutation = useReactivateProduct()
   const createStockMutation = useCreateStockItem()
@@ -130,6 +132,13 @@ function ItemFormContent({
             description: description.trim() || null,
           },
         })
+
+        if (parsedPrice !== item.unitPrice) {
+          await updatePriceMutation.mutateAsync({
+            id: item.id,
+            unitPrice: parsedPrice,
+          })
+        }
 
         // Also save any newly specified warehouse allocations
         const entries = Object.entries(warehouseAllocations)
@@ -216,9 +225,9 @@ function ItemFormContent({
       )}
 
       {deactivatedProductMatch && (
-        <div className="my-1 p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-950 dark:text-amber-200 flex items-start gap-3 shadow-2xs">
+        <div className="my-1 p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-950 dark:text-amber-200 flex items-start gap-3 shadow-2xs animate-in fade-in-0 zoom-in-95 slide-in-from-top-2 duration-300">
           <div className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-amber-500/20 text-amber-700 dark:text-amber-300 mt-0.5">
-            <RotateCcw className="size-4" />
+            <RotateCcw className="size-4 animate-in spin-in-180 duration-500" />
           </div>
           <div className="flex-1 text-xs">
             <p className="font-bold text-foreground">Deactivated Product Found</p>
@@ -296,9 +305,8 @@ function ItemFormContent({
               placeholder="1150.00"
               value={unitPrice}
               onChange={(e) => setUnitPrice(e.target.value)}
-              disabled={isEditing}
               className="pl-9 h-11 text-base font-extrabold"
-              required={!isEditing}
+              required
             />
           </div>
         </div>
@@ -394,7 +402,7 @@ function ItemFormContent({
                 type="button"
                 onClick={handleRestoreFoundProduct}
                 disabled={isPending}
-                className="gap-2 font-bold shadow-xs bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer"
+                className="gap-2 font-bold shadow-xs bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer transition-all duration-300 animate-in fade-in-0 zoom-in-95"
               >
                 {reactivateMutation.isPending ? (
                   <>
@@ -409,7 +417,7 @@ function ItemFormContent({
                 )}
               </Button>
             ) : (
-              <Button type="submit" disabled={isPending} className="font-semibold shadow-xs cursor-pointer">
+              <Button type="submit" disabled={isPending} className="font-semibold shadow-xs cursor-pointer transition-all duration-300">
                 {isPending ? (
                   <>
                     <Spinner data-icon="inline-start" />

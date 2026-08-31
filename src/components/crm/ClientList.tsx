@@ -214,14 +214,14 @@ export function ClientList() {
                       <div>
                         {isArchived ? (
                           <Button
-                            variant="outline"
+                            variant="secondary"
                             size="sm"
                             onClick={() => handleReactivate(client)}
                             disabled={reactivateMutation.isPending}
-                            className="h-7 text-xs font-bold gap-1 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-500/10 border-emerald-500/30 cursor-pointer"
+                            className="h-8.5 px-3.5 text-xs font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 rounded-xl gap-1.5 shadow-2xs cursor-pointer transition-all"
                           >
                             <RotateCcw className="size-3.5" />
-                            Reactivate
+                            Reactivate Client
                           </Button>
                         ) : (
                           <DropdownMenu>
@@ -279,9 +279,7 @@ export function ClientList() {
                     <span className="text-[10px] text-muted-foreground font-mono">
                       ID: #{client.id.toString().padStart(4, '0')}
                     </span>
-                    {isArchived ? (
-                      <span className="text-[10px] text-muted-foreground italic">Inactive Profile</span>
-                    ) : (
+                    {!isArchived && (
                       <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-600 border-emerald-500/20 font-medium gap-1">
                         <CheckCircle2 className="size-2.5" />
                         Active Client

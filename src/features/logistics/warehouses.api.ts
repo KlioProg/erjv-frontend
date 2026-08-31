@@ -11,8 +11,22 @@ export async function fetchWarehousesApi(): Promise<Warehouse[]> {
 }
 
 export async function fetchAllWarehousesApi(): Promise<Warehouse[]> {
-  const response = await apiClient.get('/warehouses')
-  return extractArray<Warehouse>(response.data)
+  try {
+    const response = await apiClient.get('/warehouses/all')
+    return extractArray<Warehouse>(response.data)
+  } catch {
+    const fallback = await apiClient.get('/warehouses')
+    return extractArray<Warehouse>(fallback.data)
+  }
+}
+
+export async function fetchWarehouseByNameApi(name: string): Promise<Warehouse | null> {
+  try {
+    const { data } = await apiClient.get<Warehouse>(`/warehouses/name/${encodeURIComponent(name.trim())}`)
+    return data
+  } catch {
+    return null
+  }
 }
 
 export async function fetchWarehouseByIdApi(id: number): Promise<Warehouse> {

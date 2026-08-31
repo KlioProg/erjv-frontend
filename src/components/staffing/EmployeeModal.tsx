@@ -185,9 +185,9 @@ function EmployeeFormContent({
       )}
 
       {deactivatedEmployeeMatch && (
-        <div className="my-1 p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-950 dark:text-amber-200 flex items-start gap-3 shadow-2xs">
+        <div className="my-1 p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-950 dark:text-amber-200 flex items-start gap-3 shadow-2xs animate-in fade-in-0 zoom-in-95 slide-in-from-top-2 duration-300">
           <div className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-amber-500/20 text-amber-700 dark:text-amber-300 mt-0.5">
-            <RotateCcw className="size-4" />
+            <RotateCcw className="size-4 animate-in spin-in-180 duration-500" />
           </div>
           <div className="flex-1 text-xs">
             <p className="font-bold text-foreground">Deactivated Employee Found</p>
@@ -345,7 +345,7 @@ function EmployeeFormContent({
               type="button"
               onClick={handleRestoreFoundEmployee}
               disabled={isPending}
-              className="gap-2 font-bold shadow-xs bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer"
+              className="gap-2 font-bold shadow-xs bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer transition-all duration-300 animate-in fade-in-0 zoom-in-95"
             >
               {reactivateMutation.isPending ? (
                 <>
@@ -360,7 +360,7 @@ function EmployeeFormContent({
               )}
             </Button>
           ) : (
-            <Button type="submit" disabled={isPending} className="font-semibold shadow-xs cursor-pointer">
+            <Button type="submit" disabled={isPending} className="font-semibold shadow-xs cursor-pointer transition-all duration-300">
               {isPending ? (
                 <>
                   <Spinner data-icon="inline-start" />

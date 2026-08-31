@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AuthCard } from './components/auth/AuthCard'
 import { MainDashboard } from './components/dashboard/MainDashboard'
 import { Toaster } from './components/ui/sonner'
+import { Spinner } from './components/ui/spinner'
 import { AuthProvider, useAuth } from './features/auth/AuthContext'
 import type { AuthMode } from './features/auth/auth.types'
 
@@ -19,8 +20,16 @@ const queryClient = new QueryClient({
 })
 
 function AppContent() {
-  const { isAuthenticated } = useAuth()
+  const { isAuthenticated, isLoading } = useAuth()
   const [mode, setMode] = useState<AuthMode>('login')
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-svh items-center justify-center bg-background">
+        <Spinner className="size-8 text-primary" />
+      </div>
+    )
+  }
 
   if (isAuthenticated) {
     return <MainDashboard />

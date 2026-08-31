@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { Warehouse as WarehouseIcon, Building2, MapPin, Phone } from 'lucide-react'
+import { Warehouse as WarehouseIcon, Building2, MapPin, Phone, RotateCcw } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -14,9 +14,12 @@ import { Label } from '@/components/ui/label'
 import { Spinner } from '@/components/ui/spinner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
-  useWarehouses,
+  useAllWarehouses,
+  useDeactivatedWarehouses,
   useCreateWarehouse,
   useUpdateWarehouseDetails,
+  useReactivateWarehouse,
+  fetchWarehouseByNameApi,
 } from '@/features/logistics/warehouses.hooks'
 import type { Warehouse } from '@/features/logistics/warehouses.types'
 import { getErrorMessage } from '@/lib/api-client'
@@ -35,18 +38,22 @@ function WarehouseFormContent({
   onClose: () => void
 }) {
   const isEditing = !!warehouse
-  const { data: allWarehouses = [] } = useWarehouses()
+  const { data: allWarehouses = [] } = useAllWarehouses()
+  const { data: deactivatedWarehouses = [] } = useDeactivatedWarehouses()
   const createMutation = useCreateWarehouse()
   const updateMutation = useUpdateWarehouseDetails()
+  const reactivateMutation = useReactivateWarehouse()
 
   const [name, setName] = useState(warehouse?.name || '')
   const [address, setAddress] = useState(warehouse?.address || '')
   const [contactNumber, setContactNumber] = useState(warehouse?.contactNumber || '')
   const [errorMsg, setErrorMsg] = useState('')
+  const [deactivatedWarehouseMatch, setDeactivatedWarehouseMatch] = useState<Warehouse | null>(null)
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setErrorMsg('')
+    setDeactivatedWarehouseMatch(null)
 
     const cleanName = name.trim()
     if (!cleanName) {
@@ -59,12 +66,43 @@ function WarehouseFormContent({
       return
     }
 
-    const isDuplicate = allWarehouses.some(
-      (w) => w.id !== warehouse?.id && w.name.toLowerCase().trim() === cleanName.toLowerCase()
-    )
-    if (isDuplicate) {
-      setErrorMsg(`A warehouse named "${cleanName}" already exists in the database.`)
-      return
+    if (!isEditing) {
+      let backendMatch: Warehouse | null = null
+      try {
+        backendMatch = await fetchWarehouseByNameApi(cleanName)
+      } catch {
+        // Ignore
+      }
+
+      // Also check against local deactivated cache
+      if (!backendMatch) {
+        backendMatch =
+          deactivatedWarehouses.find(
+            (w) => w.name.toLowerCase().trim() === cleanName.toLowerCase()
+          ) || null
+      }
+
+      if (backendMatch && typeof backendMatch === 'object' && backendMatch.id && backendMatch.isActive === false) {
+        setDeactivatedWarehouseMatch(backendMatch)
+        if (!address.trim() && backendMatch.address) {
+          setAddress(backendMatch.address)
+        }
+        if (!contactNumber.trim() && backendMatch.contactNumber) {
+          setContactNumber(backendMatch.contactNumber)
+        }
+        setErrorMsg(
+          `Warehouse named "${cleanName}" is currently deactivated. You can reactivate it directly.`
+        )
+        return
+      }
+
+      const isDuplicate = allWarehouses.some(
+        (w) => w.name.toLowerCase().trim() === cleanName.toLowerCase() && w.isActive !== false
+      )
+      if (isDuplicate || (backendMatch && typeof backendMatch === 'object' && backendMatch.id && backendMatch.isActive !== false)) {
+        setErrorMsg(`A warehouse named "${cleanName}" already exists in the active database.`)
+        return
+      }
     }
 
     try {
@@ -91,7 +129,15 @@ function WarehouseFormContent({
     }
   }
 
-  const isPending = createMutation.isPending || updateMutation.isPending
+  const handleRestoreFoundWarehouse = async () => {
+    if (deactivatedWarehouseMatch) {
+      await reactivateMutation.mutateAsync(deactivatedWarehouseMatch.id)
+      onClose()
+    }
+  }
+
+  const isPending =
+    createMutation.isPending || updateMutation.isPending || reactivateMutation.isPending
 
   return (
     <>
@@ -109,10 +155,24 @@ function WarehouseFormContent({
         </DialogDescription>
       </DialogHeader>
 
-      {errorMsg && (
-        <Alert variant="destructive">
+      {errorMsg && !deactivatedWarehouseMatch && (
+        <Alert variant="destructive" className="animate-in fade-in-0 slide-in-from-top-1 duration-200">
           <AlertDescription>{errorMsg}</AlertDescription>
         </Alert>
+      )}
+
+      {deactivatedWarehouseMatch && (
+        <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-950 dark:text-amber-200 flex items-start gap-3 shadow-2xs animate-in fade-in-0 zoom-in-95 slide-in-from-top-2 duration-300">
+          <div className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-amber-500/20 text-amber-700 dark:text-amber-300 mt-0.5">
+            <RotateCcw className="size-4 animate-in spin-in-180 duration-500" />
+          </div>
+          <div className="flex-1 text-xs">
+            <p className="font-bold text-foreground">Deactivated Warehouse Found</p>
+            <p className="text-muted-foreground mt-0.5 leading-relaxed">
+              An archived facility record for <strong className="text-foreground">{deactivatedWarehouseMatch.name}</strong> ({deactivatedWarehouseMatch.address}) already exists. Click <strong>"Reactivate Warehouse"</strong> below to restore it.
+            </p>
+          </div>
+        </div>
       )}
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-3.5 py-1">
@@ -126,8 +186,12 @@ function WarehouseFormContent({
               id="wh-name"
               placeholder="e.g. Main Distribution Hub, Panabo Storage Facility"
               value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="pl-9"
+              onChange={(e) => {
+                setName(e.target.value)
+                if (deactivatedWarehouseMatch) setDeactivatedWarehouseMatch(null)
+                if (errorMsg) setErrorMsg('')
+              }}
+              className="pl-9 transition-all duration-200"
               required
             />
           </div>
@@ -144,7 +208,7 @@ function WarehouseFormContent({
               placeholder="e.g. Km. 7 JP Laurel Ave, Lanang, Davao City"
               value={address}
               onChange={(e) => setAddress(e.target.value)}
-              className="pl-9"
+              className="pl-9 transition-all duration-200"
               required
             />
           </div>
@@ -161,25 +225,46 @@ function WarehouseFormContent({
               placeholder="e.g. 082-234-5678 or 0917-000-1111"
               value={contactNumber}
               onChange={(e) => setContactNumber(e.target.value)}
-              className="pl-9"
+              className="pl-9 transition-all duration-200"
             />
           </div>
         </div>
 
-        <DialogFooter className="gap-2 mt-4">
+        <DialogFooter className="gap-2 mt-4 pt-3 border-t">
           <Button type="button" variant="outline" onClick={onClose} disabled={isPending}>
             Cancel
           </Button>
-          <Button type="submit" disabled={isPending}>
-            {isPending ? (
-              <>
-                <Spinner data-icon="inline-start" />
-                {isEditing ? 'Saving...' : 'Registering...'}
-              </>
-            ) : (
-              <>{isEditing ? 'Save Changes' : 'Register Warehouse'}</>
-            )}
-          </Button>
+          {deactivatedWarehouseMatch ? (
+            <Button
+              type="button"
+              onClick={handleRestoreFoundWarehouse}
+              disabled={isPending}
+              className="gap-2 font-bold shadow-xs bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer transition-all duration-300 animate-in fade-in-0 zoom-in-95"
+            >
+              {reactivateMutation.isPending ? (
+                <>
+                  <Spinner data-icon="inline-start" />
+                  Reactivating Warehouse...
+                </>
+              ) : (
+                <>
+                  <RotateCcw className="size-4" />
+                  Reactivate Warehouse Facility
+                </>
+              )}
+            </Button>
+          ) : (
+            <Button type="submit" disabled={isPending} className="font-semibold shadow-xs cursor-pointer transition-all duration-300">
+              {isPending ? (
+                <>
+                  <Spinner data-icon="inline-start" />
+                  {isEditing ? 'Saving...' : 'Registering...'}
+                </>
+              ) : (
+                <>{isEditing ? 'Save Changes' : 'Register Warehouse'}</>
+              )}
+            </Button>
+          )}
         </DialogFooter>
       </form>
     </>

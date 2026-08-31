@@ -144,9 +144,9 @@ function JobFormContent({
       )}
 
       {deactivatedJobMatch && (
-        <div className="my-1 p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-950 dark:text-amber-200 flex items-start gap-3 shadow-2xs">
+        <div className="my-1 p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-950 dark:text-amber-200 flex items-start gap-3 shadow-2xs animate-in fade-in-0 zoom-in-95 slide-in-from-top-2 duration-300">
           <div className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-amber-500/20 text-amber-700 dark:text-amber-300 mt-0.5">
-            <RotateCcw className="size-4" />
+            <RotateCcw className="size-4 animate-in spin-in-180 duration-500" />
           </div>
           <div className="flex-1 text-xs">
             <p className="font-bold text-foreground">Deactivated Position Found</p>
@@ -164,31 +164,33 @@ function JobFormContent({
           </Label>
           <Input
             id="job-name"
-            placeholder="e.g. Head Cashier, Delivery Driver, Inventory Clerk"
+            placeholder="e.g. Warehouse Supervisor, Delivery Driver, POS Cashier"
             value={name}
             onChange={(e) => {
               setName(e.target.value)
               if (deactivatedJobMatch) setDeactivatedJobMatch(null)
               if (errorMsg) setErrorMsg('')
             }}
+            className="transition-all duration-200"
             required
           />
         </div>
 
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="job-desc" className="text-xs font-medium">
-            Role Description
+            Description
           </Label>
           <Textarea
             id="job-desc"
-            placeholder="Brief summary of duties, responsibilities, and operational scope..."
+            placeholder="Key responsibilities and duties for this position..."
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             rows={3}
+            className="transition-all duration-200"
           />
         </div>
 
-        <DialogFooter className="gap-2.5 mt-4 pt-3 border-t">
+        <DialogFooter className="gap-2 mt-4 pt-3 border-t">
           <Button type="button" variant="outline" onClick={onClose} disabled={isPending}>
             Cancel
           </Button>
@@ -197,7 +199,7 @@ function JobFormContent({
               type="button"
               onClick={handleRestoreFoundJob}
               disabled={isPending}
-              className="gap-2 font-bold shadow-xs bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer"
+              className="gap-2 font-bold shadow-xs bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer transition-all duration-300 animate-in fade-in-0 zoom-in-95"
             >
               {reactivateMutation.isPending ? (
                 <>
@@ -212,7 +214,7 @@ function JobFormContent({
               )}
             </Button>
           ) : (
-            <Button type="submit" disabled={isPending} className="font-semibold shadow-xs cursor-pointer">
+            <Button type="submit" disabled={isPending} className="font-semibold shadow-xs cursor-pointer transition-all duration-300">
               {isPending ? (
                 <>
                   <Spinner data-icon="inline-start" />

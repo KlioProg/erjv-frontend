@@ -173,15 +173,15 @@ function VehicleFormContent({
       </DialogHeader>
 
       {errorMsg && !deactivatedVehicleMatch && (
-        <Alert variant="destructive">
+        <Alert variant="destructive" className="animate-in fade-in-0 slide-in-from-top-1 duration-200">
           <AlertDescription>{errorMsg}</AlertDescription>
         </Alert>
       )}
 
       {deactivatedVehicleMatch && (
-        <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-950 dark:text-amber-200 flex items-start gap-3 shadow-2xs">
+        <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-950 dark:text-amber-200 flex items-start gap-3 shadow-2xs animate-in fade-in-0 zoom-in-95 slide-in-from-top-2 duration-300">
           <div className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-amber-500/20 text-amber-700 dark:text-amber-300 mt-0.5">
-            <RotateCcw className="size-4" />
+            <RotateCcw className="size-4 animate-in spin-in-180 duration-500" />
           </div>
           <div className="flex-1 text-xs">
             <p className="font-bold text-foreground">Deactivated Vehicle Found</p>
@@ -209,7 +209,7 @@ function VehicleFormContent({
                   if (deactivatedVehicleMatch) setDeactivatedVehicleMatch(null)
                   if (errorMsg) setErrorMsg('')
                 }}
-                className="pl-9 uppercase font-mono"
+                className="pl-9 uppercase font-mono transition-all duration-200"
                 required
               />
             </div>
@@ -248,7 +248,7 @@ function VehicleFormContent({
                 placeholder="e.g. Isuzu NPR 75, Toyota HiAce"
                 value={model}
                 onChange={(e) => setModel(e.target.value)}
-                className="pl-9"
+                className="pl-9 transition-all duration-200"
               />
             </div>
           </div>
@@ -267,7 +267,7 @@ function VehicleFormContent({
                 placeholder="e.g. 2500"
                 value={capacity}
                 onChange={(e) => setCapacity(e.target.value)}
-                className="pl-9"
+                className="pl-9 transition-all duration-200"
               />
             </div>
           </div>
@@ -377,7 +377,7 @@ function VehicleFormContent({
               type="button"
               onClick={handleRestoreFoundVehicle}
               disabled={isPending}
-              className="gap-2 font-bold shadow-xs bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer"
+              className="gap-2 font-bold shadow-xs bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer transition-all duration-300 animate-in fade-in-0 zoom-in-95"
             >
               {reactivateMutation.isPending ? (
                 <>
@@ -392,7 +392,7 @@ function VehicleFormContent({
               )}
             </Button>
           ) : (
-            <Button type="submit" disabled={isPending} className="font-semibold shadow-xs cursor-pointer">
+            <Button type="submit" disabled={isPending} className="font-semibold shadow-xs cursor-pointer transition-all duration-300">
               {isPending ? (
                 <>
                   <Spinner data-icon="inline-start" />

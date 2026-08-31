@@ -59,6 +59,7 @@ export async function updateEmployeeProfileApi(
     ...(payload.phone !== undefined ? { phone: payload.phone?.trim() || null } : {}),
     ...(payload.email !== undefined ? { email: payload.email?.trim() || null } : {}),
     ...(payload.address !== undefined ? { address: payload.address?.trim() || null } : {}),
+    ...(payload.hireDate ? { hireDate: payload.hireDate } : {}),
   }
 
   const { data } = await apiClient.patch<Employee>(`/employees/${id}/profile`, cleanPayload)

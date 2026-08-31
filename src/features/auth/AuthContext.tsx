@@ -118,29 +118,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setUser(normalized)
             localStorage.setItem('erjv_current_user', JSON.stringify(normalized))
           }
-        } catch {
-          // If /auth/profile endpoint is not present or fails, decode the JWT token payload
-          let jwtPayload: Record<string, unknown> | null = null
-          try {
-            const parts = token.split('.')
-            if (parts.length === 3) {
-              jwtPayload = JSON.parse(atob(parts[1]))
-            }
-          } catch {
-            // Ignore
-          }
+        } catch (err: unknown) {
+          const status =
+            err && typeof err === 'object' && 'response' in err
+              ? (err as { response?: { status?: number } }).response?.status
+              : undefined
 
-          const storedUser = localStorage.getItem('erjv_current_user')
-          if (storedUser && isMounted) {
-            const parsed = JSON.parse(storedUser)
-            const merged = { ...parsed, ...(jwtPayload || {}) }
-            setUser(normalizeUser(merged))
-          } else if (jwtPayload && isMounted) {
-            setUser(normalizeUser(jwtPayload))
-          } else if (isMounted) {
+          if (status === 401 || status === 403) {
+            // Revoked, expired, or invalid token
             localStorage.removeItem('erjv_access_token')
-            setToken(null)
-            setUser(null)
+            localStorage.removeItem('erjv_current_user')
+            localStorage.removeItem('erjv_session_expiry')
+            if (isMounted) {
+              setToken(null)
+              setUser(null)
+            }
+          } else {
+            // Network connection error: only restore cached user if valid session existed
+            const storedUser = localStorage.getItem('erjv_current_user')
+            if (storedUser && isMounted) {
+              try {
+                setUser(normalizeUser(JSON.parse(storedUser)))
+              } catch {
+                localStorage.removeItem('erjv_current_user')
+                setToken(null)
+                setUser(null)
+              }
+            } else if (isMounted) {
+              localStorage.removeItem('erjv_access_token')
+              setToken(null)
+              setUser(null)
+            }
           }
         } finally {
           if (isMounted) {

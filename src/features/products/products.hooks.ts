@@ -15,12 +15,15 @@ import type {
   InventoryItemResponse,
   UpdateInventoryItemDetailsPayload,
 } from './products.types'
+import { addArchivedId, getArchivedIds, removeArchivedId } from '@/lib/archived-storage'
 
 export const productKeys = {
   all: ['products'] as const,
   lists: () => [...productKeys.all, 'list'] as const,
   detail: (id: number) => [...productKeys.all, 'detail', id] as const,
 }
+
+const ARCHIVED_PRODUCTS_KEY = 'erjv_archived_products'
 
 // React Query hook to fetch the product list
 export function useProducts() {
@@ -42,9 +45,25 @@ export function useProduct(id: number) {
 export function useDeactivatedProducts() {
   return useQuery<InventoryItemResponse[]>({
     queryKey: ['products', 'deactivated-products'],
-    queryFn: () => [],
-    initialData: [],
-    staleTime: Infinity,
+    queryFn: async () => {
+      const ids = getArchivedIds(ARCHIVED_PRODUCTS_KEY)
+      if (ids.length === 0) return []
+      const results: InventoryItemResponse[] = []
+      for (const id of ids) {
+        try {
+          const p = await fetchProductByIdApi(id)
+          if (p && p.isActive === false) {
+            results.push(p)
+          } else if (p && p.isActive !== false) {
+            removeArchivedId(ARCHIVED_PRODUCTS_KEY, id)
+          }
+        } catch {
+          // If deleted, skip
+        }
+      }
+      return results
+    },
+    staleTime: 0,
   })
 }
 
@@ -54,6 +73,7 @@ export function useCreateProduct() {
   return useMutation({
     mutationFn: (payload: CreateInventoryItemPayload) => createProductApi(payload),
     onSuccess: (data) => {
+      removeArchivedId(ARCHIVED_PRODUCTS_KEY, data.id)
       queryClient.setQueryData<InventoryItemResponse[]>(['products', 'deactivated-products'], (old = []) =>
         old.filter((p) => p.id !== data.id && p.name.toLowerCase() !== data.name.toLowerCase())
       )
@@ -100,18 +120,24 @@ export function useDeactivateProduct() {
   return useMutation({
     mutationFn: async (productOrId: InventoryItemResponse | number) => {
       const id = typeof productOrId === 'number' ? productOrId : productOrId.id
-      return await deactivateProductApi(id)
+      const res = await deactivateProductApi(id)
+      return { res, inputProduct: typeof productOrId === 'object' ? productOrId : null, id }
     },
-    onSuccess: (data) => {
-      if (data) {
+    onSuccess: ({ res, inputProduct, id }) => {
+      const targetId = res?.id || inputProduct?.id || id
+      const name = res?.name || inputProduct?.name || 'Product'
+      addArchivedId(ARCHIVED_PRODUCTS_KEY, targetId)
+      if (res || inputProduct) {
+        const entry: InventoryItemResponse = res || { ...(inputProduct as InventoryItemResponse), isActive: false }
         queryClient.setQueryData<InventoryItemResponse[]>(['products', 'deactivated-products'], (old = []) => [
-          ...old.filter((p) => p.id !== data.id),
-          { ...data, isActive: false },
+          ...old.filter((p) => p.id !== targetId),
+          { ...entry, isActive: false },
         ])
       }
       void queryClient.invalidateQueries({ queryKey: productKeys.all })
+      void queryClient.invalidateQueries({ queryKey: ['products', 'deactivated-products'] })
       void queryClient.invalidateQueries({ queryKey: ['stock-items'] })
-      toast.success(`Product "${data.name || 'Product'}" deactivated and moved to archive`)
+      toast.success(`Product "${name}" deactivated and moved to archive`)
     },
   })
 }
@@ -124,10 +150,12 @@ export function useReactivateProduct() {
       return await reactivateProductApi(id)
     },
     onSuccess: (data) => {
+      removeArchivedId(ARCHIVED_PRODUCTS_KEY, data.id)
       queryClient.setQueryData<InventoryItemResponse[]>(['products', 'deactivated-products'], (old = []) =>
         old.filter((p) => p.id !== data.id)
       )
       void queryClient.invalidateQueries({ queryKey: productKeys.all })
+      void queryClient.invalidateQueries({ queryKey: ['products', 'deactivated-products'] })
       void queryClient.invalidateQueries({ queryKey: ['stock-items'] })
       toast.success(`Product "${data.name || 'Product'}" reactivated and restored to active catalog`)
     },
