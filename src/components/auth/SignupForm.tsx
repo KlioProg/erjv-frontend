@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { User, Mail, Lock, Eye, EyeOff, UserPlus } from 'lucide-react'
+import { Mail, Lock, Eye, EyeOff, UserPlus } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
@@ -20,7 +20,6 @@ export default function SignupForm({
   errorMessage,
   successMessage,
 }: SignupFormProps) {
-  const fullVal = useFormValidation()
   const emailVal = useFormValidation()
   const passVal = useFormValidation()
   const confirmVal = useFormValidation()
@@ -30,31 +29,23 @@ export default function SignupForm({
 
   function handleSubmit(e: FormEvent<HTMLFormElement>) {
     const form = e.currentTarget
-    const nameInput = form.elements.namedItem('fullName') as HTMLInputElement | null
     const emailInput = form.elements.namedItem('email') as HTMLInputElement | null
     const passInput = form.elements.namedItem('password') as HTMLInputElement | null
     const confirmInput = form.elements.namedItem('confirmPassword') as HTMLInputElement | null
 
-    const full = nameInput?.value.trim() ?? ''
     const email = emailInput?.value.trim() ?? ''
     const pass = passInput?.value ?? ''
     const confirm = confirmInput?.value ?? ''
 
-    fullVal.setMessage('')
     emailVal.setMessage('')
     passVal.setMessage('')
     confirmVal.setMessage('')
 
-    const fullInvalid = !full
     const emailInvalid = !email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
     const passInvalid = !pass || pass.length < 8
     const confirmInvalid = confirm !== pass
 
     let invalid = false
-    if (fullInvalid) {
-      fullVal.setMessage('Please enter your full name.')
-      invalid = true
-    }
     if (!email) {
       emailVal.setMessage('Please enter your work email.')
       invalid = true
@@ -79,8 +70,7 @@ export default function SignupForm({
 
     if (invalid) {
       e.preventDefault()
-      if (fullInvalid) nameInput?.focus()
-      else if (emailInvalid) emailInput?.focus()
+      if (emailInvalid) emailInput?.focus()
       else if (passInvalid) passInput?.focus()
       else if (confirmInvalid) confirmInput?.focus()
       return
@@ -102,29 +92,6 @@ export default function SignupForm({
           <AlertDescription>{successMessage}</AlertDescription>
         </Alert>
       )}
-
-      <div className="flex flex-col gap-1.5" data-invalid={fullVal.message ? true : undefined}>
-        <Label htmlFor="signup-name" className="text-xs font-semibold text-foreground/90">
-          Full name
-        </Label>
-        <div className="relative">
-          <User className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
-          <Input
-            id="signup-name"
-            name="fullName"
-            type="text"
-            autoComplete="name"
-            placeholder="Alex Morgan"
-            className="pl-9"
-            aria-invalid={fullVal.message ? true : undefined}
-            disabled={isSubmitting}
-            onChange={() => fullVal.message && fullVal.setMessage('')}
-          />
-        </div>
-        {fullVal.message && (
-          <p className="text-[11px] font-medium text-destructive">{fullVal.message}</p>
-        )}
-      </div>
 
       <div className="flex flex-col gap-1.5" data-invalid={emailVal.message ? true : undefined}>
         <Label htmlFor="signup-email" className="text-xs font-semibold text-foreground/90">
