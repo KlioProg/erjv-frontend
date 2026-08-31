@@ -150,7 +150,7 @@ export function OperationsDashboard({ onSwitchToStaffing }: OperationsDashboardP
 
           <Card className="p-4 bg-card/60 backdrop-blur-xs border-border/80 shadow-xs flex flex-col justify-between">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-medium text-muted-foreground">Registered SKUs</span>
+              <span className="text-xs font-medium text-muted-foreground">Catalog Products</span>
               <div className="p-2 rounded-xl bg-amber-500/10 text-amber-600">
                 <Package className="size-4" />
               </div>

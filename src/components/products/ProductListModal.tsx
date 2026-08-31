@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Package, Search, Barcode } from 'lucide-react'
+import { Package, Search, Tag } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -32,8 +32,8 @@ export function ProductListModal({ open, onClose }: ProductListModalProps) {
   const filtered = products.filter(
     (p) =>
       p.name.toLowerCase().includes(search.toLowerCase()) ||
-      (p.sku && p.sku.toLowerCase().includes(search.toLowerCase())) ||
-      (p.variety && p.variety.toLowerCase().includes(search.toLowerCase()))
+      (p.variety && p.variety.toLowerCase().includes(search.toLowerCase())) ||
+      (p.description && p.description.toLowerCase().includes(search.toLowerCase()))
   )
 
   return (
@@ -46,10 +46,10 @@ export function ProductListModal({ open, onClose }: ProductListModalProps) {
             </div>
             <div>
               <DialogTitle className="text-xl font-extrabold tracking-tight text-foreground">
-                Rice Product Catalog & SKUs
+                Product Catalog
               </DialogTitle>
               <DialogDescription className="text-xs text-muted-foreground">
-                Wholesale and retail grain varieties connected to{' '}
+                Wholesale and retail inventory items connected to{' '}
                 <code className="bg-muted px-1.5 py-0.5 rounded text-[11px] font-mono text-primary">
                   GET /inventory-items
                 </code>
@@ -62,7 +62,7 @@ export function ProductListModal({ open, onClose }: ProductListModalProps) {
         <div className="relative mt-3">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
           <Input
-            placeholder="Search rice varieties by name or SKU code..."
+            placeholder="Search products by name or variety..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-10 h-10 text-xs rounded-xl"
@@ -74,7 +74,7 @@ export function ProductListModal({ open, onClose }: ProductListModalProps) {
           {isLoading ? (
             <div className="flex flex-col items-center justify-center py-16 gap-2.5 text-xs text-muted-foreground">
               <Spinner className="size-6 text-primary" />
-              Loading rice catalog...
+              Loading product catalog...
             </div>
           ) : error ? (
             <div className="p-8 text-center text-xs text-destructive">
@@ -82,14 +82,14 @@ export function ProductListModal({ open, onClose }: ProductListModalProps) {
             </div>
           ) : filtered.length === 0 ? (
             <div className="p-10 text-center text-xs text-muted-foreground">
-              No rice products found matching your search.
+              No products found matching your search.
             </div>
           ) : (
             <Table>
               <TableHeader className="bg-muted/50 sticky top-0 z-10">
                 <TableRow>
-                  <TableHead className="text-xs font-bold">Rice Variety & Grade</TableHead>
-                  <TableHead className="text-xs font-bold">SKU Code</TableHead>
+                  <TableHead className="text-xs font-bold">Product Item</TableHead>
+                  <TableHead className="text-xs font-bold">Variety / Grade</TableHead>
                   <TableHead className="text-xs font-bold text-right">Wholesale Price</TableHead>
                   <TableHead className="text-xs font-bold text-center">Status</TableHead>
                 </TableRow>
@@ -108,17 +108,21 @@ export function ProductListModal({ open, onClose }: ProductListModalProps) {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted/80 border border-border/70 text-foreground font-mono text-[11px] font-bold">
-                        <Barcode className="size-3.5 text-primary shrink-0" />
-                        <span>{item.sku}</span>
-                      </div>
+                      {item.variety ? (
+                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted/80 border border-border/70 text-foreground text-[11px] font-semibold">
+                          <Tag className="size-3 text-primary shrink-0" />
+                          <span>{item.variety}</span>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
                     </TableCell>
                     <TableCell className="text-right">
                       <span className="font-extrabold text-sm text-foreground">
                         ₱{Number(item.unitPrice).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                       </span>
                       <span className="text-[10px] text-muted-foreground font-semibold block">
-                        / sack
+                        / unit
                       </span>
                     </TableCell>
                     <TableCell className="text-center">
@@ -126,7 +130,7 @@ export function ProductListModal({ open, onClose }: ProductListModalProps) {
                         variant="outline"
                         className="text-[10px] bg-emerald-500/10 text-emerald-600 border-emerald-500/20 font-bold"
                       >
-                        {item.isActive ? 'Active SKU' : 'Inactive'}
+                        {item.isActive ? 'Active' : 'Inactive'}
                       </Badge>
                     </TableCell>
                   </TableRow>

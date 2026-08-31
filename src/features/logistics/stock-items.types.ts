@@ -2,7 +2,7 @@ export type InventoryItemSummary = {
   id: number
   name: string
   unit?: string
-  sku?: string
+  variety?: string | null
   unitPrice?: number
 }
 

@@ -111,7 +111,7 @@ export function useDeactivateProduct() {
       }
       void queryClient.invalidateQueries({ queryKey: productKeys.all })
       void queryClient.invalidateQueries({ queryKey: ['stock-items'] })
-      toast.success(`Product "${data.name || 'SKU'}" deactivated and moved to archive`)
+      toast.success(`Product "${data.name || 'Product'}" deactivated and moved to archive`)
     },
   })
 }
@@ -129,7 +129,7 @@ export function useReactivateProduct() {
       )
       void queryClient.invalidateQueries({ queryKey: productKeys.all })
       void queryClient.invalidateQueries({ queryKey: ['stock-items'] })
-      toast.success(`Product "${data.name || 'SKU'}" reactivated and restored to active catalog`)
+      toast.success(`Product "${data.name || 'Product'}" reactivated and restored to active catalog`)
     },
   })
 }

@@ -3,8 +3,6 @@ import {
   Package,
   Tag,
   FileText,
-  Barcode,
-  HelpCircle,
   Sparkles,
   Warehouse as WarehouseIcon,
   RotateCcw,
@@ -60,7 +58,7 @@ function ItemFormContent({
   const { data: warehouses = [] } = useWarehouses()
 
   const [name, setName] = useState(item?.name || '')
-  const [sku, setSku] = useState(item?.sku || '')
+  const [variety, setVariety] = useState(item?.variety || '')
   const [unitPrice, setUnitPrice] = useState<string>(
     item?.unitPrice !== undefined ? String(item.unitPrice) : ''
   )
@@ -116,11 +114,6 @@ function ItemFormContent({
       }
     }
 
-    if (!isEditing && !sku.trim()) {
-      setErrorMsg('Product SKU / Barcode is required.')
-      return
-    }
-
     const parsedPrice = parseFloat(unitPrice)
     if (isNaN(parsedPrice) || parsedPrice < 0) {
       setErrorMsg('Please enter a valid positive unit price.')
@@ -133,6 +126,7 @@ function ItemFormContent({
           id: item.id,
           payload: {
             name: name.trim(),
+            variety: variety.trim() || null,
             description: description.trim() || null,
           },
         })
@@ -157,7 +151,7 @@ function ItemFormContent({
       } else {
         const newProduct = await createMutation.mutateAsync({
           name: name.trim(),
-          sku: sku.trim().toUpperCase(),
+          variety: variety.trim() || null,
           unitPrice: parsedPrice,
           description: description.trim() || null,
         })
@@ -206,12 +200,12 @@ function ItemFormContent({
           {isEditing ? <Tag className="size-5" /> : <Package className="size-5" />}
         </div>
         <DialogTitle className="text-xl font-bold tracking-tight">
-          {isEditing ? 'Edit Catalog Product SKU' : 'Register New Product SKU'}
+          {isEditing ? 'Edit Catalog Product' : 'Register New Product'}
         </DialogTitle>
         <DialogDescription className="text-xs text-muted-foreground leading-relaxed">
           {isEditing
             ? 'Update product catalog item specifications, packaging units, and warehouse allocations.'
-            : 'Register a product SKU to track multi-warehouse inventory, pricing, and distribution across 1, 2, or all storage hubs.'}
+            : 'Register a product item to track multi-warehouse inventory, pricing, and distribution across 1, 2, or all storage hubs.'}
         </DialogDescription>
       </DialogHeader>
 
@@ -227,9 +221,9 @@ function ItemFormContent({
             <RotateCcw className="size-4" />
           </div>
           <div className="flex-1 text-xs">
-            <p className="font-bold text-foreground">Deactivated Product SKU Found</p>
+            <p className="font-bold text-foreground">Deactivated Product Found</p>
             <p className="text-muted-foreground mt-0.5 leading-relaxed">
-              An archived catalog item for <strong className="text-foreground">{deactivatedProductMatch.name}</strong> (SKU: {deactivatedProductMatch.sku}) already exists. Click <strong>"Reactivate Product"</strong> below to restore it.
+              An archived catalog item for <strong className="text-foreground">{deactivatedProductMatch.name}</strong> already exists. Click <strong>"Reactivate Product"</strong> below to restore it.
             </p>
           </div>
         </div>
@@ -239,13 +233,13 @@ function ItemFormContent({
         {/* Product Name */}
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="item-name" className="text-xs font-semibold text-foreground/90">
-            Product Item & Packaging Name <span className="text-primary">*</span>
+            Product Item Name <span className="text-primary">*</span>
           </Label>
           <div className="relative">
             <Package className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
             <Input
               id="item-name"
-              placeholder="e.g. Cooking Oil 1L Pouch, Sugar 50kg Sack"
+              placeholder="e.g. Cooking Oil 1L Pouch, Sugar 50kg Sack, Premium Sinandomeng"
               value={name}
               onChange={(e) => {
                 setName(e.target.value)
@@ -258,61 +252,23 @@ function ItemFormContent({
           </div>
         </div>
 
-        {/* Spacious, Expanded SKU Section */}
-        <div className="flex flex-col gap-2 p-4 rounded-2xl bg-muted/40 border border-border/80 shadow-2xs">
-          <div className="flex items-center justify-between">
-            <Label htmlFor="item-sku" className="text-xs font-bold text-foreground flex items-center gap-1.5">
-              Stock Keeping Unit (SKU / Barcode)
-              {!isEditing && <span className="text-primary">*</span>}
-            </Label>
-            <span className="text-[11px] text-primary font-mono font-bold">
-              {isEditing ? 'Read-only SKU' : 'UPPERCASE FORMAT'}
-            </span>
-          </div>
-
+        {/* Variety / Category */}
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="item-variety" className="text-xs font-semibold text-foreground/90">
+            Variety / Grade (Optional)
+          </Label>
           <div className="relative">
-            <Barcode className="absolute left-3.5 top-1/2 -translate-y-1/2 size-5 text-primary pointer-events-none" />
+            <Tag className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
             <Input
-              id="item-sku"
-              placeholder="e.g. OIL-PALM-20L, RICE-KOH-50KG, SUG-REF-50KG"
-              value={sku}
-              onChange={(e) => setSku(e.target.value)}
-              disabled={isEditing}
-              className="pl-11 h-11 font-mono tracking-wider uppercase text-sm bg-background font-black border-border shadow-inner"
-              required={!isEditing}
+              id="item-variety"
+              placeholder="e.g. Sinandomeng, Refined White, Palm Olein"
+              value={variety}
+              onChange={(e) => setVariety(e.target.value)}
+              className="pl-9 h-10 text-sm"
             />
           </div>
-
-          {!isEditing && (
-            <div className="flex items-center gap-1.5 flex-wrap pt-1 text-[11px] text-muted-foreground">
-              <span className="font-semibold text-foreground">Sample SKU Presets:</span>
-              <button
-                type="button"
-                onClick={() => setSku('OIL-PALM-20L-CARB')}
-                className="px-2 py-0.5 rounded-md bg-background border border-border font-mono hover:bg-muted font-bold text-foreground cursor-pointer"
-              >
-                OIL-PALM-20L
-              </button>
-              <button
-                type="button"
-                onClick={() => setSku('RICE-KOH-RED-50KG')}
-                className="px-2 py-0.5 rounded-md bg-background border border-border font-mono hover:bg-muted font-bold text-foreground cursor-pointer"
-              >
-                RICE-KOH-50KG
-              </button>
-              <button
-                type="button"
-                onClick={() => setSku('SUG-REF-WHT-50KG')}
-                className="px-2 py-0.5 rounded-md bg-background border border-border font-mono hover:bg-muted font-bold text-foreground cursor-pointer"
-              >
-                SUG-REF-50KG
-              </button>
-            </div>
-          )}
-
-          <p className="text-[11px] text-muted-foreground flex items-center gap-1">
-            <HelpCircle className="size-3 shrink-0" />
-            Standardized barcode identifier used across warehouses, delivery trucks, and POS checkout registers.
+          <p className="text-[11px] text-muted-foreground">
+            Specific strain, grade, or packaging classification of the product.
           </p>
         </div>
 
@@ -448,7 +404,7 @@ function ItemFormContent({
                 ) : (
                   <>
                     <RotateCcw className="size-4" />
-                    Reactivate Product SKU
+                    Reactivate Product
                   </>
                 )}
               </Button>
@@ -457,10 +413,10 @@ function ItemFormContent({
                 {isPending ? (
                   <>
                     <Spinner data-icon="inline-start" />
-                    {isEditing ? 'Saving...' : 'Registering SKU & Stocks...'}
+                    {isEditing ? 'Saving...' : 'Registering Product & Stocks...'}
                   </>
                 ) : (
-                  <>{isEditing ? 'Save Product Changes' : 'Register SKU & Allocate Stocks'}</>
+                  <>{isEditing ? 'Save Product Changes' : 'Register Product & Allocate Stocks'}</>
                 )}
               </Button>
             )}
@@ -483,8 +439,8 @@ function ItemFormContent({
           title="Delete Product from Active Catalog"
           description="Are you sure you want to remove this product from the active catalog? It will no longer be available for point of sale billing."
           itemName={item.name}
-          itemDetails={`SKU: ${item.sku} • ₱${Number(item.unitPrice || 0).toFixed(2)}`}
-          confirmText="Delete Product SKU"
+          itemDetails={`₱${Number(item.unitPrice || 0).toFixed(2)} / unit`}
+          confirmText="Delete Product"
           variant="destructive"
         />
       )}

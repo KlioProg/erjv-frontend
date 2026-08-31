@@ -116,14 +116,14 @@ export function MainDashboard() {
 
             <Card className="p-4 bg-card border-border/80 shadow-xs flex flex-col justify-between rounded-2xl">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-muted-foreground">Registered SKUs</span>
+                <span className="text-xs font-semibold text-muted-foreground">Catalog Products</span>
                 <div className="p-2 rounded-xl bg-amber-500/10 text-amber-600">
                   <Package className="size-4" />
                 </div>
               </div>
               <div className="mt-3">
                 <div className="text-2xl font-extrabold text-foreground">{products.length}</div>
-                <p className="text-[11px] text-muted-foreground mt-0.5">Active product catalog SKUs</p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">Active product catalog items</p>
               </div>
             </Card>
           </div>
@@ -147,7 +147,7 @@ export function MainDashboard() {
 
             <Card className="p-4 bg-card border-border/80 shadow-xs flex flex-col justify-between rounded-2xl">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-muted-foreground">Catalog SKUs Active</span>
+                <span className="text-xs font-semibold text-muted-foreground">Active Products</span>
                 <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-600">
                   <Package className="size-4" />
                 </div>

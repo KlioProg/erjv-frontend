@@ -85,7 +85,6 @@ export function InventoryStockList() {
   const filteredProducts = currentProductList.filter((p) => {
     const matchesSearch =
       p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (p.sku && p.sku.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (p.variety && p.variety.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (p.description && p.description.toLowerCase().includes(searchTerm.toLowerCase()))
 
@@ -114,24 +113,25 @@ export function InventoryStockList() {
 
   const confirmDeleteProduct = async () => {
     if (productToDelete) {
-      await deactivateProductMutation.mutateAsync(productToDelete)
+      await deactivateProductMutation.mutateAsync(productToDelete.id)
       setProductToDelete(null)
     }
   }
 
-  const handleReactivateProduct = async (prod: InventoryItemResponse) => {
-    await reactivateProductMutation.mutateAsync(prod.id)
+  const handleReactivateProduct = async (prodOrId: InventoryItemResponse | number) => {
+    const id = typeof prodOrId === 'number' ? prodOrId : prodOrId.id
+    await reactivateProductMutation.mutateAsync(id)
   }
 
   const handleAdjustStock = (stock: StockItemWithRelations) => {
-    setSelectedProductForAllocate(null)
     setSelectedStockForAdjust(stock)
+    setSelectedProductForAllocate(null)
     setIsAdjustModalOpen(true)
   }
 
   const handleAllocateStock = (prod: InventoryItemResponse) => {
-    setSelectedStockForAdjust(null)
     setSelectedProductForAllocate(prod)
+    setSelectedStockForAdjust(null)
     setIsAdjustModalOpen(true)
   }
 
@@ -154,27 +154,26 @@ export function InventoryStockList() {
 
   return (
     <div className="flex flex-col gap-5">
-      {/* Catalog Tabs */}
-      <div className="flex items-center gap-2 border-b border-border/70 pb-3">
+      {/* View Switcher: Active Catalog vs Archived Products */}
+      <div className="flex items-center gap-2 border-b border-border/80 pb-3">
         <button
-          type="button"
           onClick={() => setActiveTab('ACTIVE')}
           className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
             activeTab === 'ACTIVE'
               ? 'bg-primary text-primary-foreground shadow-xs'
-              : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+              : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
           }`}
         >
           <Package className="size-3.5" />
-          Active Catalog ({activeProducts.length})
+          Active Products ({activeProducts.length})
         </button>
+
         <button
-          type="button"
           onClick={() => setActiveTab('ARCHIVED')}
           className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
             activeTab === 'ARCHIVED'
-              ? 'bg-primary text-primary-foreground shadow-xs'
-              : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+              ? 'bg-amber-500/10 text-amber-600 border border-amber-500/30'
+              : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
           }`}
         >
           <Archive className="size-3.5" />
@@ -188,7 +187,7 @@ export function InventoryStockList() {
           <div className="relative flex-1 sm:max-w-xs">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
             <Input
-              placeholder="Search product name, SKU, barcode..."
+              placeholder="Search product name or variety..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-9 h-9 text-xs"
@@ -222,7 +221,7 @@ export function InventoryStockList() {
           <div className="flex items-center gap-2">
             <Button onClick={handleCreateProduct} size="sm" className="gap-1.5 shadow-xs font-semibold cursor-pointer">
               <Plus className="size-4" />
-              Register Product SKU
+              Register Product
             </Button>
           </div>
         )}
@@ -250,7 +249,7 @@ export function InventoryStockList() {
             {(isOwner || isAdmin) && !searchTerm && selectedWarehouseFilter === 'ALL' && activeTab === 'ACTIVE' && (
               <Button onClick={handleCreateProduct} size="sm" variant="outline" className="mt-4 gap-1.5 cursor-pointer">
                 <Plus className="size-3.5" />
-                Register First Product SKU
+                Register First Product
               </Button>
             )}
           </CardContent>
@@ -285,10 +284,12 @@ export function InventoryStockList() {
                           <h4 className="text-sm font-bold text-foreground truncate">
                             {prod.name}
                           </h4>
-                          <Badge variant="outline" className="font-mono text-[10px] px-1.5 py-0 bg-muted/50 border-border text-foreground font-bold">
-                            <Tag className="size-2.5 mr-1 text-primary" />
-                            {prod.sku}
-                          </Badge>
+                          {prod.variety && (
+                            <Badge variant="outline" className="text-[10px] px-2 py-0.5 bg-muted/50 border-border text-foreground font-semibold">
+                              <Tag className="size-2.5 mr-1 text-primary" />
+                              {prod.variety}
+                            </Badge>
+                          )}
                           {isArchived && (
                             <Badge variant="outline" className="border-amber-500/30 bg-amber-500/10 text-amber-600 text-[10px] font-bold">
                               Deactivated
@@ -358,7 +359,7 @@ export function InventoryStockList() {
                                   className="gap-2 text-xs cursor-pointer"
                                 >
                                   <Edit2 className="size-3.5" />
-                                  Edit SKU & Pricing
+                                  Edit Product & Pricing
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
                                   onClick={() => handleAllocateStock(prod)}
@@ -506,10 +507,10 @@ export function InventoryStockList() {
         onClose={() => setProductToDelete(null)}
         onConfirm={confirmDeleteProduct}
         title="Delete Product from Active Catalog"
-        description="Are you sure you want to delete this product SKU? It will be deactivated and no longer available for point-of-sale checkout or warehouse intake."
+        description="Are you sure you want to delete this product? It will be deactivated and no longer available for point-of-sale checkout or warehouse intake."
         itemName={productToDelete?.name}
-        itemDetails={productToDelete ? `SKU: ${productToDelete.sku} • ₱${Number(productToDelete.unitPrice || 0).toFixed(2)} / unit` : undefined}
-        confirmText="Delete Product SKU"
+        itemDetails={productToDelete ? `₱${Number(productToDelete.unitPrice || 0).toFixed(2)} / unit` : undefined}
+        confirmText="Delete Product"
         variant="destructive"
       />
 

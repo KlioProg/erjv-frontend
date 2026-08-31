@@ -297,10 +297,10 @@ export function WarehouseList() {
 
                     <div className="flex flex-col gap-0.5">
                       <span className="text-[10px] text-muted-foreground uppercase font-semibold">
-                        Tracked SKUs
+                        Tracked Products
                       </span>
                       <span className="font-semibold text-foreground text-xs">
-                        {whStock.length} Product SKUs
+                        {whStock.length} Products
                       </span>
                     </div>
                   </div>

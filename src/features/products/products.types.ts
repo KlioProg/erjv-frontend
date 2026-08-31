@@ -1,7 +1,6 @@
 export type InventoryItemResponse = {
   id: number
   name: string
-  sku?: string
   variety?: string | null
   unit?: string
   unitPrice: number
@@ -13,7 +12,6 @@ export type InventoryItemResponse = {
 
 export type CreateInventoryItemPayload = {
   name: string
-  sku?: string
   variety?: string | null
   unit?: string
   unitPrice: number | string
@@ -23,7 +21,6 @@ export type CreateInventoryItemPayload = {
 
 export type UpdateInventoryItemDetailsPayload = {
   name?: string
-  sku?: string
   variety?: string | null
   unit?: string
   description?: string | null
