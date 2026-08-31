@@ -13,25 +13,25 @@ export async function fetchStockItemsApi(): Promise<StockItemWithRelations[]> {
 }
 
 export async function fetchStockByWarehouseApi(
-  warehouseId: number
+  warehouseId: number,
 ): Promise<StockItemWithRelations[]> {
   const { data } = await apiClient.get<StockItemWithRelations[]>(
-    `/stock-items/warehouses/${warehouseId}`
+    `/stock-items/warehouses/${warehouseId}`,
   )
   return extractArray<StockItemWithRelations>(data)
 }
 
 export async function fetchStockByItemApi(
-  inventoryItemId: number
+  inventoryItemId: number,
 ): Promise<StockItemWithRelations[]> {
   const { data } = await apiClient.get<StockItemWithRelations[]>(
-    `/stock-items/inventory-items/${inventoryItemId}`
+    `/stock-items/inventory-items/${inventoryItemId}`,
   )
   return extractArray<StockItemWithRelations>(data)
 }
 
 export async function createStockItemApi(
-  payload: CreateStockItemPayload
+  payload: CreateStockItemPayload,
 ): Promise<StockItemWithRelations> {
   const cleanPayload = {
     inventoryItemId: Number(payload.inventoryItemId),
@@ -45,7 +45,7 @@ export async function createStockItemApi(
 
 export async function setStockQuantityApi(
   id: number,
-  payload: SetStockQuantityPayload
+  payload: SetStockQuantityPayload,
 ): Promise<StockItem> {
   const { data } = await apiClient.patch<StockItem>(`/stock-items/${id}/quantity`, {
     quantity: parseFloat(payload.quantity).toFixed(2),
@@ -55,27 +55,21 @@ export async function setStockQuantityApi(
 
 export async function increaseStockQuantityApi(
   id: number,
-  payload: AdjustStockQuantityPayload
+  payload: AdjustStockQuantityPayload,
 ): Promise<StockItem> {
-  const { data } = await apiClient.patch<StockItem>(
-    `/stock-items/${id}/quantity/increase`,
-    {
-      amount: parseFloat(payload.amount).toFixed(2),
-    }
-  )
+  const { data } = await apiClient.patch<StockItem>(`/stock-items/${id}/quantity/increase`, {
+    amount: parseFloat(payload.amount).toFixed(2),
+  })
   return data
 }
 
 export async function decreaseStockQuantityApi(
   id: number,
-  payload: AdjustStockQuantityPayload
+  payload: AdjustStockQuantityPayload,
 ): Promise<StockItem> {
-  const { data } = await apiClient.patch<StockItem>(
-    `/stock-items/${id}/quantity/decrease`,
-    {
-      amount: parseFloat(payload.amount).toFixed(2),
-    }
-  )
+  const { data } = await apiClient.patch<StockItem>(`/stock-items/${id}/quantity/decrease`, {
+    amount: parseFloat(payload.amount).toFixed(2),
+  })
   return data
 }
 

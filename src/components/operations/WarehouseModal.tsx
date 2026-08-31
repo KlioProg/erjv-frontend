@@ -117,7 +117,10 @@ function WarehouseFormContent({
       </DialogHeader>
 
       {errorMsg && !deactivatedWarehouseMatch && (
-        <Alert variant="destructive" className="animate-in fade-in-0 slide-in-from-top-1 duration-200">
+        <Alert
+          variant="destructive"
+          className="animate-in fade-in-0 slide-in-from-top-1 duration-200"
+        >
           <AlertDescription>{errorMsg}</AlertDescription>
         </Alert>
       )}
@@ -130,7 +133,10 @@ function WarehouseFormContent({
           <div className="flex-1 text-xs">
             <p className="font-bold text-foreground">Deactivated Warehouse Found</p>
             <p className="text-muted-foreground mt-0.5 leading-relaxed">
-              An archived facility record for <strong className="text-foreground">{deactivatedWarehouseMatch.name}</strong> ({deactivatedWarehouseMatch.address}) already exists. Click <strong>"Reactivate Warehouse"</strong> below to restore it.
+              An archived facility record for{' '}
+              <strong className="text-foreground">{deactivatedWarehouseMatch.name}</strong> (
+              {deactivatedWarehouseMatch.address}) already exists. Click{' '}
+              <strong>"Reactivate Warehouse"</strong> below to restore it.
             </p>
           </div>
         </div>
@@ -215,7 +221,11 @@ function WarehouseFormContent({
               )}
             </Button>
           ) : (
-            <Button type="submit" disabled={isPending} className="font-semibold shadow-xs cursor-pointer transition-all duration-300">
+            <Button
+              type="submit"
+              disabled={isPending}
+              className="font-semibold shadow-xs cursor-pointer transition-all duration-300"
+            >
               {isPending ? (
                 <>
                   <Spinner data-icon="inline-start" />

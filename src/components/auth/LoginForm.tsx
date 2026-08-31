@@ -30,7 +30,7 @@ export default function LoginForm({
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [rememberMe, setRememberMe] = useState(
-    () => localStorage.getItem('erjv_remember_me') === 'true'
+    () => localStorage.getItem('erjv_remember_me') === 'true',
   )
 
   function handleSubmit(e: FormEvent<HTMLFormElement>) {

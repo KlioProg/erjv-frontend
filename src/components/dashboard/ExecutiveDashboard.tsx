@@ -1,10 +1,5 @@
 import { useState } from 'react'
-import {
-  Truck,
-  ArrowUpRight,
-  ChevronDown,
-  Clock,
-} from 'lucide-react'
+import { Truck, ArrowUpRight, ChevronDown, Clock } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -114,7 +109,10 @@ export function ExecutiveDashboard() {
                 <span className="text-2xl sm:text-3xl font-extrabold text-foreground tracking-tight">
                   ₱11,985.00
                 </span>
-                <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-[11px] font-bold py-0.5">
+                <Badge
+                  variant="outline"
+                  className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-[11px] font-bold py-0.5"
+                >
                   +32.40% Gain
                 </Badge>
               </div>
@@ -181,11 +179,10 @@ export function ExecutiveDashboard() {
                     {tx.initials}
                   </div>
                   <div>
-                    <h5 className="text-xs font-bold text-foreground leading-tight">
-                      {tx.title}
-                    </h5>
+                    <h5 className="text-xs font-bold text-foreground leading-tight">{tx.title}</h5>
                     <p className="text-[11px] text-muted-foreground mt-0.5">
-                      {tx.price} <span className="font-mono text-muted-foreground/80">{tx.orderNumber}</span>
+                      {tx.price}{' '}
+                      <span className="font-mono text-muted-foreground/80">{tx.orderNumber}</span>
                     </p>
                   </div>
                 </div>
@@ -208,9 +205,7 @@ export function ExecutiveDashboard() {
         {/* Popular Purchases */}
         <Card className="border-border/80 bg-card/90 shadow-sm rounded-2xl p-5 flex flex-col justify-between">
           <CardHeader className="p-0 pb-4 flex flex-row items-center justify-between">
-            <CardTitle className="text-base font-bold text-foreground">
-              Popular Purchases
-            </CardTitle>
+            <CardTitle className="text-base font-bold text-foreground">Popular Purchases</CardTitle>
             <Button
               variant="default"
               size="sm"
@@ -234,22 +229,14 @@ export function ExecutiveDashboard() {
                     {p.initials}
                   </div>
                   <div>
-                    <h5 className="text-xs font-bold text-foreground leading-tight">
-                      {p.title}
-                    </h5>
-                    <p className="text-[11px] text-muted-foreground mt-0.5">
-                      {p.orders}
-                    </p>
+                    <h5 className="text-xs font-bold text-foreground leading-tight">{p.title}</h5>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">{p.orders}</p>
                   </div>
                 </div>
 
                 <div className="text-right">
-                  <span className="text-[11px] font-bold text-rose-600 block">
-                    {p.stockStatus}
-                  </span>
-                  <span className="text-xs font-extrabold text-foreground">
-                    {p.price}
-                  </span>
+                  <span className="text-[11px] font-bold text-rose-600 block">{p.stockStatus}</span>
+                  <span className="text-xs font-extrabold text-foreground">{p.price}</span>
                 </div>
               </div>
             ))}
@@ -301,22 +288,84 @@ export function ExecutiveDashboard() {
               </defs>
 
               {/* Horizontal Grid lines */}
-              <line x1="40" y1="20" x2="980" y2="20" stroke="#e2e8f0" strokeWidth="1" strokeDasharray="4 4" />
-              <line x1="40" y1="55" x2="980" y2="55" stroke="#e2e8f0" strokeWidth="1" strokeDasharray="4 4" />
-              <line x1="40" y1="90" x2="980" y2="90" stroke="#e2e8f0" strokeWidth="1" strokeDasharray="4 4" />
-              <line x1="40" y1="125" x2="980" y2="125" stroke="#e2e8f0" strokeWidth="1" strokeDasharray="4 4" />
-              <line x1="40" y1="160" x2="980" y2="160" stroke="#e2e8f0" strokeWidth="1" strokeDasharray="4 4" />
-              <line x1="40" y1="195" x2="980" y2="195" stroke="#e2e8f0" strokeWidth="1" strokeDasharray="4 4" />
+              <line
+                x1="40"
+                y1="20"
+                x2="980"
+                y2="20"
+                stroke="#e2e8f0"
+                strokeWidth="1"
+                strokeDasharray="4 4"
+              />
+              <line
+                x1="40"
+                y1="55"
+                x2="980"
+                y2="55"
+                stroke="#e2e8f0"
+                strokeWidth="1"
+                strokeDasharray="4 4"
+              />
+              <line
+                x1="40"
+                y1="90"
+                x2="980"
+                y2="90"
+                stroke="#e2e8f0"
+                strokeWidth="1"
+                strokeDasharray="4 4"
+              />
+              <line
+                x1="40"
+                y1="125"
+                x2="980"
+                y2="125"
+                stroke="#e2e8f0"
+                strokeWidth="1"
+                strokeDasharray="4 4"
+              />
+              <line
+                x1="40"
+                y1="160"
+                x2="980"
+                y2="160"
+                stroke="#e2e8f0"
+                strokeWidth="1"
+                strokeDasharray="4 4"
+              />
+              <line
+                x1="40"
+                y1="195"
+                x2="980"
+                y2="195"
+                stroke="#e2e8f0"
+                strokeWidth="1"
+                strokeDasharray="4 4"
+              />
               <line x1="40" y1="220" x2="980" y2="220" stroke="#cbd5e1" strokeWidth="1.5" />
 
               {/* Y Axis Numbers */}
-              <text x="990" y="24" fill="#94a3b8" fontSize="11" textAnchor="start">450k</text>
-              <text x="990" y="59" fill="#94a3b8" fontSize="11" textAnchor="start">375k</text>
-              <text x="990" y="94" fill="#94a3b8" fontSize="11" textAnchor="start">300k</text>
-              <text x="990" y="129" fill="#94a3b8" fontSize="11" textAnchor="start">225k</text>
-              <text x="990" y="164" fill="#94a3b8" fontSize="11" textAnchor="start">150k</text>
-              <text x="990" y="199" fill="#94a3b8" fontSize="11" textAnchor="start">75k</text>
-              <text x="990" y="224" fill="#94a3b8" fontSize="11" textAnchor="start">0</text>
+              <text x="990" y="24" fill="#94a3b8" fontSize="11" textAnchor="start">
+                450k
+              </text>
+              <text x="990" y="59" fill="#94a3b8" fontSize="11" textAnchor="start">
+                375k
+              </text>
+              <text x="990" y="94" fill="#94a3b8" fontSize="11" textAnchor="start">
+                300k
+              </text>
+              <text x="990" y="129" fill="#94a3b8" fontSize="11" textAnchor="start">
+                225k
+              </text>
+              <text x="990" y="164" fill="#94a3b8" fontSize="11" textAnchor="start">
+                150k
+              </text>
+              <text x="990" y="199" fill="#94a3b8" fontSize="11" textAnchor="start">
+                75k
+              </text>
+              <text x="990" y="224" fill="#94a3b8" fontSize="11" textAnchor="start">
+                0
+              </text>
 
               {/* Sales Grey Area */}
               <path

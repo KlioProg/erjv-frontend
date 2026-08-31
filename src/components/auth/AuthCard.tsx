@@ -108,12 +108,8 @@ export function AuthCard({ mode, onModeChange }: AuthCardProps) {
             className="w-full"
           >
             <TabsList className="grid w-full grid-cols-2 p-1 bg-secondary/80">
-              <TabsTrigger value="login">
-                Sign In
-              </TabsTrigger>
-              <TabsTrigger value="signup">
-                Register
-              </TabsTrigger>
+              <TabsTrigger value="login">Sign In</TabsTrigger>
+              <TabsTrigger value="signup">Register</TabsTrigger>
             </TabsList>
 
             <TabsContent

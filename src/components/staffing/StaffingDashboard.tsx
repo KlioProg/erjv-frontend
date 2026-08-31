@@ -1,13 +1,5 @@
 import { useState } from 'react'
-import {
-  Users,
-  Briefcase,
-  Layers,
-  Shield,
-  LogOut,
-  Package,
-  Sparkles,
-} from 'lucide-react'
+import { Users, Briefcase, Layers, Shield, LogOut, Package, Sparkles } from 'lucide-react'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -35,7 +27,7 @@ export function StaffingDashboard({ onSwitchToOperations }: StaffingDashboardPro
   const { data: products = [] } = useProducts()
 
   const [activeTab, setActiveTab] = useState<'employees' | 'jobs' | 'grouping' | 'users'>(
-    'employees'
+    'employees',
   )
   const [isProductsModalOpen, setIsProductsModalOpen] = useState(false)
 
@@ -50,7 +42,10 @@ export function StaffingDashboard({ onSwitchToOperations }: StaffingDashboardPro
           <div className="flex items-center gap-6">
             <ErjvPosLogo />
             <div className="hidden md:flex items-center gap-1.5 pl-6 border-l border-border">
-              <Badge variant="secondary" className="gap-1 text-[11px] font-semibold text-primary bg-primary/10">
+              <Badge
+                variant="secondary"
+                className="gap-1 text-[11px] font-semibold text-primary bg-primary/10"
+              >
                 <Sparkles className="size-3" />
                 Staffing & HR Management
               </Badge>
@@ -167,7 +162,10 @@ export function StaffingDashboard({ onSwitchToOperations }: StaffingDashboardPro
             </div>
           </Card>
 
-          <Card className="p-4 shadow-xs cursor-pointer hover:border-primary/40 transition-colors" onClick={() => setIsProductsModalOpen(true)}>
+          <Card
+            className="p-4 shadow-xs cursor-pointer hover:border-primary/40 transition-colors"
+            onClick={() => setIsProductsModalOpen(true)}
+          >
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium text-muted-foreground">Inventory Items</span>
               <div className="flex size-7 items-center justify-center rounded-lg bg-orange-500/10 text-orange-600">
@@ -233,10 +231,7 @@ export function StaffingDashboard({ onSwitchToOperations }: StaffingDashboardPro
       </main>
 
       {/* Product Catalog Live Modal */}
-      <ProductListModal
-        open={isProductsModalOpen}
-        onClose={() => setIsProductsModalOpen(false)}
-      />
+      <ProductListModal open={isProductsModalOpen} onClose={() => setIsProductsModalOpen(false)} />
     </div>
   )
 }

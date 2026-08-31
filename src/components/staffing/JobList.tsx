@@ -153,7 +153,9 @@ export function JobList() {
                     <div className="flex items-center gap-2">
                       <div
                         className={`flex size-8 items-center justify-center rounded-lg ${
-                          isArchived ? 'bg-muted text-muted-foreground' : 'bg-primary/10 text-primary'
+                          isArchived
+                            ? 'bg-muted text-muted-foreground'
+                            : 'bg-primary/10 text-primary'
                         }`}
                       >
                         <Briefcase className="size-4" />
@@ -222,11 +224,7 @@ export function JobList() {
         </div>
       )}
 
-      <JobModal
-        job={selectedJob}
-        open={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-      />
+      <JobModal job={selectedJob} open={isModalOpen} onClose={() => setIsModalOpen(false)} />
 
       <ConfirmDeleteModal
         open={!!jobToDeactivate}

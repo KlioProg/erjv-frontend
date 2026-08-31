@@ -41,16 +41,13 @@ export function MainDashboard() {
 
   const totalStockUnits = useMemo(
     () => stockItems.reduce((acc, s) => acc + parseFloat(s.quantity || '0'), 0),
-    [stockItems]
+    [stockItems],
   )
   const availableVehiclesCount = useMemo(
     () => vehicles.filter((v) => v.status === 'AVAILABLE').length,
-    [vehicles]
+    [vehicles],
   )
-  const activeStaffCount = useMemo(
-    () => employees.filter((e) => e.isActive).length,
-    [employees]
-  )
+  const activeStaffCount = useMemo(() => employees.filter((e) => e.isActive).length, [employees])
 
   const isOperationsTab =
     currentTab === 'inventory' || currentTab === 'warehouses' || currentTab === 'fleet'
@@ -72,29 +69,38 @@ export function MainDashboard() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5">
             <Card className="p-4 bg-card border-border/80 shadow-xs flex flex-col justify-between rounded-2xl">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-muted-foreground">Warehouse Locations</span>
+                <span className="text-xs font-semibold text-muted-foreground">
+                  Warehouse Locations
+                </span>
                 <div className="p-2 rounded-xl bg-primary/10 text-primary">
                   <WarehouseIcon className="size-4" />
                 </div>
               </div>
               <div className="mt-3">
                 <div className="text-2xl font-extrabold text-foreground">{warehouses.length}</div>
-                <p className="text-[11px] text-muted-foreground mt-0.5">Active facilities & storage hubs</p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Active facilities & storage hubs
+                </p>
               </div>
             </Card>
 
             <Card className="p-4 bg-card border-border/80 shadow-xs flex flex-col justify-between rounded-2xl">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-muted-foreground">Total Stored Units</span>
+                <span className="text-xs font-semibold text-muted-foreground">
+                  Total Stored Units
+                </span>
                 <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-600">
                   <Boxes className="size-4" />
                 </div>
               </div>
               <div className="mt-3">
                 <div className="text-2xl font-extrabold text-foreground">
-                  {totalStockUnits.toLocaleString()} <span className="text-sm font-semibold text-muted-foreground">units</span>
+                  {totalStockUnits.toLocaleString()}{' '}
+                  <span className="text-sm font-semibold text-muted-foreground">units</span>
                 </div>
-                <p className="text-[11px] text-muted-foreground mt-0.5">Inventory across storage hubs</p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Inventory across storage hubs
+                </p>
               </div>
             </Card>
 
@@ -108,7 +114,9 @@ export function MainDashboard() {
               <div className="mt-3">
                 <div className="text-2xl font-extrabold text-foreground">
                   {availableVehiclesCount}{' '}
-                  <span className="text-sm font-normal text-muted-foreground">/ {vehicles.length} vehicles</span>
+                  <span className="text-sm font-normal text-muted-foreground">
+                    / {vehicles.length} vehicles
+                  </span>
                 </div>
                 <p className="text-[11px] text-muted-foreground mt-0.5">Ready for order dispatch</p>
               </div>
@@ -116,14 +124,18 @@ export function MainDashboard() {
 
             <Card className="p-4 bg-card border-border/80 shadow-xs flex flex-col justify-between rounded-2xl">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-muted-foreground">Catalog Products</span>
+                <span className="text-xs font-semibold text-muted-foreground">
+                  Catalog Products
+                </span>
                 <div className="p-2 rounded-xl bg-amber-500/10 text-amber-600">
                   <Package className="size-4" />
                 </div>
               </div>
               <div className="mt-3">
                 <div className="text-2xl font-extrabold text-foreground">{products.length}</div>
-                <p className="text-[11px] text-muted-foreground mt-0.5">Active product catalog items</p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Active product catalog items
+                </p>
               </div>
             </Card>
           </div>
@@ -134,14 +146,18 @@ export function MainDashboard() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
             <Card className="p-4 bg-card border-border/80 shadow-xs flex flex-col justify-between rounded-2xl">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-muted-foreground">Commercial Clients</span>
+                <span className="text-xs font-semibold text-muted-foreground">
+                  Commercial Clients
+                </span>
                 <div className="p-2 rounded-xl bg-primary/10 text-primary">
                   <Building2 className="size-4" />
                 </div>
               </div>
               <div className="mt-3">
                 <div className="text-2xl font-extrabold text-foreground">{clients.length}</div>
-                <p className="text-[11px] text-muted-foreground mt-0.5">Supermarkets, distributors & retailers</p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Supermarkets, distributors & retailers
+                </p>
               </div>
             </Card>
 
@@ -153,20 +169,28 @@ export function MainDashboard() {
                 </div>
               </div>
               <div className="mt-3">
-                <div className="text-2xl font-extrabold text-foreground">{products.length} Products</div>
-                <p className="text-[11px] text-muted-foreground mt-0.5">Ready for POS & wholesale orders</p>
+                <div className="text-2xl font-extrabold text-foreground">
+                  {products.length} Products
+                </div>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Ready for POS & wholesale orders
+                </p>
               </div>
             </Card>
 
             <Card className="p-4 bg-card border-border/80 shadow-xs flex flex-col justify-between rounded-2xl">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-muted-foreground">Delivery Fleet Ready</span>
+                <span className="text-xs font-semibold text-muted-foreground">
+                  Delivery Fleet Ready
+                </span>
                 <div className="p-2 rounded-xl bg-blue-500/10 text-blue-600">
                   <Truck className="size-4" />
                 </div>
               </div>
               <div className="mt-3">
-                <div className="text-2xl font-extrabold text-foreground">{availableVehiclesCount} Vehicles</div>
+                <div className="text-2xl font-extrabold text-foreground">
+                  {availableVehiclesCount} Vehicles
+                </div>
                 <p className="text-[11px] text-muted-foreground mt-0.5">Fleet units on standby</p>
               </div>
             </Card>
@@ -178,27 +202,35 @@ export function MainDashboard() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
             <Card className="p-4 bg-card border-border/80 shadow-xs flex flex-col justify-between rounded-2xl">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-muted-foreground">Active Staff Members</span>
+                <span className="text-xs font-semibold text-muted-foreground">
+                  Active Staff Members
+                </span>
                 <div className="p-2 rounded-xl bg-primary/10 text-primary">
                   <Users className="size-4" />
                 </div>
               </div>
               <div className="mt-3">
                 <div className="text-2xl font-extrabold text-foreground">{activeStaffCount}</div>
-                <p className="text-[11px] text-muted-foreground mt-0.5">Operations, logistics & administration</p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Operations, logistics & administration
+                </p>
               </div>
             </Card>
 
             <Card className="p-4 bg-card border-border/80 shadow-xs flex flex-col justify-between rounded-2xl">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-muted-foreground">Job Roles Defined</span>
+                <span className="text-xs font-semibold text-muted-foreground">
+                  Job Roles Defined
+                </span>
                 <div className="p-2 rounded-xl bg-purple-500/10 text-purple-600">
                   <Briefcase className="size-4" />
                 </div>
               </div>
               <div className="mt-3">
                 <div className="text-2xl font-extrabold text-foreground">{jobs.length}</div>
-                <p className="text-[11px] text-muted-foreground mt-0.5">Organizational designations</p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Organizational designations
+                </p>
               </div>
             </Card>
 
@@ -210,8 +242,12 @@ export function MainDashboard() {
                 </div>
               </div>
               <div className="mt-3">
-                <div className="text-2xl font-extrabold text-foreground">{warehouses.length} Facilities</div>
-                <p className="text-[11px] text-muted-foreground mt-0.5">Fulfillment & distribution centers</p>
+                <div className="text-2xl font-extrabold text-foreground">
+                  {warehouses.length} Facilities
+                </div>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Fulfillment & distribution centers
+                </p>
               </div>
             </Card>
           </div>

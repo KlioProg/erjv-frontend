@@ -1,12 +1,5 @@
 import { useState } from 'react'
-import {
-  User,
-  Search,
-  CheckCircle2,
-  Calendar,
-  Shield,
-  Sparkles,
-} from 'lucide-react'
+import { User, Search, CheckCircle2, Calendar, Shield, Sparkles } from 'lucide-react'
 import {
   Table,
   TableBody,
@@ -42,14 +35,15 @@ export function UserRolesList() {
   const [searchQuery, setSearchQuery] = useState('')
   const [updatingId, setUpdatingId] = useState<number | null>(null)
 
-  const filteredUsers = users.filter((u) =>
-    u.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (u.fullName && u.fullName.toLowerCase().includes(searchQuery.toLowerCase()))
+  const filteredUsers = users.filter(
+    (u) =>
+      u.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (u.fullName && u.fullName.toLowerCase().includes(searchQuery.toLowerCase())),
   )
 
   const getLinkedEmployee = (userId: number, email?: string) => {
     return employees.find(
-      (e) => e.userId === userId || (email && e.email?.toLowerCase() === email.toLowerCase())
+      (e) => e.userId === userId || (email && e.email?.toLowerCase() === email.toLowerCase()),
     )
   }
 
@@ -77,7 +71,11 @@ export function UserRolesList() {
             User Accounts & System Roles
           </h3>
           <p className="text-xs text-muted-foreground">
-            Assign system permission tiers (<strong className="text-primary font-bold">OWNER</strong>, <strong className="text-foreground font-semibold">ADMIN</strong>, or <strong className="text-muted-foreground">STAFF</strong>) to any registered user from the database.
+            Assign system permission tiers (
+            <strong className="text-primary font-bold">OWNER</strong>,{' '}
+            <strong className="text-foreground font-semibold">ADMIN</strong>, or{' '}
+            <strong className="text-muted-foreground">STAFF</strong>) to any registered user from
+            the database.
           </p>
         </div>
 
@@ -126,7 +124,9 @@ export function UserRolesList() {
                 const isUpdating = updatingId === u.id
                 const displayName =
                   u.fullName ||
-                  (linkedEmp ? `${linkedEmp.firstName} ${linkedEmp.lastName}` : u.email.split('@')[0])
+                  (linkedEmp
+                    ? `${linkedEmp.firstName} ${linkedEmp.lastName}`
+                    : u.email.split('@')[0])
                 const initial = displayName.charAt(0).toUpperCase()
 
                 return (
@@ -156,7 +156,10 @@ export function UserRolesList() {
                           <span>
                             {linkedEmp.firstName} {linkedEmp.lastName}
                           </span>
-                          <Badge variant="outline" className="text-[9px] py-0 px-1 text-muted-foreground font-normal">
+                          <Badge
+                            variant="outline"
+                            className="text-[9px] py-0 px-1 text-muted-foreground font-normal"
+                          >
                             Staff #{linkedEmp.id}
                           </Badge>
                         </div>
@@ -188,16 +191,16 @@ export function UserRolesList() {
                     <TableCell className="text-right">
                       <div className="inline-flex items-center justify-end w-36">
                         <Select
-                          value={normalizeUserRole(u.role || (u as unknown as Record<string, unknown>).userRole)}
-                          onValueChange={(val) => handleRoleChange(u.id, val as UserRole, displayName)}
+                          value={normalizeUserRole(
+                            u.role || (u as unknown as Record<string, unknown>).userRole,
+                          )}
+                          onValueChange={(val) =>
+                            handleRoleChange(u.id, val as UserRole, displayName)
+                          }
                           disabled={isUpdating}
                         >
                           <SelectTrigger className="h-8 text-xs font-semibold cursor-pointer">
-                            {isUpdating ? (
-                              <Spinner className="size-3 mr-1" />
-                            ) : (
-                              <SelectValue />
-                            )}
+                            {isUpdating ? <Spinner className="size-3 mr-1" /> : <SelectValue />}
                           </SelectTrigger>
                           <SelectContent align="end">
                             <SelectGroup>
@@ -207,7 +210,9 @@ export function UserRolesList() {
                                 </span>
                               </SelectItem>
                               <SelectItem value="ADMIN">
-                                <span className="font-semibold text-foreground">ADMIN (Operations)</span>
+                                <span className="font-semibold text-foreground">
+                                  ADMIN (Operations)
+                                </span>
                               </SelectItem>
                               <SelectItem value="STAFF">
                                 <span className="text-muted-foreground">STAFF (Restricted)</span>

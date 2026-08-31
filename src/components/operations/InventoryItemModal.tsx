@@ -62,11 +62,12 @@ function ItemFormContent({
   const [name, setName] = useState(item?.name || '')
   const [variety, setVariety] = useState(item?.variety || '')
   const [unitPrice, setUnitPrice] = useState<string>(
-    item?.unitPrice !== undefined ? String(item.unitPrice) : ''
+    item?.unitPrice !== undefined ? String(item.unitPrice) : '',
   )
   const [description, setDescription] = useState(item?.description || '')
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
-  const [deactivatedProductMatch, setDeactivatedProductMatch] = useState<InventoryItemResponse | null>(null)
+  const [deactivatedProductMatch, setDeactivatedProductMatch] =
+    useState<InventoryItemResponse | null>(null)
   const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = useState(false)
 
   // Warehouse Initial Stock Allocations map: { [warehouseId]: quantityString }
@@ -98,19 +99,30 @@ function ItemFormContent({
         // Ignore
       }
 
-      if (backendMatch && typeof backendMatch === 'object' && backendMatch.id && backendMatch.isActive === false) {
+      if (
+        backendMatch &&
+        typeof backendMatch === 'object' &&
+        backendMatch.id &&
+        backendMatch.isActive === false
+      ) {
         setDeactivatedProductMatch(backendMatch)
         setErrorMsg(
-          `Product with name "${cleanName}" is currently deactivated. You can reactivate it directly.`
+          `Product with name "${cleanName}" is currently deactivated. You can reactivate it directly.`,
         )
         return
       }
 
       // Check if active duplicate exists in current catalog or server
       const isDuplicate = allProducts.some(
-        (p) => p.name.toLowerCase().trim() === cleanName.toLowerCase() && p.isActive !== false
+        (p) => p.name.toLowerCase().trim() === cleanName.toLowerCase() && p.isActive !== false,
       )
-      if (isDuplicate || (backendMatch && typeof backendMatch === 'object' && backendMatch.id && backendMatch.isActive !== false)) {
+      if (
+        isDuplicate ||
+        (backendMatch &&
+          typeof backendMatch === 'object' &&
+          backendMatch.id &&
+          backendMatch.isActive !== false)
+      ) {
         setErrorMsg(`A product with the name "${cleanName}" is already active in the catalog.`)
         return
       }
@@ -232,7 +244,9 @@ function ItemFormContent({
           <div className="flex-1 text-xs">
             <p className="font-bold text-foreground">Deactivated Product Found</p>
             <p className="text-muted-foreground mt-0.5 leading-relaxed">
-              An archived catalog item for <strong className="text-foreground">{deactivatedProductMatch.name}</strong> already exists. Click <strong>"Reactivate Product"</strong> below to restore it.
+              An archived catalog item for{' '}
+              <strong className="text-foreground">{deactivatedProductMatch.name}</strong> already
+              exists. Click <strong>"Reactivate Product"</strong> below to restore it.
             </p>
           </div>
         </div>
@@ -285,7 +299,8 @@ function ItemFormContent({
         <div className="flex flex-col gap-1.5">
           <div className="flex items-center justify-between">
             <Label htmlFor="item-price" className="text-xs font-semibold text-foreground/90">
-              Standard Wholesale Unit Price (₱ PHP) {!isEditing && <span className="text-primary">*</span>}
+              Standard Wholesale Unit Price (₱ PHP){' '}
+              {!isEditing && <span className="text-primary">*</span>}
             </Label>
             <span className="text-[11px] font-bold text-emerald-600 flex items-center gap-1">
               <Sparkles className="size-3" />
@@ -318,7 +333,9 @@ function ItemFormContent({
               <WarehouseIcon className="size-4 text-primary" />
               Warehouse Stock Distribution (Assign across 1, 2, or All Facilities)
             </Label>
-            <span className="text-[11px] text-muted-foreground font-medium">Optional initial allocation</span>
+            <span className="text-[11px] text-muted-foreground font-medium">
+              Optional initial allocation
+            </span>
           </div>
 
           <p className="text-[11px] text-muted-foreground">
@@ -334,7 +351,10 @@ function ItemFormContent({
                   className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-muted/40 border border-border/70"
                 >
                   <div className="min-w-0 flex-1">
-                    <span className="text-xs font-bold text-foreground block truncate" title={wh.name}>
+                    <span
+                      className="text-xs font-bold text-foreground block truncate"
+                      title={wh.name}
+                    >
                       {wh.name}
                     </span>
                     <span className="text-[10px] text-muted-foreground block truncate">
@@ -417,7 +437,11 @@ function ItemFormContent({
                 )}
               </Button>
             ) : (
-              <Button type="submit" disabled={isPending} className="font-semibold shadow-xs cursor-pointer transition-all duration-300">
+              <Button
+                type="submit"
+                disabled={isPending}
+                className="font-semibold shadow-xs cursor-pointer transition-all duration-300"
+              >
                 {isPending ? (
                   <>
                     <Spinner data-icon="inline-start" />

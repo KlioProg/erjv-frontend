@@ -13,7 +13,7 @@ export async function fetchWarehousesApi(params?: FetchParams): Promise<Warehous
 export async function fetchWarehouseByNameApi(name: string): Promise<Warehouse | null> {
   try {
     const { data } = await apiClient.get<Warehouse>(
-      `/warehouses/name/${encodeURIComponent(name.trim())}`
+      `/warehouses/name/${encodeURIComponent(name.trim())}`,
     )
     return data
   } catch {
@@ -40,7 +40,7 @@ export async function createWarehouseApi(payload: CreateWarehousePayload): Promi
 
 export async function updateWarehouseDetailsApi(
   id: number,
-  payload: UpdateWarehouseDetailsPayload
+  payload: UpdateWarehouseDetailsPayload,
 ): Promise<Warehouse> {
   const cleanPayload = {
     ...(payload.name ? { name: payload.name.trim() } : {}),

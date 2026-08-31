@@ -58,7 +58,7 @@ export function ClientList() {
       c.address.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (c.contactPerson && c.contactPerson.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (c.phone && c.phone.includes(searchTerm)) ||
-      (c.email && c.email.toLowerCase().includes(searchTerm.toLowerCase()))
+      (c.email && c.email.toLowerCase().includes(searchTerm.toLowerCase())),
   )
 
   const handleCreate = () => {
@@ -152,11 +152,16 @@ export function ClientList() {
               {searchTerm
                 ? 'No client accounts match your search filter.'
                 : activeTab === 'ACTIVE'
-                ? 'Register commercial buyers and supermarket clients to manage wholesale accounts.'
-                : 'Deactivated client profiles will appear here and can be reactivated at any time.'}
+                  ? 'Register commercial buyers and supermarket clients to manage wholesale accounts.'
+                  : 'Deactivated client profiles will appear here and can be reactivated at any time.'}
             </p>
             {!searchTerm && activeTab === 'ACTIVE' && (
-              <Button onClick={handleCreate} size="sm" variant="outline" className="mt-4 gap-1.5 cursor-pointer">
+              <Button
+                onClick={handleCreate}
+                size="sm"
+                variant="outline"
+                className="mt-4 gap-1.5 cursor-pointer"
+              >
                 <Plus className="size-3.5" />
                 Register First Client
               </Button>
@@ -180,7 +185,9 @@ export function ClientList() {
                     <div className="flex items-start gap-3 min-w-0">
                       <div
                         className={`flex size-10 shrink-0 items-center justify-center rounded-xl transition-transform group-hover:scale-105 ${
-                          isArchived ? 'bg-muted text-muted-foreground' : 'bg-primary/10 text-primary'
+                          isArchived
+                            ? 'bg-muted text-muted-foreground'
+                            : 'bg-primary/10 text-primary'
                         }`}
                       >
                         <Building2 className="size-5" />
@@ -191,7 +198,10 @@ export function ClientList() {
                             {client.name}
                           </h4>
                           {isArchived && (
-                            <Badge variant="outline" className="border-amber-500/30 bg-amber-500/10 text-amber-600 text-[10px] font-bold">
+                            <Badge
+                              variant="outline"
+                              className="border-amber-500/30 bg-amber-500/10 text-amber-600 text-[10px] font-bold"
+                            >
                               Deactivated
                             </Badge>
                           )}
@@ -231,7 +241,10 @@ export function ClientList() {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => handleEdit(client)} className="gap-2 text-xs cursor-pointer">
+                              <DropdownMenuItem
+                                onClick={() => handleEdit(client)}
+                                className="gap-2 text-xs cursor-pointer"
+                              >
                                 <Edit2 className="size-3.5" />
                                 Edit Details
                               </DropdownMenuItem>
@@ -275,7 +288,10 @@ export function ClientList() {
                       ID: #{client.id.toString().padStart(4, '0')}
                     </span>
                     {!isArchived && (
-                      <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-600 border-emerald-500/20 font-medium gap-1">
+                      <Badge
+                        variant="outline"
+                        className="text-[10px] bg-emerald-500/10 text-emerald-600 border-emerald-500/20 font-medium gap-1"
+                      >
                         <CheckCircle2 className="size-2.5" />
                         Active Client
                       </Badge>
@@ -301,7 +317,11 @@ export function ClientList() {
         title="Deactivate Commercial Client"
         description="Are you sure you want to deactivate this client profile? Active orders, customer details, and invoices will be archived."
         itemName={clientToDeactivate?.name}
-        itemDetails={clientToDeactivate ? `Contact: ${clientToDeactivate.contactPerson || 'N/A'} • ${clientToDeactivate.phone || 'No phone'}` : undefined}
+        itemDetails={
+          clientToDeactivate
+            ? `Contact: ${clientToDeactivate.contactPerson || 'N/A'} • ${clientToDeactivate.phone || 'No phone'}`
+            : undefined
+        }
         confirmText="Deactivate Client"
         variant="destructive"
       />

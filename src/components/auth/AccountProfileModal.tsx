@@ -110,7 +110,8 @@ function AccountProfileForm({ onClose }: { onClose: () => void }) {
     }
   }
 
-  const displayName = fullName.trim() || user?.fullName || (user?.email ? user.email.split('@')[0] : 'User')
+  const displayName =
+    fullName.trim() || user?.fullName || (user?.email ? user.email.split('@')[0] : 'User')
   const userInitial = displayName.charAt(0).toUpperCase()
 
   return (
@@ -120,7 +121,9 @@ function AccountProfileForm({ onClose }: { onClose: () => void }) {
         <div className="flex flex-col sm:flex-row items-center gap-4">
           <div className="relative group shrink-0">
             <Avatar className="size-20 border-2 border-primary/30 shadow-md bg-card">
-              {avatarUrl && <AvatarImage src={avatarUrl} alt={displayName} className="object-cover" />}
+              {avatarUrl && (
+                <AvatarImage src={avatarUrl} alt={displayName} className="object-cover" />
+              )}
               <AvatarFallback className="bg-primary/15 text-primary text-2xl font-extrabold">
                 {userInitial}
               </AvatarFallback>
@@ -147,7 +150,10 @@ function AccountProfileForm({ onClose }: { onClose: () => void }) {
           <div className="flex flex-col gap-1 text-center sm:text-left flex-1 min-w-0">
             <div className="flex items-center justify-center sm:justify-start gap-2">
               <span className="text-xs font-bold text-foreground">Profile Picture</span>
-              <Badge variant="outline" className="text-[10px] bg-primary/10 text-primary border-primary/20">
+              <Badge
+                variant="outline"
+                className="text-[10px] bg-primary/10 text-primary border-primary/20"
+              >
                 {user?.role || 'OWNER'}
               </Badge>
             </div>
@@ -293,7 +299,9 @@ function AccountProfileForm({ onClose }: { onClose: () => void }) {
       <DialogFooter className="gap-2 pt-2 border-t sm:justify-between">
         <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
           <Shield className="size-3.5 text-emerald-600 shrink-0" />
-          <span>Role: <strong className="text-foreground">{user?.role || 'OWNER'}</strong></span>
+          <span>
+            Role: <strong className="text-foreground">{user?.role || 'OWNER'}</strong>
+          </span>
         </div>
 
         <div className="flex items-center gap-2">

@@ -29,13 +29,7 @@ type ClientModalProps = {
   onClose: () => void
 }
 
-function ClientFormContent({
-  client,
-  onClose,
-}: {
-  client: Client | null
-  onClose: () => void
-}) {
+function ClientFormContent({ client, onClose }: { client: Client | null; onClose: () => void }) {
   const isEditing = !!client
   const { data: allClients = [] } = useClients()
   const createMutation = useCreateClient()
@@ -75,23 +69,23 @@ function ClientFormContent({
       }
 
       const backendInactive = backendMatches.find(
-        (c) => c.name.toUpperCase().trim() === cleanName.toUpperCase() && c.isActive === false
+        (c) => c.name.toUpperCase().trim() === cleanName.toUpperCase() && c.isActive === false,
       )
 
       if (backendInactive) {
         setDeactivatedClientMatch(backendInactive)
         setErrorMsg(
-          `Client account "${cleanName}" is currently deactivated. You can reactivate it directly.`
+          `Client account "${cleanName}" is currently deactivated. You can reactivate it directly.`,
         )
         return
       }
 
       // 2. Check if active duplicate exists
       const isNameDup = allClients.some(
-        (c) => c.name.toLowerCase().trim() === cleanName.toLowerCase() && c.isActive !== false
+        (c) => c.name.toLowerCase().trim() === cleanName.toLowerCase() && c.isActive !== false,
       )
       const backendActive = backendMatches.find(
-        (c) => c.name.toUpperCase().trim() === cleanName.toUpperCase() && c.isActive !== false
+        (c) => c.name.toUpperCase().trim() === cleanName.toUpperCase() && c.isActive !== false,
       )
       if (isNameDup || backendActive) {
         setErrorMsg(`A client account with the name "${cleanName}" is already registered.`)
@@ -102,7 +96,7 @@ function ClientFormContent({
     const cleanEmail = email.trim().toLowerCase()
     if (cleanEmail) {
       const isEmailDup = allClients.some(
-        (c) => c.id !== client?.id && c.email?.toLowerCase().trim() === cleanEmail
+        (c) => c.id !== client?.id && c.email?.toLowerCase().trim() === cleanEmail,
       )
       if (isEmailDup) {
         setErrorMsg(`A client with email "${cleanEmail}" already exists.`)
@@ -178,7 +172,10 @@ function ClientFormContent({
           <div className="flex-1 text-xs">
             <p className="font-bold text-foreground">Deactivated Client Found</p>
             <p className="text-muted-foreground mt-0.5 leading-relaxed">
-              An archived account for <strong className="text-foreground">{deactivatedClientMatch.name}</strong> ({deactivatedClientMatch.address}) already exists. Click <strong>"Reactivate Client"</strong> below to restore it.
+              An archived account for{' '}
+              <strong className="text-foreground">{deactivatedClientMatch.name}</strong> (
+              {deactivatedClientMatch.address}) already exists. Click{' '}
+              <strong>"Reactivate Client"</strong> below to restore it.
             </p>
           </div>
         </div>
@@ -298,7 +295,11 @@ function ClientFormContent({
               )}
             </Button>
           ) : (
-            <Button type="submit" disabled={isPending} className="font-semibold shadow-xs cursor-pointer transition-all duration-300">
+            <Button
+              type="submit"
+              disabled={isPending}
+              className="font-semibold shadow-xs cursor-pointer transition-all duration-300"
+            >
               {isPending ? (
                 <>
                   <Spinner data-icon="inline-start" />

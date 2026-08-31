@@ -54,9 +54,12 @@ export function InventoryStockList() {
 
   // Modals state
   const [isCatalogModalOpen, setIsCatalogModalOpen] = useState(false)
-  const [selectedProductForEdit, setSelectedProductForEdit] = useState<InventoryItemResponse | null>(null)
-  const [selectedStockForAdjust, setSelectedStockForAdjust] = useState<StockItemWithRelations | null>(null)
-  const [selectedProductForAllocate, setSelectedProductForAllocate] = useState<InventoryItemResponse | null>(null)
+  const [selectedProductForEdit, setSelectedProductForEdit] =
+    useState<InventoryItemResponse | null>(null)
+  const [selectedStockForAdjust, setSelectedStockForAdjust] =
+    useState<StockItemWithRelations | null>(null)
+  const [selectedProductForAllocate, setSelectedProductForAllocate] =
+    useState<InventoryItemResponse | null>(null)
   const [isAdjustModalOpen, setIsAdjustModalOpen] = useState(false)
   const [productToDelete, setProductToDelete] = useState<InventoryItemResponse | null>(null)
   const [stockToDelete, setStockToDelete] = useState<{
@@ -87,7 +90,7 @@ export function InventoryStockList() {
 
     const whId = parseInt(selectedWarehouseFilter, 10)
     const hasStockInWh = stockItems.some(
-      (s) => s.inventoryItemId === p.id && s.warehouseId === whId && parseFloat(s.quantity) > 0
+      (s) => s.inventoryItemId === p.id && s.warehouseId === whId && parseFloat(s.quantity) > 0,
     )
     return matchesSearch && hasStockInWh
   })
@@ -133,7 +136,7 @@ export function InventoryStockList() {
   const handleRemoveStockAllocation = (
     stock: StockItemWithRelations,
     prodName: string,
-    whName: string
+    whName: string,
   ) => {
     setStockToDelete({ stock, prodName, whName })
   }
@@ -214,7 +217,11 @@ export function InventoryStockList() {
 
         {(isOwner || isAdmin) && activeTab === 'ACTIVE' && (
           <div className="flex items-center gap-2">
-            <Button onClick={handleCreateProduct} size="sm" className="gap-1.5 shadow-xs font-semibold cursor-pointer">
+            <Button
+              onClick={handleCreateProduct}
+              size="sm"
+              className="gap-1.5 shadow-xs font-semibold cursor-pointer"
+            >
               <Plus className="size-4" />
               Register Product
             </Button>
@@ -238,15 +245,23 @@ export function InventoryStockList() {
               {searchTerm || selectedWarehouseFilter !== 'ALL'
                 ? 'No products match your search filter or selected warehouse.'
                 : activeTab === 'ACTIVE'
-                ? 'Get started by creating your wholesale and retail inventory products.'
-                : 'Deactivated inventory items will appear here and can be reactivated at any time.'}
+                  ? 'Get started by creating your wholesale and retail inventory products.'
+                  : 'Deactivated inventory items will appear here and can be reactivated at any time.'}
             </p>
-            {(isOwner || isAdmin) && !searchTerm && selectedWarehouseFilter === 'ALL' && activeTab === 'ACTIVE' && (
-              <Button onClick={handleCreateProduct} size="sm" variant="outline" className="mt-4 gap-1.5 cursor-pointer">
-                <Plus className="size-3.5" />
-                Register First Product
-              </Button>
-            )}
+            {(isOwner || isAdmin) &&
+              !searchTerm &&
+              selectedWarehouseFilter === 'ALL' &&
+              activeTab === 'ACTIVE' && (
+                <Button
+                  onClick={handleCreateProduct}
+                  size="sm"
+                  variant="outline"
+                  className="mt-4 gap-1.5 cursor-pointer"
+                >
+                  <Plus className="size-3.5" />
+                  Register First Product
+                </Button>
+              )}
           </CardContent>
         </Card>
       ) : (
@@ -269,7 +284,9 @@ export function InventoryStockList() {
                     <div className="flex items-start gap-3.5 min-w-0 flex-1">
                       <div
                         className={`flex size-11 shrink-0 items-center justify-center rounded-2xl shadow-2xs ${
-                          isArchived ? 'bg-muted text-muted-foreground' : 'bg-primary/10 text-primary'
+                          isArchived
+                            ? 'bg-muted text-muted-foreground'
+                            : 'bg-primary/10 text-primary'
                         }`}
                       >
                         <Package className="size-5" />
@@ -280,7 +297,10 @@ export function InventoryStockList() {
                             {prod.name}
                           </h4>
                           {prod.variety && (
-                            <Badge variant="outline" className="text-[10px] px-2 py-0.5 bg-muted/50 border-border text-foreground font-semibold">
+                            <Badge
+                              variant="outline"
+                              className="text-[10px] px-2 py-0.5 bg-muted/50 border-border text-foreground font-semibold"
+                            >
                               <Tag className="size-2.5 mr-1 text-primary" />
                               {prod.variety}
                             </Badge>
@@ -314,7 +334,11 @@ export function InventoryStockList() {
                           Wholesale Price
                         </span>
                         <span className="text-sm font-bold text-foreground block">
-                          ₱{prod.unitPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          ₱
+                          {prod.unitPrice.toLocaleString('en-US', {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}
                         </span>
                       </div>
 
@@ -416,7 +440,8 @@ export function InventoryStockList() {
                   ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                       {stockInHubs.map((stock) => {
-                        const wh = stock.warehouse || warehouses.find((w) => w.id === stock.warehouseId)
+                        const wh =
+                          stock.warehouse || warehouses.find((w) => w.id === stock.warehouseId)
                         const whDisplayName = wh?.name || `Warehouse #${stock.warehouseId}`
 
                         return (
@@ -425,7 +450,10 @@ export function InventoryStockList() {
                             className="flex items-center justify-between p-3.5 rounded-2xl bg-card border border-border/80 shadow-2xs hover:border-primary/40 transition-all gap-3"
                           >
                             <div className="min-w-0 flex-1">
-                              <span className="text-xs font-bold text-foreground truncate block leading-tight" title={whDisplayName}>
+                              <span
+                                className="text-xs font-bold text-foreground truncate block leading-tight"
+                                title={whDisplayName}
+                              >
                                 {whDisplayName}
                               </span>
                               <div className="flex items-baseline gap-1.5 mt-1.5">
@@ -452,7 +480,9 @@ export function InventoryStockList() {
                                 <Button
                                   variant="ghost"
                                   size="icon"
-                                  onClick={() => handleRemoveStockAllocation(stock, prod.name, whDisplayName)}
+                                  onClick={() =>
+                                    handleRemoveStockAllocation(stock, prod.name, whDisplayName)
+                                  }
                                   className="size-7.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-xl cursor-pointer"
                                   title={`Remove allocation from ${whDisplayName}`}
                                 >
@@ -499,7 +529,11 @@ export function InventoryStockList() {
         title="Delete Product from Active Catalog"
         description="Are you sure you want to delete this product? It will be deactivated and no longer available for point-of-sale checkout or warehouse intake."
         itemName={productToDelete?.name}
-        itemDetails={productToDelete ? `₱${Number(productToDelete.unitPrice || 0).toFixed(2)} / unit` : undefined}
+        itemDetails={
+          productToDelete
+            ? `₱${Number(productToDelete.unitPrice || 0).toFixed(2)} / unit`
+            : undefined
+        }
         confirmText="Delete Product"
         variant="destructive"
       />
@@ -512,7 +546,11 @@ export function InventoryStockList() {
         title="Remove Stock Allocation from Warehouse"
         description={`Are you sure you want to remove the inventory allocation of this product from ${stockToDelete?.whName}? The product will no longer be tracked at this facility until re-allocated.`}
         itemName={stockToDelete?.prodName}
-        itemDetails={stockToDelete ? `Facility: ${stockToDelete.whName} • Current: ${parseFloat(stockToDelete.stock.quantity).toLocaleString()} units` : undefined}
+        itemDetails={
+          stockToDelete
+            ? `Facility: ${stockToDelete.whName} • Current: ${parseFloat(stockToDelete.stock.quantity).toLocaleString()} units`
+            : undefined
+        }
         confirmText="Remove Allocation"
         variant="destructive"
       />

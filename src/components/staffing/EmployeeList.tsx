@@ -139,10 +139,11 @@ export function EmployeeList() {
         <button
           type="button"
           onClick={() => setActiveTab('ACTIVE')}
-          className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${activeTab === 'ACTIVE'
+          className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            activeTab === 'ACTIVE'
               ? 'bg-primary text-primary-foreground shadow-xs'
               : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
-            }`}
+          }`}
         >
           <Users className="size-3.5" />
           Active Staff ({activeEmployees.length})
@@ -150,10 +151,11 @@ export function EmployeeList() {
         <button
           type="button"
           onClick={() => setActiveTab('ARCHIVED')}
-          className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${activeTab === 'ARCHIVED'
+          className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            activeTab === 'ARCHIVED'
               ? 'bg-primary text-primary-foreground shadow-xs'
               : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
-            }`}
+          }`}
         >
           <Archive className="size-3.5" />
           Deactivated Staff ({archivedEmployees.length})
@@ -222,10 +224,10 @@ export function EmployeeList() {
                 const initials = `${emp.firstName.charAt(0)}${emp.lastName.charAt(0)}`.toUpperCase()
                 const formattedHireDate = emp.hireDate
                   ? new Date(emp.hireDate).toLocaleDateString(undefined, {
-                    year: 'numeric',
-                    month: 'short',
-                    day: 'numeric',
-                  })
+                      year: 'numeric',
+                      month: 'short',
+                      day: 'numeric',
+                    })
                   : '—'
                 const isArchived = emp.isActive === false
 
@@ -238,10 +240,11 @@ export function EmployeeList() {
                       <div className="flex items-center gap-3">
                         <Avatar className="size-9 ring-1 ring-border">
                           <AvatarFallback
-                            className={`text-xs font-bold ${isArchived
+                            className={`text-xs font-bold ${
+                              isArchived
                                 ? 'bg-muted text-muted-foreground'
                                 : 'bg-primary/10 text-primary'
-                              }`}
+                            }`}
                           >
                             {initials}
                           </AvatarFallback>
@@ -252,7 +255,10 @@ export function EmployeeList() {
                               {emp.firstName} {emp.lastName}
                             </span>
                             {isArchived && (
-                              <Badge variant="outline" className="border-amber-500/30 bg-amber-500/10 text-amber-600 text-[9px] font-bold px-1.5 py-0">
+                              <Badge
+                                variant="outline"
+                                className="border-amber-500/30 bg-amber-500/10 text-amber-600 text-[9px] font-bold px-1.5 py-0"
+                              >
                                 Deactivated
                               </Badge>
                             )}
@@ -386,8 +392,16 @@ export function EmployeeList() {
         onConfirm={confirmDeactivate}
         title="Deactivate Employee Profile"
         description="Are you sure you want to deactivate this employee? They will no longer be listed in active staff rosters."
-        itemName={employeeToDeactivate ? `${employeeToDeactivate.firstName} ${employeeToDeactivate.lastName}` : undefined}
-        itemDetails={employeeToDeactivate ? `Email: ${employeeToDeactivate.email || 'N/A'} • Phone: ${employeeToDeactivate.phone || 'N/A'}` : undefined}
+        itemName={
+          employeeToDeactivate
+            ? `${employeeToDeactivate.firstName} ${employeeToDeactivate.lastName}`
+            : undefined
+        }
+        itemDetails={
+          employeeToDeactivate
+            ? `Email: ${employeeToDeactivate.email || 'N/A'} • Phone: ${employeeToDeactivate.phone || 'N/A'}`
+            : undefined
+        }
         confirmText="Deactivate Employee"
         variant="destructive"
       />

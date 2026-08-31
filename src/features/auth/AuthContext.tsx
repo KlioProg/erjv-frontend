@@ -2,7 +2,12 @@
 import React, { createContext, useContext, useEffect, useState } from 'react'
 import { getErrorMessage } from '@/lib/api-client'
 import { getProfileApi, loginApi, registerApi } from './auth.api'
-import type { LoginRequest, RegisterRequest, SafeUserResponse, UpdateUserProfilePayload } from './auth.types'
+import type {
+  LoginRequest,
+  RegisterRequest,
+  SafeUserResponse,
+  UpdateUserProfilePayload,
+} from './auth.types'
 
 type AuthContextType = {
   user: SafeUserResponse | null
@@ -27,12 +32,16 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 export function normalizeUserRole(rawRole: unknown): 'OWNER' | 'ADMIN' | 'STAFF' {
   if (!rawRole) return 'STAFF'
   const str = String(rawRole).trim().toUpperCase()
-  if (str === 'OWNER' || str.includes('OWNER') || str === 'SUPER_ADMIN' || str === 'SUPERADMIN') return 'OWNER'
-  if (str === 'ADMIN' || str.includes('ADMIN') || str === 'MANAGER' || str === 'OPERATIONS') return 'ADMIN'
+  if (str === 'OWNER' || str.includes('OWNER') || str === 'SUPER_ADMIN' || str === 'SUPERADMIN')
+    return 'OWNER'
+  if (str === 'ADMIN' || str.includes('ADMIN') || str === 'MANAGER' || str === 'OPERATIONS')
+    return 'ADMIN'
   return 'STAFF'
 }
 
-export function normalizeUser(rawUser: (Partial<SafeUserResponse> & Record<string, unknown>) | null | undefined): SafeUserResponse {
+export function normalizeUser(
+  rawUser: (Partial<SafeUserResponse> & Record<string, unknown>) | null | undefined,
+): SafeUserResponse {
   if (!rawUser) {
     return {
       id: 1,
@@ -58,7 +67,8 @@ export function normalizeUser(rawUser: (Partial<SafeUserResponse> & Record<strin
         : rawUser
   ) as Record<string, unknown>
 
-  const rawRole = userObj.role ?? userObj.userRole ?? userObj.roleName ?? rawUser.role ?? rawUser.userRole
+  const rawRole =
+    userObj.role ?? userObj.userRole ?? userObj.roleName ?? rawUser.role ?? rawUser.userRole
   const resolvedRole = normalizeUserRole(rawRole)
 
   return {
@@ -67,7 +77,9 @@ export function normalizeUser(rawUser: (Partial<SafeUserResponse> & Record<strin
     fullName:
       (userObj.fullName as string) ||
       (rawUser.fullName as string) ||
-      (userObj.firstName ? `${String(userObj.firstName)} ${String(userObj.lastName || '')}`.trim() : null) ||
+      (userObj.firstName
+        ? `${String(userObj.firstName)} ${String(userObj.lastName || '')}`.trim()
+        : null) ||
       (userObj.name ? String(userObj.name).trim() : null) ||
       null,
     phone: (userObj.phone as string) || (rawUser.phone as string) || null,
@@ -75,7 +87,11 @@ export function normalizeUser(rawUser: (Partial<SafeUserResponse> & Record<strin
     jobTitle:
       (userObj.jobTitle as string) ||
       (rawUser.jobTitle as string) ||
-      (resolvedRole === 'OWNER' ? 'Enterprise Owner' : resolvedRole === 'ADMIN' ? 'System Administrator' : 'Staff Member'),
+      (resolvedRole === 'OWNER'
+        ? 'Enterprise Owner'
+        : resolvedRole === 'ADMIN'
+          ? 'System Administrator'
+          : 'Staff Member'),
     bio: (userObj.bio as string) || (rawUser.bio as string) || null,
     role: resolvedRole,
     isActive: userObj.isActive !== false && rawUser.isActive !== false,
@@ -249,7 +265,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     const isOwner = user.role === 'OWNER'
-    const newFullName = (isOwner && payload.fullName !== undefined) ? payload.fullName.trim() : user.fullName
+    const newFullName =
+      isOwner && payload.fullName !== undefined ? payload.fullName.trim() : user.fullName
 
     const updatedUser: SafeUserResponse = {
       ...user,
@@ -279,8 +296,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const demo: SafeUserResponse = {
       id: 1,
       email: `${demoRole.toLowerCase()}@erjvpos.com`,
-      fullName: demoRole === 'OWNER' ? 'Marcus Villaruel' : demoRole === 'ADMIN' ? 'Sarah Chen-Santos' : 'Danilo Reyes',
-      jobTitle: demoRole === 'OWNER' ? 'Enterprise Owner' : demoRole === 'ADMIN' ? 'System Administrator' : 'Staff Member',
+      fullName:
+        demoRole === 'OWNER'
+          ? 'Marcus Villaruel'
+          : demoRole === 'ADMIN'
+            ? 'Sarah Chen-Santos'
+            : 'Danilo Reyes',
+      jobTitle:
+        demoRole === 'OWNER'
+          ? 'Enterprise Owner'
+          : demoRole === 'ADMIN'
+            ? 'System Administrator'
+            : 'Staff Member',
       role: demoRole,
       isActive: true,
       createdAt: new Date().toISOString(),

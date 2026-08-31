@@ -282,7 +282,11 @@ export default function ForgotPasswordModal({
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={isSubmitting} className="text-xs font-bold gap-1.5 shadow-xs">
+              <Button
+                type="submit"
+                disabled={isSubmitting}
+                className="text-xs font-bold gap-1.5 shadow-xs"
+              >
                 {isSubmitting ? (
                   <>
                     <Spinner data-icon="inline-start" />
@@ -458,7 +462,11 @@ export default function ForgotPasswordModal({
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={isSubmitting} className="text-xs font-bold gap-1.5 shadow-xs">
+              <Button
+                type="submit"
+                disabled={isSubmitting}
+                className="text-xs font-bold gap-1.5 shadow-xs"
+              >
                 {isSubmitting ? (
                   <>
                     <Spinner data-icon="inline-start" />
@@ -485,7 +493,9 @@ export default function ForgotPasswordModal({
             <div className="flex flex-col gap-1">
               <h4 className="text-sm font-bold text-foreground">Password Successfully Updated</h4>
               <p className="text-xs text-muted-foreground">
-                Your account password for <span className="font-semibold text-foreground">{email}</span> has been securely updated.
+                Your account password for{' '}
+                <span className="font-semibold text-foreground">{email}</span> has been securely
+                updated.
               </p>
             </div>
 

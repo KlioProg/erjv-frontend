@@ -1,10 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import {
-  Boxes,
-  PlusCircle,
-  MinusCircle,
-  Package,
-} from 'lucide-react'
+import { Boxes, PlusCircle, MinusCircle, Package } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -16,7 +11,14 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Spinner } from '@/components/ui/spinner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
@@ -55,20 +57,19 @@ function StockAdjustContent({
   const decreaseMutation = useDecreaseStock()
 
   const isExistingStock = !!stockItem
-  const existingAllocatedWhIds = !stockItem && inventoryItem
-    ? allStock.filter((s) => s.inventoryItemId === inventoryItem.id).map((s) => s.warehouseId)
-    : []
+  const existingAllocatedWhIds =
+    !stockItem && inventoryItem
+      ? allStock.filter((s) => s.inventoryItemId === inventoryItem.id).map((s) => s.warehouseId)
+      : []
   const availableWarehouses = warehouses.filter((w) => !existingAllocatedWhIds.includes(w.id))
 
-  const [mode, setMode] = useState<'increase' | 'decrease' | 'set'>(
-    stockItem ? 'increase' : 'set'
-  )
+  const [mode, setMode] = useState<'increase' | 'decrease' | 'set'>(stockItem ? 'increase' : 'set')
   const [selectedWarehouseId, setSelectedWarehouseId] = useState<string>(() =>
     stockItem
       ? String(stockItem.warehouseId)
       : availableWarehouses[0]?.id
         ? String(availableWarehouses[0].id)
-        : ''
+        : '',
   )
   const [amount, setAmount] = useState('20')
   const [errorMsg, setErrorMsg] = useState('')
@@ -177,10 +178,11 @@ function StockAdjustContent({
             <button
               type="button"
               onClick={() => setMode('increase')}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-bold rounded-lg transition-all ${mode === 'increase'
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-bold rounded-lg transition-all ${
+                mode === 'increase'
                   ? 'bg-card text-foreground shadow-xs'
                   : 'text-muted-foreground hover:text-foreground'
-                }`}
+              }`}
             >
               <PlusCircle className="size-3.5 text-emerald-500" />
               Receive (+Stock)
@@ -188,10 +190,11 @@ function StockAdjustContent({
             <button
               type="button"
               onClick={() => setMode('decrease')}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-bold rounded-lg transition-all ${mode === 'decrease'
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-bold rounded-lg transition-all ${
+                mode === 'decrease'
                   ? 'bg-card text-foreground shadow-xs'
                   : 'text-muted-foreground hover:text-foreground'
-                }`}
+              }`}
             >
               <MinusCircle className="size-3.5 text-amber-500" />
               Dispatch (-Stock)
@@ -199,10 +202,11 @@ function StockAdjustContent({
             <button
               type="button"
               onClick={() => setMode('set')}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-bold rounded-lg transition-all ${mode === 'set'
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-bold rounded-lg transition-all ${
+                mode === 'set'
                   ? 'bg-card text-foreground shadow-xs'
                   : 'text-muted-foreground hover:text-foreground'
-                }`}
+              }`}
             >
               Set Count
             </button>
@@ -213,16 +217,19 @@ function StockAdjustContent({
         {isExistingStock && (
           <div className="flex items-center justify-between p-3.5 rounded-xl bg-muted/40 border border-border/80 text-xs">
             <span className="text-muted-foreground font-semibold">Current Available Stock:</span>
-            <span className="font-extrabold text-foreground text-sm">{currentQty.toLocaleString()} units</span>
+            <span className="font-extrabold text-foreground text-sm">
+              {currentQty.toLocaleString()} units
+            </span>
           </div>
         )}
 
         {/* Warehouse selector if creating new allocation */}
-        {!isExistingStock && (
-          availableWarehouses.length === 0 ? (
+        {!isExistingStock &&
+          (availableWarehouses.length === 0 ? (
             <Alert className="my-1 border-amber-500/30 bg-amber-500/10 text-foreground">
               <AlertDescription className="text-xs">
-                All registered warehouse hubs already have a stock allocation for this product. You can adjust quantities directly from the product stock list.
+                All registered warehouse hubs already have a stock allocation for this product. You
+                can adjust quantities directly from the product stock list.
               </AlertDescription>
             </Alert>
           ) : (
@@ -245,8 +252,7 @@ function StockAdjustContent({
                 </SelectContent>
               </Select>
             </div>
-          )
-        )}
+          ))}
 
         {/* Amount Input */}
         <div className="flex flex-col gap-2">

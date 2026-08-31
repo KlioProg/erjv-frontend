@@ -87,7 +87,9 @@ export function useReactivateWarehouse() {
     onSuccess: (data) => {
       void queryClient.invalidateQueries({ queryKey: WAREHOUSES_QUERY_KEY })
       void queryClient.invalidateQueries({ queryKey: ['stock-items'] })
-      toast.success(`Warehouse "${data?.name || 'Facility'}" reactivated and restored to active hubs`)
+      toast.success(
+        `Warehouse "${data?.name || 'Facility'}" reactivated and restored to active hubs`,
+      )
     },
     onError: (err) => {
       toast.error(getErrorMessage(err))

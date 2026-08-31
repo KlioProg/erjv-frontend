@@ -25,7 +25,11 @@ export function SettingsView() {
             </div>
             <div className="flex flex-col gap-1.5">
               <Label className="text-xs font-semibold">Default Currency</Label>
-              <Input defaultValue="Philippine Peso (₱ PHP)" disabled className="h-9 text-xs font-semibold" />
+              <Input
+                defaultValue="Philippine Peso (₱ PHP)"
+                disabled
+                className="h-9 text-xs font-semibold"
+              />
             </div>
           </div>
 
@@ -41,7 +45,10 @@ export function SettingsView() {
           </div>
 
           <div className="pt-2">
-            <Button size="sm" className="bg-primary hover:bg-primary/90 text-primary-foreground text-xs">
+            <Button
+              size="sm"
+              className="bg-primary hover:bg-primary/90 text-primary-foreground text-xs"
+            >
               Save Settings
             </Button>
           </div>
@@ -61,7 +68,8 @@ export function FeedbackView() {
           </div>
           <h3 className="text-lg font-bold text-foreground">Rate your ERJVPOS Experience</h3>
           <p className="text-xs text-muted-foreground max-w-sm">
-            We continuously refine our point of sale, inventory, and logistics platform based on your feedback.
+            We continuously refine our point of sale, inventory, and logistics platform based on
+            your feedback.
           </p>
           <div className="flex items-center gap-2 text-2xl cursor-pointer">
             <span>⭐</span>

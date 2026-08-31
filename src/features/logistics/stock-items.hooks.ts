@@ -37,8 +37,7 @@ export function useWarehouseStock(warehouseId?: number) {
 export function useItemStock(inventoryItemId?: number) {
   return useQuery({
     queryKey: [...STOCK_ITEMS_QUERY_KEY, 'item', inventoryItemId],
-    queryFn: () =>
-      inventoryItemId ? fetchStockByItemApi(inventoryItemId) : fetchStockItemsApi(),
+    queryFn: () => (inventoryItemId ? fetchStockByItemApi(inventoryItemId) : fetchStockItemsApi()),
     enabled: inventoryItemId !== undefined,
   })
 }

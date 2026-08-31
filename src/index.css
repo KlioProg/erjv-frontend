@@ -91,22 +91,22 @@
 
 /* Global Interactive Cursor Pointer Rules */
 button,
-[role="button"],
+[role='button'],
 a,
-input[type="button"],
-input[type="submit"],
-input[type="reset"],
-input[type="checkbox"],
-input[type="radio"],
+input[type='button'],
+input[type='submit'],
+input[type='reset'],
+input[type='checkbox'],
+input[type='radio'],
 select,
 summary,
 [data-radix-collection-item],
-[tabindex="0"]:not(input):not(textarea) {
+[tabindex='0']:not(input):not(textarea) {
   cursor: pointer;
 }
 
 button:disabled,
-[role="button"][aria-disabled="true"],
+[role='button'][aria-disabled='true'],
 input:disabled,
 select:disabled {
   cursor: not-allowed;
@@ -118,7 +118,7 @@ body {
   background-color: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
-  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
   -webkit-font-smoothing: antialiased;
 }
 

@@ -7,25 +7,26 @@ ERJV POS is a production-ready Point of Sale frontend designed to handle seamles
 
 ## Features
 
-* **Dual Interface System:** 
-  * **POS Terminal:** Lightning-fast, keyboard-friendly checkout interface for cashiers.
-  * **Admin Dashboard:** Comprehensive back-office views for inventory, sales reports, and settings.
-* **Secure Authentication:** JWT-based login system with protected route wrappers.
-* **Optimized Performance:** Lazy-loaded routes and split-code architecture to ensure the terminal never hangs.
-* **Scalable UI:** Built with a custom, reusable component library (Cards, Modals, Tables) for consistent design.
+- **Dual Interface System:**
+  - **POS Terminal:** Lightning-fast, keyboard-friendly checkout interface for cashiers.
+  - **Admin Dashboard:** Comprehensive back-office views for inventory, sales reports, and settings.
+- **Secure Authentication:** JWT-based login system with protected route wrappers.
+- **Optimized Performance:** Lazy-loaded routes and split-code architecture to ensure the terminal never hangs.
+- **Scalable UI:** Built with a custom, reusable component library (Cards, Modals, Tables) for consistent design.
 
 ## Tech Stack
 
-* **Framework:** React 18
-* **Language:** TypeScript 
-* **Styling:** Tailwind CSS
-* **State Management:** Zustand / Redux (Update as needed)
-* **Routing:** React Router v6
-* **Network:** Axios (with custom interceptors)
+- **Framework:** React 18
+- **Language:** TypeScript
+- **Styling:** Tailwind CSS
+- **State Management:** Zustand / Redux (Update as needed)
+- **Routing:** React Router v6
+- **Network:** Axios (with custom interceptors)
 
 ## Getting Started
 
 ### Prerequisites
+
 Make sure you have Node.js (v16+) and npm/yarn installed on your machine.
 
 ### Installation
@@ -34,3 +35,4 @@ Make sure you have Node.js (v16+) and npm/yarn installed on your machine.
    ```bash
    git clone [https://github.com/yourusername/erjv-pos.git](https://github.com/yourusername/erjv-pos.git)
    cd erjv-pos
+   ```

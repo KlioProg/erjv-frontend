@@ -27,7 +27,9 @@ export async function fetchEmployeeByIdApi(id: number): Promise<Employee> {
 
 export async function fetchEmployeeByEmailApi(email: string): Promise<Employee | null> {
   try {
-    const { data } = await apiClient.get<Employee>(`/employees/email/${encodeURIComponent(email.trim())}`)
+    const { data } = await apiClient.get<Employee>(
+      `/employees/email/${encodeURIComponent(email.trim())}`,
+    )
     return data
   } catch {
     return null
@@ -38,7 +40,9 @@ export async function createEmployeeApi(payload: CreateEmployeePayload): Promise
   const cleanPayload = {
     firstName: payload.firstName.trim(),
     lastName: payload.lastName.trim(),
-    hireDate: payload.hireDate ? new Date(payload.hireDate).toISOString() : new Date().toISOString(),
+    hireDate: payload.hireDate
+      ? new Date(payload.hireDate).toISOString()
+      : new Date().toISOString(),
     ...(payload.phone?.trim() ? { phone: payload.phone.trim() } : {}),
     ...(payload.email?.trim() ? { email: payload.email.trim() } : {}),
     ...(payload.address?.trim() ? { address: payload.address.trim() } : {}),
@@ -51,7 +55,7 @@ export async function createEmployeeApi(payload: CreateEmployeePayload): Promise
 
 export async function updateEmployeeProfileApi(
   id: number,
-  payload: UpdateEmployeeProfilePayload
+  payload: UpdateEmployeeProfilePayload,
 ): Promise<Employee> {
   const cleanPayload = {
     ...(payload.firstName ? { firstName: payload.firstName.trim() } : {}),
@@ -67,7 +71,9 @@ export async function updateEmployeeProfileApi(
 }
 
 export async function linkEmployeeUserApi(id: number, userId: number): Promise<Employee> {
-  const { data } = await apiClient.patch<Employee>(`/employees/${id}/user`, { userId: Number(userId) })
+  const { data } = await apiClient.patch<Employee>(`/employees/${id}/user`, {
+    userId: Number(userId),
+  })
   return data
 }
 
@@ -117,13 +123,12 @@ export async function createJobApi(payload: CreateJobPayload): Promise<Job> {
   return data
 }
 
-export async function updateJobDetailsApi(
-  id: number,
-  payload: UpdateJobPayload
-): Promise<Job> {
+export async function updateJobDetailsApi(id: number, payload: UpdateJobPayload): Promise<Job> {
   const cleanPayload = {
     ...(payload.name ? { name: payload.name.trim() } : {}),
-    ...(payload.description !== undefined ? { description: payload.description?.trim() || null } : {}),
+    ...(payload.description !== undefined
+      ? { description: payload.description?.trim() || null }
+      : {}),
   }
 
   const { data } = await apiClient.patch<Job>(`/jobs/${id}/details`, cleanPayload)
@@ -144,7 +149,7 @@ export async function reactivateJobApi(id: number): Promise<Job> {
 
 export async function assignEmployeeJobApi(
   employeeId: number,
-  jobId: number
+  jobId: number,
 ): Promise<EmployeeJobResponseDto> {
   const { data } = await apiClient.post<EmployeeJobResponseDto>('/employee-jobs', {
     employeeId: Number(employeeId),
@@ -154,37 +159,32 @@ export async function assignEmployeeJobApi(
 }
 
 export async function fetchEmployeeJobsByEmployeeApi(
-  employeeId: number
+  employeeId: number,
 ): Promise<EmployeeJobWithJob[]> {
   const { data } = await apiClient.get<EmployeeJobWithJob[]>(
-    `/employee-jobs/employees/${employeeId}/jobs`
+    `/employee-jobs/employees/${employeeId}/jobs`,
   )
   return extractArray<EmployeeJobWithJob>(data)
 }
 
-export async function fetchEmployeeJobsByJobApi(
-  jobId: number
-): Promise<EmployeeJobWithEmployee[]> {
+export async function fetchEmployeeJobsByJobApi(jobId: number): Promise<EmployeeJobWithEmployee[]> {
   const { data } = await apiClient.get<EmployeeJobWithEmployee[]>(
-    `/employee-jobs/jobs/${jobId}/employees`
+    `/employee-jobs/jobs/${jobId}/employees`,
   )
   return extractArray<EmployeeJobWithEmployee>(data)
 }
 
 export async function unassignEmployeeJobApi(
   employeeId: number,
-  jobId: number
+  jobId: number,
 ): Promise<EmployeeJobResponseDto> {
   const { data } = await apiClient.delete<EmployeeJobResponseDto>(
-    `/employee-jobs/employees/${employeeId}/jobs/${jobId}`
+    `/employee-jobs/employees/${employeeId}/jobs/${jobId}`,
   )
   return data
 }
 
-export async function replaceEmployeeJobsApi(
-  employeeId: number,
-  jobIds: number[]
-): Promise<void> {
+export async function replaceEmployeeJobsApi(employeeId: number, jobIds: number[]): Promise<void> {
   await apiClient.put(`/employee-jobs/employees/${employeeId}/jobs`, { jobIds })
 }
 
@@ -195,10 +195,7 @@ export async function fetchUsersApi(params?: FetchParams): Promise<UserAccount[]
   return extractArray<UserAccount>(response.data)
 }
 
-export async function updateUserRoleApi(
-  id: number,
-  role: UserRole
-): Promise<UserAccount> {
+export async function updateUserRoleApi(id: number, role: UserRole): Promise<UserAccount> {
   const { data } = await apiClient.patch<UserAccount>(`/users/${id}/role`, { role })
   return data
 }
@@ -213,4 +210,3 @@ export const fetchEmployeesForJobApi = fetchEmployeeJobsByJobApi
 export const fetchJobsForEmployeeApi = fetchEmployeeJobsByEmployeeApi
 export const removeEmployeeJobApi = unassignEmployeeJobApi
 export const replaceJobsForEmployeeApi = replaceEmployeeJobsApi
-

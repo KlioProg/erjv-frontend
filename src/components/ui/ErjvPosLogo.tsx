@@ -11,5 +11,3 @@ export function ErjvPosLogo({ className = '' }: ErjvPosLogoProps) {
     </div>
   )
 }
-
-

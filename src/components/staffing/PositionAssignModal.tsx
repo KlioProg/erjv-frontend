@@ -27,13 +27,7 @@ type PositionAssignModalProps = {
   onClose: () => void
 }
 
-function PositionAssignContent({
-  employee,
-  onClose,
-}: {
-  employee: Employee
-  onClose: () => void
-}) {
+function PositionAssignContent({ employee, onClose }: { employee: Employee; onClose: () => void }) {
   const { data: allJobs = [], isLoading: isLoadingJobs } = useJobs()
   const { data: assignedJobs = [], isLoading: isLoadingAssigned } = useEmployeeJobs(employee.id)
   const replaceJobsMutation = useReplaceEmployeeJobs()
@@ -105,9 +99,7 @@ function PositionAssignContent({
                 key={job.id}
                 onClick={() => handleToggle(job.id)}
                 className={`flex items-start gap-3 rounded-xl border p-3 cursor-pointer transition-colors ${
-                  isChecked
-                    ? 'border-primary/40 bg-primary/5'
-                    : 'border-border hover:bg-muted/40'
+                  isChecked ? 'border-primary/40 bg-primary/5' : 'border-border hover:bg-muted/40'
                 }`}
               >
                 <div onClick={(e) => e.stopPropagation()}>
@@ -159,11 +151,7 @@ function PositionAssignContent({
   )
 }
 
-export function PositionAssignModal({
-  employee,
-  open,
-  onClose,
-}: PositionAssignModalProps) {
+export function PositionAssignModal({ employee, open, onClose }: PositionAssignModalProps) {
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
       <DialogContent className="sm:max-w-[450px]">

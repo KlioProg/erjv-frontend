@@ -8,11 +8,7 @@ import {
   searchClientsByNameApi,
   updateClientDetailsApi,
 } from './clients.api'
-import type {
-  Client,
-  CreateClientPayload,
-  UpdateClientDetailsPayload,
-} from './clients.types'
+import type { Client, CreateClientPayload, UpdateClientDetailsPayload } from './clients.types'
 import { getErrorMessage, type FetchParams } from '@/lib/api-client'
 
 export const CLIENTS_QUERY_KEY = ['clients'] as const
@@ -84,7 +80,9 @@ export function useReactivateClient() {
     },
     onSuccess: (data) => {
       void queryClient.invalidateQueries({ queryKey: CLIENTS_QUERY_KEY })
-      toast.success(`Client "${data.name || 'Account'}" reactivated and restored to active directory`)
+      toast.success(
+        `Client "${data.name || 'Account'}" reactivated and restored to active directory`,
+      )
     },
     onError: (err) => {
       toast.error(getErrorMessage(err))

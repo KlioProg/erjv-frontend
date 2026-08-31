@@ -44,28 +44,40 @@ function VehicleStatusBadge({ status }: { status: VehicleStatus }) {
   switch (status) {
     case 'AVAILABLE':
       return (
-        <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/25 text-[11px] font-semibold gap-1">
+        <Badge
+          variant="outline"
+          className="bg-emerald-500/10 text-emerald-600 border-emerald-500/25 text-[11px] font-semibold gap-1"
+        >
           <CheckCircle2 className="size-3" />
           Available
         </Badge>
       )
     case 'IN_DELIVERY':
       return (
-        <Badge variant="outline" className="bg-blue-500/10 text-blue-600 border-blue-500/25 text-[11px] font-semibold gap-1">
+        <Badge
+          variant="outline"
+          className="bg-blue-500/10 text-blue-600 border-blue-500/25 text-[11px] font-semibold gap-1"
+        >
           <Clock className="size-3 animate-spin" />
           In Delivery
         </Badge>
       )
     case 'MAINTENANCE':
       return (
-        <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/25 text-[11px] font-semibold gap-1">
+        <Badge
+          variant="outline"
+          className="bg-amber-500/10 text-amber-600 border-amber-500/25 text-[11px] font-semibold gap-1"
+        >
           <Wrench className="size-3" />
           Maintenance
         </Badge>
       )
     case 'OUT_OF_SERVICE':
       return (
-        <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/25 text-[11px] font-semibold gap-1">
+        <Badge
+          variant="outline"
+          className="bg-destructive/10 text-destructive border-destructive/25 text-[11px] font-semibold gap-1"
+        >
           <AlertOctagon className="size-3" />
           Out of Service
         </Badge>
@@ -101,9 +113,7 @@ export function VehicleList() {
       v.vehicleType.toLowerCase().includes(searchTerm.toLowerCase())
 
     const matchesStatus =
-      activeTab !== 'ACTIVE' ||
-      statusFilter.toUpperCase() === 'ALL' ||
-      v.status === statusFilter
+      activeTab !== 'ACTIVE' || statusFilter.toUpperCase() === 'ALL' || v.status === statusFilter
 
     return matchesSearch && matchesStatus
   })
@@ -162,7 +172,9 @@ export function VehicleList() {
           </div>
           <div>
             <div className="text-xl font-extrabold text-foreground">{availableCount}</div>
-            <div className="text-[11px] text-muted-foreground font-medium">Available for Dispatch</div>
+            <div className="text-[11px] text-muted-foreground font-medium">
+              Available for Dispatch
+            </div>
           </div>
         </div>
 
@@ -253,10 +265,10 @@ export function VehicleList() {
                   st === 'AVAILABLE'
                     ? 'Available'
                     : st === 'IN_DELIVERY'
-                    ? 'In Delivery'
-                    : st === 'MAINTENANCE'
-                    ? 'Maintenance'
-                    : 'Out of Service'
+                      ? 'In Delivery'
+                      : st === 'MAINTENANCE'
+                        ? 'Maintenance'
+                        : 'Out of Service'
 
                 return (
                   <Button
@@ -300,8 +312,8 @@ export function VehicleList() {
               {searchTerm || statusFilter !== 'ALL'
                 ? 'No transport vehicles match your search query or status filter.'
                 : activeTab === 'ACTIVE'
-                ? 'Register your first delivery truck or cargo hauler.'
-                : 'Deactivated delivery vehicles will appear here and can be reactivated at any time.'}
+                  ? 'Register your first delivery truck or cargo hauler.'
+                  : 'Deactivated delivery vehicles will appear here and can be reactivated at any time.'}
             </p>
             {!searchTerm && statusFilter === 'ALL' && activeTab === 'ACTIVE' && (
               <Button onClick={handleCreate} size="sm" className="mt-4 gap-1.5 cursor-pointer">
@@ -322,12 +334,12 @@ export function VehicleList() {
             const iconBg = isArchived
               ? 'bg-muted text-muted-foreground'
               : isAvailable
-              ? 'bg-emerald-500/10 text-emerald-600'
-              : isInDelivery
-              ? 'bg-blue-500/10 text-blue-600'
-              : isMaintenance
-              ? 'bg-amber-500/10 text-amber-600'
-              : 'bg-destructive/10 text-destructive'
+                ? 'bg-emerald-500/10 text-emerald-600'
+                : isInDelivery
+                  ? 'bg-blue-500/10 text-blue-600'
+                  : isMaintenance
+                    ? 'bg-amber-500/10 text-amber-600'
+                    : 'bg-destructive/10 text-destructive'
 
             return (
               <Card
@@ -350,9 +362,7 @@ export function VehicleList() {
                           <span className="font-mono text-sm font-extrabold text-foreground tracking-tight">
                             {vehicle.plateNumber}
                           </span>
-                          {!isArchived && (
-                            <VehicleStatusBadge status={vehicle.status} />
-                          )}
+                          {!isArchived && <VehicleStatusBadge status={vehicle.status} />}
                         </div>
                         <p className="text-xs text-muted-foreground font-medium mt-0.5 truncate">
                           {vehicle.vehicleType}
@@ -385,55 +395,66 @@ export function VehicleList() {
                                 <span className="sr-only">Vehicle actions</span>
                               </Button>
                             </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={() => handleEdit(vehicle)} className="gap-2 text-xs cursor-pointer">
-                                  <Edit2 className="size-3.5" />
-                                  Edit Vehicle Details
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                                <div className="px-2 py-1 text-[10px] font-bold text-muted-foreground uppercase">
-                                  Change Status
-                                </div>
-                                {VEHICLE_STATUSES.map((st) => {
-                                  const label =
-                                    st === 'AVAILABLE'
-                                      ? 'Available'
-                                      : st === 'IN_DELIVERY'
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem
+                                onClick={() => handleEdit(vehicle)}
+                                className="gap-2 text-xs cursor-pointer"
+                              >
+                                <Edit2 className="size-3.5" />
+                                Edit Vehicle Details
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <div className="px-2 py-1 text-[10px] font-bold text-muted-foreground uppercase">
+                                Change Status
+                              </div>
+                              {VEHICLE_STATUSES.map((st) => {
+                                const label =
+                                  st === 'AVAILABLE'
+                                    ? 'Available'
+                                    : st === 'IN_DELIVERY'
                                       ? 'In Delivery'
                                       : st === 'MAINTENANCE'
-                                      ? 'Maintenance'
-                                      : 'Out of Service'
+                                        ? 'Maintenance'
+                                        : 'Out of Service'
 
-                                  return (
-                                    <DropdownMenuItem
-                                      key={st}
-                                      onClick={() => handleStatusChange(vehicle.id, st)}
-                                      className={`gap-2 text-xs cursor-pointer ${
-                                        vehicle.status === st ? 'font-bold text-primary' : ''
-                                      }`}
-                                    >
-                                      {st === 'AVAILABLE' && <CheckCircle2 className="size-3.5 text-emerald-500" />}
-                                      {st === 'IN_DELIVERY' && <Clock className="size-3.5 text-blue-500" />}
-                                      {st === 'MAINTENANCE' && <Wrench className="size-3.5 text-amber-500" />}
-                                      {st === 'OUT_OF_SERVICE' && <AlertOctagon className="size-3.5 text-destructive" />}
-                                      {label}
-                                    </DropdownMenuItem>
-                                  )
-                                })}
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem
-                                  onClick={() => handleDeactivate(vehicle)}
-                                  className="gap-2 text-xs text-destructive focus:text-destructive cursor-pointer"
-                                >
-                                  <Trash2 className="size-3.5" />
-                                  Deactivate Vehicle
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          )}
-                        </div>
-                      )}
-                    </div>
+                                return (
+                                  <DropdownMenuItem
+                                    key={st}
+                                    onClick={() => handleStatusChange(vehicle.id, st)}
+                                    className={`gap-2 text-xs cursor-pointer ${
+                                      vehicle.status === st ? 'font-bold text-primary' : ''
+                                    }`}
+                                  >
+                                    {st === 'AVAILABLE' && (
+                                      <CheckCircle2 className="size-3.5 text-emerald-500" />
+                                    )}
+                                    {st === 'IN_DELIVERY' && (
+                                      <Clock className="size-3.5 text-blue-500" />
+                                    )}
+                                    {st === 'MAINTENANCE' && (
+                                      <Wrench className="size-3.5 text-amber-500" />
+                                    )}
+                                    {st === 'OUT_OF_SERVICE' && (
+                                      <AlertOctagon className="size-3.5 text-destructive" />
+                                    )}
+                                    {label}
+                                  </DropdownMenuItem>
+                                )
+                              })}
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                onClick={() => handleDeactivate(vehicle)}
+                                className="gap-2 text-xs text-destructive focus:text-destructive cursor-pointer"
+                              >
+                                <Trash2 className="size-3.5" />
+                                Deactivate Vehicle
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
+                      </div>
+                    )}
+                  </div>
 
                   {/* Uniform Status Banner for ALL Cards */}
                   <div className="min-h-[58px] flex items-center">
@@ -503,7 +524,10 @@ export function VehicleList() {
                       <span className="text-[10px] text-muted-foreground uppercase font-semibold">
                         Model / Vehicle Make
                       </span>
-                      <span className="font-semibold text-xs text-foreground truncate" title={vehicle.model || 'Standard'}>
+                      <span
+                        className="font-semibold text-xs text-foreground truncate"
+                        title={vehicle.model || 'Standard'}
+                      >
                         {vehicle.model || 'Standard Unit'}
                       </span>
                     </div>
@@ -529,10 +553,14 @@ export function VehicleList() {
                             onClick={() => handleStatusChange(vehicle.id, st)}
                             className="gap-2 text-xs cursor-pointer"
                           >
-                            {st === 'AVAILABLE' && <CheckCircle2 className="size-3.5 text-emerald-500" />}
+                            {st === 'AVAILABLE' && (
+                              <CheckCircle2 className="size-3.5 text-emerald-500" />
+                            )}
                             {st === 'IN_DELIVERY' && <Clock className="size-3.5 text-blue-500" />}
                             {st === 'MAINTENANCE' && <Wrench className="size-3.5 text-amber-500" />}
-                            {st === 'OUT_OF_SERVICE' && <AlertOctagon className="size-3.5 text-destructive" />}
+                            {st === 'OUT_OF_SERVICE' && (
+                              <AlertOctagon className="size-3.5 text-destructive" />
+                            )}
                             {st.replace(/_/g, ' ')}
                           </DropdownMenuItem>
                         ))}
@@ -561,7 +589,11 @@ export function VehicleList() {
         title="Deactivate Delivery Vehicle"
         description="Are you sure you want to deactivate this transport vehicle? It will be removed from available dispatch allocations."
         itemName={`Plate: ${vehicleToDeactivate?.plateNumber}`}
-        itemDetails={vehicleToDeactivate ? `${vehicleToDeactivate.vehicleType} • ${vehicleToDeactivate.model || 'Standard Cargo Unit'}` : undefined}
+        itemDetails={
+          vehicleToDeactivate
+            ? `${vehicleToDeactivate.vehicleType} • ${vehicleToDeactivate.model || 'Standard Cargo Unit'}`
+            : undefined
+        }
         confirmText="Deactivate Vehicle"
         variant="destructive"
       />

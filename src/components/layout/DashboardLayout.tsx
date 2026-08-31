@@ -34,14 +34,7 @@ import { useProducts } from '@/features/products/products.hooks'
 import { ProductListModal } from '../products/ProductListModal'
 
 export type NavItemKey =
-  | 'inventory'
-  | 'warehouses'
-  | 'fleet'
-  | 'clients'
-  | 'employees'
-  | 'jobs'
-  | 'grouping'
-  | 'users'
+  'inventory' | 'warehouses' | 'fleet' | 'clients' | 'employees' | 'jobs' | 'grouping' | 'users'
 
 type DashboardLayoutProps = {
   currentTab: NavItemKey
@@ -70,9 +63,7 @@ const NAV_GROUPS: NavGroup[] = [
   },
   {
     title: 'Customer Relations (CRM)',
-    items: [
-      { key: 'clients', label: 'Client Management', icon: Building2 },
-    ],
+    items: [{ key: 'clients', label: 'Client Management', icon: Building2 }],
   },
   {
     title: 'Staffing & HR',
@@ -85,11 +76,7 @@ const NAV_GROUPS: NavGroup[] = [
   },
 ]
 
-export function DashboardLayout({
-  currentTab,
-  onSelectTab,
-  children,
-}: DashboardLayoutProps) {
+export function DashboardLayout({ currentTab, onSelectTab, children }: DashboardLayoutProps) {
   const queryClient = useQueryClient()
   const { user, logout, isOwner, isAdmin, isStaff } = useAuth()
   const { data: products = [] } = useProducts()
@@ -111,9 +98,7 @@ export function DashboardLayout({
   })).filter((group) => group.items.length > 0)
 
   // Determine current section info
-  const currentGroup = NAV_GROUPS.find((g) =>
-    g.items.some((item) => item.key === currentTab)
-  )
+  const currentGroup = NAV_GROUPS.find((g) => g.items.some((item) => item.key === currentTab))
   const currentItem = currentGroup?.items.find((item) => item.key === currentTab)
 
   return (
@@ -203,14 +188,21 @@ export function DashboardLayout({
                 <div className="flex items-center gap-2.5 min-w-0">
                   <Avatar className="size-9 border border-primary/20 bg-primary/10 shrink-0">
                     {user?.avatarUrl && (
-                      <AvatarImage src={user.avatarUrl} alt={displayName} className="object-cover" />
+                      <AvatarImage
+                        src={user.avatarUrl}
+                        alt={displayName}
+                        className="object-cover"
+                      />
                     )}
                     <AvatarFallback className="bg-primary/10 text-primary font-extrabold text-xs">
                       {userInitial}
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex flex-col min-w-0 text-left">
-                    <span className="text-xs font-bold leading-snug text-foreground truncate max-w-[130px]" title={displayName}>
+                    <span
+                      className="text-xs font-bold leading-snug text-foreground truncate max-w-[130px]"
+                      title={displayName}
+                    >
                       {displayName}
                     </span>
                     <div className="flex items-center gap-1.5 mt-0.5">
@@ -225,14 +217,17 @@ export function DashboardLayout({
               </div>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" side="top" className="w-64 mb-2">
-              <DropdownMenuLabel className="text-xs font-bold">
-                Active Session
-              </DropdownMenuLabel>
+              <DropdownMenuLabel className="text-xs font-bold">Active Session</DropdownMenuLabel>
               <div className="px-2.5 py-2 text-xs text-muted-foreground flex flex-col gap-1 bg-muted/40 rounded-xl mx-1 border border-border/60">
                 <span className="font-bold text-foreground truncate text-sm">{displayName}</span>
-                <span className="text-[11px] text-muted-foreground truncate font-mono">{user?.email || 'Logged In'}</span>
+                <span className="text-[11px] text-muted-foreground truncate font-mono">
+                  {user?.email || 'Logged In'}
+                </span>
                 <div className="flex items-center gap-1.5 mt-1">
-                  <Badge variant="outline" className="font-bold text-[9px] text-primary bg-primary/10 py-0 px-1.5 border-primary/20">
+                  <Badge
+                    variant="outline"
+                    className="font-bold text-[9px] text-primary bg-primary/10 py-0 px-1.5 border-primary/20"
+                  >
                     {isOwner ? 'OWNER' : isAdmin ? 'ADMIN' : 'STAFF'}
                   </Badge>
                   <span className="text-[10px] text-emerald-600 font-semibold">● Online</span>
@@ -240,7 +235,10 @@ export function DashboardLayout({
               </div>
               <DropdownMenuSeparator />
               <DropdownMenuGroup>
-                <DropdownMenuItem onClick={logout} className="text-destructive gap-2 text-xs cursor-pointer font-semibold py-2">
+                <DropdownMenuItem
+                  onClick={logout}
+                  className="text-destructive gap-2 text-xs cursor-pointer font-semibold py-2"
+                >
                   <LogOut className="size-3.5" />
                   Sign Out
                 </DropdownMenuItem>
@@ -293,7 +291,9 @@ export function DashboardLayout({
                   : 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20'
               }`}
             >
-              <span className={`size-1.5 rounded-full ${isStaff ? 'bg-blue-500' : 'bg-emerald-500'} animate-pulse`} />
+              <span
+                className={`size-1.5 rounded-full ${isStaff ? 'bg-blue-500' : 'bg-emerald-500'} animate-pulse`}
+              />
               {user?.role || 'OWNER'} Mode
             </Badge>
           </div>
@@ -318,10 +318,7 @@ export function DashboardLayout({
       </div>
 
       {/* Global Product Catalog Modal */}
-      <ProductListModal
-        open={isProductsModalOpen}
-        onClose={() => setIsProductsModalOpen(false)}
-      />
+      <ProductListModal open={isProductsModalOpen} onClose={() => setIsProductsModalOpen(false)} />
     </div>
   )
 }

@@ -57,7 +57,7 @@ export function WarehouseList() {
     (w) =>
       w.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       w.address.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (w.contactNumber && w.contactNumber.includes(searchTerm))
+      (w.contactNumber && w.contactNumber.includes(searchTerm)),
   )
 
   const handleCreate = () => {
@@ -105,7 +105,9 @@ export function WarehouseList() {
           </div>
           <div>
             <div className="text-xl font-extrabold text-foreground">{activeWarehouses.length}</div>
-            <div className="text-[11px] text-muted-foreground font-medium">Active Distribution Hubs</div>
+            <div className="text-[11px] text-muted-foreground font-medium">
+              Active Distribution Hubs
+            </div>
           </div>
         </div>
 
@@ -114,7 +116,9 @@ export function WarehouseList() {
             <Archive className="size-5" />
           </div>
           <div>
-            <div className="text-xl font-extrabold text-foreground">{archivedWarehouses.length}</div>
+            <div className="text-xl font-extrabold text-foreground">
+              {archivedWarehouses.length}
+            </div>
             <div className="text-[11px] text-muted-foreground font-medium">Archived Facilities</div>
           </div>
         </div>
@@ -162,7 +166,11 @@ export function WarehouseList() {
         </div>
 
         {(isOwner || isAdmin) && (
-          <Button onClick={handleCreate} size="sm" className="gap-1.5 shadow-xs font-semibold cursor-pointer">
+          <Button
+            onClick={handleCreate}
+            size="sm"
+            className="gap-1.5 shadow-xs font-semibold cursor-pointer"
+          >
             <Plus className="size-4" />
             Register Warehouse
           </Button>
@@ -182,20 +190,28 @@ export function WarehouseList() {
                 <Archive className="size-10 text-muted-foreground/50 mb-3" />
                 <h3 className="text-sm font-semibold text-foreground">No archived warehouses</h3>
                 <p className="text-xs text-muted-foreground mt-1 max-w-xs">
-                  When you archive a warehouse facility, its data and stored stocks are safely preserved here and can be restored anytime.
+                  When you archive a warehouse facility, its data and stored stocks are safely
+                  preserved here and can be restored anytime.
                 </p>
               </>
             ) : (
               <>
                 <WarehouseIcon className="size-10 text-muted-foreground/50 mb-3" />
-                <h3 className="text-sm font-semibold text-foreground">No active warehouses found</h3>
+                <h3 className="text-sm font-semibold text-foreground">
+                  No active warehouses found
+                </h3>
                 <p className="text-xs text-muted-foreground mt-1 max-w-xs">
                   {searchTerm
                     ? 'No active facilities matched your search query.'
                     : 'Register your central logistics complex, regional depots, and fulfillment hubs.'}
                 </p>
                 {(isOwner || isAdmin) && !searchTerm && (
-                  <Button onClick={handleCreate} size="sm" variant="outline" className="mt-4 gap-1.5 cursor-pointer">
+                  <Button
+                    onClick={handleCreate}
+                    size="sm"
+                    variant="outline"
+                    className="mt-4 gap-1.5 cursor-pointer"
+                  >
                     <Plus className="size-3.5" />
                     Register First Warehouse
                   </Button>
@@ -256,7 +272,10 @@ export function WarehouseList() {
                         <DropdownMenuContent align="end">
                           {!isArchived ? (
                             <>
-                              <DropdownMenuItem onClick={() => handleEdit(wh)} className="gap-2 text-xs cursor-pointer">
+                              <DropdownMenuItem
+                                onClick={() => handleEdit(wh)}
+                                className="gap-2 text-xs cursor-pointer"
+                              >
                                 <Edit2 className="size-3.5" />
                                 Edit Details
                               </DropdownMenuItem>
@@ -291,7 +310,10 @@ export function WarehouseList() {
                       </span>
                       <div className="flex items-center gap-1.5 font-extrabold text-foreground text-sm">
                         <Boxes className="size-3.5 text-primary" />
-                        <span>{totalUnits.toLocaleString()} <span className="text-xs font-medium text-muted-foreground">units</span></span>
+                        <span>
+                          {totalUnits.toLocaleString()}{' '}
+                          <span className="text-xs font-medium text-muted-foreground">units</span>
+                        </span>
                       </div>
                     </div>
 
@@ -326,7 +348,10 @@ export function WarehouseList() {
                         </Button>
                       )
                     ) : (
-                      <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-600 border-emerald-500/20 font-semibold gap-1">
+                      <Badge
+                        variant="outline"
+                        className="text-[10px] bg-emerald-500/10 text-emerald-600 border-emerald-500/20 font-semibold gap-1"
+                      >
                         <CheckCircle2 className="size-2.5" />
                         Active Hub
                       </Badge>

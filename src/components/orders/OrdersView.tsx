@@ -1,9 +1,5 @@
 import { useState } from 'react'
-import {
-  Search,
-  Plus,
-  Receipt,
-} from 'lucide-react'
+import { Search, Plus, Receipt } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -67,7 +63,7 @@ export function OrdersView() {
     (o) =>
       o.invoiceNo.toLowerCase().includes(searchTerm.toLowerCase()) ||
       o.clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      o.itemSummary.toLowerCase().includes(searchTerm.toLowerCase())
+      o.itemSummary.toLowerCase().includes(searchTerm.toLowerCase()),
   )
 
   return (
@@ -120,13 +116,9 @@ export function OrdersView() {
                   {order.clientName}
                 </TableCell>
 
-                <TableCell className="text-xs text-foreground/90">
-                  {order.itemSummary}
-                </TableCell>
+                <TableCell className="text-xs text-foreground/90">{order.itemSummary}</TableCell>
 
-                <TableCell className="text-xs text-muted-foreground">
-                  {order.cashier}
-                </TableCell>
+                <TableCell className="text-xs text-muted-foreground">{order.cashier}</TableCell>
 
                 <TableCell className="text-xs font-bold text-foreground text-right">
                   ₱{order.total.toLocaleString('en-US', { minimumFractionDigits: 2 })}

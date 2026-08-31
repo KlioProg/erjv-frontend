@@ -19,7 +19,7 @@ export async function fetchProductByNameApi(name: string): Promise<InventoryItem
   if (!name || !name.trim()) return null
   try {
     const { data } = await apiClient.get<InventoryItemResponse>(
-      `/inventory-items/name/${encodeURIComponent(name.trim())}`
+      `/inventory-items/name/${encodeURIComponent(name.trim())}`,
     )
     if (data && typeof data === 'object' && 'id' in data && data.id) {
       return data
@@ -31,7 +31,7 @@ export async function fetchProductByNameApi(name: string): Promise<InventoryItem
 }
 
 export async function createProductApi(
-  payload: CreateInventoryItemPayload
+  payload: CreateInventoryItemPayload,
 ): Promise<InventoryItemResponse> {
   const cleanPayload = {
     name: payload.name.trim(),
@@ -51,34 +51,33 @@ export async function createProductApi(
 
 export async function updateProductDetailsApi(
   id: number,
-  payload: UpdateInventoryItemDetailsPayload
+  payload: UpdateInventoryItemDetailsPayload,
 ): Promise<InventoryItemResponse> {
   const cleanPayload = {
     ...(payload.name ? { name: payload.name.trim() } : {}),
     ...(payload.unit ? { unit: payload.unit.trim() } : {}),
     ...(payload.variety !== undefined ? { variety: payload.variety?.trim() || null } : {}),
-    ...(payload.description !== undefined ? { description: payload.description?.trim() || null } : {}),
+    ...(payload.description !== undefined
+      ? { description: payload.description?.trim() || null }
+      : {}),
   }
 
   const { data } = await apiClient.patch<InventoryItemResponse>(
     `/inventory-items/${id}/details`,
-    cleanPayload
+    cleanPayload,
   )
   return data
 }
 
 export async function updateProductPriceApi(
   id: number,
-  unitPrice: number | string
+  unitPrice: number | string,
 ): Promise<InventoryItemResponse> {
   const { data } = await apiClient.patch<InventoryItemResponse>(
     `/inventory-items/${id}/unit-price`,
     {
-      unitPrice:
-        typeof unitPrice === 'number'
-          ? unitPrice.toFixed(2)
-          : String(unitPrice).trim(),
-    }
+      unitPrice: typeof unitPrice === 'number' ? unitPrice.toFixed(2) : String(unitPrice).trim(),
+    },
   )
   return data
 }
@@ -92,4 +91,3 @@ export async function reactivateProductApi(id: number): Promise<InventoryItemRes
   const { data } = await apiClient.patch<InventoryItemResponse>(`/inventory-items/${id}/reactivate`)
   return data
 }
-

@@ -1,13 +1,5 @@
 import { useState } from 'react'
-import {
-  Users,
-  Briefcase,
-  UserX,
-  UserPlus,
-  Shield,
-  CheckCircle2,
-  Crown,
-} from 'lucide-react'
+import { Users, Briefcase, UserX, UserPlus, Shield, CheckCircle2, Crown } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -40,12 +32,14 @@ function JobPositionSection({ job, allEmployees }: { job: Job; allEmployees: Emp
 
   const [selectedEmpId, setSelectedEmpId] = useState<string>('')
   const [isAssigning, setIsAssigning] = useState(false)
-  const [memberToRemove, setMemberToRemove] = useState<{ employeeId: number; name: string } | null>(null)
+  const [memberToRemove, setMemberToRemove] = useState<{ employeeId: number; name: string } | null>(
+    null,
+  )
 
   // Unassigned employees for this specific job
   const assignedEmployeeIds = members.map((m: { employeeId: number }) => m.employeeId)
   const availableToAssign = allEmployees.filter(
-    (emp) => !assignedEmployeeIds.includes(emp.id) && emp.isActive
+    (emp) => !assignedEmployeeIds.includes(emp.id) && emp.isActive,
   )
 
   const handleAssign = async () => {
@@ -114,7 +108,9 @@ function JobPositionSection({ job, allEmployees }: { job: Job; allEmployees: Emp
                   </SelectTrigger>
                   <SelectContent>
                     {availableToAssign.length === 0 ? (
-                      <div className="p-2 text-xs text-muted-foreground">All active staff assigned</div>
+                      <div className="p-2 text-xs text-muted-foreground">
+                        All active staff assigned
+                      </div>
                     ) : (
                       availableToAssign.map((emp) => (
                         <SelectItem key={emp.id} value={String(emp.id)}>
@@ -170,50 +166,61 @@ function JobPositionSection({ job, allEmployees }: { job: Job; allEmployees: Emp
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-            {members.map((m: { employeeId: number; assignedAt?: string; employee: { firstName: string; lastName: string; phone?: string | null; email?: string | null } }) => {
-              const emp = m.employee
-              const initials = `${emp.firstName.charAt(0)}${emp.lastName.charAt(0)}`.toUpperCase()
+            {members.map(
+              (m: {
+                employeeId: number
+                assignedAt?: string
+                employee: {
+                  firstName: string
+                  lastName: string
+                  phone?: string | null
+                  email?: string | null
+                }
+              }) => {
+                const emp = m.employee
+                const initials = `${emp.firstName.charAt(0)}${emp.lastName.charAt(0)}`.toUpperCase()
 
-              return (
-                <div
-                  key={m.employeeId}
-                  className="flex items-center justify-between p-2.5 rounded-xl border border-border/80 bg-card hover:bg-muted/30 transition-colors"
-                >
-                  <div className="flex items-center gap-2.5">
-                    <Avatar className="size-8 ring-1 ring-border">
-                      <AvatarFallback className="bg-primary/10 text-primary text-[11px] font-bold">
-                        {initials}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex flex-col">
-                      <span className="text-xs font-semibold text-foreground">
-                        {emp.firstName} {emp.lastName}
-                      </span>
-                      <span className="text-[10px] text-muted-foreground">
-                        ID #{m.employeeId} •{' '}
-                        {m.assignedAt
-                          ? new Date(m.assignedAt).toLocaleDateString(undefined, {
-                              month: 'short',
-                              day: 'numeric',
-                            })
-                          : 'Assigned'}
-                      </span>
-                    </div>
-                  </div>
-
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="size-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10 cursor-pointer"
-                    onClick={() => handleRemove(m.employeeId, `${emp.firstName} ${emp.lastName}`)}
-                    title="Remove from role"
+                return (
+                  <div
+                    key={m.employeeId}
+                    className="flex items-center justify-between p-2.5 rounded-xl border border-border/80 bg-card hover:bg-muted/30 transition-colors"
                   >
-                    <UserX className="size-3.5" />
-                    <span className="sr-only">Remove from role</span>
-                  </Button>
-                </div>
-              )
-            })}
+                    <div className="flex items-center gap-2.5">
+                      <Avatar className="size-8 ring-1 ring-border">
+                        <AvatarFallback className="bg-primary/10 text-primary text-[11px] font-bold">
+                          {initials}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex flex-col">
+                        <span className="text-xs font-semibold text-foreground">
+                          {emp.firstName} {emp.lastName}
+                        </span>
+                        <span className="text-[10px] text-muted-foreground">
+                          ID #{m.employeeId} •{' '}
+                          {m.assignedAt
+                            ? new Date(m.assignedAt).toLocaleDateString(undefined, {
+                                month: 'short',
+                                day: 'numeric',
+                              })
+                            : 'Assigned'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10 cursor-pointer"
+                      onClick={() => handleRemove(m.employeeId, `${emp.firstName} ${emp.lastName}`)}
+                      title="Remove from role"
+                    >
+                      <UserX className="size-3.5" />
+                      <span className="sr-only">Remove from role</span>
+                    </Button>
+                  </div>
+                )
+              },
+            )}
           </div>
         )}
       </CardContent>
@@ -243,7 +250,7 @@ export function RoleGroupingView() {
 
   const getLinkedEmployee = (userId: number, email?: string) => {
     return employees.find(
-      (e) => e.userId === userId || (email && e.email?.toLowerCase() === email.toLowerCase())
+      (e) => e.userId === userId || (email && e.email?.toLowerCase() === email.toLowerCase()),
     )
   }
 
@@ -360,7 +367,10 @@ export function RoleGroupingView() {
                         <CardTitle className="text-sm font-bold text-foreground">
                           Enterprise Owners (Owner)
                         </CardTitle>
-                        <Badge variant="outline" className="text-[10px] font-bold bg-primary/10 text-primary border-primary/30">
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] font-bold bg-primary/10 text-primary border-primary/30"
+                        >
                           {ownerUsers.length} {ownerUsers.length === 1 ? 'member' : 'members'}
                         </Badge>
                       </div>
@@ -372,7 +382,11 @@ export function RoleGroupingView() {
                 </div>
               </CardHeader>
               <CardContent className="p-4">
-                {renderUserCards(ownerUsers, 'OWNER', 'bg-primary/10 text-primary border-primary/30')}
+                {renderUserCards(
+                  ownerUsers,
+                  'OWNER',
+                  'bg-primary/10 text-primary border-primary/30',
+                )}
               </CardContent>
             </Card>
 
@@ -394,14 +408,19 @@ export function RoleGroupingView() {
                         </Badge>
                       </div>
                       <p className="text-xs text-muted-foreground mt-0.5">
-                        Full operational oversight, inventory management, and staff directory management.
+                        Full operational oversight, inventory management, and staff directory
+                        management.
                       </p>
                     </div>
                   </div>
                 </div>
               </CardHeader>
               <CardContent className="p-4">
-                {renderUserCards(adminUsers, 'ADMIN', 'bg-blue-500/10 text-blue-600 border-blue-200')}
+                {renderUserCards(
+                  adminUsers,
+                  'ADMIN',
+                  'bg-blue-500/10 text-blue-600 border-blue-200',
+                )}
               </CardContent>
             </Card>
 
@@ -423,38 +442,41 @@ export function RoleGroupingView() {
                         </Badge>
                       </div>
                       <p className="text-xs text-muted-foreground mt-0.5">
-                        Standard accounts with access restricted to Operations, Stock, and CRM modules.
+                        Standard accounts with access restricted to Operations, Stock, and CRM
+                        modules.
                       </p>
                     </div>
                   </div>
                 </div>
               </CardHeader>
               <CardContent className="p-4">
-                {renderUserCards(staffUsers, 'STAFF', 'bg-muted text-muted-foreground border-border')}
+                {renderUserCards(
+                  staffUsers,
+                  'STAFF',
+                  'bg-muted text-muted-foreground border-border',
+                )}
               </CardContent>
             </Card>
           </div>
         )
+      ) : /* Grouped by Job Position */
+      isJobsLoading ? (
+        <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-2">
+          <Spinner className="size-6 text-primary" />
+          <p className="text-xs">Loading job positions...</p>
+        </div>
+      ) : jobs.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-2 border rounded-2xl bg-card">
+          <Briefcase className="size-8 stroke-[1.5] text-muted-foreground/50" />
+          <p className="text-sm font-medium text-foreground">No job positions configured</p>
+          <p className="text-xs">Create job positions in the Job Positions tab.</p>
+        </div>
       ) : (
-        /* Grouped by Job Position */
-        isJobsLoading ? (
-          <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-2">
-            <Spinner className="size-6 text-primary" />
-            <p className="text-xs">Loading job positions...</p>
-          </div>
-        ) : jobs.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-2 border rounded-2xl bg-card">
-            <Briefcase className="size-8 stroke-[1.5] text-muted-foreground/50" />
-            <p className="text-sm font-medium text-foreground">No job positions configured</p>
-            <p className="text-xs">Create job positions in the Job Positions tab.</p>
-          </div>
-        ) : (
-          <div className="flex flex-col gap-4">
-            {jobs.map((job) => (
-              <JobPositionSection key={job.id} job={job} allEmployees={employees} />
-            ))}
-          </div>
-        )
+        <div className="flex flex-col gap-4">
+          {jobs.map((job) => (
+            <JobPositionSection key={job.id} job={job} allEmployees={employees} />
+          ))}
+        </div>
       )}
     </div>
   )

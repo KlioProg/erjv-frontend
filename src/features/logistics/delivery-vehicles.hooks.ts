@@ -109,7 +109,9 @@ export function useReactivateVehicle() {
     },
     onSuccess: (data) => {
       void queryClient.invalidateQueries({ queryKey: VEHICLES_QUERY_KEY })
-      toast.success(`Vehicle "${data.plateNumber || 'Fleet asset'}" reactivated and restored to active fleet`)
+      toast.success(
+        `Vehicle "${data.plateNumber || 'Fleet asset'}" reactivated and restored to active fleet`,
+      )
     },
     onError: (err) => {
       toast.error(getErrorMessage(err))

@@ -1,5 +1,14 @@
 import { useState, type FormEvent } from 'react'
-import { UserPlus, UserCheck, Calendar, Mail, Phone, MapPin, User as UserIcon, RotateCcw } from 'lucide-react'
+import {
+  UserPlus,
+  UserCheck,
+  Calendar,
+  Mail,
+  Phone,
+  MapPin,
+  User as UserIcon,
+  RotateCcw,
+} from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -11,7 +20,14 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Spinner } from '@/components/ui/spinner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
@@ -50,10 +66,10 @@ function EmployeeFormContent({
   const [hireDate, setHireDate] = useState(
     employee?.hireDate
       ? new Date(employee.hireDate).toISOString().split('T')[0]
-      : new Date().toISOString().split('T')[0]
+      : new Date().toISOString().split('T')[0],
   )
   const [selectedUserId, setSelectedUserId] = useState<string>(
-    employee?.userId ? String(employee.userId) : 'none'
+    employee?.userId ? String(employee.userId) : 'none',
   )
   const [errorMsg, setErrorMsg] = useState('')
   const [deactivatedEmployeeMatch, setDeactivatedEmployeeMatch] = useState<Employee | null>(null)
@@ -152,7 +168,12 @@ function EmployeeFormContent({
           <div className="flex-1 text-xs">
             <p className="font-bold text-foreground">Deactivated Employee Found</p>
             <p className="text-muted-foreground mt-0.5 leading-relaxed">
-              An archived profile for <strong className="text-foreground">{deactivatedEmployeeMatch.firstName} {deactivatedEmployeeMatch.lastName}</strong> ({deactivatedEmployeeMatch.email || 'No email'}) already exists. Click <strong>"Reactivate Employee"</strong> below to restore them.
+              An archived profile for{' '}
+              <strong className="text-foreground">
+                {deactivatedEmployeeMatch.firstName} {deactivatedEmployeeMatch.lastName}
+              </strong>{' '}
+              ({deactivatedEmployeeMatch.email || 'No email'}) already exists. Click{' '}
+              <strong>"Reactivate Employee"</strong> below to restore them.
             </p>
           </div>
         </div>
@@ -320,7 +341,11 @@ function EmployeeFormContent({
               )}
             </Button>
           ) : (
-            <Button type="submit" disabled={isPending} className="font-semibold shadow-xs cursor-pointer transition-all duration-300">
+            <Button
+              type="submit"
+              disabled={isPending}
+              className="font-semibold shadow-xs cursor-pointer transition-all duration-300"
+            >
               {isPending ? (
                 <>
                   <Spinner data-icon="inline-start" />

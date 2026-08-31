@@ -28,13 +28,7 @@ type JobModalProps = {
   onClose: () => void
 }
 
-function JobFormContent({
-  job,
-  onClose,
-}: {
-  job: Job | null
-  onClose: () => void
-}) {
+function JobFormContent({ job, onClose }: { job: Job | null; onClose: () => void }) {
   const isEditing = !!job
   const createMutation = useCreateJob()
   const updateMutation = useUpdateJobDetails()
@@ -119,7 +113,9 @@ function JobFormContent({
           <div className="flex-1 text-xs">
             <p className="font-bold text-foreground">Deactivated Position Found</p>
             <p className="text-muted-foreground mt-0.5 leading-relaxed">
-              An archived job position titled <strong className="text-foreground">{deactivatedJobMatch.name}</strong> already exists. Click <strong>"Reactivate Position"</strong> below to restore it.
+              An archived job position titled{' '}
+              <strong className="text-foreground">{deactivatedJobMatch.name}</strong> already
+              exists. Click <strong>"Reactivate Position"</strong> below to restore it.
             </p>
           </div>
         </div>
@@ -182,7 +178,11 @@ function JobFormContent({
               )}
             </Button>
           ) : (
-            <Button type="submit" disabled={isPending} className="font-semibold shadow-xs cursor-pointer transition-all duration-300">
+            <Button
+              type="submit"
+              disabled={isPending}
+              className="font-semibold shadow-xs cursor-pointer transition-all duration-300"
+            >
               {isPending ? (
                 <>
                   <Spinner data-icon="inline-start" />
@@ -204,11 +204,7 @@ export function JobModal({ job, open, onClose }: JobModalProps) {
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
       <DialogContent className="sm:max-w-[450px]">
         {open && (
-          <JobFormContent
-            key={job ? `job-${job.id}` : 'new-job'}
-            job={job}
-            onClose={onClose}
-          />
+          <JobFormContent key={job ? `job-${job.id}` : 'new-job'} job={job} onClose={onClose} />
         )}
       </DialogContent>
     </Dialog>

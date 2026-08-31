@@ -37,13 +37,11 @@ export const staffingKeys = {
   employees: (includeInactive = 'false') =>
     [...staffingKeys.all, 'employees', includeInactive] as const,
   employeeDetail: (id: number) => [...staffingKeys.employees(), id] as const,
-  jobs: (includeInactive = 'false') =>
-    [...staffingKeys.all, 'jobs', includeInactive] as const,
+  jobs: (includeInactive = 'false') => [...staffingKeys.all, 'jobs', includeInactive] as const,
   jobDetail: (id: number) => [...staffingKeys.jobs(), id] as const,
   employeeJobs: (employeeId: number) => [...staffingKeys.all, 'employee-jobs', employeeId] as const,
   jobEmployees: (jobId: number) => [...staffingKeys.all, 'job-employees', jobId] as const,
-  users: (includeInactive = 'false') =>
-    [...staffingKeys.all, 'users', includeInactive] as const,
+  users: (includeInactive = 'false') => [...staffingKeys.all, 'users', includeInactive] as const,
 }
 
 // ===================== EMPLOYEE HOOKS =====================
@@ -91,8 +89,7 @@ export function useUpdateEmployeeProfile() {
 export function useLinkEmployeeUser() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, userId }: { id: number; userId: number }) =>
-      linkEmployeeUserApi(id, userId),
+    mutationFn: ({ id, userId }: { id: number; userId: number }) => linkEmployeeUserApi(id, userId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: staffingKeys.all })
       toast.success('Employee successfully linked to user account')
@@ -126,7 +123,11 @@ export function useDeactivateEmployee() {
       return { res, inputEmployee: typeof empOrId === 'object' ? empOrId : null, id }
     },
     onSuccess: ({ res, inputEmployee }) => {
-      const name = res ? `${res.firstName} ${res.lastName}` : inputEmployee ? `${inputEmployee.firstName} ${inputEmployee.lastName}` : 'Employee'
+      const name = res
+        ? `${res.firstName} ${res.lastName}`
+        : inputEmployee
+          ? `${inputEmployee.firstName} ${inputEmployee.lastName}`
+          : 'Employee'
       void queryClient.invalidateQueries({ queryKey: staffingKeys.all })
       toast.success(`Employee profile "${name}" deactivated and moved to archive`)
     },
@@ -145,7 +146,11 @@ export function useReactivateEmployee() {
       return { res, inputEmployee: typeof empOrId === 'object' ? empOrId : null, id }
     },
     onSuccess: ({ res, inputEmployee }) => {
-      const name = res ? `${res.firstName} ${res.lastName}` : inputEmployee ? `${inputEmployee.firstName} ${inputEmployee.lastName}` : 'Employee'
+      const name = res
+        ? `${res.firstName} ${res.lastName}`
+        : inputEmployee
+          ? `${inputEmployee.firstName} ${inputEmployee.lastName}`
+          : 'Employee'
       void queryClient.invalidateQueries({ queryKey: staffingKeys.all })
       toast.success(`Employee profile "${name}" reactivated`)
     },
@@ -224,7 +229,9 @@ export function useReactivateJob() {
     },
     onSuccess: (data) => {
       void queryClient.invalidateQueries({ queryKey: staffingKeys.all })
-      toast.success(`Job position "${data?.name || 'Role'}" reactivated and restored to active roles`)
+      toast.success(
+        `Job position "${data?.name || 'Role'}" reactivated and restored to active roles`,
+      )
     },
     onError: (err) => {
       toast.error(getErrorMessage(err))
@@ -299,8 +306,7 @@ export function useAllUsers() {
 export function useUpdateUserRole() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, role }: { id: number; role: UserRole }) =>
-      updateUserRoleApi(id, role),
+    mutationFn: ({ id, role }: { id: number; role: UserRole }) => updateUserRoleApi(id, role),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: staffingKeys.all })
     },

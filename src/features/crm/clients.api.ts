@@ -1,9 +1,5 @@
 import { apiClient, extractArray, type FetchParams } from '@/lib/api-client'
-import type {
-  Client,
-  CreateClientPayload,
-  UpdateClientDetailsPayload,
-} from './clients.types'
+import type { Client, CreateClientPayload, UpdateClientDetailsPayload } from './clients.types'
 
 export async function fetchClientsApi(params?: FetchParams): Promise<Client[]> {
   const response = await apiClient.get('/clients', { params })
@@ -40,7 +36,7 @@ export async function createClientApi(payload: CreateClientPayload): Promise<Cli
 
 export async function updateClientDetailsApi(
   id: number,
-  payload: UpdateClientDetailsPayload
+  payload: UpdateClientDetailsPayload,
 ): Promise<Client> {
   const cleanPayload = {
     ...(payload.name ? { name: payload.name.trim() } : {}),

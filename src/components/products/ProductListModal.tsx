@@ -33,7 +33,7 @@ export function ProductListModal({ open, onClose }: ProductListModalProps) {
     (p) =>
       p.name.toLowerCase().includes(search.toLowerCase()) ||
       (p.variety && p.variety.toLowerCase().includes(search.toLowerCase())) ||
-      (p.description && p.description.toLowerCase().includes(search.toLowerCase()))
+      (p.description && p.description.toLowerCase().includes(search.toLowerCase())),
   )
 
   return (
@@ -119,7 +119,10 @@ export function ProductListModal({ open, onClose }: ProductListModalProps) {
                     </TableCell>
                     <TableCell className="text-right">
                       <span className="font-extrabold text-sm text-foreground">
-                        ₱{Number(item.unitPrice).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                        ₱
+                        {Number(item.unitPrice).toLocaleString('en-US', {
+                          minimumFractionDigits: 2,
+                        })}
                       </span>
                       <span className="text-[10px] text-muted-foreground font-semibold block">
                         / unit

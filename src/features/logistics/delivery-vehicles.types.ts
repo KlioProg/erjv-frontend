@@ -1,8 +1,4 @@
-export const OPERATIONAL_STATUSES = [
-  'AVAILABLE',
-  'IN_DELIVERY',
-  'MAINTENANCE',
-] as const
+export const OPERATIONAL_STATUSES = ['AVAILABLE', 'IN_DELIVERY', 'MAINTENANCE'] as const
 
 export const VEHICLE_STATUSES = [
   'AVAILABLE',

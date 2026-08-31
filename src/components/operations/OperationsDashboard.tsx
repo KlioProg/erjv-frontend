@@ -114,7 +114,9 @@ export function OperationsDashboard({ onSwitchToStaffing }: OperationsDashboardP
             </div>
             <div className="mt-3">
               <div className="text-2xl font-extrabold text-foreground">{warehouses.length}</div>
-              <p className="text-[11px] text-muted-foreground mt-0.5">Logistics & distribution hubs</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                Logistics & distribution hubs
+              </p>
             </div>
           </Card>
 
@@ -142,7 +144,10 @@ export function OperationsDashboard({ onSwitchToStaffing }: OperationsDashboardP
             </div>
             <div className="mt-3">
               <div className="text-2xl font-extrabold text-foreground">
-                {availableVehiclesCount} <span className="text-sm font-normal text-muted-foreground">/ {vehicles.length}</span>
+                {availableVehiclesCount}{' '}
+                <span className="text-sm font-normal text-muted-foreground">
+                  / {vehicles.length}
+                </span>
               </div>
               <p className="text-[11px] text-muted-foreground mt-0.5">Ready for dispatch</p>
             </div>

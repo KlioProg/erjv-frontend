@@ -21,9 +21,13 @@ export async function fetchVehicleByIdApi(id: number): Promise<DeliveryVehicle> 
   return data
 }
 
-export async function fetchVehicleByPlateNumberApi(plateNumber: string): Promise<DeliveryVehicle | null> {
+export async function fetchVehicleByPlateNumberApi(
+  plateNumber: string,
+): Promise<DeliveryVehicle | null> {
   try {
-    const { data } = await apiClient.get<DeliveryVehicle>(`/delivery-vehicles/plate-number/${encodeURIComponent(plateNumber.trim())}`)
+    const { data } = await apiClient.get<DeliveryVehicle>(
+      `/delivery-vehicles/plate-number/${encodeURIComponent(plateNumber.trim())}`,
+    )
     return data
   } catch {
     return null
@@ -31,7 +35,7 @@ export async function fetchVehicleByPlateNumberApi(plateNumber: string): Promise
 }
 
 export async function createVehicleApi(
-  payload: CreateDeliveryVehiclePayload
+  payload: CreateDeliveryVehiclePayload,
 ): Promise<DeliveryVehicle> {
   const parsedCap = payload.capacity ? parseFloat(String(payload.capacity)) : null
   const cleanPayload: Record<string, unknown> = {
@@ -49,7 +53,7 @@ export async function createVehicleApi(
 
 export async function updateVehicleDetailsApi(
   id: number,
-  payload: UpdateDeliveryVehicleDetailsPayload
+  payload: UpdateDeliveryVehicleDetailsPayload,
 ): Promise<DeliveryVehicle> {
   const parsedCap = payload.capacity ? parseFloat(String(payload.capacity)) : null
   const cleanPayload: Record<string, unknown> = {
@@ -61,14 +65,14 @@ export async function updateVehicleDetailsApi(
 
   const { data } = await apiClient.patch<DeliveryVehicle>(
     `/delivery-vehicles/${id}/details`,
-    cleanPayload
+    cleanPayload,
   )
   return data
 }
 
 export async function updateVehicleStatusApi(
   id: number,
-  status: VehicleStatus
+  status: VehicleStatus,
 ): Promise<DeliveryVehicle> {
   const { data } = await apiClient.patch<DeliveryVehicle>(`/delivery-vehicles/${id}/status`, {
     status,
