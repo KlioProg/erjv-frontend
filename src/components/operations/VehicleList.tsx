@@ -42,7 +42,6 @@ import {
   useDeliveryVehicles,
   useReactivateVehicle,
   useUpdateVehicleStatus,
-  getArchivedVehicles,
 } from '@/features/logistics/delivery-vehicles.hooks'
 import { useClients } from '@/features/crm/clients.hooks'
 import { useAuth } from '@/features/auth/AuthContext'
@@ -107,7 +106,7 @@ export function VehicleList() {
   const [dispatchLocation, setDispatchLocation] = useState('')
 
   const activeVehicles = vehicles.filter((v) => v.isActive !== false)
-  const archivedVehicles = getArchivedVehicles()
+  const archivedVehicles = vehicles.filter((v) => v.isActive === false)
 
   const currentVehicleList = activeTab === 'ACTIVE' ? activeVehicles : archivedVehicles
 

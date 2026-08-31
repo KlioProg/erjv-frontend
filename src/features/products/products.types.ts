@@ -18,6 +18,7 @@ export type CreateInventoryItemPayload = {
   unit?: string
   unitPrice: number | string
   description?: string | null
+  isActive?: boolean
 }
 
 export type UpdateInventoryItemDetailsPayload = {

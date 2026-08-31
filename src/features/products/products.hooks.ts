@@ -22,32 +22,6 @@ export const productKeys = {
   detail: (id: number) => [...productKeys.all, 'detail', id] as const,
 }
 
-const ARCHIVED_PRODUCTS_KEY = 'erjv_archived_products'
-
-export function getArchivedProducts(): InventoryItemResponse[] {
-  try {
-    const raw = localStorage.getItem(ARCHIVED_PRODUCTS_KEY)
-    return raw ? JSON.parse(raw) : []
-  } catch {
-    return []
-  }
-}
-
-export function saveArchivedProduct(prod: InventoryItemResponse) {
-  const current = getArchivedProducts().filter(
-    (p) => p.id !== prod.id && p.name.toUpperCase().trim() !== prod.name.toUpperCase().trim()
-  )
-  current.push({ ...prod, isActive: false })
-  localStorage.setItem(ARCHIVED_PRODUCTS_KEY, JSON.stringify(current))
-}
-
-export function removeArchivedProduct(idOrName: number | string) {
-  const current = getArchivedProducts().filter(
-    (p) => p.id !== idOrName && p.name.toUpperCase().trim() !== String(idOrName).toUpperCase().trim()
-  )
-  localStorage.setItem(ARCHIVED_PRODUCTS_KEY, JSON.stringify(current))
-}
-
 // React Query hook to fetch the product list
 export function useProducts() {
   return useQuery({
@@ -71,7 +45,6 @@ export function useCreateProduct() {
   return useMutation({
     mutationFn: (payload: CreateInventoryItemPayload) => createProductApi(payload),
     onSuccess: (data) => {
-      removeArchivedProduct(data.name)
       queryClient.invalidateQueries({ queryKey: productKeys.all })
       toast.success(`Product "${data.name}" registered successfully`)
     },
@@ -112,13 +85,7 @@ export function useDeactivateProduct() {
   return useMutation({
     mutationFn: async (productOrId: InventoryItemResponse | number) => {
       const id = typeof productOrId === 'number' ? productOrId : productOrId.id
-      const res = await deactivateProductApi(id)
-      if (typeof productOrId !== 'number') {
-        saveArchivedProduct(productOrId)
-      } else if (res) {
-        saveArchivedProduct(res)
-      }
-      return res
+      return await deactivateProductApi(id)
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: productKeys.all })
@@ -132,12 +99,7 @@ export function useReactivateProduct() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (id: number) => {
-      const res = await reactivateProductApi(id)
-      removeArchivedProduct(id)
-      if (res?.name) {
-        removeArchivedProduct(res.name)
-      }
-      return res
+      return await reactivateProductApi(id)
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: productKeys.all })

@@ -191,10 +191,12 @@ function JobPositionSection({ job, allEmployees }: { job: Job; allEmployees: Emp
                       </span>
                       <span className="text-[10px] text-muted-foreground">
                         ID #{m.employeeId} •{' '}
-                        {new Date(m.assignedAt || Date.now()).toLocaleDateString(undefined, {
-                          month: 'short',
-                          day: 'numeric',
-                        })}
+                        {m.assignedAt
+                          ? new Date(m.assignedAt).toLocaleDateString(undefined, {
+                              month: 'short',
+                              day: 'numeric',
+                            })
+                          : 'Assigned'}
                       </span>
                     </div>
                   </div>

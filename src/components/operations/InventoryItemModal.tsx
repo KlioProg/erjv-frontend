@@ -29,7 +29,6 @@ import {
   useUpdateProductDetails,
   useDeactivateProduct,
   useReactivateProduct,
-  getArchivedProducts,
   fetchProductByNameApi,
 } from '@/features/products/products.hooks'
 import { useWarehouses } from '@/features/logistics/warehouses.hooks'
@@ -92,12 +91,6 @@ function ItemFormContent({
     }
 
     if (!isEditing) {
-      // 1. Check if product is already in deactivated archive or backend inactive
-      const archivedList = getArchivedProducts()
-      const archivedMatch = archivedList.find(
-        (p) => p.name.toUpperCase().trim() === cleanName.toUpperCase()
-      )
-
       let backendMatch: InventoryItemResponse | null = null
       try {
         backendMatch = await fetchProductByNameApi(cleanName)
@@ -105,7 +98,7 @@ function ItemFormContent({
         // Ignore
       }
 
-      if (backendMatch && backendMatch.isActive === false) {
+      if (backendMatch && typeof backendMatch === 'object' && backendMatch.id && backendMatch.isActive === false) {
         setDeactivatedProductMatch(backendMatch)
         setErrorMsg(
           `Product with name "${cleanName}" is currently deactivated. You can reactivate it directly.`
@@ -113,19 +106,11 @@ function ItemFormContent({
         return
       }
 
-      if (archivedMatch) {
-        setDeactivatedProductMatch(archivedMatch)
-        setErrorMsg(
-          `Product with name "${cleanName}" is currently deactivated. You can reactivate it directly.`
-        )
-        return
-      }
-
-      // 2. Check if active duplicate exists
+      // Check if active duplicate exists in current catalog or server
       const isDuplicate = allProducts.some(
-        (p) => p.name.toLowerCase().trim() === cleanName.toLowerCase()
+        (p) => p.name.toLowerCase().trim() === cleanName.toLowerCase() && p.isActive !== false
       )
-      if (isDuplicate || (backendMatch && backendMatch.isActive !== false)) {
+      if (isDuplicate || (backendMatch && typeof backendMatch === 'object' && backendMatch.id && backendMatch.isActive !== false)) {
         setErrorMsg(`A product with the name "${cleanName}" is already active in the catalog.`)
         return
       }

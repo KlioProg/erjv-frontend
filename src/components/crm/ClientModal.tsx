@@ -18,7 +18,6 @@ import {
   useCreateClient,
   useUpdateClientDetails,
   useReactivateClient,
-  getArchivedClients,
   searchClientsByNameApi,
 } from '@/features/crm/clients.hooks'
 import type { Client } from '@/features/crm/clients.types'
@@ -68,12 +67,6 @@ function ClientFormContent({
     }
 
     if (!isEditing) {
-      // 1. Check if client is already in deactivated archive or backend inactive
-      const archivedList = getArchivedClients()
-      const archivedMatch = archivedList.find(
-        (c) => c.name.toUpperCase().trim() === cleanName.toUpperCase()
-      )
-
       let backendMatches: Client[] = []
       try {
         backendMatches = await searchClientsByNameApi(cleanName)
@@ -93,23 +86,15 @@ function ClientFormContent({
         return
       }
 
-      if (archivedMatch) {
-        setDeactivatedClientMatch(archivedMatch)
-        setErrorMsg(
-          `Client account "${cleanName}" is currently deactivated. You can reactivate it directly.`
-        )
-        return
-      }
-
       // 2. Check if active duplicate exists
       const isNameDup = allClients.some(
-        (c) => c.name.toLowerCase().trim() === cleanName.toLowerCase()
+        (c) => c.name.toLowerCase().trim() === cleanName.toLowerCase() && c.isActive !== false
       )
       const backendActive = backendMatches.find(
         (c) => c.name.toUpperCase().trim() === cleanName.toUpperCase() && c.isActive !== false
       )
       if (isNameDup || backendActive) {
-        setErrorMsg(`A client business named "${cleanName}" already exists.`)
+        setErrorMsg(`A client account with the name "${cleanName}" is already registered.`)
         return
       }
     }

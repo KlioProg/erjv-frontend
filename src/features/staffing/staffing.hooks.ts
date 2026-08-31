@@ -44,59 +44,6 @@ export const staffingKeys = {
   users: () => [...staffingKeys.all, 'users'] as const,
 }
 
-const ARCHIVED_EMPLOYEES_KEY = 'erjv_archived_employees'
-const ARCHIVED_JOBS_KEY = 'erjv_archived_jobs'
-
-// ===================== ARCHIVE STORAGE HELPERS =====================
-
-export function getArchivedEmployees(): Employee[] {
-  try {
-    const raw = localStorage.getItem(ARCHIVED_EMPLOYEES_KEY)
-    return raw ? JSON.parse(raw) : []
-  } catch {
-    return []
-  }
-}
-
-export function saveArchivedEmployee(emp: Employee) {
-  const current = getArchivedEmployees().filter(
-    (e) => e.id !== emp.id && (emp.email ? e.email?.toLowerCase().trim() !== emp.email.toLowerCase().trim() : true)
-  )
-  current.push({ ...emp, isActive: false })
-  localStorage.setItem(ARCHIVED_EMPLOYEES_KEY, JSON.stringify(current))
-}
-
-export function removeArchivedEmployee(idOrEmail: number | string) {
-  const current = getArchivedEmployees().filter(
-    (e) => e.id !== idOrEmail && e.email?.toLowerCase().trim() !== String(idOrEmail).toLowerCase().trim()
-  )
-  localStorage.setItem(ARCHIVED_EMPLOYEES_KEY, JSON.stringify(current))
-}
-
-export function getArchivedJobs(): Job[] {
-  try {
-    const raw = localStorage.getItem(ARCHIVED_JOBS_KEY)
-    return raw ? JSON.parse(raw) : []
-  } catch {
-    return []
-  }
-}
-
-export function saveArchivedJob(job: Job) {
-  const current = getArchivedJobs().filter(
-    (j) => j.id !== job.id && j.name.toUpperCase().trim() !== job.name.toUpperCase().trim()
-  )
-  current.push({ ...job, isActive: false })
-  localStorage.setItem(ARCHIVED_JOBS_KEY, JSON.stringify(current))
-}
-
-export function removeArchivedJob(idOrName: number | string) {
-  const current = getArchivedJobs().filter(
-    (j) => j.id !== idOrName && j.name.toUpperCase().trim() !== String(idOrName).toUpperCase().trim()
-  )
-  localStorage.setItem(ARCHIVED_JOBS_KEY, JSON.stringify(current))
-}
-
 // ===================== EMPLOYEE HOOKS =====================
 
 export function useEmployees() {
@@ -111,8 +58,6 @@ export function useCreateEmployee() {
   return useMutation({
     mutationFn: (payload: CreateEmployeePayload) => createEmployeeApi(payload),
     onSuccess: (newEmp) => {
-      if (newEmp.email) removeArchivedEmployee(newEmp.email)
-      removeArchivedEmployee(newEmp.id)
       queryClient.invalidateQueries({ queryKey: staffingKeys.employees() })
       toast.success(`Employee "${newEmp.firstName} ${newEmp.lastName}" registered successfully`)
     },
@@ -174,13 +119,7 @@ export function useDeactivateEmployee() {
   return useMutation({
     mutationFn: async (empOrId: Employee | number) => {
       const id = typeof empOrId === 'number' ? empOrId : empOrId.id
-      const res = await deactivateEmployeeApi(id)
-      if (typeof empOrId !== 'number') {
-        saveArchivedEmployee(empOrId)
-      } else if (res) {
-        saveArchivedEmployee(res)
-      }
-      return res
+      return await deactivateEmployeeApi(id)
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: staffingKeys.employees() })
@@ -196,23 +135,20 @@ export function useReactivateEmployee() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (emp: Employee) => {
-      removeArchivedEmployee(emp.id)
-      if (emp.email) removeArchivedEmployee(emp.email)
-      // If employee can be re-registered or restored:
-      const res = await createEmployeeApi({
+      // Update employee profile details to ensure record is active and accurate
+      const res = await updateEmployeeProfileApi(emp.id, {
         firstName: emp.firstName,
         lastName: emp.lastName,
-        email: emp.email || undefined,
-        phone: emp.phone || undefined,
-        address: emp.address || undefined,
+        email: emp.email || null,
+        phone: emp.phone || null,
+        address: emp.address || null,
         hireDate: emp.hireDate || new Date().toISOString(),
-        userId: emp.userId || undefined,
       })
       return res
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: staffingKeys.employees() })
-      toast.success(`Employee "${data.firstName} ${data.lastName}" reactivated and restored to staff directory`)
+      toast.success(`Employee "${data.firstName} ${data.lastName}" profile restored in staff directory`)
     },
     onError: (err) => {
       toast.error(getErrorMessage(err))
@@ -234,7 +170,6 @@ export function useCreateJob() {
   return useMutation({
     mutationFn: (payload: CreateJobPayload) => createJobApi(payload),
     onSuccess: (newJob) => {
-      removeArchivedJob(newJob.name)
       queryClient.invalidateQueries({ queryKey: staffingKeys.jobs() })
       toast.success(`Job position "${newJob.name}" created successfully`)
     },
@@ -265,13 +200,7 @@ export function useDeactivateJob() {
   return useMutation({
     mutationFn: async (jobOrId: Job | number) => {
       const id = typeof jobOrId === 'number' ? jobOrId : jobOrId.id
-      const res = await deactivateJobApi(id)
-      if (typeof jobOrId !== 'number') {
-        saveArchivedJob(jobOrId)
-      } else if (res) {
-        saveArchivedJob(res)
-      }
-      return res
+      return await deactivateJobApi(id)
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: staffingKeys.jobs() })
@@ -287,10 +216,7 @@ export function useReactivateJob() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (id: number) => {
-      const res = await reactivateJobApi(id)
-      removeArchivedJob(id)
-      if (res?.name) removeArchivedJob(res.name)
-      return res
+      return await reactivateJobApi(id)
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: staffingKeys.jobs() })

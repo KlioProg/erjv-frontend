@@ -29,7 +29,6 @@ import {
   useProducts,
   useDeactivateProduct,
   useReactivateProduct,
-  getArchivedProducts,
 } from '@/features/products/products.hooks'
 import { useStockItems, useDeleteStockItem } from '@/features/logistics/stock-items.hooks'
 import { useWarehouses } from '@/features/logistics/warehouses.hooks'
@@ -74,7 +73,7 @@ export function InventoryStockList() {
   })
 
   const activeProducts = products.filter((p) => p.isActive !== false)
-  const archivedProducts = getArchivedProducts()
+  const archivedProducts = products.filter((p) => p.isActive === false)
   const currentProductList = activeTab === 'ACTIVE' ? activeProducts : archivedProducts
 
   // Filter products

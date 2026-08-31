@@ -210,7 +210,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       localStorage.removeItem('erjv_current_user')
       setToken(null)
       setUser(null)
-      throw new Error(getErrorMessage(err))
+      throw new Error(getErrorMessage(err), { cause: err })
     } finally {
       setIsLoading(false)
     }
@@ -229,7 +229,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       })
       return registeredUser
     } catch (err: unknown) {
-      throw new Error(getErrorMessage(err))
+      throw new Error(getErrorMessage(err), { cause: err })
     } finally {
       setIsLoading(false)
     }
@@ -255,50 +255,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     setUser(updatedUser)
     localStorage.setItem('erjv_current_user', JSON.stringify(updatedUser))
-
-    // 2. Update in erjv_db_users_v6
-    try {
-      const rawDb = localStorage.getItem('erjv_db_users_v6')
-      if (rawDb) {
-        const currentDb = JSON.parse(rawDb)
-        const idx = currentDb.findIndex((u: { email: string }) => u.email.toLowerCase() === user.email.toLowerCase())
-        if (idx !== -1) {
-          currentDb[idx] = {
-            ...currentDb[idx],
-            fullName: updatedUser.fullName,
-            phone: updatedUser.phone,
-            avatarUrl: updatedUser.avatarUrl,
-            jobTitle: updatedUser.jobTitle,
-            bio: updatedUser.bio,
-          }
-          localStorage.setItem('erjv_db_users_v6', JSON.stringify(currentDb))
-        }
-      }
-    } catch {
-      // Ignore
-    }
-
-    // 3. Update in erjv_registered_users
-    try {
-      const rawReg = localStorage.getItem('erjv_registered_users')
-      if (rawReg) {
-        const currentReg = JSON.parse(rawReg)
-        const idx = currentReg.findIndex((u: { email: string }) => u.email.toLowerCase() === user.email.toLowerCase())
-        if (idx !== -1) {
-          currentReg[idx] = {
-            ...currentReg[idx],
-            fullName: updatedUser.fullName,
-            phone: updatedUser.phone,
-            avatarUrl: updatedUser.avatarUrl,
-            jobTitle: updatedUser.jobTitle,
-            bio: updatedUser.bio,
-          }
-          localStorage.setItem('erjv_registered_users', JSON.stringify(currentReg))
-        }
-      }
-    } catch {
-      // Ignore
-    }
 
     return updatedUser
   }

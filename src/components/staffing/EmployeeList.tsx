@@ -42,7 +42,6 @@ import {
   useDeactivateEmployee,
   useReactivateEmployee,
   useEmployeeJobs,
-  getArchivedEmployees,
 } from '@/features/staffing/staffing.hooks'
 import type { Employee } from '@/features/staffing/staffing.types'
 import { EmployeeModal } from './EmployeeModal'
@@ -93,7 +92,7 @@ export function EmployeeList() {
   const [employeeToDeactivate, setEmployeeToDeactivate] = useState<Employee | null>(null)
 
   const activeEmployees = employees.filter((emp) => emp.isActive !== false)
-  const archivedEmployees = getArchivedEmployees()
+  const archivedEmployees = employees.filter((emp) => emp.isActive === false)
   const currentEmployees = activeTab === 'ACTIVE' ? activeEmployees : archivedEmployees
 
   const filteredEmployees = currentEmployees.filter((emp) => {

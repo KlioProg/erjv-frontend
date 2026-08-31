@@ -196,27 +196,12 @@ export default function ForgotPasswordModal({
 
     setIsSubmitting(true)
     setTimeout(() => {
-      // Update local storage credentials if user was registered
-      try {
-        const storedUsersRaw = localStorage.getItem('erjv_registered_users')
-        if (storedUsersRaw) {
-          const users = JSON.parse(storedUsersRaw)
-          const idx = users.findIndex((u: { email: string }) => u.email.toLowerCase() === email.toLowerCase())
-          if (idx !== -1) {
-            users[idx].password = newPassword
-            localStorage.setItem('erjv_registered_users', JSON.stringify(users))
-          }
-        }
-      } catch {
-        // Ignore
-      }
-
       setIsSubmitting(false)
       setStep('COMPLETED')
       if (onSuccessReset) {
         onSuccessReset(email)
       }
-    }, 800)
+    }, 600)
   }
 
   return (

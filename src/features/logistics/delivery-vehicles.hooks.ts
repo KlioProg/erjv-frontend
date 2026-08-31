@@ -19,32 +19,6 @@ import type {
 import { getErrorMessage } from '@/lib/api-client'
 
 export const VEHICLES_QUERY_KEY = ['delivery-vehicles'] as const
-const ARCHIVED_VEHICLES_KEY = 'erjv_archived_vehicles'
-
-export function getArchivedVehicles(): DeliveryVehicle[] {
-  try {
-    const raw = localStorage.getItem(ARCHIVED_VEHICLES_KEY)
-    return raw ? JSON.parse(raw) : []
-  } catch {
-    return []
-  }
-}
-
-export function saveArchivedVehicle(vehicle: DeliveryVehicle) {
-  const current = getArchivedVehicles().filter(
-    (v) => v.id !== vehicle.id && v.plateNumber.toUpperCase() !== vehicle.plateNumber.toUpperCase()
-  )
-  current.push({ ...vehicle, isActive: false })
-  localStorage.setItem(ARCHIVED_VEHICLES_KEY, JSON.stringify(current))
-}
-
-export function removeArchivedVehicle(idOrPlate: number | string) {
-  const current = getArchivedVehicles().filter(
-    (v) => v.id !== idOrPlate && v.plateNumber.toUpperCase() !== String(idOrPlate).toUpperCase()
-  )
-  localStorage.setItem(ARCHIVED_VEHICLES_KEY, JSON.stringify(current))
-}
-
 export function useDeliveryVehicles() {
   return useQuery({
     queryKey: VEHICLES_QUERY_KEY,
@@ -64,7 +38,6 @@ export function useCreateVehicle() {
   return useMutation({
     mutationFn: (payload: CreateDeliveryVehiclePayload) => createVehicleApi(payload),
     onSuccess: (newV) => {
-      removeArchivedVehicle(newV.plateNumber)
       void queryClient.invalidateQueries({ queryKey: VEHICLES_QUERY_KEY })
       toast.success(`Vehicle "${newV.plateNumber}" registered successfully`)
     },
@@ -115,13 +88,7 @@ export function useDeactivateVehicle() {
   return useMutation({
     mutationFn: async (vehicle: DeliveryVehicle | number) => {
       const id = typeof vehicle === 'number' ? vehicle : vehicle.id
-      const res = await deactivateVehicleApi(id)
-      if (typeof vehicle !== 'number') {
-        saveArchivedVehicle(vehicle)
-      } else if (res) {
-        saveArchivedVehicle(res)
-      }
-      return res
+      return await deactivateVehicleApi(id)
     },
     onSuccess: (data) => {
       void queryClient.invalidateQueries({ queryKey: VEHICLES_QUERY_KEY })
@@ -137,12 +104,7 @@ export function useReactivateVehicle() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (id: number) => {
-      const res = await reactivateVehicleApi(id)
-      removeArchivedVehicle(id)
-      if (res?.plateNumber) {
-        removeArchivedVehicle(res.plateNumber)
-      }
-      return res
+      return await reactivateVehicleApi(id)
     },
     onSuccess: (data) => {
       void queryClient.invalidateQueries({ queryKey: VEHICLES_QUERY_KEY })

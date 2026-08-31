@@ -30,7 +30,6 @@ import {
   useClients,
   useDeactivateClient,
   useReactivateClient,
-  getArchivedClients,
 } from '@/features/crm/clients.hooks'
 import { useAuth } from '@/features/auth/AuthContext'
 import type { Client } from '@/features/crm/clients.types'
@@ -50,7 +49,7 @@ export function ClientList() {
   const [clientToDeactivate, setClientToDeactivate] = useState<Client | null>(null)
 
   const activeClients = clients.filter((c) => c.isActive !== false)
-  const archivedClients = getArchivedClients()
+  const archivedClients = clients.filter((c) => c.isActive === false)
   const currentClientList = activeTab === 'ACTIVE' ? activeClients : archivedClients
 
   const filteredClients = currentClientList.filter(

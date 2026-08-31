@@ -20,7 +20,6 @@ import {
   useReactivateEmployee,
   useUsers,
   useEmployees,
-  getArchivedEmployees,
 } from '@/features/staffing/staffing.hooks'
 import { fetchEmployeeByEmailApi } from '@/features/staffing/staffing.api'
 import type { Employee } from '@/features/staffing/staffing.types'
@@ -80,15 +79,6 @@ function EmployeeFormContent({
     const cleanEmail = email.trim().toLowerCase()
     const targetFullName = `${firstName.trim()} ${lastName.trim()}`.toLowerCase()
 
-    // 1. Check local archive and backend deactivated
-    const archivedList = getArchivedEmployees()
-    const archivedMatch = archivedList.find(
-      (emp) =>
-        emp.id !== employee?.id &&
-        ((cleanEmail && emp.email?.toLowerCase().trim() === cleanEmail) ||
-          `${emp.firstName} ${emp.lastName}`.toLowerCase().trim() === targetFullName)
-    )
-
     let backendEmailMatch: Employee | null = null
     if (cleanEmail) {
       try {
@@ -98,18 +88,16 @@ function EmployeeFormContent({
       }
     }
 
-    if (backendEmailMatch && backendEmailMatch.id !== employee?.id && backendEmailMatch.isActive === false) {
+    if (
+      backendEmailMatch &&
+      typeof backendEmailMatch === 'object' &&
+      backendEmailMatch.id &&
+      backendEmailMatch.id !== employee?.id &&
+      backendEmailMatch.isActive === false
+    ) {
       setDeactivatedEmployeeMatch(backendEmailMatch)
       setErrorMsg(
-        `An employee profile for "${backendEmailMatch.firstName} ${backendEmailMatch.lastName}" (${backendEmailMatch.email || 'No email'}) is currently deactivated. You can reactivate them directly.`
-      )
-      return
-    }
-
-    if (archivedMatch) {
-      setDeactivatedEmployeeMatch(archivedMatch)
-      setErrorMsg(
-        `An employee profile for "${archivedMatch.firstName} ${archivedMatch.lastName}" (${archivedMatch.email || 'No email'}) is currently deactivated. You can reactivate them directly.`
+        `An employee profile for "${backendEmailMatch.firstName} ${backendEmailMatch.lastName}" (${backendEmailMatch.email || 'No email'}) is currently deactivated. You can restore their profile directly.`
       )
       return
     }

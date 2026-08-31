@@ -19,7 +19,6 @@ import {
   useCreateVehicle,
   useUpdateVehicleDetails,
   useReactivateVehicle,
-  getArchivedVehicles,
   fetchVehicleByPlateNumberApi,
 } from '@/features/logistics/delivery-vehicles.hooks'
 import { useClients } from '@/features/crm/clients.hooks'
@@ -79,12 +78,6 @@ function VehicleFormContent({
     }
 
     if (!isEditing) {
-      // 1. Check if vehicle is already in deactivated archive or backend inactive
-      const archivedList = getArchivedVehicles()
-      const archivedMatch = archivedList.find(
-        (v) => v.plateNumber.toUpperCase().trim() === cleanPlate
-      )
-
       let backendMatch: DeliveryVehicle | null = null
       try {
         backendMatch = await fetchVehicleByPlateNumberApi(cleanPlate)
@@ -92,7 +85,7 @@ function VehicleFormContent({
         // Ignore
       }
 
-      if (backendMatch && backendMatch.isActive === false) {
+      if (backendMatch && typeof backendMatch === 'object' && backendMatch.id && backendMatch.isActive === false) {
         setDeactivatedVehicleMatch(backendMatch)
         setErrorMsg(
           `Vehicle with plate number "${cleanPlate}" is currently deactivated. You can reactivate it directly.`
@@ -100,20 +93,12 @@ function VehicleFormContent({
         return
       }
 
-      if (archivedMatch) {
-        setDeactivatedVehicleMatch(archivedMatch)
-        setErrorMsg(
-          `Vehicle with plate number "${cleanPlate}" is currently deactivated. You can reactivate it directly.`
-        )
-        return
-      }
-
-      // 2. Check if active duplicate exists
+      // Check if active duplicate exists
       const isDuplicatePlate = allVehicles.some(
-        (v) => v.plateNumber.toUpperCase().trim() === cleanPlate
+        (v) => v.plateNumber.toUpperCase().trim() === cleanPlate && v.isActive !== false
       )
-      if (isDuplicatePlate || (backendMatch && backendMatch.isActive !== false)) {
-        setErrorMsg(`A vehicle with plate number "${cleanPlate}" is already active.`)
+      if (isDuplicatePlate || (backendMatch && typeof backendMatch === 'object' && backendMatch.id && backendMatch.isActive !== false)) {
+        setErrorMsg(`A vehicle with plate number "${cleanPlate}" is already active in the fleet.`)
         return
       }
     }

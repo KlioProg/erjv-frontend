@@ -19,7 +19,6 @@ import {
   useCreateJob,
   useUpdateJobDetails,
   useReactivateJob,
-  getArchivedJobs,
 } from '@/features/staffing/staffing.hooks'
 import { fetchJobByNameApi } from '@/features/staffing/staffing.api'
 import type { Job } from '@/features/staffing/staffing.types'
@@ -60,29 +59,23 @@ function JobFormContent({
       return
     }
 
-    // 1. Check local archive and backend deactivated
-    const archivedList = getArchivedJobs()
-    const archivedMatch = archivedList.find(
-      (j) => j.id !== job?.id && j.name.toUpperCase().trim() === cleanName.toUpperCase()
-    )
-
     let backendMatch: Job | null = null
-    try {
-      backendMatch = await fetchJobByNameApi(cleanName)
-    } catch {
-      // Ignore
+    if (cleanName) {
+      try {
+        backendMatch = await fetchJobByNameApi(cleanName)
+      } catch {
+        // Ignore
+      }
     }
 
-    if (backendMatch && backendMatch.id !== job?.id && backendMatch.isActive === false) {
+    if (
+      backendMatch &&
+      typeof backendMatch === 'object' &&
+      backendMatch.id &&
+      backendMatch.id !== job?.id &&
+      backendMatch.isActive === false
+    ) {
       setDeactivatedJobMatch(backendMatch)
-      setErrorMsg(
-        `Job position "${cleanName}" is currently deactivated. You can reactivate it directly.`
-      )
-      return
-    }
-
-    if (archivedMatch) {
-      setDeactivatedJobMatch(archivedMatch)
       setErrorMsg(
         `Job position "${cleanName}" is currently deactivated. You can reactivate it directly.`
       )
@@ -91,9 +84,9 @@ function JobFormContent({
 
     // 2. Check active duplicates
     const isDuplicate = allJobs.some(
-      (j) => j.id !== job?.id && j.name.toLowerCase().trim() === cleanName.toLowerCase()
+      (j) => j.id !== job?.id && j.name.toLowerCase().trim() === cleanName.toLowerCase() && j.isActive !== false
     )
-    if (isDuplicate || (backendMatch && backendMatch.id !== job?.id && backendMatch.isActive !== false)) {
+    if (isDuplicate || (backendMatch && typeof backendMatch === 'object' && backendMatch.id && backendMatch.id !== job?.id && backendMatch.isActive !== false)) {
       setErrorMsg(`A job position titled "${cleanName}" already exists in the directory.`)
       return
     }

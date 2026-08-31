@@ -9,7 +9,6 @@ import {
   useDeactivateJob,
   useReactivateJob,
   useJobEmployees,
-  getArchivedJobs,
 } from '@/features/staffing/staffing.hooks'
 import type { Job } from '@/features/staffing/staffing.types'
 import { JobModal } from './JobModal'
@@ -40,7 +39,7 @@ export function JobList() {
   const [jobToDeactivate, setJobToDeactivate] = useState<Job | null>(null)
 
   const activeJobs = jobs.filter((j) => j.isActive !== false)
-  const archivedJobs = getArchivedJobs()
+  const archivedJobs = jobs.filter((j) => j.isActive === false)
   const currentJobList = activeTab === 'ACTIVE' ? activeJobs : archivedJobs
 
   const handleCreate = () => {

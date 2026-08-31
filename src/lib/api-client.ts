@@ -57,38 +57,66 @@ export function getErrorMessage(error: unknown): string {
 
     const lower = serverMessage.toLowerCase()
 
-    // Handle database unique constraint / duplicate collisions
-    if (lower.includes('unique') || lower.includes('duplicate') || lower.includes('already exists') || lower.includes('p2002')) {
+    // 1. Prisma P2002 Unique Constraint / Duplicate Keys
+    if (
+      lower.includes('unique') ||
+      lower.includes('duplicate') ||
+      lower.includes('already exists') ||
+      lower.includes('p2002') ||
+      lower.includes('unique constraint')
+    ) {
       if (lower.includes('email')) {
-        return 'This email address is already registered in the database.'
-      }
-      if (lower.includes('name')) {
-        return 'A record with this name already exists in the database.'
+        return 'This email address is already registered to an existing account or employee in the database.'
       }
       if (lower.includes('plate') || lower.includes('platenumber')) {
-        return 'A vehicle with this plate number already exists in the database.'
+        return 'A vehicle with this plate number is already registered in the fleet.'
+      }
+      if (lower.includes('inventoryitemid_warehouseid') || (lower.includes('warehouse') && lower.includes('product'))) {
+        return 'A stock allocation record for this product already exists in this warehouse.'
+      }
+      if (lower.includes('employeeid_jobid') || (lower.includes('employee') && lower.includes('job'))) {
+        return 'This employee is already assigned to this job position.'
+      }
+      if (lower.includes('userid') || lower.includes('user_id')) {
+        return 'This user account is already linked to another employee profile.'
+      }
+      if (lower.includes('name')) {
+        return 'A record with this name already exists in the database. Please use a unique title or reactivate the existing record.'
       }
       return 'A record with duplicate unique details already exists in the database.'
     }
 
+    // 2. Prisma P2003 Foreign Key Constraint Failures
+    if (lower.includes('p2003') || lower.includes('foreign key') || lower.includes('violates foreign key')) {
+      return 'Cannot complete operation: one of the related records (e.g. warehouse, job position, user, or product) does not exist or is currently in use.'
+    }
+
+    // 3. Prisma P2025 Record Not Found / Already Deleted
+    if (lower.includes('p2025') || lower.includes('record to update not found') || lower.includes('record to delete not found')) {
+      return 'The requested record was not found or has already been removed from the database.'
+    }
+
+    // 4. Role & Auth Guard Responses
     if (status === 403 || lower.includes('forbidden')) {
-      return 'Access Denied (403): Your account role does not have permission to perform this action. Only Owners and Administrators can create, edit, or delete records.'
+      return 'Access Denied (403): Your account role does not have permission to perform this action. Only Owners and Administrators can modify these records.'
     }
 
     if (status === 401 || lower.includes('unauthorized')) {
-      return 'Account not found or invalid credentials. Please check your email and password or register a new account.'
+      return 'Invalid credentials or session expired. Please sign in again.'
     }
 
     if (status === 404) {
-      return 'Requested resource was not found in the database.'
+      return 'The requested item was not found.'
     }
 
-    if (serverMessage && !serverMessage.toLowerCase().includes('internal server error')) {
+    // 5. Clean validation message if available
+    if (serverMessage && !lower.includes('internal server error')) {
       return serverMessage
     }
 
+    // 6. Generic 500 fallback with actionable advice
     if (status === 500) {
-      return 'Database service error (500). Please ensure PostgreSQL is running.'
+      return 'Database constraint error (500). Please check for duplicate unique fields or related records in the database.'
     }
 
     return axiosErr.message || 'Network communication error.'

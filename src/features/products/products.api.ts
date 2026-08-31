@@ -16,11 +16,15 @@ export async function fetchProductByIdApi(id: number): Promise<InventoryItemResp
 }
 
 export async function fetchProductByNameApi(name: string): Promise<InventoryItemResponse | null> {
+  if (!name || !name.trim()) return null
   try {
     const { data } = await apiClient.get<InventoryItemResponse>(
       `/inventory-items/name/${encodeURIComponent(name.trim())}`
     )
-    return data
+    if (data && typeof data === 'object' && 'id' in data && data.id) {
+      return data
+    }
+    return null
   } catch {
     return null
   }
