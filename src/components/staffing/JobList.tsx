@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Spinner } from '@/components/ui/spinner'
 import {
   useJobs,
+  useDeactivatedJobs,
   useDeactivateJob,
   useReactivateJob,
   useJobEmployees,
@@ -30,6 +31,7 @@ function JobStaffCount({ jobId }: { jobId: number }) {
 
 export function JobList() {
   const { data: jobs = [], isLoading, error } = useJobs()
+  const { data: deactivatedJobs = [] } = useDeactivatedJobs()
   const deactivateMutation = useDeactivateJob()
   const reactivateMutation = useReactivateJob()
 
@@ -39,7 +41,10 @@ export function JobList() {
   const [jobToDeactivate, setJobToDeactivate] = useState<Job | null>(null)
 
   const activeJobs = jobs.filter((j) => j.isActive !== false)
-  const archivedJobs = jobs.filter((j) => j.isActive === false)
+  const archivedJobs = [
+    ...jobs.filter((j) => j.isActive === false),
+    ...deactivatedJobs.filter((dj) => !jobs.some((j) => j.id === dj.id)),
+  ]
   const currentJobList = activeTab === 'ACTIVE' ? activeJobs : archivedJobs
 
   const handleCreate = () => {

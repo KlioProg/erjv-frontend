@@ -55,9 +55,18 @@ export function getErrorMessage(error: unknown): string {
       }
     }
 
+    const url = axiosErr.config?.url || ''
     const lower = serverMessage.toLowerCase()
 
-    // 1. Prisma P2002 Unique Constraint / Duplicate Keys
+    // 1. User Registration conflicts (/auth/register)
+    if (
+      url.includes('/auth/register') &&
+      (status === 500 || status === 409 || status === 400 || lower.includes('unique') || lower.includes('duplicate'))
+    ) {
+      return 'An account with this email address is already registered. Please sign in instead or use a different email address.'
+    }
+
+    // 2. Prisma P2002 Unique Constraint / Duplicate Keys
     if (
       lower.includes('unique') ||
       lower.includes('duplicate') ||
@@ -65,22 +74,22 @@ export function getErrorMessage(error: unknown): string {
       lower.includes('p2002') ||
       lower.includes('unique constraint')
     ) {
-      if (lower.includes('email')) {
+      if (lower.includes('email') || url.includes('/employees') || url.includes('/users')) {
         return 'This email address is already registered to an existing account or employee in the database.'
       }
-      if (lower.includes('plate') || lower.includes('platenumber')) {
+      if (lower.includes('plate') || lower.includes('platenumber') || url.includes('/delivery-vehicles')) {
         return 'A vehicle with this plate number is already registered in the fleet.'
       }
-      if (lower.includes('inventoryitemid_warehouseid') || (lower.includes('warehouse') && lower.includes('product'))) {
+      if (lower.includes('inventoryitemid_warehouseid') || (lower.includes('warehouse') && lower.includes('product')) || url.includes('/stock-items')) {
         return 'A stock allocation record for this product already exists in this warehouse.'
       }
-      if (lower.includes('employeeid_jobid') || (lower.includes('employee') && lower.includes('job'))) {
+      if (lower.includes('employeeid_jobid') || (lower.includes('employee') && lower.includes('job')) || url.includes('/employee-jobs')) {
         return 'This employee is already assigned to this job position.'
       }
       if (lower.includes('userid') || lower.includes('user_id')) {
         return 'This user account is already linked to another employee profile.'
       }
-      if (lower.includes('name')) {
+      if (lower.includes('name') || url.includes('/inventory-items') || url.includes('/jobs') || url.includes('/clients') || url.includes('/warehouses')) {
         return 'A record with this name already exists in the database. Please use a unique title or reactivate the existing record.'
       }
       return 'A record with duplicate unique details already exists in the database.'

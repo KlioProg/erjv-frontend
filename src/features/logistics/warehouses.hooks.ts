@@ -36,6 +36,7 @@ export function useCreateWarehouse() {
     mutationFn: (payload: CreateWarehousePayload) => createWarehouseApi(payload),
     onSuccess: (newWh) => {
       void queryClient.invalidateQueries({ queryKey: WAREHOUSES_QUERY_KEY })
+      void queryClient.invalidateQueries({ queryKey: ['stock-items'] })
       toast.success(`Warehouse "${newWh.name}" created successfully`)
     },
     onError: (err) => {
@@ -51,6 +52,7 @@ export function useUpdateWarehouseDetails() {
       updateWarehouseDetailsApi(id, payload),
     onSuccess: (updatedWh) => {
       void queryClient.invalidateQueries({ queryKey: WAREHOUSES_QUERY_KEY })
+      void queryClient.invalidateQueries({ queryKey: ['stock-items'] })
       toast.success(`Warehouse "${updatedWh.name}" updated successfully`)
     },
     onError: (err) => {
@@ -65,6 +67,7 @@ export function useDeactivateWarehouse() {
     mutationFn: (id: number) => deactivateWarehouseApi(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: WAREHOUSES_QUERY_KEY })
+      void queryClient.invalidateQueries({ queryKey: ['stock-items'] })
       toast.success('Warehouse deactivated')
     },
     onError: (err) => {
@@ -79,6 +82,7 @@ export function useReactivateWarehouse() {
     mutationFn: (id: number) => reactivateWarehouseApi(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: WAREHOUSES_QUERY_KEY })
+      void queryClient.invalidateQueries({ queryKey: ['stock-items'] })
       toast.success('Warehouse reactivated')
     },
     onError: (err) => {

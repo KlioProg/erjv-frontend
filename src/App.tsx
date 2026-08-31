@@ -10,8 +10,10 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       retry: 1,
-      refetchOnWindowFocus: true, // Instantly sync when switching from Prisma Studio
-      staleTime: 1000 * 5, // 5 seconds stale time for live responsiveness
+      refetchOnWindowFocus: true, // Instantly sync when switching from Prisma Studio or another tab
+      refetchOnMount: 'always', // Always check latest database state when a screen or modal opens
+      refetchOnReconnect: true,
+      staleTime: 0, // Zero stale time for instant real-time synchronization
     },
   },
 })

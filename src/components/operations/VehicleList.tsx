@@ -40,6 +40,7 @@ import {
 import {
   useDeactivateVehicle,
   useDeliveryVehicles,
+  useDeactivatedVehicles,
   useReactivateVehicle,
   useUpdateVehicleStatus,
 } from '@/features/logistics/delivery-vehicles.hooks'
@@ -88,6 +89,7 @@ function VehicleStatusBadge({ status }: { status: VehicleStatus }) {
 
 export function VehicleList() {
   const { data: vehicles = [], isLoading } = useDeliveryVehicles()
+  const { data: deactivatedVehicles = [] } = useDeactivatedVehicles()
   const { data: clients = [] } = useClients()
   const deactivateMutation = useDeactivateVehicle()
   const reactivateMutation = useReactivateVehicle()
@@ -106,7 +108,10 @@ export function VehicleList() {
   const [dispatchLocation, setDispatchLocation] = useState('')
 
   const activeVehicles = vehicles.filter((v) => v.isActive !== false)
-  const archivedVehicles = vehicles.filter((v) => v.isActive === false)
+  const archivedVehicles = [
+    ...vehicles.filter((v) => v.isActive === false),
+    ...deactivatedVehicles.filter((dv) => !vehicles.some((v) => v.id === dv.id)),
+  ]
 
   const currentVehicleList = activeTab === 'ACTIVE' ? activeVehicles : archivedVehicles
 

@@ -39,13 +39,26 @@ export function useProduct(id: number) {
   })
 }
 
+export function useDeactivatedProducts() {
+  return useQuery<InventoryItemResponse[]>({
+    queryKey: ['products', 'deactivated-products'],
+    queryFn: () => [],
+    initialData: [],
+    staleTime: Infinity,
+  })
+}
+
 // React Query mutation to create a new product
 export function useCreateProduct() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (payload: CreateInventoryItemPayload) => createProductApi(payload),
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: productKeys.all })
+      queryClient.setQueryData<InventoryItemResponse[]>(['products', 'deactivated-products'], (old = []) =>
+        old.filter((p) => p.id !== data.id && p.name.toLowerCase() !== data.name.toLowerCase())
+      )
+      void queryClient.invalidateQueries({ queryKey: productKeys.all })
+      void queryClient.invalidateQueries({ queryKey: ['stock-items'] })
       toast.success(`Product "${data.name}" registered successfully`)
     },
   })
@@ -58,8 +71,9 @@ export function useUpdateProductDetails() {
     mutationFn: ({ id, payload }: { id: number; payload: UpdateInventoryItemDetailsPayload }) =>
       updateProductDetailsApi(id, payload),
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: productKeys.all })
-      queryClient.invalidateQueries({ queryKey: productKeys.detail(variables.id) })
+      void queryClient.invalidateQueries({ queryKey: productKeys.all })
+      void queryClient.invalidateQueries({ queryKey: productKeys.detail(variables.id) })
+      void queryClient.invalidateQueries({ queryKey: ['stock-items'] })
       toast.success('Product details updated successfully')
     },
   })
@@ -72,8 +86,9 @@ export function useUpdateProductPrice() {
     mutationFn: ({ id, unitPrice }: { id: number; unitPrice: number }) =>
       updateProductPriceApi(id, unitPrice),
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: productKeys.all })
-      queryClient.invalidateQueries({ queryKey: productKeys.detail(variables.id) })
+      void queryClient.invalidateQueries({ queryKey: productKeys.all })
+      void queryClient.invalidateQueries({ queryKey: productKeys.detail(variables.id) })
+      void queryClient.invalidateQueries({ queryKey: ['stock-items'] })
       toast.success('Product price updated successfully')
     },
   })
@@ -88,7 +103,14 @@ export function useDeactivateProduct() {
       return await deactivateProductApi(id)
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: productKeys.all })
+      if (data) {
+        queryClient.setQueryData<InventoryItemResponse[]>(['products', 'deactivated-products'], (old = []) => [
+          ...old.filter((p) => p.id !== data.id),
+          { ...data, isActive: false },
+        ])
+      }
+      void queryClient.invalidateQueries({ queryKey: productKeys.all })
+      void queryClient.invalidateQueries({ queryKey: ['stock-items'] })
       toast.success(`Product "${data.name || 'SKU'}" deactivated and moved to archive`)
     },
   })
@@ -102,7 +124,11 @@ export function useReactivateProduct() {
       return await reactivateProductApi(id)
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: productKeys.all })
+      queryClient.setQueryData<InventoryItemResponse[]>(['products', 'deactivated-products'], (old = []) =>
+        old.filter((p) => p.id !== data.id)
+      )
+      void queryClient.invalidateQueries({ queryKey: productKeys.all })
+      void queryClient.invalidateQueries({ queryKey: ['stock-items'] })
       toast.success(`Product "${data.name || 'SKU'}" reactivated and restored to active catalog`)
     },
   })

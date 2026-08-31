@@ -33,11 +33,23 @@ export function useAvailableVehicles() {
   })
 }
 
+export function useDeactivatedVehicles() {
+  return useQuery<DeliveryVehicle[]>({
+    queryKey: ['delivery-vehicles', 'deactivated'],
+    queryFn: () => [],
+    initialData: [],
+    staleTime: Infinity,
+  })
+}
+
 export function useCreateVehicle() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (payload: CreateDeliveryVehiclePayload) => createVehicleApi(payload),
     onSuccess: (newV) => {
+      queryClient.setQueryData<DeliveryVehicle[]>(['delivery-vehicles', 'deactivated'], (old = []) =>
+        old.filter((v) => v.id !== newV.id && v.plateNumber.toUpperCase() !== newV.plateNumber.toUpperCase())
+      )
       void queryClient.invalidateQueries({ queryKey: VEHICLES_QUERY_KEY })
       toast.success(`Vehicle "${newV.plateNumber}" registered successfully`)
     },
@@ -91,6 +103,12 @@ export function useDeactivateVehicle() {
       return await deactivateVehicleApi(id)
     },
     onSuccess: (data) => {
+      if (data) {
+        queryClient.setQueryData<DeliveryVehicle[]>(['delivery-vehicles', 'deactivated'], (old = []) => [
+          ...old.filter((v) => v.id !== data.id),
+          { ...data, isActive: false },
+        ])
+      }
       void queryClient.invalidateQueries({ queryKey: VEHICLES_QUERY_KEY })
       toast.success(`Vehicle "${data.plateNumber || 'Fleet asset'}" deactivated and moved to archive`)
     },
@@ -107,6 +125,9 @@ export function useReactivateVehicle() {
       return await reactivateVehicleApi(id)
     },
     onSuccess: (data) => {
+      queryClient.setQueryData<DeliveryVehicle[]>(['delivery-vehicles', 'deactivated'], (old = []) =>
+        old.filter((v) => v.id !== data.id)
+      )
       void queryClient.invalidateQueries({ queryKey: VEHICLES_QUERY_KEY })
       toast.success(`Vehicle "${data.plateNumber || 'Fleet asset'}" reactivated and restored to active fleet`)
     },

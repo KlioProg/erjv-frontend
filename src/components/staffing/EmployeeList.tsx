@@ -39,6 +39,7 @@ import {
 import { Spinner } from '@/components/ui/spinner'
 import {
   useEmployees,
+  useDeactivatedEmployees,
   useDeactivateEmployee,
   useReactivateEmployee,
   useEmployeeJobs,
@@ -81,6 +82,7 @@ function EmployeeJobBadges({ employeeId }: { employeeId: number }) {
 
 export function EmployeeList() {
   const { data: employees = [], isLoading, error } = useEmployees()
+  const { data: deactivatedEmployees = [] } = useDeactivatedEmployees()
   const deactivateMutation = useDeactivateEmployee()
   const reactivateMutation = useReactivateEmployee()
 
@@ -92,7 +94,10 @@ export function EmployeeList() {
   const [employeeToDeactivate, setEmployeeToDeactivate] = useState<Employee | null>(null)
 
   const activeEmployees = employees.filter((emp) => emp.isActive !== false)
-  const archivedEmployees = employees.filter((emp) => emp.isActive === false)
+  const archivedEmployees = [
+    ...employees.filter((emp) => emp.isActive === false),
+    ...deactivatedEmployees.filter((de) => !employees.some((e) => e.id === de.id)),
+  ]
   const currentEmployees = activeTab === 'ACTIVE' ? activeEmployees : archivedEmployees
 
   const filteredEmployees = currentEmployees.filter((emp) => {

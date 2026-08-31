@@ -23,11 +23,23 @@ export function useClients() {
   })
 }
 
+export function useDeactivatedClients() {
+  return useQuery<Client[]>({
+    queryKey: ['clients', 'deactivated'],
+    queryFn: () => [],
+    initialData: [],
+    staleTime: Infinity,
+  })
+}
+
 export function useCreateClient() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (payload: CreateClientPayload) => createClientApi(payload),
     onSuccess: (newClient) => {
+      queryClient.setQueryData<Client[]>(['clients', 'deactivated'], (old = []) =>
+        old.filter((c) => c.id !== newClient.id && c.name.toLowerCase() !== newClient.name.toLowerCase())
+      )
       void queryClient.invalidateQueries({ queryKey: CLIENTS_QUERY_KEY })
       toast.success(`Client "${newClient.name}" registered successfully`)
     },
@@ -60,6 +72,12 @@ export function useDeactivateClient() {
       return await deactivateClientApi(id)
     },
     onSuccess: (data) => {
+      if (data) {
+        queryClient.setQueryData<Client[]>(['clients', 'deactivated'], (old = []) => [
+          ...old.filter((c) => c.id !== data.id),
+          { ...data, isActive: false },
+        ])
+      }
       void queryClient.invalidateQueries({ queryKey: CLIENTS_QUERY_KEY })
       toast.success(`Client "${data.name || 'Account'}" deactivated and moved to archive`)
     },
@@ -76,6 +94,9 @@ export function useReactivateClient() {
       return await reactivateClientApi(id)
     },
     onSuccess: (data) => {
+      queryClient.setQueryData<Client[]>(['clients', 'deactivated'], (old = []) =>
+        old.filter((c) => c.id !== data.id)
+      )
       void queryClient.invalidateQueries({ queryKey: CLIENTS_QUERY_KEY })
       toast.success(`Client "${data.name || 'Account'}" reactivated and restored to active directory`)
     },

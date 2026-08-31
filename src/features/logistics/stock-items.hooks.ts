@@ -55,6 +55,8 @@ export function useCreateStockItem() {
     }) => createStockItemApi(payload),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: STOCK_ITEMS_QUERY_KEY })
+      void queryClient.invalidateQueries({ queryKey: ['products'] })
+      void queryClient.invalidateQueries({ queryKey: ['warehouses'] })
       toast.success('Stock registered in warehouse successfully')
     },
     onError: (err) => {
@@ -70,6 +72,8 @@ export function useSetStockQuantity() {
       setStockQuantityApi(id, payload),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: STOCK_ITEMS_QUERY_KEY })
+      void queryClient.invalidateQueries({ queryKey: ['products'] })
+      void queryClient.invalidateQueries({ queryKey: ['warehouses'] })
       toast.success('Stock quantity updated')
     },
     onError: (err) => {
@@ -85,6 +89,8 @@ export function useIncreaseStock() {
       increaseStockQuantityApi(id, payload),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: STOCK_ITEMS_QUERY_KEY })
+      void queryClient.invalidateQueries({ queryKey: ['products'] })
+      void queryClient.invalidateQueries({ queryKey: ['warehouses'] })
       toast.success('Stock increased successfully')
     },
     onError: (err) => {
@@ -100,6 +106,8 @@ export function useDecreaseStock() {
       decreaseStockQuantityApi(id, payload),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: STOCK_ITEMS_QUERY_KEY })
+      void queryClient.invalidateQueries({ queryKey: ['products'] })
+      void queryClient.invalidateQueries({ queryKey: ['warehouses'] })
       toast.success('Stock decreased successfully')
     },
     onError: (err) => {
@@ -114,6 +122,8 @@ export function useDeleteStockItem() {
     mutationFn: (id: number) => deleteStockItemApi(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: STOCK_ITEMS_QUERY_KEY })
+      void queryClient.invalidateQueries({ queryKey: ['products'] })
+      void queryClient.invalidateQueries({ queryKey: ['warehouses'] })
       toast.success('Warehouse stock allocation removed')
     },
     onError: (err) => {

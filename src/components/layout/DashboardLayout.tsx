@@ -1,4 +1,6 @@
 import React, { useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import {
   Boxes,
   Warehouse as WarehouseIcon,
@@ -14,6 +16,7 @@ import {
   ChevronRight,
   Building2,
   ChevronDown,
+  RefreshCw,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -89,10 +92,27 @@ export function DashboardLayout({
   onSelectTab,
   children,
 }: DashboardLayoutProps) {
+  const queryClient = useQueryClient()
   const { user, logout, isOwner, isAdmin, isStaff } = useAuth()
   const { data: products = [] } = useProducts()
   const [isMobileOpen, setIsMobileOpen] = useState(false)
   const [isProductsModalOpen, setIsProductsModalOpen] = useState(false)
+  const [isSyncing, setIsSyncing] = useState(false)
+
+  const handleSelectTab = (tab: NavItemKey) => {
+    onSelectTab(tab)
+    void queryClient.invalidateQueries()
+  }
+
+  const handleManualSync = async () => {
+    setIsSyncing(true)
+    try {
+      await queryClient.invalidateQueries()
+      toast.success('Database synchronized with live server records')
+    } finally {
+      setTimeout(() => setIsSyncing(false), 400)
+    }
+  }
 
   const displayName = user?.fullName || (user?.email ? user.email.split('@')[0] : 'User Account')
   const userInitial = displayName.charAt(0).toUpperCase()
@@ -156,7 +176,7 @@ export function DashboardLayout({
                       <button
                         key={item.key}
                         onClick={() => {
-                          onSelectTab(item.key)
+                          handleSelectTab(item.key)
                           setIsMobileOpen(false)
                         }}
                         className={`group relative flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-xs font-semibold transition-all duration-150 cursor-pointer ${
@@ -267,12 +287,24 @@ export function DashboardLayout({
           </div>
 
           {/* Quick Header Actions */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleManualSync}
+              disabled={isSyncing}
+              className="text-xs font-semibold h-8.5 gap-1.5 shadow-2xs cursor-pointer hover:bg-primary/10 hover:text-primary transition-all"
+              title="Refresh and synchronize database records with server"
+            >
+              <RefreshCw className={`size-3.5 text-primary ${isSyncing ? 'animate-spin' : ''}`} />
+              <span className="hidden md:inline">{isSyncing ? 'Syncing...' : 'Sync Database'}</span>
+            </Button>
+
             <Button
               variant="outline"
               size="sm"
               onClick={() => setIsProductsModalOpen(true)}
-              className="text-xs font-semibold h-8.5 gap-1.5 shadow-2xs"
+              className="text-xs font-semibold h-8.5 gap-1.5 shadow-2xs cursor-pointer"
             >
               <Package className="size-3.5 text-primary" />
               <span className="hidden sm:inline">Product Catalog</span> ({products.length})

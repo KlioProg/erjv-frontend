@@ -53,12 +53,24 @@ export function useEmployees() {
   })
 }
 
+export function useDeactivatedEmployees() {
+  return useQuery<Employee[]>({
+    queryKey: ['staffing', 'deactivated-employees'],
+    queryFn: () => [],
+    initialData: [],
+    staleTime: Infinity,
+  })
+}
+
 export function useCreateEmployee() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (payload: CreateEmployeePayload) => createEmployeeApi(payload),
     onSuccess: (newEmp) => {
-      queryClient.invalidateQueries({ queryKey: staffingKeys.employees() })
+      queryClient.setQueryData<Employee[]>(['staffing', 'deactivated-employees'], (old = []) =>
+        old.filter((e) => e.id !== newEmp.id && e.email !== newEmp.email)
+      )
+      void queryClient.invalidateQueries({ queryKey: staffingKeys.all })
       toast.success(`Employee "${newEmp.firstName} ${newEmp.lastName}" registered successfully`)
     },
     onError: (err) => {
@@ -72,9 +84,8 @@ export function useUpdateEmployeeProfile() {
   return useMutation({
     mutationFn: ({ id, payload }: { id: number; payload: UpdateEmployeeProfilePayload }) =>
       updateEmployeeProfileApi(id, payload),
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: staffingKeys.employees() })
-      queryClient.invalidateQueries({ queryKey: staffingKeys.employeeDetail(variables.id) })
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: staffingKeys.all })
       toast.success('Employee profile updated')
     },
     onError: (err) => {
@@ -89,8 +100,7 @@ export function useLinkEmployeeUser() {
     mutationFn: ({ id, userId }: { id: number; userId: number }) =>
       linkEmployeeUserApi(id, userId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: staffingKeys.employees() })
-      queryClient.invalidateQueries({ queryKey: staffingKeys.users() })
+      void queryClient.invalidateQueries({ queryKey: staffingKeys.all })
       toast.success('Employee successfully linked to user account')
     },
     onError: (err) => {
@@ -104,8 +114,7 @@ export function useUnlinkEmployeeUser() {
   return useMutation({
     mutationFn: (id: number) => unlinkEmployeeUserApi(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: staffingKeys.employees() })
-      queryClient.invalidateQueries({ queryKey: staffingKeys.users() })
+      void queryClient.invalidateQueries({ queryKey: staffingKeys.all })
       toast.success('Employee unlinked from user account')
     },
     onError: (err) => {
@@ -119,10 +128,17 @@ export function useDeactivateEmployee() {
   return useMutation({
     mutationFn: async (empOrId: Employee | number) => {
       const id = typeof empOrId === 'number' ? empOrId : empOrId.id
-      return await deactivateEmployeeApi(id)
+      const res = await deactivateEmployeeApi(id)
+      return res
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: staffingKeys.employees() })
+      if (data) {
+        queryClient.setQueryData<Employee[]>(['staffing', 'deactivated-employees'], (old = []) => [
+          ...old.filter((e) => e.id !== data.id),
+          { ...data, isActive: false },
+        ])
+      }
+      void queryClient.invalidateQueries({ queryKey: staffingKeys.all })
       toast.success(`Employee profile "${data?.firstName || ''} ${data?.lastName || ''}" deactivated and moved to archive`)
     },
     onError: (err) => {
@@ -135,7 +151,6 @@ export function useReactivateEmployee() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (emp: Employee) => {
-      // Update employee profile details to ensure record is active and accurate
       const res = await updateEmployeeProfileApi(emp.id, {
         firstName: emp.firstName,
         lastName: emp.lastName,
@@ -147,7 +162,10 @@ export function useReactivateEmployee() {
       return res
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: staffingKeys.employees() })
+      queryClient.setQueryData<Employee[]>(['staffing', 'deactivated-employees'], (old = []) =>
+        old.filter((e) => e.id !== data.id)
+      )
+      void queryClient.invalidateQueries({ queryKey: staffingKeys.all })
       toast.success(`Employee "${data.firstName} ${data.lastName}" profile restored in staff directory`)
     },
     onError: (err) => {
@@ -165,12 +183,24 @@ export function useJobs() {
   })
 }
 
+export function useDeactivatedJobs() {
+  return useQuery<Job[]>({
+    queryKey: ['staffing', 'deactivated-jobs'],
+    queryFn: () => [],
+    initialData: [],
+    staleTime: Infinity,
+  })
+}
+
 export function useCreateJob() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (payload: CreateJobPayload) => createJobApi(payload),
     onSuccess: (newJob) => {
-      queryClient.invalidateQueries({ queryKey: staffingKeys.jobs() })
+      queryClient.setQueryData<Job[]>(['staffing', 'deactivated-jobs'], (old = []) =>
+        old.filter((j) => j.id !== newJob.id && j.name.toLowerCase() !== newJob.name.toLowerCase())
+      )
+      void queryClient.invalidateQueries({ queryKey: staffingKeys.all })
       toast.success(`Job position "${newJob.name}" created successfully`)
     },
     onError: (err) => {
@@ -184,9 +214,8 @@ export function useUpdateJobDetails() {
   return useMutation({
     mutationFn: ({ id, payload }: { id: number; payload: UpdateJobPayload }) =>
       updateJobDetailsApi(id, payload),
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: staffingKeys.jobs() })
-      queryClient.invalidateQueries({ queryKey: staffingKeys.jobDetail(variables.id) })
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: staffingKeys.all })
       toast.success('Job position details updated')
     },
     onError: (err) => {
@@ -203,7 +232,13 @@ export function useDeactivateJob() {
       return await deactivateJobApi(id)
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: staffingKeys.jobs() })
+      if (data) {
+        queryClient.setQueryData<Job[]>(['staffing', 'deactivated-jobs'], (old = []) => [
+          ...old.filter((j) => j.id !== data.id),
+          { ...data, isActive: false },
+        ])
+      }
+      void queryClient.invalidateQueries({ queryKey: staffingKeys.all })
       toast.success(`Job position "${data?.name || 'Role'}" deactivated and moved to archive`)
     },
     onError: (err) => {
@@ -219,7 +254,10 @@ export function useReactivateJob() {
       return await reactivateJobApi(id)
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: staffingKeys.jobs() })
+      queryClient.setQueryData<Job[]>(['staffing', 'deactivated-jobs'], (old = []) =>
+        old.filter((j) => j.id !== data.id)
+      )
+      void queryClient.invalidateQueries({ queryKey: staffingKeys.all })
       toast.success(`Job position "${data?.name || 'Role'}" reactivated and restored to active roles`)
     },
     onError: (err) => {
@@ -251,14 +289,8 @@ export function useAssignEmployeeJob() {
   return useMutation({
     mutationFn: ({ employeeId, jobId }: { employeeId: number; jobId: number }) =>
       assignEmployeeJobApi(employeeId, jobId),
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({
-        queryKey: staffingKeys.employeeJobs(variables.employeeId),
-      })
-      queryClient.invalidateQueries({
-        queryKey: staffingKeys.jobEmployees(variables.jobId),
-      })
-      queryClient.invalidateQueries({ queryKey: staffingKeys.employees() })
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: staffingKeys.all })
     },
   })
 }
@@ -268,14 +300,8 @@ export function useRemoveEmployeeJob() {
   return useMutation({
     mutationFn: ({ employeeId, jobId }: { employeeId: number; jobId: number }) =>
       removeEmployeeJobApi(employeeId, jobId),
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({
-        queryKey: staffingKeys.employeeJobs(variables.employeeId),
-      })
-      queryClient.invalidateQueries({
-        queryKey: staffingKeys.jobEmployees(variables.jobId),
-      })
-      queryClient.invalidateQueries({ queryKey: staffingKeys.employees() })
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: staffingKeys.all })
     },
   })
 }
@@ -285,12 +311,8 @@ export function useReplaceEmployeeJobs() {
   return useMutation({
     mutationFn: ({ employeeId, jobIds }: { employeeId: number; jobIds: number[] }) =>
       replaceJobsForEmployeeApi(employeeId, jobIds),
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({
-        queryKey: staffingKeys.employeeJobs(variables.employeeId),
-      })
-      queryClient.invalidateQueries({ queryKey: staffingKeys.employees() })
-      queryClient.invalidateQueries({ queryKey: staffingKeys.jobs() })
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: staffingKeys.all })
     },
   })
 }
@@ -310,7 +332,7 @@ export function useUpdateUserRole() {
     mutationFn: ({ id, role }: { id: number; role: UserRole }) =>
       updateUserRoleApi(id, role),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: staffingKeys.users() })
+      void queryClient.invalidateQueries({ queryKey: staffingKeys.all })
     },
   })
 }

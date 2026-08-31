@@ -28,6 +28,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import {
   useClients,
+  useDeactivatedClients,
   useDeactivateClient,
   useReactivateClient,
 } from '@/features/crm/clients.hooks'
@@ -38,6 +39,7 @@ import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal'
 
 export function ClientList() {
   const { data: clients = [], isLoading } = useClients()
+  const { data: deactivatedClients = [] } = useDeactivatedClients()
   const deactivateMutation = useDeactivateClient()
   const reactivateMutation = useReactivateClient()
   const { isOwner, isAdmin } = useAuth()
@@ -49,7 +51,10 @@ export function ClientList() {
   const [clientToDeactivate, setClientToDeactivate] = useState<Client | null>(null)
 
   const activeClients = clients.filter((c) => c.isActive !== false)
-  const archivedClients = clients.filter((c) => c.isActive === false)
+  const archivedClients = [
+    ...clients.filter((c) => c.isActive === false),
+    ...deactivatedClients.filter((dc) => !clients.some((c) => c.id === dc.id)),
+  ]
   const currentClientList = activeTab === 'ACTIVE' ? activeClients : archivedClients
 
   const filteredClients = currentClientList.filter(
