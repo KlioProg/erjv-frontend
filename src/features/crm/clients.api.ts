@@ -1,12 +1,12 @@
-import { apiClient, extractArray } from '@/lib/api-client'
+import { apiClient, extractArray, type FetchParams } from '@/lib/api-client'
 import type {
   Client,
   CreateClientPayload,
   UpdateClientDetailsPayload,
 } from './clients.types'
 
-export async function fetchClientsApi(): Promise<Client[]> {
-  const response = await apiClient.get('/clients')
+export async function fetchClientsApi(params?: FetchParams): Promise<Client[]> {
+  const response = await apiClient.get('/clients', { params })
   return extractArray<Client>(response.data)
 }
 
@@ -45,7 +45,9 @@ export async function updateClientDetailsApi(
   const cleanPayload = {
     ...(payload.name ? { name: payload.name.trim() } : {}),
     ...(payload.address ? { address: payload.address.trim() } : {}),
-    ...(payload.contactPerson !== undefined ? { contactPerson: payload.contactPerson?.trim() || null } : {}),
+    ...(payload.contactPerson !== undefined
+      ? { contactPerson: payload.contactPerson?.trim() || null }
+      : {}),
     ...(payload.phone !== undefined ? { phone: payload.phone?.trim() || null } : {}),
     ...(payload.email !== undefined ? { email: payload.email?.trim() || null } : {}),
   }

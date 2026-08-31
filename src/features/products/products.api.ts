@@ -1,12 +1,12 @@
-import { apiClient, extractArray } from '@/lib/api-client'
+import { apiClient, extractArray, type FetchParams } from '@/lib/api-client'
 import type {
   CreateInventoryItemPayload,
   InventoryItemResponse,
   UpdateInventoryItemDetailsPayload,
 } from './products.types'
 
-export async function fetchProductsApi(): Promise<InventoryItemResponse[]> {
-  const response = await apiClient.get('/inventory-items')
+export async function fetchProductsApi(params?: FetchParams): Promise<InventoryItemResponse[]> {
+  const response = await apiClient.get('/inventory-items', { params })
   return extractArray<InventoryItemResponse>(response.data)
 }
 

@@ -26,9 +26,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import {
+  useAllDeliveryVehicles,
   useDeactivateVehicle,
-  useDeliveryVehicles,
-  useDeactivatedVehicles,
   useReactivateVehicle,
   useUpdateVehicleStatus,
 } from '@/features/logistics/delivery-vehicles.hooks'
@@ -77,8 +76,7 @@ function VehicleStatusBadge({ status }: { status: VehicleStatus }) {
 }
 
 export function VehicleList() {
-  const { data: vehicles = [], isLoading } = useDeliveryVehicles()
-  const { data: deactivatedVehicles = [] } = useDeactivatedVehicles()
+  const { data: allVehicles = [], isLoading } = useAllDeliveryVehicles()
   const deactivateMutation = useDeactivateVehicle()
   const reactivateMutation = useReactivateVehicle()
   const statusMutation = useUpdateVehicleStatus()
@@ -91,11 +89,8 @@ export function VehicleList() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [vehicleToDeactivate, setVehicleToDeactivate] = useState<DeliveryVehicle | null>(null)
 
-  const activeVehicles = vehicles.filter((v) => v.isActive !== false)
-  const archivedVehicles = [
-    ...vehicles.filter((v) => v.isActive === false),
-    ...deactivatedVehicles.filter((dv) => !vehicles.some((v) => v.id === dv.id)),
-  ]
+  const activeVehicles = allVehicles.filter((v) => v.isActive !== false)
+  const archivedVehicles = allVehicles.filter((v) => v.isActive === false)
 
   const currentVehicleList = activeTab === 'ACTIVE' ? activeVehicles : archivedVehicles
 
@@ -156,7 +151,7 @@ export function VehicleList() {
             <Truck className="size-5" />
           </div>
           <div>
-            <div className="text-xl font-extrabold text-foreground">{vehicles.length}</div>
+            <div className="text-xl font-extrabold text-foreground">{allVehicles.length}</div>
             <div className="text-[11px] text-muted-foreground font-medium">Total Fleet</div>
           </div>
         </div>

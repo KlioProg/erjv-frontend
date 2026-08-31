@@ -15,13 +15,10 @@ import { Textarea } from '@/components/ui/textarea'
 import { Spinner } from '@/components/ui/spinner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
-  useJobs,
   useCreateJob,
   useUpdateJobDetails,
   useReactivateJob,
-  useDeactivatedJobs,
 } from '@/features/staffing/staffing.hooks'
-import { fetchJobByNameApi } from '@/features/staffing/staffing.api'
 import type { Job } from '@/features/staffing/staffing.types'
 import { getErrorMessage } from '@/lib/api-client'
 
@@ -39,8 +36,6 @@ function JobFormContent({
   onClose: () => void
 }) {
   const isEditing = !!job
-  const { data: allJobs = [] } = useJobs()
-  const { data: deactivatedJobs = [] } = useDeactivatedJobs()
   const createMutation = useCreateJob()
   const updateMutation = useUpdateJobDetails()
   const reactivateMutation = useReactivateJob()
@@ -61,41 +56,8 @@ function JobFormContent({
       return
     }
 
-    let backendMatch: Job | null = null
-    if (cleanName) {
-      try {
-        backendMatch = await fetchJobByNameApi(cleanName)
-      } catch {
-        // Ignore
-      }
-    }
-
-    const deactivatedMatch =
-      (backendMatch && backendMatch.id !== job?.id && backendMatch.isActive === false
-        ? backendMatch
-        : null) ||
-      deactivatedJobs.find(
-        (dj) =>
-          dj.id !== job?.id &&
-          dj.name.toLowerCase().trim() === cleanName.toLowerCase()
-      )
-
-    if (deactivatedMatch) {
-      setDeactivatedJobMatch(deactivatedMatch)
-      setErrorMsg(
-        `Job position "${cleanName}" is currently deactivated. You can reactivate it directly.`
-      )
-      return
-    }
-
-    // 2. Check active duplicates
-    const isDuplicate = allJobs.some(
-      (j) => j.id !== job?.id && j.name.toLowerCase().trim() === cleanName.toLowerCase() && j.isActive !== false
-    )
-    if (isDuplicate || (backendMatch && typeof backendMatch === 'object' && backendMatch.id && backendMatch.id !== job?.id && backendMatch.isActive !== false)) {
-      setErrorMsg(`A job position titled "${cleanName}" already exists in the directory.`)
-      return
-    }
+    // NOTE: same situation as EmployeeModal and WarehouseModal.
+    // the uniqueness constraint is cleanName.
 
     try {
       if (isEditing && job) {

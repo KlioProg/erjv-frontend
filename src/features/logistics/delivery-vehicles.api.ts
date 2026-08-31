@@ -1,4 +1,4 @@
-import { apiClient, extractArray } from '@/lib/api-client'
+import { apiClient, extractArray, type FetchParams } from '@/lib/api-client'
 import type {
   CreateDeliveryVehiclePayload,
   DeliveryVehicle,
@@ -6,8 +6,8 @@ import type {
   VehicleStatus,
 } from './delivery-vehicles.types'
 
-export async function fetchDeliveryVehiclesApi(): Promise<DeliveryVehicle[]> {
-  const response = await apiClient.get('/delivery-vehicles')
+export async function fetchDeliveryVehiclesApi(params?: FetchParams): Promise<DeliveryVehicle[]> {
+  const response = await apiClient.get('/delivery-vehicles', { params })
   return extractArray<DeliveryVehicle>(response.data)
 }
 

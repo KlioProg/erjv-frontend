@@ -1,4 +1,4 @@
-import { apiClient, extractArray } from '@/lib/api-client'
+import { apiClient, extractArray, type FetchParams } from '@/lib/api-client'
 import type { UserRole } from '../auth/auth.types'
 import type {
   CreateEmployeePayload,
@@ -15,8 +15,8 @@ import type {
 
 // ===================== EMPLOYEES =====================
 
-export async function fetchEmployeesApi(): Promise<Employee[]> {
-  const response = await apiClient.get('/employees')
+export async function fetchEmployeesApi(params?: FetchParams): Promise<Employee[]> {
+  const response = await apiClient.get('/employees', { params })
   return extractArray<Employee>(response.data)
 }
 
@@ -88,8 +88,8 @@ export async function reactivateEmployeeApi(id: number): Promise<Employee> {
 
 // ===================== JOBS =====================
 
-export async function fetchJobsApi(): Promise<Job[]> {
-  const response = await apiClient.get('/jobs')
+export async function fetchJobsApi(params?: FetchParams): Promise<Job[]> {
+  const response = await apiClient.get('/jobs', { params })
   return extractArray<Job>(response.data)
 }
 
@@ -190,8 +190,8 @@ export async function replaceEmployeeJobsApi(
 
 // ===================== USERS =====================
 
-export async function fetchUsersApi(): Promise<UserAccount[]> {
-  const response = await apiClient.get('/users')
+export async function fetchUsersApi(params?: FetchParams): Promise<UserAccount[]> {
+  const response = await apiClient.get('/users', { params })
   return extractArray<UserAccount>(response.data)
 }
 

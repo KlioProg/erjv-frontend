@@ -19,10 +19,7 @@ import {
   useUpdateEmployeeProfile,
   useReactivateEmployee,
   useUsers,
-  useEmployees,
-  useDeactivatedEmployees,
 } from '@/features/staffing/staffing.hooks'
-import { fetchEmployeeByEmailApi } from '@/features/staffing/staffing.api'
 import type { Employee } from '@/features/staffing/staffing.types'
 import { getErrorMessage } from '@/lib/api-client'
 
@@ -44,8 +41,6 @@ function EmployeeFormContent({
   const updateMutation = useUpdateEmployeeProfile()
   const reactivateMutation = useReactivateEmployee()
   const { data: users = [] } = useUsers()
-  const { data: allEmployees = [] } = useEmployees()
-  const { data: deactivatedEmployees = [] } = useDeactivatedEmployees()
 
   const [firstName, setFirstName] = useState(employee?.firstName || '')
   const [lastName, setLastName] = useState(employee?.lastName || '')
@@ -78,55 +73,13 @@ function EmployeeFormContent({
       return
     }
 
-    const cleanEmail = email.trim().toLowerCase()
-    const targetFullName = `${firstName.trim()} ${lastName.trim()}`.toLowerCase()
-
-    let backendEmailMatch: Employee | null = null
-    if (cleanEmail) {
-      try {
-        backendEmailMatch = await fetchEmployeeByEmailApi(cleanEmail)
-      } catch {
-        // Ignore
-      }
-    }
-
-    const deactivatedMatch =
-      (backendEmailMatch && backendEmailMatch.id !== employee?.id && backendEmailMatch.isActive === false
-        ? backendEmailMatch
-        : null) ||
-      deactivatedEmployees.find(
-        (de) =>
-          de.id !== employee?.id &&
-          ((cleanEmail && de.email && de.email.toLowerCase().trim() === cleanEmail) ||
-            `${de.firstName} ${de.lastName}`.toLowerCase().trim() === targetFullName)
-      )
-
-    if (deactivatedMatch) {
-      setDeactivatedEmployeeMatch(deactivatedMatch)
-      setErrorMsg(
-        `An employee profile for "${deactivatedMatch.firstName} ${deactivatedMatch.lastName}" (${deactivatedMatch.email || 'No email'}) is currently deactivated. You can restore their profile directly.`
-      )
-      return
-    }
-
-    // 2. Uniqueness validation for active employees
-    const duplicateEmail = allEmployees.find(
-      (emp) => emp.id !== employee?.id && emp.email && emp.email.toLowerCase().trim() === cleanEmail
-    )
-    if (cleanEmail && duplicateEmail) {
-      setErrorMsg(`An active employee with the email "${cleanEmail}" is already registered.`)
-      return
-    }
-
-    const duplicateName = allEmployees.find(
-      (emp) =>
-        emp.id !== employee?.id &&
-        `${emp.firstName} ${emp.lastName}`.toLowerCase().trim() === targetFullName
-    )
-    if (duplicateName) {
-      setErrorMsg(`An active employee named "${firstName.trim()} ${lastName.trim()}" is already registered.`)
-      return
-    }
+    // NOTE: removed client-side constraint validation, need backend to provide constraint errors
+    // - deactivatedEmployeeMatch: set when there exists a deactivated employee with the specified email.
+    // - also used to check for an active employee with matching email
+    // - also used to check for an active or inactive employee with matching first and lastname
+    // recommendations:
+    // - just let the DB check the email constraint (or remove the email entirely in favor of user linking)
+    // - do not make firstname/lastname unique. people can absolutely have the same first and last name.
 
     try {
       const parsedHireDate = new Date(hireDate).toISOString()

@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { getErrorMessage } from '@/lib/api-client'
+import { getErrorMessage, type FetchParams } from '@/lib/api-client'
 import type { UserRole } from '../auth/auth.types'
 import {
   assignEmployeeJobApi,
@@ -8,10 +8,8 @@ import {
   createJobApi,
   deactivateEmployeeApi,
   deactivateJobApi,
-  fetchEmployeeByIdApi,
   fetchEmployeesApi,
   fetchEmployeesForJobApi,
-  fetchJobByIdApi,
   fetchJobsApi,
   fetchJobsForEmployeeApi,
   fetchUsersApi,
@@ -36,60 +34,29 @@ import type {
 
 export const staffingKeys = {
   all: ['staffing'] as const,
-  employees: () => [...staffingKeys.all, 'employees'] as const,
+  employees: (includeInactive = 'false') =>
+    [...staffingKeys.all, 'employees', includeInactive] as const,
   employeeDetail: (id: number) => [...staffingKeys.employees(), id] as const,
-  jobs: () => [...staffingKeys.all, 'jobs'] as const,
+  jobs: (includeInactive = 'false') =>
+    [...staffingKeys.all, 'jobs', includeInactive] as const,
   jobDetail: (id: number) => [...staffingKeys.jobs(), id] as const,
-  employeeJobs: (employeeId: number) =>
-    [...staffingKeys.all, 'employee-jobs', employeeId] as const,
-  jobEmployees: (jobId: number) =>
-    [...staffingKeys.all, 'job-employees', jobId] as const,
-  users: () => [...staffingKeys.all, 'users'] as const,
+  employeeJobs: (employeeId: number) => [...staffingKeys.all, 'employee-jobs', employeeId] as const,
+  jobEmployees: (jobId: number) => [...staffingKeys.all, 'job-employees', jobId] as const,
+  users: (includeInactive = 'false') =>
+    [...staffingKeys.all, 'users', includeInactive] as const,
 }
 
 // ===================== EMPLOYEE HOOKS =====================
 
-export function useEmployees() {
+export function useEmployees(params?: FetchParams) {
   return useQuery({
-    queryKey: staffingKeys.employees(),
-    queryFn: fetchEmployeesApi,
+    queryKey: staffingKeys.employees(params?.includeInactive ?? 'false'),
+    queryFn: () => fetchEmployeesApi(params),
   })
 }
 
-export function useDeactivatedEmployees() {
-  return useQuery<Employee[]>({
-    queryKey: ['staffing', 'deactivated-employees'],
-    queryFn: async () => {
-      let activeEmployees: Employee[] = []
-      try {
-        activeEmployees = await fetchEmployeesApi()
-      } catch {
-        // Ignore
-      }
-
-      const activeIds = activeEmployees.map((e) => e.id)
-      const maxId = activeIds.length > 0 ? Math.max(...activeIds) : 0
-      const scanUpperLimit = Math.max(maxId + 5, 20)
-
-      const candidateIds = Array.from({ length: scanUpperLimit }, (_, i) => i + 1)
-      const results: Employee[] = []
-
-      const promises = candidateIds.map(async (id) => {
-        try {
-          const emp = await fetchEmployeeByIdApi(id)
-          if (emp && emp.isActive === false) {
-            results.push(emp)
-          }
-        } catch {
-          // If deleted or not found, skip
-        }
-      })
-
-      await Promise.all(promises)
-      return results.sort((a, b) => a.id - b.id)
-    },
-    staleTime: 0,
-  })
+export function useAllEmployees() {
+  return useEmployees({ includeInactive: 'true' })
 }
 
 export function useCreateEmployee() {
@@ -97,9 +64,6 @@ export function useCreateEmployee() {
   return useMutation({
     mutationFn: (payload: CreateEmployeePayload) => createEmployeeApi(payload),
     onSuccess: (newEmp) => {
-      queryClient.setQueryData<Employee[]>(['staffing', 'deactivated-employees'], (old = []) =>
-        old.filter((e) => e.id !== newEmp.id && e.email !== newEmp.email)
-      )
       void queryClient.invalidateQueries({ queryKey: staffingKeys.all })
       toast.success(`Employee "${newEmp.firstName} ${newEmp.lastName}" registered successfully`)
     },
@@ -161,18 +125,9 @@ export function useDeactivateEmployee() {
       const res = await deactivateEmployeeApi(id)
       return { res, inputEmployee: typeof empOrId === 'object' ? empOrId : null, id }
     },
-    onSuccess: ({ res, inputEmployee, id }) => {
-      const targetId = res?.id || inputEmployee?.id || id
+    onSuccess: ({ res, inputEmployee }) => {
       const name = res ? `${res.firstName} ${res.lastName}` : inputEmployee ? `${inputEmployee.firstName} ${inputEmployee.lastName}` : 'Employee'
-      if (res || inputEmployee) {
-        const entry: Employee = res || { ...(inputEmployee as Employee), isActive: false }
-        queryClient.setQueryData<Employee[]>(['staffing', 'deactivated-employees'], (old = []) => [
-          ...old.filter((e) => e.id !== targetId),
-          { ...entry, isActive: false },
-        ])
-      }
       void queryClient.invalidateQueries({ queryKey: staffingKeys.all })
-      void queryClient.invalidateQueries({ queryKey: ['staffing', 'deactivated-employees'] })
       toast.success(`Employee profile "${name}" deactivated and moved to archive`)
     },
     onError: (err) => {
@@ -189,18 +144,9 @@ export function useReactivateEmployee() {
       const res = await reactivateEmployeeApi(id)
       return { res, inputEmployee: typeof empOrId === 'object' ? empOrId : null, id }
     },
-    onSuccess: ({ res, inputEmployee, id }) => {
-      const targetId = res?.id || inputEmployee?.id || id
+    onSuccess: ({ res, inputEmployee }) => {
       const name = res ? `${res.firstName} ${res.lastName}` : inputEmployee ? `${inputEmployee.firstName} ${inputEmployee.lastName}` : 'Employee'
-      if (res || inputEmployee) {
-        const entry: Employee = res || { ...(inputEmployee as Employee), isActive: true }
-        queryClient.setQueryData<Employee[]>(['staffing', 'deactivated-employees'], (old = []) => [
-          ...old.filter((e) => e.id !== targetId),
-          { ...entry, isActive: true },
-        ])
-      }
       void queryClient.invalidateQueries({ queryKey: staffingKeys.all })
-      void queryClient.invalidateQueries({ queryKey: ['staffing', 'deactivated-employees'] })
       toast.success(`Employee profile "${name}" reactivated`)
     },
     onError: (err) => {
@@ -211,47 +157,15 @@ export function useReactivateEmployee() {
 
 // ===================== JOB HOOKS =====================
 
-export function useJobs() {
+export function useJobs(params?: FetchParams) {
   return useQuery({
-    queryKey: staffingKeys.jobs(),
-    queryFn: fetchJobsApi,
+    queryKey: staffingKeys.jobs(params?.includeInactive ?? 'false'),
+    queryFn: () => fetchJobsApi(params),
   })
 }
 
-export function useDeactivatedJobs() {
-  return useQuery<Job[]>({
-    queryKey: ['staffing', 'deactivated-jobs'],
-    queryFn: async () => {
-      let activeJobs: Job[] = []
-      try {
-        activeJobs = await fetchJobsApi()
-      } catch {
-        // Ignore
-      }
-
-      const activeIds = activeJobs.map((j) => j.id)
-      const maxId = activeIds.length > 0 ? Math.max(...activeIds) : 0
-      const scanUpperLimit = Math.max(maxId + 5, 20)
-
-      const candidateIds = Array.from({ length: scanUpperLimit }, (_, i) => i + 1)
-      const results: Job[] = []
-
-      const promises = candidateIds.map(async (id) => {
-        try {
-          const job = await fetchJobByIdApi(id)
-          if (job && job.isActive === false) {
-            results.push(job)
-          }
-        } catch {
-          // If deleted or not found, skip
-        }
-      })
-
-      await Promise.all(promises)
-      return results.sort((a, b) => a.id - b.id)
-    },
-    staleTime: 0,
-  })
+export function useAllJobs() {
+  return useJobs({ includeInactive: 'true' })
 }
 
 export function useCreateJob() {
@@ -259,9 +173,6 @@ export function useCreateJob() {
   return useMutation({
     mutationFn: (payload: CreateJobPayload) => createJobApi(payload),
     onSuccess: (newJob) => {
-      queryClient.setQueryData<Job[]>(['staffing', 'deactivated-jobs'], (old = []) =>
-        old.filter((j) => j.id !== newJob.id && j.name.toLowerCase() !== newJob.name.toLowerCase())
-      )
       void queryClient.invalidateQueries({ queryKey: staffingKeys.all })
       toast.success(`Job position "${newJob.name}" created successfully`)
     },
@@ -294,18 +205,9 @@ export function useDeactivateJob() {
       const res = await deactivateJobApi(id)
       return { res, inputJob: typeof jobOrId === 'object' ? jobOrId : null, id }
     },
-    onSuccess: ({ res, inputJob, id }) => {
-      const targetId = res?.id || inputJob?.id || id
+    onSuccess: ({ res, inputJob }) => {
       const name = res?.name || inputJob?.name || 'Role'
-      if (res || inputJob) {
-        const entry: Job = res || { ...(inputJob as Job), isActive: false }
-        queryClient.setQueryData<Job[]>(['staffing', 'deactivated-jobs'], (old = []) => [
-          ...old.filter((j) => j.id !== targetId),
-          { ...entry, isActive: false },
-        ])
-      }
       void queryClient.invalidateQueries({ queryKey: staffingKeys.all })
-      void queryClient.invalidateQueries({ queryKey: ['staffing', 'deactivated-jobs'] })
       toast.success(`Job position "${name}" deactivated and moved to archive`)
     },
     onError: (err) => {
@@ -321,11 +223,7 @@ export function useReactivateJob() {
       return await reactivateJobApi(id)
     },
     onSuccess: (data) => {
-      queryClient.setQueryData<Job[]>(['staffing', 'deactivated-jobs'], (old = []) =>
-        old.filter((j) => j.id !== data.id)
-      )
       void queryClient.invalidateQueries({ queryKey: staffingKeys.all })
-      void queryClient.invalidateQueries({ queryKey: ['staffing', 'deactivated-jobs'] })
       toast.success(`Job position "${data?.name || 'Role'}" reactivated and restored to active roles`)
     },
     onError: (err) => {
@@ -387,11 +285,15 @@ export function useReplaceEmployeeJobs() {
 
 // ===================== USER HOOKS =====================
 
-export function useUsers() {
+export function useUsers(params?: FetchParams) {
   return useQuery({
-    queryKey: staffingKeys.users(),
-    queryFn: fetchUsersApi,
+    queryKey: staffingKeys.users(params?.includeInactive ?? 'false'),
+    queryFn: () => fetchUsersApi(params),
   })
+}
+
+export function useAllUsers() {
+  return useUsers({ includeInactive: 'true' })
 }
 
 export function useUpdateUserRole() {

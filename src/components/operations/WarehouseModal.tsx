@@ -14,12 +14,9 @@ import { Label } from '@/components/ui/label'
 import { Spinner } from '@/components/ui/spinner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
-  useAllWarehouses,
-  useDeactivatedWarehouses,
   useCreateWarehouse,
   useUpdateWarehouseDetails,
   useReactivateWarehouse,
-  fetchWarehouseByNameApi,
 } from '@/features/logistics/warehouses.hooks'
 import type { Warehouse } from '@/features/logistics/warehouses.types'
 import { getErrorMessage } from '@/lib/api-client'
@@ -38,8 +35,6 @@ function WarehouseFormContent({
   onClose: () => void
 }) {
   const isEditing = !!warehouse
-  const { data: allWarehouses = [] } = useAllWarehouses()
-  const { data: deactivatedWarehouses = [] } = useDeactivatedWarehouses()
   const createMutation = useCreateWarehouse()
   const updateMutation = useUpdateWarehouseDetails()
   const reactivateMutation = useReactivateWarehouse()
@@ -66,44 +61,10 @@ function WarehouseFormContent({
       return
     }
 
-    if (!isEditing) {
-      let backendMatch: Warehouse | null = null
-      try {
-        backendMatch = await fetchWarehouseByNameApi(cleanName)
-      } catch {
-        // Ignore
-      }
-
-      // Also check against local deactivated cache
-      if (!backendMatch) {
-        backendMatch =
-          deactivatedWarehouses.find(
-            (w) => w.name.toLowerCase().trim() === cleanName.toLowerCase()
-          ) || null
-      }
-
-      if (backendMatch && typeof backendMatch === 'object' && backendMatch.id && backendMatch.isActive === false) {
-        setDeactivatedWarehouseMatch(backendMatch)
-        if (!address.trim() && backendMatch.address) {
-          setAddress(backendMatch.address)
-        }
-        if (!contactNumber.trim() && backendMatch.contactNumber) {
-          setContactNumber(backendMatch.contactNumber)
-        }
-        setErrorMsg(
-          `Warehouse named "${cleanName}" is currently deactivated. You can reactivate it directly.`
-        )
-        return
-      }
-
-      const isDuplicate = allWarehouses.some(
-        (w) => w.name.toLowerCase().trim() === cleanName.toLowerCase() && w.isActive !== false
-      )
-      if (isDuplicate || (backendMatch && typeof backendMatch === 'object' && backendMatch.id && backendMatch.isActive !== false)) {
-        setErrorMsg(`A warehouse named "${cleanName}" already exists in the active database.`)
-        return
-      }
-    }
+    // NOTE: removed client-side constraint validation, need backend to provide constraint errors
+    // - deactivatedWarehouseMatch: set when there exists a deactivated warehouse with the specified name.
+    // recommendations:
+    // - just let the DB check the constraints and interpret it later
 
     try {
       if (isEditing && warehouse) {

@@ -26,7 +26,6 @@ import {
 } from '@/components/ui/dropdown-menu'
 import {
   useAllWarehouses,
-  useDeactivatedWarehouses,
   useDeactivateWarehouse,
   useReactivateWarehouse,
 } from '@/features/logistics/warehouses.hooks'
@@ -38,7 +37,6 @@ import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal'
 
 export function WarehouseList() {
   const { data: allWarehouses = [], isLoading } = useAllWarehouses()
-  const { data: deactivatedWarehouses = [] } = useDeactivatedWarehouses()
   const { data: stockItems = [] } = useStockItems()
   const deactivateMutation = useDeactivateWarehouse()
   const reactivateMutation = useReactivateWarehouse()
@@ -51,12 +49,8 @@ export function WarehouseList() {
   const [warehouseToArchive, setWarehouseToArchive] = useState<Warehouse | null>(null)
 
   const activeWarehouses = allWarehouses.filter((w) => w.isActive !== false)
-  const archivedWarehouses = [
-    ...allWarehouses.filter((w) => w.isActive === false),
-    ...deactivatedWarehouses.filter((dw) => !allWarehouses.some((w) => w.id === dw.id)),
-  ]
+  const archivedWarehouses = allWarehouses.filter((w) => w.isActive === false)
 
-  const totalWarehousesCount = activeWarehouses.length + archivedWarehouses.length
   const currentList = activeTab === 'ACTIVE' ? activeWarehouses : archivedWarehouses
 
   const filteredWarehouses = currentList.filter(
@@ -100,7 +94,7 @@ export function WarehouseList() {
             <WarehouseIcon className="size-5" />
           </div>
           <div>
-            <div className="text-xl font-extrabold text-foreground">{totalWarehousesCount}</div>
+            <div className="text-xl font-extrabold text-foreground">{allWarehouses.length}</div>
             <div className="text-[11px] text-muted-foreground font-medium">Total Facilities</div>
           </div>
         </div>

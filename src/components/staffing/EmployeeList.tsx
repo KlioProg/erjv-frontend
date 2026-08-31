@@ -38,8 +38,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Spinner } from '@/components/ui/spinner'
 import {
-  useEmployees,
-  useDeactivatedEmployees,
+  useAllEmployees,
   useDeactivateEmployee,
   useReactivateEmployee,
   useEmployeeJobs,
@@ -81,8 +80,7 @@ function EmployeeJobBadges({ employeeId }: { employeeId: number }) {
 }
 
 export function EmployeeList() {
-  const { data: employees = [], isLoading, error } = useEmployees()
-  const { data: deactivatedEmployees = [] } = useDeactivatedEmployees()
+  const { data: allEmployees = [], isLoading, error } = useAllEmployees()
   const deactivateMutation = useDeactivateEmployee()
   const reactivateMutation = useReactivateEmployee()
 
@@ -93,11 +91,8 @@ export function EmployeeList() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [employeeToDeactivate, setEmployeeToDeactivate] = useState<Employee | null>(null)
 
-  const activeEmployees = employees.filter((emp) => emp.isActive !== false)
-  const archivedEmployees = [
-    ...employees.filter((emp) => emp.isActive === false),
-    ...deactivatedEmployees.filter((de) => !employees.some((e) => e.id === de.id)),
-  ]
+  const activeEmployees = allEmployees.filter((emp) => emp.isActive !== false)
+  const archivedEmployees = allEmployees.filter((emp) => emp.isActive === false)
   const currentEmployees = activeTab === 'ACTIVE' ? activeEmployees : archivedEmployees
 
   const filteredEmployees = currentEmployees.filter((emp) => {

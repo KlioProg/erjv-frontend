@@ -15,19 +15,24 @@ import type {
   InventoryItemResponse,
   UpdateInventoryItemDetailsPayload,
 } from './products.types'
+import type { FetchParams } from '@/lib/api-client'
 
 export const productKeys = {
   all: ['products'] as const,
-  lists: () => [...productKeys.all, 'list'] as const,
+  lists: (includeInactive = 'false') => [...productKeys.all, 'list', includeInactive] as const,
   detail: (id: number) => [...productKeys.all, 'detail', id] as const,
 }
 
 // React Query hook to fetch the product list
-export function useProducts() {
+export function useProducts(params?: FetchParams) {
   return useQuery({
-    queryKey: productKeys.lists(),
-    queryFn: fetchProductsApi,
+    queryKey: productKeys.lists(params?.includeInactive ?? 'false'),
+    queryFn: () => fetchProductsApi(params),
   })
+}
+
+export function useAllProducts() {
+  return useProducts({ includeInactive: 'true' })
 }
 
 // React Query hook to fetch a single product by ID
@@ -39,51 +44,12 @@ export function useProduct(id: number) {
   })
 }
 
-export function useDeactivatedProducts() {
-  return useQuery<InventoryItemResponse[]>({
-    queryKey: ['products', 'deactivated-products'],
-    queryFn: async () => {
-      let activeProducts: InventoryItemResponse[] = []
-      try {
-        activeProducts = await fetchProductsApi()
-      } catch {
-        // Ignore
-      }
-
-      const activeIds = activeProducts.map((p) => p.id)
-      const maxId = activeIds.length > 0 ? Math.max(...activeIds) : 0
-      const scanUpperLimit = Math.max(maxId + 5, 20)
-
-      const candidateIds = Array.from({ length: scanUpperLimit }, (_, i) => i + 1)
-      const results: InventoryItemResponse[] = []
-
-      const promises = candidateIds.map(async (id) => {
-        try {
-          const p = await fetchProductByIdApi(id)
-          if (p && p.isActive === false) {
-            results.push(p)
-          }
-        } catch {
-          // If deleted or not found, skip
-        }
-      })
-
-      await Promise.all(promises)
-      return results.sort((a, b) => a.id - b.id)
-    },
-    staleTime: 0,
-  })
-}
-
 // React Query mutation to create a new product
 export function useCreateProduct() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (payload: CreateInventoryItemPayload) => createProductApi(payload),
     onSuccess: (data) => {
-      queryClient.setQueryData<InventoryItemResponse[]>(['products', 'deactivated-products'], (old = []) =>
-        old.filter((p) => p.id !== data.id && p.name.toLowerCase() !== data.name.toLowerCase())
-      )
       void queryClient.invalidateQueries({ queryKey: productKeys.all })
       void queryClient.invalidateQueries({ queryKey: ['stock-items'] })
       toast.success(`Product "${data.name}" registered successfully`)
@@ -130,18 +96,9 @@ export function useDeactivateProduct() {
       const res = await deactivateProductApi(id)
       return { res, inputProduct: typeof productOrId === 'object' ? productOrId : null, id }
     },
-    onSuccess: ({ res, inputProduct, id }) => {
-      const targetId = res?.id || inputProduct?.id || id
+    onSuccess: ({ res, inputProduct }) => {
       const name = res?.name || inputProduct?.name || 'Product'
-      if (res || inputProduct) {
-        const entry: InventoryItemResponse = res || { ...(inputProduct as InventoryItemResponse), isActive: false }
-        queryClient.setQueryData<InventoryItemResponse[]>(['products', 'deactivated-products'], (old = []) => [
-          ...old.filter((p) => p.id !== targetId),
-          { ...entry, isActive: false },
-        ])
-      }
       void queryClient.invalidateQueries({ queryKey: productKeys.all })
-      void queryClient.invalidateQueries({ queryKey: ['products', 'deactivated-products'] })
       void queryClient.invalidateQueries({ queryKey: ['stock-items'] })
       toast.success(`Product "${name}" deactivated and moved to archive`)
     },
@@ -156,11 +113,7 @@ export function useReactivateProduct() {
       return await reactivateProductApi(id)
     },
     onSuccess: (data) => {
-      queryClient.setQueryData<InventoryItemResponse[]>(['products', 'deactivated-products'], (old = []) =>
-        old.filter((p) => p.id !== data.id)
-      )
       void queryClient.invalidateQueries({ queryKey: productKeys.all })
-      void queryClient.invalidateQueries({ queryKey: ['products', 'deactivated-products'] })
       void queryClient.invalidateQueries({ queryKey: ['stock-items'] })
       toast.success(`Product "${data.name || 'Product'}" reactivated and restored to active catalog`)
     },

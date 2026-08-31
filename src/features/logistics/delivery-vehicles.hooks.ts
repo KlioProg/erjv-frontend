@@ -5,7 +5,6 @@ import {
   deactivateVehicleApi,
   fetchAvailableVehiclesApi,
   fetchDeliveryVehiclesApi,
-  fetchVehicleByIdApi,
   fetchVehicleByPlateNumberApi,
   reactivateVehicleApi,
   updateVehicleDetailsApi,
@@ -17,15 +16,19 @@ import type {
   UpdateDeliveryVehicleDetailsPayload,
   VehicleStatus,
 } from './delivery-vehicles.types'
-import { getErrorMessage } from '@/lib/api-client'
+import { getErrorMessage, type FetchParams } from '@/lib/api-client'
 
 export const VEHICLES_QUERY_KEY = ['delivery-vehicles'] as const
 
-export function useDeliveryVehicles() {
+export function useDeliveryVehicles(params?: FetchParams) {
   return useQuery({
-    queryKey: VEHICLES_QUERY_KEY,
-    queryFn: fetchDeliveryVehiclesApi,
+    queryKey: [...VEHICLES_QUERY_KEY, params?.includeInactive ?? 'false'],
+    queryFn: () => fetchDeliveryVehiclesApi(params),
   })
+}
+
+export function useAllDeliveryVehicles() {
+  return useDeliveryVehicles({ includeInactive: 'true' })
 }
 
 export function useAvailableVehicles() {
@@ -35,50 +38,11 @@ export function useAvailableVehicles() {
   })
 }
 
-export function useDeactivatedVehicles() {
-  return useQuery<DeliveryVehicle[]>({
-    queryKey: ['delivery-vehicles', 'deactivated'],
-    queryFn: async () => {
-      let activeVehicles: DeliveryVehicle[] = []
-      try {
-        activeVehicles = await fetchDeliveryVehiclesApi()
-      } catch {
-        // Ignore
-      }
-
-      const activeIds = activeVehicles.map((v) => v.id)
-      const maxId = activeIds.length > 0 ? Math.max(...activeIds) : 0
-      const scanUpperLimit = Math.max(maxId + 5, 20)
-
-      const candidateIds = Array.from({ length: scanUpperLimit }, (_, i) => i + 1)
-      const results: DeliveryVehicle[] = []
-
-      const promises = candidateIds.map(async (id) => {
-        try {
-          const v = await fetchVehicleByIdApi(id)
-          if (v && v.isActive === false) {
-            results.push(v)
-          }
-        } catch {
-          // If not found in DB, skip
-        }
-      })
-
-      await Promise.all(promises)
-      return results.sort((a, b) => a.id - b.id)
-    },
-    staleTime: 0,
-  })
-}
-
 export function useCreateVehicle() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (payload: CreateDeliveryVehiclePayload) => createVehicleApi(payload),
     onSuccess: (newV) => {
-      queryClient.setQueryData<DeliveryVehicle[]>(['delivery-vehicles', 'deactivated'], (old = []) =>
-        old.filter((v) => v.id !== newV.id && v.plateNumber.toUpperCase() !== newV.plateNumber.toUpperCase())
-      )
       void queryClient.invalidateQueries({ queryKey: VEHICLES_QUERY_KEY })
       toast.success(`Vehicle "${newV.plateNumber}" registered successfully`)
     },
@@ -126,18 +90,9 @@ export function useDeactivateVehicle() {
       const res = await deactivateVehicleApi(id)
       return { res, inputVehicle: typeof vehicle === 'object' ? vehicle : null, id }
     },
-    onSuccess: ({ res, inputVehicle, id }) => {
-      const targetId = res?.id || inputVehicle?.id || id
+    onSuccess: ({ res, inputVehicle }) => {
       const plate = res?.plateNumber || inputVehicle?.plateNumber || 'Fleet asset'
-      if (res || inputVehicle) {
-        const entry: DeliveryVehicle = res || { ...(inputVehicle as DeliveryVehicle), isActive: false }
-        queryClient.setQueryData<DeliveryVehicle[]>(['delivery-vehicles', 'deactivated'], (old = []) => [
-          ...old.filter((v) => v.id !== targetId),
-          { ...entry, isActive: false },
-        ])
-      }
       void queryClient.invalidateQueries({ queryKey: VEHICLES_QUERY_KEY })
-      void queryClient.invalidateQueries({ queryKey: ['delivery-vehicles', 'deactivated'] })
       toast.success(`Vehicle "${plate}" deactivated and moved to archive`)
     },
     onError: (err) => {
@@ -153,11 +108,7 @@ export function useReactivateVehicle() {
       return await reactivateVehicleApi(id)
     },
     onSuccess: (data) => {
-      queryClient.setQueryData<DeliveryVehicle[]>(['delivery-vehicles', 'deactivated'], (old = []) =>
-        old.filter((v) => v.id !== data.id)
-      )
       void queryClient.invalidateQueries({ queryKey: VEHICLES_QUERY_KEY })
-      void queryClient.invalidateQueries({ queryKey: ['delivery-vehicles', 'deactivated'] })
       toast.success(`Vehicle "${data.plateNumber || 'Fleet asset'}" reactivated and restored to active fleet`)
     },
     onError: (err) => {

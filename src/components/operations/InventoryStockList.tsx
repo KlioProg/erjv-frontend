@@ -26,8 +26,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import {
-  useProducts,
-  useDeactivatedProducts,
+  useAllProducts,
   useDeactivateProduct,
   useReactivateProduct,
 } from '@/features/products/products.hooks'
@@ -41,8 +40,7 @@ import type { StockItemWithRelations } from '@/features/logistics/stock-items.ty
 import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal'
 
 export function InventoryStockList() {
-  const { data: products = [], isLoading: isLoadingProducts } = useProducts()
-  const { data: deactivatedProducts = [] } = useDeactivatedProducts()
+  const { data: allProducts = [], isLoading: isLoadingProducts } = useAllProducts()
   const { data: stockItems = [], isLoading: isLoadingStock } = useStockItems()
   const { data: warehouses = [] } = useWarehouses()
   const deactivateProductMutation = useDeactivateProduct()
@@ -74,11 +72,8 @@ export function InventoryStockList() {
     productStockMap.set(s.inventoryItemId, current + parseFloat(s.quantity))
   })
 
-  const activeProducts = products.filter((p) => p.isActive !== false)
-  const archivedProducts = [
-    ...products.filter((p) => p.isActive === false),
-    ...deactivatedProducts.filter((dp) => !products.some((p) => p.id === dp.id)),
-  ]
+  const activeProducts = allProducts.filter((p) => p.isActive !== false)
+  const archivedProducts = allProducts.filter((p) => p.isActive === false)
   const currentProductList = activeTab === 'ACTIVE' ? activeProducts : archivedProducts
 
   // Filter products

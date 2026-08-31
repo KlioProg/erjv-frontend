@@ -3,7 +3,6 @@ import { toast } from 'sonner'
 import {
   createClientApi,
   deactivateClientApi,
-  fetchClientByIdApi,
   fetchClientsApi,
   reactivateClientApi,
   searchClientsByNameApi,
@@ -14,51 +13,19 @@ import type {
   CreateClientPayload,
   UpdateClientDetailsPayload,
 } from './clients.types'
-import { getErrorMessage } from '@/lib/api-client'
+import { getErrorMessage, type FetchParams } from '@/lib/api-client'
 
 export const CLIENTS_QUERY_KEY = ['clients'] as const
 
-export function useClients() {
+export function useClients(params?: FetchParams) {
   return useQuery({
-    queryKey: CLIENTS_QUERY_KEY,
-    queryFn: fetchClientsApi,
+    queryKey: [...CLIENTS_QUERY_KEY, params?.includeInactive ?? 'false'],
+    queryFn: () => fetchClientsApi(params),
   })
 }
 
-export function useDeactivatedClients() {
-  return useQuery<Client[]>({
-    queryKey: ['clients', 'deactivated'],
-    queryFn: async () => {
-      let activeClients: Client[] = []
-      try {
-        activeClients = await fetchClientsApi()
-      } catch {
-        // Ignore
-      }
-
-      const activeIds = activeClients.map((c) => c.id)
-      const maxId = activeIds.length > 0 ? Math.max(...activeIds) : 0
-      const scanUpperLimit = Math.max(maxId + 5, 20)
-
-      const candidateIds = Array.from({ length: scanUpperLimit }, (_, i) => i + 1)
-      const results: Client[] = []
-
-      const promises = candidateIds.map(async (id) => {
-        try {
-          const client = await fetchClientByIdApi(id)
-          if (client && client.isActive === false) {
-            results.push(client)
-          }
-        } catch {
-          // If deleted or not found, skip
-        }
-      })
-
-      await Promise.all(promises)
-      return results.sort((a, b) => a.id - b.id)
-    },
-    staleTime: 0,
-  })
+export function useAllClients() {
+  return useClients({ includeInactive: 'true' })
 }
 
 export function useCreateClient() {
@@ -66,9 +33,6 @@ export function useCreateClient() {
   return useMutation({
     mutationFn: (payload: CreateClientPayload) => createClientApi(payload),
     onSuccess: (newClient) => {
-      queryClient.setQueryData<Client[]>(['clients', 'deactivated'], (old = []) =>
-        old.filter((c) => c.id !== newClient.id && c.name.toLowerCase() !== newClient.name.toLowerCase())
-      )
       void queryClient.invalidateQueries({ queryKey: CLIENTS_QUERY_KEY })
       toast.success(`Client "${newClient.name}" registered successfully`)
     },
@@ -101,18 +65,9 @@ export function useDeactivateClient() {
       const res = await deactivateClientApi(id)
       return { res, inputClient: typeof clientOrId === 'object' ? clientOrId : null, id }
     },
-    onSuccess: ({ res, inputClient, id }) => {
-      const targetId = res?.id || inputClient?.id || id
+    onSuccess: ({ res, inputClient }) => {
       const name = res?.name || inputClient?.name || 'Account'
-      if (res || inputClient) {
-        const entry: Client = res || { ...(inputClient as Client), isActive: false }
-        queryClient.setQueryData<Client[]>(['clients', 'deactivated'], (old = []) => [
-          ...old.filter((c) => c.id !== targetId),
-          { ...entry, isActive: false },
-        ])
-      }
       void queryClient.invalidateQueries({ queryKey: CLIENTS_QUERY_KEY })
-      void queryClient.invalidateQueries({ queryKey: ['clients', 'deactivated'] })
       toast.success(`Client "${name}" deactivated and moved to archive`)
     },
     onError: (err) => {
@@ -128,11 +83,7 @@ export function useReactivateClient() {
       return await reactivateClientApi(id)
     },
     onSuccess: (data) => {
-      queryClient.setQueryData<Client[]>(['clients', 'deactivated'], (old = []) =>
-        old.filter((c) => c.id !== data.id)
-      )
       void queryClient.invalidateQueries({ queryKey: CLIENTS_QUERY_KEY })
-      void queryClient.invalidateQueries({ queryKey: ['clients', 'deactivated'] })
       toast.success(`Client "${data.name || 'Account'}" reactivated and restored to active directory`)
     },
     onError: (err) => {

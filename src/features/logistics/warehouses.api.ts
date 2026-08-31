@@ -1,28 +1,20 @@
-import { apiClient, extractArray } from '@/lib/api-client'
+import { apiClient, extractArray, type FetchParams } from '@/lib/api-client'
 import type {
   CreateWarehousePayload,
   UpdateWarehouseDetailsPayload,
   Warehouse,
 } from './warehouses.types'
 
-export async function fetchWarehousesApi(): Promise<Warehouse[]> {
-  const response = await apiClient.get('/warehouses')
+export async function fetchWarehousesApi(params?: FetchParams): Promise<Warehouse[]> {
+  const response = await apiClient.get('/warehouses', { params })
   return extractArray<Warehouse>(response.data)
-}
-
-export async function fetchAllWarehousesApi(): Promise<Warehouse[]> {
-  try {
-    const response = await apiClient.get('/warehouses/all')
-    return extractArray<Warehouse>(response.data)
-  } catch {
-    const fallback = await apiClient.get('/warehouses')
-    return extractArray<Warehouse>(fallback.data)
-  }
 }
 
 export async function fetchWarehouseByNameApi(name: string): Promise<Warehouse | null> {
   try {
-    const { data } = await apiClient.get<Warehouse>(`/warehouses/name/${encodeURIComponent(name.trim())}`)
+    const { data } = await apiClient.get<Warehouse>(
+      `/warehouses/name/${encodeURIComponent(name.trim())}`
+    )
     return data
   } catch {
     return null
@@ -34,9 +26,7 @@ export async function fetchWarehouseByIdApi(id: number): Promise<Warehouse> {
   return data
 }
 
-export async function createWarehouseApi(
-  payload: CreateWarehousePayload
-): Promise<Warehouse> {
+export async function createWarehouseApi(payload: CreateWarehousePayload): Promise<Warehouse> {
   const cleanPayload = {
     name: payload.name.trim(),
     address: payload.address.trim(),
@@ -55,7 +45,9 @@ export async function updateWarehouseDetailsApi(
   const cleanPayload = {
     ...(payload.name ? { name: payload.name.trim() } : {}),
     ...(payload.address ? { address: payload.address.trim() } : {}),
-    ...(payload.contactNumber !== undefined ? { contactNumber: payload.contactNumber?.trim() || null } : {}),
+    ...(payload.contactNumber !== undefined
+      ? { contactNumber: payload.contactNumber?.trim() || null }
+      : {}),
   }
 
   const { data } = await apiClient.patch<Warehouse>(`/warehouses/${id}/details`, cleanPayload)

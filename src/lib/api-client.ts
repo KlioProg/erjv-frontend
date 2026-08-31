@@ -2,6 +2,11 @@ import axios, { type AxiosError } from 'axios'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api'
 
+export type IncludeInactive = 'true' | 'false' | 'only'
+export type FetchParams = {
+  includeInactive?: IncludeInactive
+}
+
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
   headers: {
@@ -40,7 +45,11 @@ export function extractArray<T = Record<string, unknown>>(data: unknown): T[] {
 // Format error messages from NestJS ValidationPipe, Prisma constraints, or HTTP exceptions
 export function getErrorMessage(error: unknown): string {
   if (axios.isAxiosError(error)) {
-    const axiosErr = error as AxiosError<{ message?: string | string[]; error?: string; statusCode?: number }>
+    const axiosErr = error as AxiosError<{
+      message?: string | string[]
+      error?: string
+      statusCode?: number
+    }>
     const status = axiosErr.response?.status
     const resData = axiosErr.response?.data
     let serverMessage = ''
@@ -61,7 +70,11 @@ export function getErrorMessage(error: unknown): string {
     // 1. User Registration conflicts (/auth/register)
     if (
       url.includes('/auth/register') &&
-      (status === 500 || status === 409 || status === 400 || lower.includes('unique') || lower.includes('duplicate'))
+      (status === 500 ||
+        status === 409 ||
+        status === 400 ||
+        lower.includes('unique') ||
+        lower.includes('duplicate'))
     ) {
       return 'An account with this email address is already registered. Please sign in instead or use a different email address.'
     }
@@ -77,31 +90,57 @@ export function getErrorMessage(error: unknown): string {
       if (lower.includes('email') || url.includes('/employees') || url.includes('/users')) {
         return 'This email address is already registered to an existing account or employee in the database.'
       }
-      if (lower.includes('plate') || lower.includes('platenumber') || url.includes('/delivery-vehicles')) {
+      if (
+        lower.includes('plate') ||
+        lower.includes('platenumber') ||
+        url.includes('/delivery-vehicles')
+      ) {
         return 'A vehicle with this plate number is already registered in the fleet.'
       }
-      if (lower.includes('inventoryitemid_warehouseid') || (lower.includes('warehouse') && lower.includes('product')) || url.includes('/stock-items')) {
+      if (
+        lower.includes('inventoryitemid_warehouseid') ||
+        (lower.includes('warehouse') && lower.includes('product')) ||
+        url.includes('/stock-items')
+      ) {
         return 'A stock allocation record for this product already exists in this warehouse.'
       }
-      if (lower.includes('employeeid_jobid') || (lower.includes('employee') && lower.includes('job')) || url.includes('/employee-jobs')) {
+      if (
+        lower.includes('employeeid_jobid') ||
+        (lower.includes('employee') && lower.includes('job')) ||
+        url.includes('/employee-jobs')
+      ) {
         return 'This employee is already assigned to this job position.'
       }
       if (lower.includes('userid') || lower.includes('user_id')) {
         return 'This user account is already linked to another employee profile.'
       }
-      if (lower.includes('name') || url.includes('/inventory-items') || url.includes('/jobs') || url.includes('/clients') || url.includes('/warehouses')) {
+      if (
+        lower.includes('name') ||
+        url.includes('/inventory-items') ||
+        url.includes('/jobs') ||
+        url.includes('/clients') ||
+        url.includes('/warehouses')
+      ) {
         return 'A record with this name already exists in the database. Please use a unique title or reactivate the existing record.'
       }
       return 'A record with duplicate unique details already exists in the database.'
     }
 
     // 2. Prisma P2003 Foreign Key Constraint Failures
-    if (lower.includes('p2003') || lower.includes('foreign key') || lower.includes('violates foreign key')) {
+    if (
+      lower.includes('p2003') ||
+      lower.includes('foreign key') ||
+      lower.includes('violates foreign key')
+    ) {
       return 'Cannot complete operation: one of the related records (e.g. warehouse, job position, user, or product) does not exist or is currently in use.'
     }
 
     // 3. Prisma P2025 Record Not Found / Already Deleted
-    if (lower.includes('p2025') || lower.includes('record to update not found') || lower.includes('record to delete not found')) {
+    if (
+      lower.includes('p2025') ||
+      lower.includes('record to update not found') ||
+      lower.includes('record to delete not found')
+    ) {
       return 'The requested record was not found or has already been removed from the database.'
     }
 

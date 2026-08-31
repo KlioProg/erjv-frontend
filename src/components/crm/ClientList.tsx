@@ -27,8 +27,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import {
-  useClients,
-  useDeactivatedClients,
+  useAllClients,
   useDeactivateClient,
   useReactivateClient,
 } from '@/features/crm/clients.hooks'
@@ -38,8 +37,7 @@ import { ClientModal } from './ClientModal'
 import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal'
 
 export function ClientList() {
-  const { data: clients = [], isLoading } = useClients()
-  const { data: deactivatedClients = [] } = useDeactivatedClients()
+  const { data: allClients = [], isLoading } = useAllClients()
   const deactivateMutation = useDeactivateClient()
   const reactivateMutation = useReactivateClient()
   const { isOwner, isAdmin } = useAuth()
@@ -50,11 +48,8 @@ export function ClientList() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [clientToDeactivate, setClientToDeactivate] = useState<Client | null>(null)
 
-  const activeClients = clients.filter((c) => c.isActive !== false)
-  const archivedClients = [
-    ...clients.filter((c) => c.isActive === false),
-    ...deactivatedClients.filter((dc) => !clients.some((c) => c.id === dc.id)),
-  ]
+  const activeClients = allClients.filter((c) => c.isActive !== false)
+  const archivedClients = allClients.filter((c) => c.isActive === false)
   const currentClientList = activeTab === 'ACTIVE' ? activeClients : archivedClients
 
   const filteredClients = currentClientList.filter(
