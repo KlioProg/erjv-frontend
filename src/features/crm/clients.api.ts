@@ -15,6 +15,15 @@ export async function fetchClientByIdApi(id: number): Promise<Client> {
   return data
 }
 
+export async function searchClientsByNameApi(name: string): Promise<Client[]> {
+  try {
+    const response = await apiClient.get(`/clients/search/${encodeURIComponent(name.trim())}`)
+    return extractArray<Client>(response.data)
+  } catch {
+    return []
+  }
+}
+
 export async function createClientApi(payload: CreateClientPayload): Promise<Client> {
   const cleanPayload = {
     name: payload.name.trim(),

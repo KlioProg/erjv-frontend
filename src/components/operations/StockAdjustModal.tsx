@@ -166,11 +166,10 @@ function StockAdjustContent({
             <button
               type="button"
               onClick={() => setMode('increase')}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-bold rounded-lg transition-all ${
-                mode === 'increase'
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-bold rounded-lg transition-all ${mode === 'increase'
                   ? 'bg-card text-foreground shadow-xs'
                   : 'text-muted-foreground hover:text-foreground'
-              }`}
+                }`}
             >
               <PlusCircle className="size-3.5 text-emerald-500" />
               Receive (+Stock)
@@ -178,11 +177,10 @@ function StockAdjustContent({
             <button
               type="button"
               onClick={() => setMode('decrease')}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-bold rounded-lg transition-all ${
-                mode === 'decrease'
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-bold rounded-lg transition-all ${mode === 'decrease'
                   ? 'bg-card text-foreground shadow-xs'
                   : 'text-muted-foreground hover:text-foreground'
-              }`}
+                }`}
             >
               <MinusCircle className="size-3.5 text-amber-500" />
               Dispatch (-Stock)
@@ -190,11 +188,10 @@ function StockAdjustContent({
             <button
               type="button"
               onClick={() => setMode('set')}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-bold rounded-lg transition-all ${
-                mode === 'set'
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-bold rounded-lg transition-all ${mode === 'set'
                   ? 'bg-card text-foreground shadow-xs'
                   : 'text-muted-foreground hover:text-foreground'
-              }`}
+                }`}
             >
               Set Count
             </button>
@@ -238,8 +235,8 @@ function StockAdjustContent({
             {mode === 'increase'
               ? 'Units to Receive / Inward Stock'
               : mode === 'decrease'
-              ? 'Units to Dispatch / Outward Stock'
-              : 'Exact Total Physical Count'}{' '}
+                ? 'Units to Dispatch / Outward Stock'
+                : 'Exact Total Physical Count'}{' '}
             <span className="text-primary">*</span>
           </Label>
           <div className="relative">
@@ -308,8 +305,8 @@ export function StockAdjustModal({
               stockItem
                 ? `stock-${stockItem.id}`
                 : inventoryItem
-                ? `inv-${inventoryItem.id}`
-                : 'new-stock'
+                  ? `inv-${inventoryItem.id}`
+                  : 'new-stock'
             }
             stockItem={stockItem}
             inventoryItem={inventoryItem}

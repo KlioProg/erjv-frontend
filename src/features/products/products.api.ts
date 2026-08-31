@@ -5,14 +5,43 @@ import type {
   UpdateInventoryItemDetailsPayload,
 } from './products.types'
 
+function normalizeProductItem(raw: unknown): InventoryItemResponse {
+  const item = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>
+  const id = Number(item.id) || 0
+  const unitPrice = Number(item.unitPrice) || 0
+  const name = String(item.name || '')
+  return {
+    id,
+    name,
+    sku: String(item.sku || `SKU-${name.replace(/\s+/g, '-').toUpperCase().slice(0, 8) || 'ITEM'}-${id}`),
+    variety: item.variety ? String(item.variety) : null,
+    unit: String(item.unit || 'kg'),
+    unitPrice,
+    description: item.description ? String(item.description) : null,
+    isActive: item.isActive !== false,
+    createdAt: String(item.createdAt || new Date().toISOString()),
+    updatedAt: String(item.updatedAt || new Date().toISOString()),
+  }
+}
+
 export async function fetchProductsApi(): Promise<InventoryItemResponse[]> {
   const response = await apiClient.get('/inventory-items')
-  return extractArray<InventoryItemResponse>(response.data)
+  const rawList = extractArray(response.data)
+  return rawList.map(normalizeProductItem)
 }
 
 export async function fetchProductByIdApi(id: number): Promise<InventoryItemResponse> {
   const { data } = await apiClient.get<InventoryItemResponse>(`/inventory-items/${id}`)
-  return data
+  return normalizeProductItem(data)
+}
+
+export async function fetchProductByNameApi(name: string): Promise<InventoryItemResponse | null> {
+  try {
+    const { data } = await apiClient.get<InventoryItemResponse>(`/inventory-items/name/${encodeURIComponent(name.trim())}`)
+    return normalizeProductItem(data)
+  } catch {
+    return null
+  }
 }
 
 export async function createProductApi(
@@ -29,7 +58,7 @@ export async function createProductApi(
   }
 
   const { data } = await apiClient.post<InventoryItemResponse>('/inventory-items', cleanPayload)
-  return data
+  return normalizeProductItem(data)
 }
 
 export async function updateProductDetailsApi(
@@ -47,7 +76,7 @@ export async function updateProductDetailsApi(
     `/inventory-items/${id}/details`,
     cleanPayload
   )
-  return data
+  return normalizeProductItem(data)
 }
 
 export async function updateProductPriceApi(
@@ -58,15 +87,15 @@ export async function updateProductPriceApi(
     `/inventory-items/${id}/unit-price`,
     { unitPrice: Number(unitPrice).toFixed(2) }
   )
-  return data
+  return normalizeProductItem(data)
 }
 
 export async function deactivateProductApi(id: number): Promise<InventoryItemResponse> {
   const { data } = await apiClient.delete<InventoryItemResponse>(`/inventory-items/${id}`)
-  return data
+  return normalizeProductItem(data)
 }
 
 export async function reactivateProductApi(id: number): Promise<InventoryItemResponse> {
   const { data } = await apiClient.patch<InventoryItemResponse>(`/inventory-items/${id}/reactivate`)
-  return data
+  return normalizeProductItem(data)
 }

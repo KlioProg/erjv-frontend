@@ -163,7 +163,7 @@ export function OperationsDashboard({ onSwitchToStaffing }: OperationsDashboardP
         </div>
 
         {/* Navigation Tabs and Active Views */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full space-y-4">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full flex flex-col gap-4">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b pb-3">
             <TabsList className="bg-secondary/70 p-1">
               <TabsTrigger value="inventory" className="gap-1.5 text-xs">

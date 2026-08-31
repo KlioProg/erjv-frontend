@@ -10,6 +10,8 @@ import {
   ArrowUpDown,
   Tag,
   Warehouse as WarehouseIcon,
+  Archive,
+  RotateCcw,
 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -23,7 +25,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { useProducts, useDeactivateProduct } from '@/features/products/products.hooks'
+import {
+  useProducts,
+  useDeactivateProduct,
+  useReactivateProduct,
+  getArchivedProducts,
+} from '@/features/products/products.hooks'
 import { useStockItems, useDeleteStockItem } from '@/features/logistics/stock-items.hooks'
 import { useWarehouses } from '@/features/logistics/warehouses.hooks'
 import { useAuth } from '@/features/auth/AuthContext'
@@ -38,9 +45,11 @@ export function InventoryStockList() {
   const { data: stockItems = [], isLoading: isLoadingStock } = useStockItems()
   const { data: warehouses = [] } = useWarehouses()
   const deactivateProductMutation = useDeactivateProduct()
+  const reactivateProductMutation = useReactivateProduct()
   const deleteStockMutation = useDeleteStockItem()
   const { isOwner, isAdmin } = useAuth()
 
+  const [activeTab, setActiveTab] = useState<'ACTIVE' | 'ARCHIVED'>('ACTIVE')
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedWarehouseFilter, setSelectedWarehouseFilter] = useState<string>('ALL')
 
@@ -64,8 +73,12 @@ export function InventoryStockList() {
     productStockMap.set(s.inventoryItemId, current + parseFloat(s.quantity))
   })
 
+  const activeProducts = products.filter((p) => p.isActive !== false)
+  const archivedProducts = getArchivedProducts()
+  const currentProductList = activeTab === 'ACTIVE' ? activeProducts : archivedProducts
+
   // Filter products
-  const filteredProducts = products.filter((p) => {
+  const filteredProducts = currentProductList.filter((p) => {
     const matchesSearch =
       p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (p.sku && p.sku.toLowerCase().includes(searchTerm.toLowerCase())) ||
@@ -97,9 +110,13 @@ export function InventoryStockList() {
 
   const confirmDeleteProduct = async () => {
     if (productToDelete) {
-      await deactivateProductMutation.mutateAsync(productToDelete.id)
+      await deactivateProductMutation.mutateAsync(productToDelete)
       setProductToDelete(null)
     }
+  }
+
+  const handleReactivateProduct = async (prod: InventoryItemResponse) => {
+    await reactivateProductMutation.mutateAsync(prod.id)
   }
 
   const handleAdjustStock = (stock: StockItemWithRelations) => {
@@ -133,6 +150,34 @@ export function InventoryStockList() {
 
   return (
     <div className="flex flex-col gap-5">
+      {/* Catalog Tabs */}
+      <div className="flex items-center gap-2 border-b border-border/70 pb-3">
+        <button
+          type="button"
+          onClick={() => setActiveTab('ACTIVE')}
+          className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            activeTab === 'ACTIVE'
+              ? 'bg-primary text-primary-foreground shadow-xs'
+              : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+          }`}
+        >
+          <Package className="size-3.5" />
+          Active Catalog ({activeProducts.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('ARCHIVED')}
+          className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            activeTab === 'ARCHIVED'
+              ? 'bg-primary text-primary-foreground shadow-xs'
+              : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+          }`}
+        >
+          <Archive className="size-3.5" />
+          Deactivated Products ({archivedProducts.length})
+        </button>
+      </div>
+
       {/* Header controls and Search */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div className="flex flex-1 flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full sm:w-auto">
@@ -169,7 +214,7 @@ export function InventoryStockList() {
           </div>
         </div>
 
-        {(isOwner || isAdmin) && (
+        {(isOwner || isAdmin) && activeTab === 'ACTIVE' && (
           <div className="flex items-center gap-2">
             <Button onClick={handleCreateProduct} size="sm" className="gap-1.5 shadow-xs font-semibold cursor-pointer">
               <Plus className="size-4" />
@@ -188,13 +233,17 @@ export function InventoryStockList() {
         <Card className="border-dashed bg-muted/20">
           <CardContent className="flex flex-col items-center justify-center py-12 text-center">
             <Package className="size-10 text-muted-foreground/50 mb-3" />
-            <h3 className="text-sm font-semibold text-foreground">No catalog items found</h3>
+            <h3 className="text-sm font-semibold text-foreground">
+              {activeTab === 'ACTIVE' ? 'No catalog items found' : 'No deactivated products found'}
+            </h3>
             <p className="text-xs text-muted-foreground mt-1 max-w-xs">
               {searchTerm || selectedWarehouseFilter !== 'ALL'
                 ? 'No products match your search filter or selected warehouse.'
-                : 'Get started by creating your wholesale and retail inventory products.'}
+                : activeTab === 'ACTIVE'
+                ? 'Get started by creating your wholesale and retail inventory products.'
+                : 'Deactivated inventory items will appear here and can be reactivated at any time.'}
             </p>
-            {(isOwner || isAdmin) && !searchTerm && selectedWarehouseFilter === 'ALL' && (
+            {(isOwner || isAdmin) && !searchTerm && selectedWarehouseFilter === 'ALL' && activeTab === 'ACTIVE' && (
               <Button onClick={handleCreateProduct} size="sm" variant="outline" className="mt-4 gap-1.5 cursor-pointer">
                 <Plus className="size-3.5" />
                 Register First Product SKU
@@ -205,19 +254,26 @@ export function InventoryStockList() {
       ) : (
         <div className="flex flex-col gap-4">
           {filteredProducts.map((prod) => {
+            const isArchived = prod.isActive === false
             const stockInHubs = stockItems.filter((s) => s.inventoryItemId === prod.id)
             const totalStockUnits = productStockMap.get(prod.id) || 0
 
             return (
               <Card
                 key={prod.id}
-                className="overflow-hidden border-border/80 shadow-xs hover:border-primary/40 transition-all rounded-2xl"
+                className={`overflow-hidden border-border/80 shadow-xs hover:border-primary/40 transition-all rounded-2xl ${
+                  isArchived ? 'opacity-75 bg-muted/20 border-dashed' : ''
+                }`}
               >
                 <div className="p-5">
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                     {/* Product Basic Info */}
                     <div className="flex items-start gap-3.5 min-w-0 flex-1">
-                      <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary shadow-2xs">
+                      <div
+                        className={`flex size-11 shrink-0 items-center justify-center rounded-2xl shadow-2xs ${
+                          isArchived ? 'bg-muted text-muted-foreground' : 'bg-primary/10 text-primary'
+                        }`}
+                      >
                         <Package className="size-5" />
                       </div>
                       <div className="min-w-0 flex-1">
@@ -229,6 +285,11 @@ export function InventoryStockList() {
                             <Tag className="size-2.5 mr-1 text-primary" />
                             {prod.sku}
                           </Badge>
+                          {isArchived && (
+                            <Badge variant="outline" className="border-amber-500/30 bg-amber-500/10 text-amber-600 text-[10px] font-bold">
+                              Deactivated
+                            </Badge>
+                          )}
                         </div>
                         {prod.description && (
                           <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
@@ -264,42 +325,55 @@ export function InventoryStockList() {
 
                       {(isOwner || isAdmin) && (
                         <div className="flex items-center gap-1.5">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="size-8 text-muted-foreground hover:text-foreground cursor-pointer"
-                              >
-                                <MoreVertical className="size-4" />
-                                <span className="sr-only">Product options</span>
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem
-                                onClick={() => handleEditProduct(prod)}
-                                className="gap-2 text-xs cursor-pointer"
-                              >
-                                <Edit2 className="size-3.5" />
-                                Edit SKU & Pricing
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onClick={() => handleAllocateStock(prod)}
-                                className="gap-2 text-xs font-semibold text-primary cursor-pointer"
-                              >
-                                <Plus className="size-3.5" />
-                                Allocate Stock to Warehouse
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem
-                                onClick={() => handleDeleteProduct(prod)}
-                                className="gap-2 text-xs text-destructive focus:text-destructive cursor-pointer"
-                              >
-                                <Trash2 className="size-3.5" />
-                                Delete / Deactivate Product
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                          {isArchived ? (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleReactivateProduct(prod)}
+                              disabled={reactivateProductMutation.isPending}
+                              className="h-8 gap-1.5 text-xs font-bold text-emerald-600 hover:text-emerald-700 hover:bg-emerald-500/10 border-emerald-500/30 cursor-pointer"
+                            >
+                              <RotateCcw className="size-3.5" />
+                              Reactivate
+                            </Button>
+                          ) : (
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="size-8 text-muted-foreground hover:text-foreground cursor-pointer"
+                                >
+                                  <MoreVertical className="size-4" />
+                                  <span className="sr-only">Product options</span>
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem
+                                  onClick={() => handleEditProduct(prod)}
+                                  className="gap-2 text-xs cursor-pointer"
+                                >
+                                  <Edit2 className="size-3.5" />
+                                  Edit SKU & Pricing
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => handleAllocateStock(prod)}
+                                  className="gap-2 text-xs font-semibold text-primary cursor-pointer"
+                                >
+                                  <Plus className="size-3.5" />
+                                  Allocate Stock to Warehouse
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  onClick={() => handleDeleteProduct(prod)}
+                                  className="gap-2 text-xs text-destructive focus:text-destructive cursor-pointer"
+                                >
+                                  <Trash2 className="size-3.5" />
+                                  Delete / Deactivate Product
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          )}
                         </div>
                       )}
                     </div>
@@ -430,7 +504,7 @@ export function InventoryStockList() {
         title="Delete Product from Active Catalog"
         description="Are you sure you want to delete this product SKU? It will be deactivated and no longer available for point-of-sale checkout or warehouse intake."
         itemName={productToDelete?.name}
-        itemDetails={productToDelete ? `SKU: ${productToDelete.sku} • ₱${productToDelete.unitPrice.toFixed(2)} / unit` : undefined}
+        itemDetails={productToDelete ? `SKU: ${productToDelete.sku} • ₱${Number(productToDelete.unitPrice || 0).toFixed(2)} / unit` : undefined}
         confirmText="Delete Product SKU"
         variant="destructive"
       />

@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { Users, Building2, User, Phone, Mail, MapPin } from 'lucide-react'
+import { Users, Building2, User, Phone, Mail, MapPin, RotateCcw } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -17,6 +17,9 @@ import {
   useClients,
   useCreateClient,
   useUpdateClientDetails,
+  useReactivateClient,
+  getArchivedClients,
+  searchClientsByNameApi,
 } from '@/features/crm/clients.hooks'
 import type { Client } from '@/features/crm/clients.types'
 import { getErrorMessage } from '@/lib/api-client'
@@ -38,6 +41,7 @@ function ClientFormContent({
   const { data: allClients = [] } = useClients()
   const createMutation = useCreateClient()
   const updateMutation = useUpdateClientDetails()
+  const reactivateMutation = useReactivateClient()
 
   const [name, setName] = useState(client?.name || '')
   const [contactPerson, setContactPerson] = useState(client?.contactPerson || '')
@@ -45,10 +49,12 @@ function ClientFormContent({
   const [email, setEmail] = useState(client?.email || '')
   const [address, setAddress] = useState(client?.address || '')
   const [errorMsg, setErrorMsg] = useState('')
+  const [deactivatedClientMatch, setDeactivatedClientMatch] = useState<Client | null>(null)
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setErrorMsg('')
+    setDeactivatedClientMatch(null)
 
     const cleanName = name.trim()
     if (!cleanName) {
@@ -61,12 +67,51 @@ function ClientFormContent({
       return
     }
 
-    const isNameDup = allClients.some(
-      (c) => c.id !== client?.id && c.name.toLowerCase().trim() === cleanName.toLowerCase()
-    )
-    if (isNameDup) {
-      setErrorMsg(`A client business named "${cleanName}" already exists in the database.`)
-      return
+    if (!isEditing) {
+      // 1. Check if client is already in deactivated archive or backend inactive
+      const archivedList = getArchivedClients()
+      const archivedMatch = archivedList.find(
+        (c) => c.name.toUpperCase().trim() === cleanName.toUpperCase()
+      )
+
+      let backendMatches: Client[] = []
+      try {
+        backendMatches = await searchClientsByNameApi(cleanName)
+      } catch {
+        // Ignore
+      }
+
+      const backendInactive = backendMatches.find(
+        (c) => c.name.toUpperCase().trim() === cleanName.toUpperCase() && c.isActive === false
+      )
+
+      if (backendInactive) {
+        setDeactivatedClientMatch(backendInactive)
+        setErrorMsg(
+          `Client account "${cleanName}" is currently deactivated. You can reactivate it directly.`
+        )
+        return
+      }
+
+      if (archivedMatch) {
+        setDeactivatedClientMatch(archivedMatch)
+        setErrorMsg(
+          `Client account "${cleanName}" is currently deactivated. You can reactivate it directly.`
+        )
+        return
+      }
+
+      // 2. Check if active duplicate exists
+      const isNameDup = allClients.some(
+        (c) => c.name.toLowerCase().trim() === cleanName.toLowerCase()
+      )
+      const backendActive = backendMatches.find(
+        (c) => c.name.toUpperCase().trim() === cleanName.toUpperCase() && c.isActive !== false
+      )
+      if (isNameDup || backendActive) {
+        setErrorMsg(`A client business named "${cleanName}" already exists.`)
+        return
+      }
     }
 
     const cleanEmail = email.trim().toLowerCase()
@@ -75,7 +120,7 @@ function ClientFormContent({
         (c) => c.id !== client?.id && c.email?.toLowerCase().trim() === cleanEmail
       )
       if (isEmailDup) {
-        setErrorMsg(`A client with email "${cleanEmail}" already exists in the database.`)
+        setErrorMsg(`A client with email "${cleanEmail}" already exists.`)
         return
       }
     }
@@ -108,7 +153,15 @@ function ClientFormContent({
     }
   }
 
-  const isPending = createMutation.isPending || updateMutation.isPending
+  const handleRestoreFoundClient = async () => {
+    if (deactivatedClientMatch) {
+      await reactivateMutation.mutateAsync(deactivatedClientMatch.id)
+      onClose()
+    }
+  }
+
+  const isPending =
+    createMutation.isPending || updateMutation.isPending || reactivateMutation.isPending
 
   return (
     <>
@@ -126,10 +179,24 @@ function ClientFormContent({
         </DialogDescription>
       </DialogHeader>
 
-      {errorMsg && (
+      {errorMsg && !deactivatedClientMatch && (
         <Alert variant="destructive" className="my-1">
           <AlertDescription>{errorMsg}</AlertDescription>
         </Alert>
+      )}
+
+      {deactivatedClientMatch && (
+        <div className="my-1 p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-950 dark:text-amber-200 flex items-start gap-3 shadow-2xs">
+          <div className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-amber-500/20 text-amber-700 dark:text-amber-300 mt-0.5">
+            <RotateCcw className="size-4" />
+          </div>
+          <div className="flex-1 text-xs">
+            <p className="font-bold text-foreground">Deactivated Client Found</p>
+            <p className="text-muted-foreground mt-0.5 leading-relaxed">
+              An archived account for <strong className="text-foreground">{deactivatedClientMatch.name}</strong> ({deactivatedClientMatch.address}) already exists. Click <strong>"Reactivate Client"</strong> below to restore it.
+            </p>
+          </div>
+        </div>
       )}
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-4 py-2">
@@ -143,7 +210,11 @@ function ClientFormContent({
               id="client-name"
               placeholder="e.g. Davao Fresh Supermarket, Matina Central Mart"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => {
+                setName(e.target.value)
+                if (deactivatedClientMatch) setDeactivatedClientMatch(null)
+                if (errorMsg) setErrorMsg('')
+              }}
               className="pl-9 h-10 text-sm"
               required
             />
@@ -222,16 +293,37 @@ function ClientFormContent({
           <Button type="button" variant="outline" onClick={onClose} disabled={isPending}>
             Cancel
           </Button>
-          <Button type="submit" disabled={isPending} className="font-semibold shadow-xs">
-            {isPending ? (
-              <>
-                <Spinner data-icon="inline-start" />
-                {isEditing ? 'Saving...' : 'Registering Client...'}
-              </>
-            ) : (
-              <>{isEditing ? 'Save Changes' : 'Register Client Profile'}</>
-            )}
-          </Button>
+          {deactivatedClientMatch ? (
+            <Button
+              type="button"
+              onClick={handleRestoreFoundClient}
+              disabled={isPending}
+              className="gap-2 font-bold shadow-xs bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer"
+            >
+              {reactivateMutation.isPending ? (
+                <>
+                  <Spinner data-icon="inline-start" />
+                  Reactivating Client...
+                </>
+              ) : (
+                <>
+                  <RotateCcw className="size-4" />
+                  Reactivate Client Profile
+                </>
+              )}
+            </Button>
+          ) : (
+            <Button type="submit" disabled={isPending} className="font-semibold shadow-xs cursor-pointer">
+              {isPending ? (
+                <>
+                  <Spinner data-icon="inline-start" />
+                  {isEditing ? 'Saving...' : 'Registering Client...'}
+                </>
+              ) : (
+                <>{isEditing ? 'Save Changes' : 'Register Client Profile'}</>
+              )}
+            </Button>
+          )}
         </DialogFooter>
       </form>
     </>

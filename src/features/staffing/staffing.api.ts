@@ -25,6 +25,15 @@ export async function fetchEmployeeByIdApi(id: number): Promise<Employee> {
   return data
 }
 
+export async function fetchEmployeeByEmailApi(email: string): Promise<Employee | null> {
+  try {
+    const { data } = await apiClient.get<Employee>(`/employees/email/${encodeURIComponent(email.trim())}`)
+    return data
+  } catch {
+    return null
+  }
+}
+
 export async function createEmployeeApi(payload: CreateEmployeePayload): Promise<Employee> {
   const cleanPayload = {
     firstName: payload.firstName.trim(),
@@ -81,6 +90,15 @@ export async function fetchJobsApi(): Promise<Job[]> {
 export async function fetchJobByIdApi(id: number): Promise<Job> {
   const { data } = await apiClient.get<Job>(`/jobs/${id}`)
   return data
+}
+
+export async function fetchJobByNameApi(name: string): Promise<Job | null> {
+  try {
+    const { data } = await apiClient.get<Job>(`/jobs/name/${encodeURIComponent(name.trim())}`)
+    return data
+  } catch {
+    return null
+  }
 }
 
 export async function createJobApi(payload: CreateJobPayload): Promise<Job> {

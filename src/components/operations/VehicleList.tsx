@@ -13,6 +13,8 @@ import {
   MapPin,
   Building2,
   Navigation,
+  Archive,
+  RotateCcw,
 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -38,7 +40,9 @@ import {
 import {
   useDeactivateVehicle,
   useDeliveryVehicles,
+  useReactivateVehicle,
   useUpdateVehicleStatus,
+  getArchivedVehicles,
 } from '@/features/logistics/delivery-vehicles.hooks'
 import { useClients } from '@/features/crm/clients.hooks'
 import { useAuth } from '@/features/auth/AuthContext'
@@ -87,9 +91,11 @@ export function VehicleList() {
   const { data: vehicles = [], isLoading } = useDeliveryVehicles()
   const { data: clients = [] } = useClients()
   const deactivateMutation = useDeactivateVehicle()
+  const reactivateMutation = useReactivateVehicle()
   const statusMutation = useUpdateVehicleStatus()
   const { isOwner, isAdmin } = useAuth()
 
+  const [activeTab, setActiveTab] = useState<'ACTIVE' | 'ARCHIVED'>('ACTIVE')
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('ALL')
   const [selectedVehicle, setSelectedVehicle] = useState<DeliveryVehicle | null>(null)
@@ -100,7 +106,12 @@ export function VehicleList() {
   const [vehicleForDispatch, setVehicleForDispatch] = useState<DeliveryVehicle | null>(null)
   const [dispatchLocation, setDispatchLocation] = useState('')
 
-  const filteredVehicles = vehicles.filter((v) => {
+  const activeVehicles = vehicles.filter((v) => v.isActive !== false)
+  const archivedVehicles = getArchivedVehicles()
+
+  const currentVehicleList = activeTab === 'ACTIVE' ? activeVehicles : archivedVehicles
+
+  const filteredVehicles = currentVehicleList.filter((v) => {
     const matchesSearch =
       v.plateNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (v.model && v.model.toLowerCase().includes(searchTerm.toLowerCase())) ||
@@ -108,14 +119,17 @@ export function VehicleList() {
       (v.destinationLocation && v.destinationLocation.toLowerCase().includes(searchTerm.toLowerCase()))
 
     const matchesStatus =
-      statusFilter.toUpperCase() === 'ALL' || v.status === statusFilter
+      activeTab !== 'ACTIVE' ||
+      statusFilter.toUpperCase() === 'ALL' ||
+      v.status === statusFilter
 
     return matchesSearch && matchesStatus
   })
 
-  const availableCount = vehicles.filter((v) => v.status === 'AVAILABLE').length
-  const inDeliveryCount = vehicles.filter((v) => v.status === 'IN_DELIVERY').length
-  const maintenanceCount = vehicles.filter((v) => v.status === 'MAINTENANCE').length
+  const availableCount = activeVehicles.filter((v) => v.status === 'AVAILABLE').length
+  const inDeliveryCount = activeVehicles.filter((v) => v.status === 'IN_DELIVERY').length
+  const maintenanceCount = activeVehicles.filter((v) => v.status === 'MAINTENANCE').length
+  const outOfServiceCount = activeVehicles.filter((v) => v.status === 'OUT_OF_SERVICE').length
 
   const handleCreate = () => {
     setSelectedVehicle(null)
@@ -157,15 +171,19 @@ export function VehicleList() {
 
   const confirmDeactivate = async () => {
     if (vehicleToDeactivate) {
-      await deactivateMutation.mutateAsync(vehicleToDeactivate.id)
+      await deactivateMutation.mutateAsync(vehicleToDeactivate)
       setVehicleToDeactivate(null)
     }
+  }
+
+  const handleReactivate = async (vehicle: DeliveryVehicle) => {
+    await reactivateMutation.mutateAsync(vehicle.id)
   }
 
   return (
     <div className="flex flex-col gap-5">
       {/* Fleet KPI Quick Bar */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         <div className="flex items-center gap-3 p-3.5 rounded-2xl bg-card border border-border/80 shadow-xs">
           <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
             <Truck className="size-5" />
@@ -205,6 +223,44 @@ export function VehicleList() {
             <div className="text-[11px] text-muted-foreground font-medium">In Maintenance</div>
           </div>
         </div>
+
+        <div className="flex items-center gap-3 p-3.5 rounded-2xl bg-card border border-border/80 shadow-xs">
+          <div className="flex size-10 items-center justify-center rounded-xl bg-destructive/10 text-destructive">
+            <AlertOctagon className="size-5" />
+          </div>
+          <div>
+            <div className="text-xl font-extrabold text-foreground">{outOfServiceCount}</div>
+            <div className="text-[11px] text-muted-foreground font-medium">Out of Service</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Fleet Tabs */}
+      <div className="flex items-center gap-2 border-b border-border/70 pb-3">
+        <button
+          type="button"
+          onClick={() => setActiveTab('ACTIVE')}
+          className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            activeTab === 'ACTIVE'
+              ? 'bg-primary text-primary-foreground shadow-xs'
+              : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+          }`}
+        >
+          <Truck className="size-3.5" />
+          Active Fleet ({activeVehicles.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('ARCHIVED')}
+          className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            activeTab === 'ARCHIVED'
+              ? 'bg-primary text-primary-foreground shadow-xs'
+              : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+          }`}
+        >
+          <Archive className="size-3.5" />
+          Deactivated Vehicles ({archivedVehicles.length})
+        </button>
       </div>
 
       {/* Controls & Filter */}
@@ -220,30 +276,43 @@ export function VehicleList() {
             />
           </div>
 
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
-            <Button
-              variant={statusFilter.toUpperCase() === 'ALL' ? 'secondary' : 'ghost'}
-              size="sm"
-              onClick={() => setStatusFilter('ALL')}
-              className="h-8 text-xs font-semibold cursor-pointer"
-            >
-              All Statuses
-            </Button>
-            {VEHICLE_STATUSES.map((st) => (
+          {activeTab === 'ACTIVE' && (
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
               <Button
-                key={st}
-                variant={statusFilter === st ? 'secondary' : 'ghost'}
+                variant={statusFilter.toUpperCase() === 'ALL' ? 'secondary' : 'ghost'}
                 size="sm"
-                onClick={() => setStatusFilter(st)}
-                className="h-8 text-xs whitespace-nowrap cursor-pointer"
+                onClick={() => setStatusFilter('ALL')}
+                className="h-8 text-xs font-semibold cursor-pointer"
               >
-                {st.replace(/_/g, ' ')}
+                All Statuses
               </Button>
-            ))}
-          </div>
+              {VEHICLE_STATUSES.map((st) => {
+                const label =
+                  st === 'AVAILABLE'
+                    ? 'Available'
+                    : st === 'IN_DELIVERY'
+                    ? 'In Delivery'
+                    : st === 'MAINTENANCE'
+                    ? 'Maintenance'
+                    : 'Out of Service'
+
+                return (
+                  <Button
+                    key={st}
+                    variant={statusFilter === st ? 'secondary' : 'ghost'}
+                    size="sm"
+                    onClick={() => setStatusFilter(st)}
+                    className="h-8 text-xs font-semibold whitespace-nowrap cursor-pointer"
+                  >
+                    {label}
+                  </Button>
+                )
+              })}
+            </div>
+          )}
         </div>
 
-        {(isOwner || isAdmin) && (
+        {(isOwner || isAdmin) && activeTab === 'ACTIVE' && (
           <Button onClick={handleCreate} size="sm" className="gap-1.5 shadow-xs cursor-pointer">
             <Plus className="size-4" />
             Register Vehicle
@@ -254,19 +323,25 @@ export function VehicleList() {
       {/* Vehicle Fleet Cards Grid */}
       {isLoading ? (
         <div className="flex items-center justify-center py-16 text-muted-foreground">
-          <Spinner className="mr-2 size-5" /> Loading delivery fleet assets...
+          <Spinner className="mr-2 size-5" /> Loading delivery vehicles...
         </div>
       ) : filteredVehicles.length === 0 ? (
         <Card className="border-dashed bg-muted/20">
           <CardContent className="flex flex-col items-center justify-center py-12 text-center">
             <Truck className="size-10 text-muted-foreground/50 mb-3" />
-            <h3 className="text-sm font-semibold text-foreground">No vehicles found</h3>
+            <h3 className="text-sm font-semibold text-foreground">
+              {activeTab === 'ACTIVE'
+                ? 'No active vehicles found'
+                : 'No deactivated vehicles found'}
+            </h3>
             <p className="text-xs text-muted-foreground mt-1 max-w-xs">
               {searchTerm || statusFilter !== 'ALL'
                 ? 'No transport vehicles match your search query or status filter.'
-                : 'Register your first delivery truck or cargo hauler.'}
+                : activeTab === 'ACTIVE'
+                ? 'Register your first delivery truck or cargo hauler.'
+                : 'Deactivated delivery vehicles will appear here and can be reactivated at any time.'}
             </p>
-            {!searchTerm && statusFilter === 'ALL' && (
+            {!searchTerm && statusFilter === 'ALL' && activeTab === 'ACTIVE' && (
               <Button onClick={handleCreate} size="sm" className="mt-4 gap-1.5 cursor-pointer">
                 <Plus className="size-3.5" />
                 Register Transport Asset
@@ -277,11 +352,14 @@ export function VehicleList() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredVehicles.map((vehicle) => {
+            const isArchived = vehicle.isActive === false
             const isInDelivery = vehicle.status === 'IN_DELIVERY'
             const isAvailable = vehicle.status === 'AVAILABLE'
             const isMaintenance = vehicle.status === 'MAINTENANCE'
 
-            const iconBg = isAvailable
+            const iconBg = isArchived
+              ? 'bg-muted text-muted-foreground'
+              : isAvailable
               ? 'bg-emerald-500/10 text-emerald-600'
               : isInDelivery
               ? 'bg-blue-500/10 text-blue-600'
@@ -292,7 +370,9 @@ export function VehicleList() {
             return (
               <Card
                 key={vehicle.id}
-                className="group relative overflow-hidden transition-all duration-200 hover:shadow-md border-border/80 rounded-2xl flex flex-col justify-between hover:border-primary/40"
+                className={`group relative overflow-hidden transition-all duration-200 hover:shadow-md border-border/80 rounded-2xl flex flex-col justify-between hover:border-primary/40 ${
+                  isArchived ? 'opacity-75 bg-muted/20 border-dashed' : ''
+                }`}
               >
                 <CardContent className="p-5 flex flex-col justify-between h-full gap-3.5">
                   {/* Card Header */}
@@ -308,7 +388,13 @@ export function VehicleList() {
                           <span className="font-mono text-sm font-extrabold text-foreground tracking-tight">
                             {vehicle.plateNumber}
                           </span>
-                          <VehicleStatusBadge status={vehicle.status} />
+                          {isArchived ? (
+                            <Badge variant="outline" className="border-amber-500/30 bg-amber-500/10 text-amber-600 text-[10px] font-bold">
+                              Deactivated
+                            </Badge>
+                          ) : (
+                            <VehicleStatusBadge status={vehicle.status} />
+                          )}
                         </div>
                         <p className="text-xs text-muted-foreground font-medium mt-0.5 truncate">
                           {vehicle.vehicleType}
@@ -317,51 +403,77 @@ export function VehicleList() {
                     </div>
 
                     {(isOwner || isAdmin) && (
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
+                      <div className="flex items-center gap-1.5">
+                        {isArchived ? (
                           <Button
-                            variant="ghost"
-                            size="icon"
-                            className="size-7 text-muted-foreground hover:text-foreground cursor-pointer shrink-0"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleReactivate(vehicle)}
+                            disabled={reactivateMutation.isPending}
+                            className="h-7 text-xs font-bold gap-1 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-500/10 border-emerald-500/30 cursor-pointer"
                           >
-                            <MoreVertical className="size-4" />
-                            <span className="sr-only">Vehicle actions</span>
+                            <RotateCcw className="size-3.5" />
+                            Reactivate
                           </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => handleEdit(vehicle)} className="gap-2 text-xs cursor-pointer">
-                            <Edit2 className="size-3.5" />
-                            Edit Details & Route
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <div className="px-2 py-1 text-[10px] font-bold text-muted-foreground uppercase">
-                            Change Status
-                          </div>
-                          {VEHICLE_STATUSES.map((st) => (
-                            <DropdownMenuItem
-                              key={st}
-                              onClick={() => handleStatusChange(vehicle.id, st)}
-                              className={`gap-2 text-xs cursor-pointer ${
-                                vehicle.status === st ? 'font-bold text-primary' : ''
-                              }`}
-                            >
-                              {st === 'AVAILABLE' && <CheckCircle2 className="size-3.5 text-emerald-500" />}
-                              {st === 'IN_DELIVERY' && <Clock className="size-3.5 text-blue-500" />}
-                              {st === 'MAINTENANCE' && <Wrench className="size-3.5 text-amber-500" />}
-                              {st === 'OUT_OF_SERVICE' && <AlertOctagon className="size-3.5 text-destructive" />}
-                              {st.replace(/_/g, ' ')}
-                            </DropdownMenuItem>
-                          ))}
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            onClick={() => handleDeactivate(vehicle)}
-                            className="gap-2 text-xs text-destructive focus:text-destructive cursor-pointer"
-                          >
-                            <Trash2 className="size-3.5" />
-                            Deactivate Vehicle
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                        ) : (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="size-7 text-muted-foreground hover:text-foreground cursor-pointer shrink-0"
+                              >
+                                <MoreVertical className="size-4" />
+                                <span className="sr-only">Vehicle actions</span>
+                              </Button>
+                            </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => handleEdit(vehicle)} className="gap-2 text-xs cursor-pointer">
+                                  <Edit2 className="size-3.5" />
+                                  Edit Details & Route
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <div className="px-2 py-1 text-[10px] font-bold text-muted-foreground uppercase">
+                                  Change Status
+                                </div>
+                                {VEHICLE_STATUSES.map((st) => {
+                                  const label =
+                                    st === 'AVAILABLE'
+                                      ? 'Available'
+                                      : st === 'IN_DELIVERY'
+                                      ? 'In Delivery'
+                                      : st === 'MAINTENANCE'
+                                      ? 'Maintenance'
+                                      : 'Out of Service'
+
+                                  return (
+                                    <DropdownMenuItem
+                                      key={st}
+                                      onClick={() => handleStatusChange(vehicle.id, st)}
+                                      className={`gap-2 text-xs cursor-pointer ${
+                                        vehicle.status === st ? 'font-bold text-primary' : ''
+                                      }`}
+                                    >
+                                      {st === 'AVAILABLE' && <CheckCircle2 className="size-3.5 text-emerald-500" />}
+                                      {st === 'IN_DELIVERY' && <Clock className="size-3.5 text-blue-500" />}
+                                      {st === 'MAINTENANCE' && <Wrench className="size-3.5 text-amber-500" />}
+                                      {st === 'OUT_OF_SERVICE' && <AlertOctagon className="size-3.5 text-destructive" />}
+                                      {label}
+                                    </DropdownMenuItem>
+                                  )
+                                })}
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  onClick={() => handleDeactivate(vehicle)}
+                                  className="gap-2 text-xs text-destructive focus:text-destructive cursor-pointer"
+                                >
+                                  <Trash2 className="size-3.5" />
+                                  Deactivate Vehicle
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                        )}
+                      </div>
                     )}
                   </div>
 

@@ -12,6 +12,8 @@ import {
   Trash2,
   CheckCircle2,
   User,
+  Archive,
+  RotateCcw,
 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -27,24 +29,31 @@ import {
 import {
   useClients,
   useDeactivateClient,
+  useReactivateClient,
+  getArchivedClients,
 } from '@/features/crm/clients.hooks'
 import { useAuth } from '@/features/auth/AuthContext'
 import type { Client } from '@/features/crm/clients.types'
 import { ClientModal } from './ClientModal'
-
 import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal'
 
 export function ClientList() {
   const { data: clients = [], isLoading } = useClients()
   const deactivateMutation = useDeactivateClient()
+  const reactivateMutation = useReactivateClient()
   const { isOwner, isAdmin } = useAuth()
 
+  const [activeTab, setActiveTab] = useState<'ACTIVE' | 'ARCHIVED'>('ACTIVE')
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedClient, setSelectedClient] = useState<Client | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [clientToDeactivate, setClientToDeactivate] = useState<Client | null>(null)
 
-  const filteredClients = clients.filter(
+  const activeClients = clients.filter((c) => c.isActive !== false)
+  const archivedClients = getArchivedClients()
+  const currentClientList = activeTab === 'ACTIVE' ? activeClients : archivedClients
+
+  const filteredClients = currentClientList.filter(
     (c) =>
       c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       c.address.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -69,13 +78,45 @@ export function ClientList() {
 
   const confirmDeactivate = async () => {
     if (clientToDeactivate) {
-      await deactivateMutation.mutateAsync(clientToDeactivate.id)
+      await deactivateMutation.mutateAsync(clientToDeactivate)
       setClientToDeactivate(null)
     }
   }
 
+  const handleReactivate = async (client: Client) => {
+    await reactivateMutation.mutateAsync(client.id)
+  }
+
   return (
     <div className="flex flex-col gap-5">
+      {/* Directory Tabs */}
+      <div className="flex items-center gap-2 border-b border-border/70 pb-3">
+        <button
+          type="button"
+          onClick={() => setActiveTab('ACTIVE')}
+          className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            activeTab === 'ACTIVE'
+              ? 'bg-primary text-primary-foreground shadow-xs'
+              : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+          }`}
+        >
+          <Users className="size-3.5" />
+          Active Clients ({activeClients.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('ARCHIVED')}
+          className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            activeTab === 'ARCHIVED'
+              ? 'bg-primary text-primary-foreground shadow-xs'
+              : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+          }`}
+        >
+          <Archive className="size-3.5" />
+          Deactivated Clients ({archivedClients.length})
+        </button>
+      </div>
+
       {/* Controls Bar */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div className="relative w-full sm:w-80">
@@ -88,7 +129,7 @@ export function ClientList() {
           />
         </div>
 
-        {(isOwner || isAdmin) && (
+        {(isOwner || isAdmin) && activeTab === 'ACTIVE' && (
           <Button onClick={handleCreate} size="sm" className="gap-1.5 shadow-xs cursor-pointer">
             <Plus className="size-4" />
             Register New Client
@@ -105,14 +146,18 @@ export function ClientList() {
         <Card className="border-dashed bg-muted/20">
           <CardContent className="flex flex-col items-center justify-center py-12 text-center">
             <Users className="size-10 text-muted-foreground/50 mb-3" />
-            <h3 className="text-sm font-semibold text-foreground">No clients found</h3>
+            <h3 className="text-sm font-semibold text-foreground">
+              {activeTab === 'ACTIVE' ? 'No active clients found' : 'No deactivated clients found'}
+            </h3>
             <p className="text-xs text-muted-foreground mt-1 max-w-xs">
               {searchTerm
                 ? 'No client accounts match your search filter.'
-                : 'Register commercial buyers and supermarket clients to manage wholesale accounts.'}
+                : activeTab === 'ACTIVE'
+                ? 'Register commercial buyers and supermarket clients to manage wholesale accounts.'
+                : 'Deactivated client profiles will appear here and can be reactivated at any time.'}
             </p>
-            {!searchTerm && (
-              <Button onClick={handleCreate} size="sm" variant="outline" className="mt-4 gap-1.5">
+            {!searchTerm && activeTab === 'ACTIVE' && (
+              <Button onClick={handleCreate} size="sm" variant="outline" className="mt-4 gap-1.5 cursor-pointer">
                 <Plus className="size-3.5" />
                 Register First Client
               </Button>
@@ -122,56 +167,86 @@ export function ClientList() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredClients.map((client) => {
+            const isArchived = client.isActive === false
+
             return (
               <Card
                 key={client.id}
-                className="group relative overflow-hidden transition-all duration-200 hover:shadow-md hover:border-primary/40 border-border/80"
+                className={`group relative overflow-hidden transition-all duration-200 hover:shadow-md hover:border-primary/40 border-border/80 rounded-2xl ${
+                  isArchived ? 'opacity-75 bg-muted/20 border-dashed' : ''
+                }`}
               >
                 <CardContent className="p-5 flex flex-col justify-between h-full gap-4">
                   <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-start gap-3">
-                      <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary group-hover:scale-105 transition-transform">
+                    <div className="flex items-start gap-3 min-w-0">
+                      <div
+                        className={`flex size-10 shrink-0 items-center justify-center rounded-xl transition-transform group-hover:scale-105 ${
+                          isArchived ? 'bg-muted text-muted-foreground' : 'bg-primary/10 text-primary'
+                        }`}
+                      >
                         <Building2 className="size-5" />
                       </div>
-                      <div>
-                        <h4 className="text-sm font-bold text-foreground leading-tight">
-                          {client.name}
-                        </h4>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h4 className="text-sm font-bold text-foreground leading-tight truncate">
+                            {client.name}
+                          </h4>
+                          {isArchived && (
+                            <Badge variant="outline" className="border-amber-500/30 bg-amber-500/10 text-amber-600 text-[10px] font-bold">
+                              Deactivated
+                            </Badge>
+                          )}
+                        </div>
                         {client.contactPerson && (
                           <div className="flex items-center gap-1.5 mt-1 text-xs text-muted-foreground">
                             <User className="size-3 shrink-0" />
-                            <span>{client.contactPerson}</span>
+                            <span className="truncate">{client.contactPerson}</span>
                           </div>
                         )}
                       </div>
                     </div>
 
                     {(isOwner || isAdmin) && (
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
+                      <div>
+                        {isArchived ? (
                           <Button
-                            variant="ghost"
-                            size="icon"
-                            className="size-7 text-muted-foreground hover:text-foreground cursor-pointer"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleReactivate(client)}
+                            disabled={reactivateMutation.isPending}
+                            className="h-7 text-xs font-bold gap-1 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-500/10 border-emerald-500/30 cursor-pointer"
                           >
-                            <MoreVertical className="size-4" />
-                            <span className="sr-only">Client actions</span>
+                            <RotateCcw className="size-3.5" />
+                            Reactivate
                           </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => handleEdit(client)} className="gap-2 text-xs cursor-pointer">
-                            <Edit2 className="size-3.5" />
-                            Edit Details
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => handleDeactivate(client)}
-                            className="gap-2 text-xs text-destructive focus:text-destructive cursor-pointer"
-                          >
-                            <Trash2 className="size-3.5" />
-                            Deactivate Client
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                        ) : (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="size-7 text-muted-foreground hover:text-foreground cursor-pointer"
+                              >
+                                <MoreVertical className="size-4" />
+                                <span className="sr-only">Client actions</span>
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => handleEdit(client)} className="gap-2 text-xs cursor-pointer">
+                                <Edit2 className="size-3.5" />
+                                Edit Details
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => handleDeactivate(client)}
+                                className="gap-2 text-xs text-destructive focus:text-destructive cursor-pointer"
+                              >
+                                <Trash2 className="size-3.5" />
+                                Deactivate Client
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
+                      </div>
                     )}
                   </div>
 
@@ -197,13 +272,17 @@ export function ClientList() {
                   </div>
 
                   <div className="flex items-center justify-between pt-2 text-[11px] text-muted-foreground border-t border-border/40">
-                    <span className="text-[10px] text-muted-foreground">
+                    <span className="text-[10px] text-muted-foreground font-mono">
                       ID: #{client.id.toString().padStart(4, '0')}
                     </span>
-                    <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-600 border-emerald-500/20 font-medium gap-1">
-                      <CheckCircle2 className="size-2.5" />
-                      Active Client
-                    </Badge>
+                    {isArchived ? (
+                      <span className="text-[10px] text-muted-foreground italic">Inactive Profile</span>
+                    ) : (
+                      <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-600 border-emerald-500/20 font-medium gap-1">
+                        <CheckCircle2 className="size-2.5" />
+                        Active Client
+                      </Badge>
+                    )}
                   </div>
                 </CardContent>
               </Card>

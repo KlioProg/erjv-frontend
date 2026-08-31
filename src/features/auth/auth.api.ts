@@ -23,14 +23,3 @@ export async function getProfileApi(): Promise<SafeUserResponse> {
   const { data } = await apiClient.get<SafeUserResponse>('/auth/profile')
   return data
 }
-
-export async function updateProfileApi(payload: {
-  fullName?: string
-  phone?: string | null
-  avatarUrl?: string | null
-  jobTitle?: string | null
-  bio?: string | null
-}): Promise<SafeUserResponse> {
-  const { data } = await apiClient.patch<SafeUserResponse>('/auth/profile', payload)
-  return data
-}

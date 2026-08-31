@@ -12,10 +12,8 @@ import {
   Menu,
   X,
   ChevronRight,
-  Sparkles,
   Building2,
   ChevronDown,
-  UserCog,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -23,6 +21,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -32,7 +31,6 @@ import { ErjvPosLogo } from '@/components/ui/ErjvPosLogo'
 import { useAuth } from '@/features/auth/AuthContext'
 import { useProducts } from '@/features/products/products.hooks'
 import { ProductListModal } from '../products/ProductListModal'
-import { AccountProfileModal } from '../auth/AccountProfileModal'
 
 export type NavItemKey =
   | 'inventory'
@@ -95,7 +93,6 @@ export function DashboardLayout({
   const { data: products = [] } = useProducts()
   const [isMobileOpen, setIsMobileOpen] = useState(false)
   const [isProductsModalOpen, setIsProductsModalOpen] = useState(false)
-  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false)
 
   const displayName = user?.fullName || (user?.email ? user.email.split('@')[0] : 'User Account')
   const userInitial = displayName.charAt(0).toUpperCase()
@@ -125,8 +122,9 @@ export function DashboardLayout({
 
       {/* Sidebar Navigation */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex w-72 flex-col justify-between border-r border-border/80 bg-card/95 backdrop-blur-md transition-transform duration-300 lg:sticky lg:top-0 lg:h-screen lg:shrink-0 ${isMobileOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full lg:translate-x-0'
-          }`}
+        className={`fixed inset-y-0 left-0 z-50 flex w-72 flex-col justify-between border-r border-border/80 bg-card/95 backdrop-blur-md transition-transform duration-300 lg:sticky lg:top-0 lg:h-screen lg:shrink-0 ${
+          isMobileOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full lg:translate-x-0'
+        }`}
       >
         {/* Sidebar Header & Nav list */}
         <div className="flex flex-col min-h-0 flex-1">
@@ -143,13 +141,13 @@ export function DashboardLayout({
           </div>
 
           {/* Nav List with custom smooth scrollbar */}
-          <nav className="flex-1 space-y-5 px-3.5 py-4 overflow-y-auto min-h-0">
+          <nav className="flex-1 flex flex-col gap-5 px-3.5 py-4 overflow-y-auto min-h-0">
             {visibleGroups.map((group) => (
-              <div key={group.title} className="space-y-1.5">
+              <div key={group.title} className="flex flex-col gap-1.5">
                 <div className="px-3 text-[10px] font-bold tracking-wider uppercase text-muted-foreground/80">
                   {group.title}
                 </div>
-                <div className="space-y-0.5">
+                <div className="flex flex-col gap-0.5">
                   {group.items.map((item) => {
                     const Icon = item.icon
                     const isActive = currentTab === item.key
@@ -161,17 +159,19 @@ export function DashboardLayout({
                           onSelectTab(item.key)
                           setIsMobileOpen(false)
                         }}
-                        className={`group relative flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-xs font-semibold transition-all duration-150 cursor-pointer ${isActive
+                        className={`group relative flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-xs font-semibold transition-all duration-150 cursor-pointer ${
+                          isActive
                             ? 'bg-primary text-primary-foreground shadow-sm shadow-primary/25'
                             : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
-                          }`}
+                        }`}
                       >
                         <div className="flex items-center gap-3">
                           <Icon
-                            className={`size-4 shrink-0 transition-transform group-hover:scale-110 ${isActive
+                            className={`size-4 shrink-0 transition-transform group-hover:scale-110 ${
+                              isActive
                                 ? 'text-primary-foreground'
                                 : 'text-muted-foreground group-hover:text-foreground'
-                              }`}
+                            }`}
                           />
                           <span>{item.label}</span>
                         </div>
@@ -232,18 +232,12 @@ export function DashboardLayout({
                 </div>
               </div>
               <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onClick={() => setIsProfileModalOpen(true)}
-                className="gap-2 text-xs cursor-pointer font-semibold py-2"
-              >
-                <UserCog className="size-4 text-primary" />
-                <span>Customize Profile</span>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={logout} className="text-destructive gap-2 text-xs cursor-pointer font-semibold py-2">
-                <LogOut className="size-3.5" />
-                Sign Out
-              </DropdownMenuItem>
+              <DropdownMenuGroup>
+                <DropdownMenuItem onClick={logout} className="text-destructive gap-2 text-xs cursor-pointer font-semibold py-2">
+                  <LogOut className="size-3.5" />
+                  Sign Out
+                </DropdownMenuItem>
+              </DropdownMenuGroup>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -286,10 +280,11 @@ export function DashboardLayout({
 
             <Badge
               variant="outline"
-              className={`hidden sm:flex text-[11px] font-medium gap-1.5 ${isStaff
+              className={`hidden sm:flex text-[11px] font-medium gap-1.5 ${
+                isStaff
                   ? 'bg-blue-500/10 text-blue-600 border-blue-500/20'
                   : 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20'
-                }`}
+              }`}
             >
               <span className={`size-1.5 rounded-full ${isStaff ? 'bg-blue-500' : 'bg-emerald-500'} animate-pulse`} />
               {user?.role || 'OWNER'} Mode
@@ -305,23 +300,20 @@ export function DashboardLayout({
         {/* Global Footer */}
         <footer className="border-t border-border/60 py-4 px-4 sm:px-8 text-center text-xs text-muted-foreground">
           <div className="max-w-7xl mx-auto flex items-center justify-between">
-            <div className="flex items-center gap-1.5">
-              <Sparkles className="size-3 text-primary" />
-              <span>ERJVPOS Enterprise Production Cloud Suite</span>
-            </div>
-            <span>v2.0</span>
+            <span className="font-medium tracking-tight">
+              ERJV POS Enterprise Operations Suite © {new Date().getFullYear()}
+            </span>
+            <span className="font-mono text-[11px] text-muted-foreground/80">
+              v1.0.0 (Production)
+            </span>
           </div>
         </footer>
       </div>
 
+      {/* Global Product Catalog Modal */}
       <ProductListModal
         open={isProductsModalOpen}
         onClose={() => setIsProductsModalOpen(false)}
-      />
-
-      <AccountProfileModal
-        open={isProfileModalOpen}
-        onClose={() => setIsProfileModalOpen(false)}
       />
     </div>
   )

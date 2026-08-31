@@ -98,7 +98,7 @@ export function AuthCard({ mode, onModeChange }: AuthCardProps) {
           </CardDescription>
         </CardHeader>
 
-        <CardContent className="space-y-4 px-6 pb-6">
+        <CardContent className="flex flex-col gap-4 px-6 pb-6">
           <Tabs
             value={mode}
             onValueChange={(val) => {

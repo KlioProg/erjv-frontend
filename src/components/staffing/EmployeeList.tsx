@@ -11,6 +11,9 @@ import {
   Calendar,
   ShieldCheck,
   Building2,
+  Users,
+  Archive,
+  RotateCcw,
 } from 'lucide-react'
 import {
   Table,
@@ -37,7 +40,9 @@ import { Spinner } from '@/components/ui/spinner'
 import {
   useEmployees,
   useDeactivateEmployee,
+  useReactivateEmployee,
   useEmployeeJobs,
+  getArchivedEmployees,
 } from '@/features/staffing/staffing.hooks'
 import type { Employee } from '@/features/staffing/staffing.types'
 import { EmployeeModal } from './EmployeeModal'
@@ -78,14 +83,20 @@ function EmployeeJobBadges({ employeeId }: { employeeId: number }) {
 export function EmployeeList() {
   const { data: employees = [], isLoading, error } = useEmployees()
   const deactivateMutation = useDeactivateEmployee()
+  const reactivateMutation = useReactivateEmployee()
 
+  const [activeTab, setActiveTab] = useState<'ACTIVE' | 'ARCHIVED'>('ACTIVE')
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null)
   const [assigningEmployee, setAssigningEmployee] = useState<Employee | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [employeeToDeactivate, setEmployeeToDeactivate] = useState<Employee | null>(null)
 
-  const filteredEmployees = employees.filter((emp) => {
+  const activeEmployees = employees.filter((emp) => emp.isActive !== false)
+  const archivedEmployees = getArchivedEmployees()
+  const currentEmployees = activeTab === 'ACTIVE' ? activeEmployees : archivedEmployees
+
+  const filteredEmployees = currentEmployees.filter((emp) => {
     const fullName = `${emp.firstName} ${emp.lastName}`.toLowerCase()
     const email = (emp.email || '').toLowerCase()
     const phone = (emp.phone || '').toLowerCase()
@@ -113,13 +124,45 @@ export function EmployeeList() {
 
   const confirmDeactivate = async () => {
     if (employeeToDeactivate) {
-      await deactivateMutation.mutateAsync(employeeToDeactivate.id)
+      await deactivateMutation.mutateAsync(employeeToDeactivate)
       setEmployeeToDeactivate(null)
     }
   }
 
+  const handleReactivate = async (emp: Employee) => {
+    await reactivateMutation.mutateAsync(emp)
+  }
+
   return (
     <div className="flex flex-col gap-4">
+      {/* Staff Tabs */}
+      <div className="flex items-center gap-2 border-b border-border/70 pb-3">
+        <button
+          type="button"
+          onClick={() => setActiveTab('ACTIVE')}
+          className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            activeTab === 'ACTIVE'
+              ? 'bg-primary text-primary-foreground shadow-xs'
+              : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+          }`}
+        >
+          <Users className="size-3.5" />
+          Active Staff ({activeEmployees.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('ARCHIVED')}
+          className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            activeTab === 'ARCHIVED'
+              ? 'bg-primary text-primary-foreground shadow-xs'
+              : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+          }`}
+        >
+          <Archive className="size-3.5" />
+          Deactivated Staff ({archivedEmployees.length})
+        </button>
+      </div>
+
       {/* Search and Action Bar */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
         <div className="relative flex-1 max-w-sm">
@@ -131,10 +174,12 @@ export function EmployeeList() {
             className="pl-9 bg-card"
           />
         </div>
-        <Button onClick={handleCreate} className="shadow-sm font-semibold">
-          <UserPlus data-icon="inline-start" className="size-4" />
-          Register Employee
-        </Button>
+        {activeTab === 'ACTIVE' && (
+          <Button onClick={handleCreate} className="shadow-sm font-semibold cursor-pointer">
+            <UserPlus data-icon="inline-start" className="size-4" />
+            Register Employee
+          </Button>
+        )}
       </div>
 
       {/* Employees Table Card */}
@@ -152,11 +197,15 @@ export function EmployeeList() {
         ) : filteredEmployees.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-2">
             <Building2 className="size-8 stroke-[1.5] text-muted-foreground/50" />
-            <p className="text-sm font-medium text-foreground">No employees found</p>
+            <p className="text-sm font-medium text-foreground">
+              {activeTab === 'ACTIVE' ? 'No active employees found' : 'No deactivated staff found'}
+            </p>
             <p className="text-xs">
               {searchQuery
                 ? 'Try adjusting your search criteria.'
-                : 'Click "Register Employee" above to add your first staff member.'}
+                : activeTab === 'ACTIVE'
+                ? 'Click "Register Employee" above to add your first staff member.'
+                : 'Deactivated staff profiles will appear here and can be reactivated at any time.'}
             </p>
           </div>
         ) : (
@@ -181,20 +230,37 @@ export function EmployeeList() {
                       day: 'numeric',
                     })
                   : '—'
+                const isArchived = emp.isActive === false
 
                 return (
-                  <TableRow key={emp.id} className="hover:bg-muted/30">
+                  <TableRow
+                    key={emp.id}
+                    className={`hover:bg-muted/30 ${isArchived ? 'opacity-75 bg-muted/10' : ''}`}
+                  >
                     <TableCell>
                       <div className="flex items-center gap-3">
                         <Avatar className="size-9 ring-1 ring-border">
-                          <AvatarFallback className="bg-primary/10 text-primary text-xs font-bold">
+                          <AvatarFallback
+                            className={`text-xs font-bold ${
+                              isArchived
+                                ? 'bg-muted text-muted-foreground'
+                                : 'bg-primary/10 text-primary'
+                            }`}
+                          >
                             {initials}
                           </AvatarFallback>
                         </Avatar>
                         <div className="flex flex-col">
-                          <span className="font-semibold text-foreground text-xs">
-                            {emp.firstName} {emp.lastName}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold text-foreground text-xs">
+                              {emp.firstName} {emp.lastName}
+                            </span>
+                            {isArchived && (
+                              <Badge variant="outline" className="border-amber-500/30 bg-amber-500/10 text-amber-600 text-[9px] font-bold px-1.5 py-0">
+                                Deactivated
+                              </Badge>
+                            )}
+                          </div>
                           {emp.address && (
                             <span className="text-[11px] text-muted-foreground truncate max-w-[160px]">
                               {emp.address}
@@ -237,8 +303,8 @@ export function EmployeeList() {
                     <TableCell>
                       {emp.userId ? (
                         <Badge
-                          variant="secondary"
-                          className="gap-1 text-[10px] font-semibold bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 border-emerald-500/20"
+                          variant="outline"
+                          className="bg-emerald-500/10 text-emerald-600 border-emerald-500/25 text-[11px] font-semibold gap-1"
                         >
                           <ShieldCheck className="size-3 text-emerald-600" />
                           Linked (ID #{emp.userId})
@@ -249,38 +315,51 @@ export function EmployeeList() {
                     </TableCell>
 
                     <TableCell className="text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="size-8">
-                            <MoreVertical className="size-4" />
-                            <span className="sr-only">Open actions</span>
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-44">
-                          <DropdownMenuLabel>Staff Actions</DropdownMenuLabel>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuGroup>
-                            <DropdownMenuItem onClick={() => handleAssignPositions(emp)}>
-                              <Briefcase className="size-4 mr-2 text-primary" />
-                              Assign Roles
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleEdit(emp)}>
-                              <Edit2 className="size-4 mr-2" />
-                              Edit Profile
-                            </DropdownMenuItem>
-                          </DropdownMenuGroup>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuGroup>
-                            <DropdownMenuItem
-                              onClick={() => handleDeactivate(emp)}
-                              className="text-destructive focus:text-destructive focus:bg-destructive/10 cursor-pointer"
-                            >
-                              <Trash2 className="size-4 mr-2" />
-                              Deactivate Employee
-                            </DropdownMenuItem>
-                          </DropdownMenuGroup>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      {isArchived ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleReactivate(emp)}
+                          disabled={reactivateMutation.isPending}
+                          className="gap-1.5 text-xs font-bold text-emerald-600 hover:text-emerald-700 hover:bg-emerald-500/10 border-emerald-500/30 cursor-pointer"
+                        >
+                          <RotateCcw className="size-3.5" />
+                          Reactivate
+                        </Button>
+                      ) : (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="size-8 cursor-pointer">
+                              <MoreVertical className="size-4" />
+                              <span className="sr-only">Open actions</span>
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-44">
+                            <DropdownMenuLabel>Staff Actions</DropdownMenuLabel>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuGroup>
+                              <DropdownMenuItem onClick={() => handleAssignPositions(emp)}>
+                                <Briefcase className="size-4 mr-2 text-primary" />
+                                Assign Roles
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleEdit(emp)}>
+                                <Edit2 className="size-4 mr-2" />
+                                Edit Profile
+                              </DropdownMenuItem>
+                            </DropdownMenuGroup>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuGroup>
+                              <DropdownMenuItem
+                                onClick={() => handleDeactivate(emp)}
+                                className="text-destructive focus:text-destructive focus:bg-destructive/10 cursor-pointer"
+                              >
+                                <Trash2 className="size-4 mr-2" />
+                                Deactivate Employee
+                              </DropdownMenuItem>
+                            </DropdownMenuGroup>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
                     </TableCell>
                   </TableRow>
                 )

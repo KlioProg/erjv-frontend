@@ -7,6 +7,7 @@ import {
   HelpCircle,
   Sparkles,
   Warehouse as WarehouseIcon,
+  RotateCcw,
 } from 'lucide-react'
 import {
   Dialog,
@@ -27,6 +28,9 @@ import {
   useCreateProduct,
   useUpdateProductDetails,
   useDeactivateProduct,
+  useReactivateProduct,
+  getArchivedProducts,
+  fetchProductByNameApi,
 } from '@/features/products/products.hooks'
 import { useWarehouses } from '@/features/logistics/warehouses.hooks'
 import { useCreateStockItem } from '@/features/logistics/stock-items.hooks'
@@ -52,6 +56,7 @@ function ItemFormContent({
   const createMutation = useCreateProduct()
   const updateMutation = useUpdateProductDetails()
   const deactivateMutation = useDeactivateProduct()
+  const reactivateMutation = useReactivateProduct()
   const createStockMutation = useCreateStockItem()
   const { data: warehouses = [] } = useWarehouses()
 
@@ -62,6 +67,7 @@ function ItemFormContent({
   )
   const [description, setDescription] = useState(item?.description || '')
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const [deactivatedProductMatch, setDeactivatedProductMatch] = useState<InventoryItemResponse | null>(null)
   const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = useState(false)
 
   // Warehouse Initial Stock Allocations map: { [warehouseId]: quantityString }
@@ -77,6 +83,7 @@ function ItemFormContent({
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setErrorMsg('')
+    setDeactivatedProductMatch(null)
 
     const cleanName = name.trim()
     if (!cleanName) {
@@ -84,12 +91,44 @@ function ItemFormContent({
       return
     }
 
-    const isDuplicate = allProducts.some(
-      (p) => p.id !== item?.id && p.name.toLowerCase().trim() === cleanName.toLowerCase()
-    )
-    if (isDuplicate) {
-      setErrorMsg(`A product with the name "${cleanName}" already exists in the database.`)
-      return
+    if (!isEditing) {
+      // 1. Check if product is already in deactivated archive or backend inactive
+      const archivedList = getArchivedProducts()
+      const archivedMatch = archivedList.find(
+        (p) => p.name.toUpperCase().trim() === cleanName.toUpperCase()
+      )
+
+      let backendMatch: InventoryItemResponse | null = null
+      try {
+        backendMatch = await fetchProductByNameApi(cleanName)
+      } catch {
+        // Ignore
+      }
+
+      if (backendMatch && backendMatch.isActive === false) {
+        setDeactivatedProductMatch(backendMatch)
+        setErrorMsg(
+          `Product with name "${cleanName}" is currently deactivated. You can reactivate it directly.`
+        )
+        return
+      }
+
+      if (archivedMatch) {
+        setDeactivatedProductMatch(archivedMatch)
+        setErrorMsg(
+          `Product with name "${cleanName}" is currently deactivated. You can reactivate it directly.`
+        )
+        return
+      }
+
+      // 2. Check if active duplicate exists
+      const isDuplicate = allProducts.some(
+        (p) => p.name.toLowerCase().trim() === cleanName.toLowerCase()
+      )
+      if (isDuplicate || (backendMatch && backendMatch.isActive !== false)) {
+        setErrorMsg(`A product with the name "${cleanName}" is already active in the catalog.`)
+        return
+      }
     }
 
     if (!isEditing && !sku.trim()) {
@@ -162,8 +201,18 @@ function ItemFormContent({
     }
   }
 
+  const handleRestoreFoundProduct = async () => {
+    if (deactivatedProductMatch) {
+      await reactivateMutation.mutateAsync(deactivatedProductMatch.id)
+      onClose()
+    }
+  }
+
   const isPending =
-    createMutation.isPending || updateMutation.isPending || createStockMutation.isPending
+    createMutation.isPending ||
+    updateMutation.isPending ||
+    createStockMutation.isPending ||
+    reactivateMutation.isPending
 
   return (
     <>
@@ -181,10 +230,24 @@ function ItemFormContent({
         </DialogDescription>
       </DialogHeader>
 
-      {errorMsg && (
+      {errorMsg && !deactivatedProductMatch && (
         <Alert variant="destructive" className="my-1">
           <AlertDescription>{errorMsg}</AlertDescription>
         </Alert>
+      )}
+
+      {deactivatedProductMatch && (
+        <div className="my-1 p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-950 dark:text-amber-200 flex items-start gap-3 shadow-2xs">
+          <div className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-amber-500/20 text-amber-700 dark:text-amber-300 mt-0.5">
+            <RotateCcw className="size-4" />
+          </div>
+          <div className="flex-1 text-xs">
+            <p className="font-bold text-foreground">Deactivated Product SKU Found</p>
+            <p className="text-muted-foreground mt-0.5 leading-relaxed">
+              An archived catalog item for <strong className="text-foreground">{deactivatedProductMatch.name}</strong> (SKU: {deactivatedProductMatch.sku}) already exists. Click <strong>"Reactivate Product"</strong> below to restore it.
+            </p>
+          </div>
+        </div>
       )}
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-4 py-2">
@@ -197,9 +260,13 @@ function ItemFormContent({
             <Package className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
             <Input
               id="item-name"
-              placeholder="e.g. Palm Cooking Oil (20L Carboy), Kohaku Red Rice (50kg Sack), Refined Sugar"
+              placeholder="e.g. Cooking Oil 1L Pouch, Sugar 50kg Sack"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => {
+                setName(e.target.value)
+                if (deactivatedProductMatch) setDeactivatedProductMatch(null)
+                if (errorMsg) setErrorMsg('')
+              }}
               className="pl-9 h-10 text-sm"
               required
             />
@@ -381,16 +448,37 @@ function ItemFormContent({
             <Button type="button" variant="outline" onClick={onClose} disabled={isPending}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isPending} className="font-semibold shadow-xs cursor-pointer">
-              {isPending ? (
-                <>
-                  <Spinner data-icon="inline-start" />
-                  {isEditing ? 'Saving...' : 'Registering SKU & Stocks...'}
-                </>
-              ) : (
-                <>{isEditing ? 'Save Product Changes' : 'Register SKU & Allocate Stocks'}</>
-              )}
-            </Button>
+            {deactivatedProductMatch ? (
+              <Button
+                type="button"
+                onClick={handleRestoreFoundProduct}
+                disabled={isPending}
+                className="gap-2 font-bold shadow-xs bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer"
+              >
+                {reactivateMutation.isPending ? (
+                  <>
+                    <Spinner data-icon="inline-start" />
+                    Reactivating Product...
+                  </>
+                ) : (
+                  <>
+                    <RotateCcw className="size-4" />
+                    Reactivate Product SKU
+                  </>
+                )}
+              </Button>
+            ) : (
+              <Button type="submit" disabled={isPending} className="font-semibold shadow-xs cursor-pointer">
+                {isPending ? (
+                  <>
+                    <Spinner data-icon="inline-start" />
+                    {isEditing ? 'Saving...' : 'Registering SKU & Stocks...'}
+                  </>
+                ) : (
+                  <>{isEditing ? 'Save Product Changes' : 'Register SKU & Allocate Stocks'}</>
+                )}
+              </Button>
+            )}
           </div>
         </DialogFooter>
       </form>
@@ -410,7 +498,7 @@ function ItemFormContent({
           title="Delete Product from Active Catalog"
           description="Are you sure you want to remove this product from the active catalog? It will no longer be available for point of sale billing."
           itemName={item.name}
-          itemDetails={`SKU: ${item.sku} • ₱${item.unitPrice.toFixed(2)}`}
+          itemDetails={`SKU: ${item.sku} • ₱${Number(item.unitPrice || 0).toFixed(2)}`}
           confirmText="Delete Product SKU"
           variant="destructive"
         />

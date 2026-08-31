@@ -17,7 +17,7 @@ export function SettingsView() {
             Manage your store branch details, receipt print templates, and regional tax settings.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="flex flex-col gap-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="flex flex-col gap-1.5">
               <Label className="text-xs font-semibold">Store / Enterprise Name</Label>
@@ -41,7 +41,7 @@ export function SettingsView() {
           </div>
 
           <div className="pt-2">
-            <Button size="sm" className="bg-rose-600 hover:bg-rose-700 text-white text-xs">
+            <Button size="sm" className="bg-primary hover:bg-primary/90 text-primary-foreground text-xs">
               Save Settings
             </Button>
           </div>
@@ -55,7 +55,7 @@ export function FeedbackView() {
   return (
     <div className="flex flex-col gap-5 max-w-2xl">
       <Card className="border-border/80 text-center p-8">
-        <CardContent className="flex flex-col items-center justify-center space-y-4">
+        <CardContent className="flex flex-col items-center justify-center gap-4">
           <div className="flex size-14 items-center justify-center rounded-full bg-rose-50 text-rose-600">
             ⭐
           </div>

@@ -21,6 +21,15 @@ export async function fetchVehicleByIdApi(id: number): Promise<DeliveryVehicle> 
   return data
 }
 
+export async function fetchVehicleByPlateNumberApi(plateNumber: string): Promise<DeliveryVehicle | null> {
+  try {
+    const { data } = await apiClient.get<DeliveryVehicle>(`/delivery-vehicles/plate-number/${encodeURIComponent(plateNumber.trim())}`)
+    return data
+  } catch {
+    return null
+  }
+}
+
 export async function createVehicleApi(
   payload: CreateDeliveryVehiclePayload
 ): Promise<DeliveryVehicle> {

@@ -168,7 +168,7 @@ export function ExecutiveDashboard() {
             </Button>
           </CardHeader>
 
-          <CardContent className="p-0 space-y-3">
+          <CardContent className="p-0 flex flex-col gap-3">
             {RECENT_TRANSACTIONS.map((tx) => (
               <div
                 key={tx.id}
@@ -221,7 +221,7 @@ export function ExecutiveDashboard() {
             </Button>
           </CardHeader>
 
-          <CardContent className="p-0 space-y-3">
+          <CardContent className="p-0 flex flex-col gap-3">
             {POPULAR_PURCHASES.map((p) => (
               <div
                 key={p.id}

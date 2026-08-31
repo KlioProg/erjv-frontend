@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { UserPlus, UserCheck, Calendar, Mail, Phone, MapPin, User as UserIcon } from 'lucide-react'
+import { UserPlus, UserCheck, Calendar, Mail, Phone, MapPin, User as UserIcon, RotateCcw } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -17,9 +17,12 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   useCreateEmployee,
   useUpdateEmployeeProfile,
+  useReactivateEmployee,
   useUsers,
   useEmployees,
+  getArchivedEmployees,
 } from '@/features/staffing/staffing.hooks'
+import { fetchEmployeeByEmailApi } from '@/features/staffing/staffing.api'
 import type { Employee } from '@/features/staffing/staffing.types'
 import { getErrorMessage } from '@/lib/api-client'
 
@@ -39,6 +42,7 @@ function EmployeeFormContent({
   const isEditing = !!employee
   const createMutation = useCreateEmployee()
   const updateMutation = useUpdateEmployeeProfile()
+  const reactivateMutation = useReactivateEmployee()
   const { data: users = [] } = useUsers()
   const { data: allEmployees = [] } = useEmployees()
 
@@ -56,10 +60,12 @@ function EmployeeFormContent({
     employee?.userId ? String(employee.userId) : 'none'
   )
   const [errorMsg, setErrorMsg] = useState('')
+  const [deactivatedEmployeeMatch, setDeactivatedEmployeeMatch] = useState<Employee | null>(null)
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setErrorMsg('')
+    setDeactivatedEmployeeMatch(null)
 
     if (!firstName.trim() || !lastName.trim()) {
       setErrorMsg('First and last names are required.')
@@ -74,12 +80,46 @@ function EmployeeFormContent({
     const cleanEmail = email.trim().toLowerCase()
     const targetFullName = `${firstName.trim()} ${lastName.trim()}`.toLowerCase()
 
-    // Uniqueness validation (exclude current employee when editing)
+    // 1. Check local archive and backend deactivated
+    const archivedList = getArchivedEmployees()
+    const archivedMatch = archivedList.find(
+      (emp) =>
+        emp.id !== employee?.id &&
+        ((cleanEmail && emp.email?.toLowerCase().trim() === cleanEmail) ||
+          `${emp.firstName} ${emp.lastName}`.toLowerCase().trim() === targetFullName)
+    )
+
+    let backendEmailMatch: Employee | null = null
+    if (cleanEmail) {
+      try {
+        backendEmailMatch = await fetchEmployeeByEmailApi(cleanEmail)
+      } catch {
+        // Ignore
+      }
+    }
+
+    if (backendEmailMatch && backendEmailMatch.id !== employee?.id && backendEmailMatch.isActive === false) {
+      setDeactivatedEmployeeMatch(backendEmailMatch)
+      setErrorMsg(
+        `An employee profile for "${backendEmailMatch.firstName} ${backendEmailMatch.lastName}" (${backendEmailMatch.email || 'No email'}) is currently deactivated. You can reactivate them directly.`
+      )
+      return
+    }
+
+    if (archivedMatch) {
+      setDeactivatedEmployeeMatch(archivedMatch)
+      setErrorMsg(
+        `An employee profile for "${archivedMatch.firstName} ${archivedMatch.lastName}" (${archivedMatch.email || 'No email'}) is currently deactivated. You can reactivate them directly.`
+      )
+      return
+    }
+
+    // 2. Uniqueness validation for active employees
     const duplicateEmail = allEmployees.find(
-      (emp) => emp.id !== employee?.id && emp.email && emp.email.toLowerCase() === cleanEmail
+      (emp) => emp.id !== employee?.id && emp.email && emp.email.toLowerCase().trim() === cleanEmail
     )
     if (cleanEmail && duplicateEmail) {
-      setErrorMsg('Email is already registered.')
+      setErrorMsg(`An active employee with the email "${cleanEmail}" is already registered.`)
       return
     }
 
@@ -89,7 +129,7 @@ function EmployeeFormContent({
         `${emp.firstName} ${emp.lastName}`.toLowerCase().trim() === targetFullName
     )
     if (duplicateName) {
-      setErrorMsg('Name is already registered.')
+      setErrorMsg(`An active employee named "${firstName.trim()} ${lastName.trim()}" is already registered.`)
       return
     }
 
@@ -126,7 +166,15 @@ function EmployeeFormContent({
     }
   }
 
-  const isPending = createMutation.isPending || updateMutation.isPending
+  const handleRestoreFoundEmployee = async () => {
+    if (deactivatedEmployeeMatch) {
+      await reactivateMutation.mutateAsync(deactivatedEmployeeMatch)
+      onClose()
+    }
+  }
+
+  const isPending =
+    createMutation.isPending || updateMutation.isPending || reactivateMutation.isPending
 
   return (
     <>
@@ -142,10 +190,24 @@ function EmployeeFormContent({
         </DialogDescription>
       </DialogHeader>
 
-      {errorMsg && (
-        <Alert variant="destructive">
+      {errorMsg && !deactivatedEmployeeMatch && (
+        <Alert variant="destructive" className="my-1">
           <AlertDescription>{errorMsg}</AlertDescription>
         </Alert>
+      )}
+
+      {deactivatedEmployeeMatch && (
+        <div className="my-1 p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-950 dark:text-amber-200 flex items-start gap-3 shadow-2xs">
+          <div className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-amber-500/20 text-amber-700 dark:text-amber-300 mt-0.5">
+            <RotateCcw className="size-4" />
+          </div>
+          <div className="flex-1 text-xs">
+            <p className="font-bold text-foreground">Deactivated Employee Found</p>
+            <p className="text-muted-foreground mt-0.5 leading-relaxed">
+              An archived profile for <strong className="text-foreground">{deactivatedEmployeeMatch.firstName} {deactivatedEmployeeMatch.lastName}</strong> ({deactivatedEmployeeMatch.email || 'No email'}) already exists. Click <strong>"Reactivate Employee"</strong> below to restore them.
+            </p>
+          </div>
+        </div>
       )}
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-3.5 py-1">
@@ -160,7 +222,11 @@ function EmployeeFormContent({
                 id="emp-fname"
                 placeholder="e.g. Ada"
                 value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
+                onChange={(e) => {
+                  setFirstName(e.target.value)
+                  if (deactivatedEmployeeMatch) setDeactivatedEmployeeMatch(null)
+                  if (errorMsg) setErrorMsg('')
+                }}
                 className="pl-9"
                 required
               />
@@ -175,7 +241,11 @@ function EmployeeFormContent({
               id="emp-lname"
               placeholder="e.g. Santos"
               value={lastName}
-              onChange={(e) => setLastName(e.target.value)}
+              onChange={(e) => {
+                setLastName(e.target.value)
+                if (deactivatedEmployeeMatch) setDeactivatedEmployeeMatch(null)
+                if (errorMsg) setErrorMsg('')
+              }}
               required
             />
           </div>
@@ -193,7 +263,11 @@ function EmployeeFormContent({
                 type="email"
                 placeholder="ada@example.com"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  setEmail(e.target.value)
+                  if (deactivatedEmployeeMatch) setDeactivatedEmployeeMatch(null)
+                  if (errorMsg) setErrorMsg('')
+                }}
                 className="pl-9"
               />
             </div>
@@ -274,20 +348,41 @@ function EmployeeFormContent({
           )}
         </div>
 
-        <DialogFooter className="gap-2 mt-4">
+        <DialogFooter className="gap-2.5 mt-4 pt-3 border-t">
           <Button type="button" variant="outline" onClick={onClose} disabled={isPending}>
             Cancel
           </Button>
-          <Button type="submit" disabled={isPending}>
-            {isPending ? (
-              <>
-                <Spinner data-icon="inline-start" />
-                {isEditing ? 'Updating...' : 'Registering...'}
-              </>
-            ) : (
-              <>{isEditing ? 'Update Employee' : 'Register Employee'}</>
-            )}
-          </Button>
+          {deactivatedEmployeeMatch ? (
+            <Button
+              type="button"
+              onClick={handleRestoreFoundEmployee}
+              disabled={isPending}
+              className="gap-2 font-bold shadow-xs bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer"
+            >
+              {reactivateMutation.isPending ? (
+                <>
+                  <Spinner data-icon="inline-start" />
+                  Reactivating Employee...
+                </>
+              ) : (
+                <>
+                  <RotateCcw className="size-4" />
+                  Reactivate Employee Profile
+                </>
+              )}
+            </Button>
+          ) : (
+            <Button type="submit" disabled={isPending} className="font-semibold shadow-xs cursor-pointer">
+              {isPending ? (
+                <>
+                  <Spinner data-icon="inline-start" />
+                  {isEditing ? 'Updating...' : 'Registering...'}
+                </>
+              ) : (
+                <>{isEditing ? 'Update Employee' : 'Register Employee'}</>
+              )}
+            </Button>
+          )}
         </DialogFooter>
       </form>
     </>

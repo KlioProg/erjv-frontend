@@ -1,7 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useContext, useEffect, useState } from 'react'
 import { getErrorMessage } from '@/lib/api-client'
-import { getProfileApi, loginApi, registerApi, updateProfileApi } from './auth.api'
+import { getProfileApi, loginApi, registerApi } from './auth.api'
 import type { LoginRequest, RegisterRequest, SafeUserResponse, UpdateUserProfilePayload } from './auth.types'
 
 type AuthContextType = {
@@ -255,19 +255,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     setUser(updatedUser)
     localStorage.setItem('erjv_current_user', JSON.stringify(updatedUser))
-
-    // 1. Try updating via Backend API
-    try {
-      await updateProfileApi({
-        fullName: updatedUser.fullName || undefined,
-        phone: updatedUser.phone,
-        avatarUrl: updatedUser.avatarUrl,
-        jobTitle: updatedUser.jobTitle,
-        bio: updatedUser.bio,
-      })
-    } catch {
-      // Graceful fallback to local persistence
-    }
 
     // 2. Update in erjv_db_users_v6
     try {

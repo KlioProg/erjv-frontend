@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { Truck, Hash, Gauge, Layers, MapPin, Building2 } from 'lucide-react'
+import { Truck, Hash, Gauge, Layers, MapPin, Building2, RotateCcw } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -18,10 +18,13 @@ import {
   useDeliveryVehicles,
   useCreateVehicle,
   useUpdateVehicleDetails,
+  useReactivateVehicle,
+  getArchivedVehicles,
+  fetchVehicleByPlateNumberApi,
 } from '@/features/logistics/delivery-vehicles.hooks'
 import { useClients } from '@/features/crm/clients.hooks'
 import {
-  VEHICLE_STATUSES,
+  OPERATIONAL_STATUSES,
   type DeliveryVehicle,
   type VehicleStatus,
 } from '@/features/logistics/delivery-vehicles.types'
@@ -52,6 +55,7 @@ function VehicleFormContent({
   const { data: allVehicles = [] } = useDeliveryVehicles()
   const createMutation = useCreateVehicle()
   const updateMutation = useUpdateVehicleDetails()
+  const reactivateMutation = useReactivateVehicle()
   const { data: clients = [] } = useClients()
 
   const [plateNumber, setPlateNumber] = useState(vehicle?.plateNumber || '')
@@ -61,10 +65,12 @@ function VehicleFormContent({
   const [status, setStatus] = useState<VehicleStatus>(vehicle?.status || 'AVAILABLE')
   const [destinationLocation, setDestinationLocation] = useState(vehicle?.destinationLocation || '')
   const [errorMsg, setErrorMsg] = useState('')
+  const [deactivatedVehicleMatch, setDeactivatedVehicleMatch] = useState<DeliveryVehicle | null>(null)
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setErrorMsg('')
+    setDeactivatedVehicleMatch(null)
 
     const cleanPlate = plateNumber.trim().toUpperCase()
     if (!cleanPlate) {
@@ -72,12 +78,44 @@ function VehicleFormContent({
       return
     }
 
-    const isDuplicatePlate = allVehicles.some(
-      (v) => v.id !== vehicle?.id && v.plateNumber.toUpperCase().trim() === cleanPlate
-    )
-    if (isDuplicatePlate) {
-      setErrorMsg(`A vehicle with plate number "${cleanPlate}" already exists in the database.`)
-      return
+    if (!isEditing) {
+      // 1. Check if vehicle is already in deactivated archive or backend inactive
+      const archivedList = getArchivedVehicles()
+      const archivedMatch = archivedList.find(
+        (v) => v.plateNumber.toUpperCase().trim() === cleanPlate
+      )
+
+      let backendMatch: DeliveryVehicle | null = null
+      try {
+        backendMatch = await fetchVehicleByPlateNumberApi(cleanPlate)
+      } catch {
+        // Ignore
+      }
+
+      if (backendMatch && backendMatch.isActive === false) {
+        setDeactivatedVehicleMatch(backendMatch)
+        setErrorMsg(
+          `Vehicle with plate number "${cleanPlate}" is currently deactivated. You can reactivate it directly.`
+        )
+        return
+      }
+
+      if (archivedMatch) {
+        setDeactivatedVehicleMatch(archivedMatch)
+        setErrorMsg(
+          `Vehicle with plate number "${cleanPlate}" is currently deactivated. You can reactivate it directly.`
+        )
+        return
+      }
+
+      // 2. Check if active duplicate exists
+      const isDuplicatePlate = allVehicles.some(
+        (v) => v.plateNumber.toUpperCase().trim() === cleanPlate
+      )
+      if (isDuplicatePlate || (backendMatch && backendMatch.isActive !== false)) {
+        setErrorMsg(`A vehicle with plate number "${cleanPlate}" is already active.`)
+        return
+      }
     }
 
     if (!vehicleType.trim()) {
@@ -100,7 +138,7 @@ function VehicleFormContent({
             plateNumber: plateNumber.trim().toUpperCase(),
             vehicleType: vehicleType.trim(),
             model: model.trim() || null,
-            capacity: parsedCap !== null ? parsedCap.toFixed(2) : null,
+            capacity: parsedCap !== null && !isNaN(parsedCap) ? parsedCap.toFixed(2) : null,
           },
         })
       } else {
@@ -108,7 +146,7 @@ function VehicleFormContent({
           plateNumber: plateNumber.trim().toUpperCase(),
           vehicleType: vehicleType.trim(),
           model: model.trim() || null,
-          capacity: parsedCap !== null ? parsedCap.toFixed(2) : null,
+          capacity: parsedCap !== null && !isNaN(parsedCap) ? parsedCap.toFixed(2) : null,
           status,
           isActive: true,
         })
@@ -119,11 +157,19 @@ function VehicleFormContent({
     }
   }
 
+  const handleRestoreFoundVehicle = async () => {
+    if (deactivatedVehicleMatch) {
+      await reactivateMutation.mutateAsync(deactivatedVehicleMatch.id)
+      onClose()
+    }
+  }
+
   const handleSelectClientLocation = (clientAddress: string, clientName: string) => {
     setDestinationLocation(`${clientName} - ${clientAddress}`)
   }
 
-  const isPending = createMutation.isPending || updateMutation.isPending
+  const isPending =
+    createMutation.isPending || updateMutation.isPending || reactivateMutation.isPending
 
   return (
     <>
@@ -141,10 +187,24 @@ function VehicleFormContent({
         </DialogDescription>
       </DialogHeader>
 
-      {errorMsg && (
+      {errorMsg && !deactivatedVehicleMatch && (
         <Alert variant="destructive">
           <AlertDescription>{errorMsg}</AlertDescription>
         </Alert>
+      )}
+
+      {deactivatedVehicleMatch && (
+        <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-950 dark:text-amber-200 flex items-start gap-3 shadow-2xs">
+          <div className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-amber-500/20 text-amber-700 dark:text-amber-300 mt-0.5">
+            <RotateCcw className="size-4" />
+          </div>
+          <div className="flex-1 text-xs">
+            <p className="font-bold text-foreground">Deactivated Vehicle Found</p>
+            <p className="text-muted-foreground mt-0.5 leading-relaxed">
+              An archived vehicle record with plate <strong className="font-mono text-foreground">{deactivatedVehicleMatch.plateNumber}</strong> ({deactivatedVehicleMatch.vehicleType}) already exists. Click <strong>"Reactivate Vehicle"</strong> below to restore it.
+            </p>
+          </div>
+        </div>
       )}
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-3.5 py-1">
@@ -159,7 +219,11 @@ function VehicleFormContent({
                 id="v-plate"
                 placeholder="e.g. ABC-1234"
                 value={plateNumber}
-                onChange={(e) => setPlateNumber(e.target.value)}
+                onChange={(e) => {
+                  setPlateNumber(e.target.value)
+                  if (deactivatedVehicleMatch) setDeactivatedVehicleMatch(null)
+                  if (errorMsg) setErrorMsg('')
+                }}
                 className="pl-9 uppercase font-mono"
                 required
               />
@@ -244,11 +308,22 @@ function VehicleFormContent({
               </SelectTrigger>
               <SelectContent>
                 <SelectGroup>
-                  {VEHICLE_STATUSES.map((st) => (
-                    <SelectItem key={st} value={st}>
-                      {st.replace(/_/g, ' ')}
-                    </SelectItem>
-                  ))}
+                  {OPERATIONAL_STATUSES.map((st) => {
+                    const label =
+                      st === 'AVAILABLE'
+                        ? 'Available'
+                        : st === 'IN_DELIVERY'
+                        ? 'In Delivery'
+                        : st === 'MAINTENANCE'
+                        ? 'Maintenance'
+                        : 'Out of Service'
+
+                    return (
+                      <SelectItem key={st} value={st}>
+                        {label}
+                      </SelectItem>
+                    )
+                  })}
                 </SelectGroup>
               </SelectContent>
             </Select>
@@ -308,20 +383,41 @@ function VehicleFormContent({
           </div>
         )}
 
-        <DialogFooter className="gap-2 mt-4">
+        <DialogFooter className="gap-2.5 mt-4 pt-3 border-t">
           <Button type="button" variant="outline" onClick={onClose} disabled={isPending}>
             Cancel
           </Button>
-          <Button type="submit" disabled={isPending}>
-            {isPending ? (
-              <>
-                <Spinner data-icon="inline-start" />
-                {isEditing ? 'Saving...' : 'Registering...'}
-              </>
-            ) : (
-              <>{isEditing ? 'Save Vehicle' : 'Register Vehicle'}</>
-            )}
-          </Button>
+          {deactivatedVehicleMatch ? (
+            <Button
+              type="button"
+              onClick={handleRestoreFoundVehicle}
+              disabled={isPending}
+              className="gap-2 font-bold shadow-xs bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer"
+            >
+              {reactivateMutation.isPending ? (
+                <>
+                  <Spinner data-icon="inline-start" />
+                  Reactivating Vehicle...
+                </>
+              ) : (
+                <>
+                  <RotateCcw className="size-4" />
+                  Reactivate Vehicle Fleet
+                </>
+              )}
+            </Button>
+          ) : (
+            <Button type="submit" disabled={isPending} className="font-semibold shadow-xs cursor-pointer">
+              {isPending ? (
+                <>
+                  <Spinner data-icon="inline-start" />
+                  {isEditing ? 'Saving...' : 'Registering...'}
+                </>
+              ) : (
+                <>{isEditing ? 'Save Vehicle' : 'Register Vehicle'}</>
+              )}
+            </Button>
+          )}
         </DialogFooter>
       </form>
     </>
