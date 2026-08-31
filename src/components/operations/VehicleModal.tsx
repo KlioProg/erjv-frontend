@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { Truck, Hash, Gauge, Layers, MapPin, Building2, RotateCcw } from 'lucide-react'
+import { Truck, Hash, Gauge, Layers, RotateCcw } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -21,7 +21,6 @@ import {
   useReactivateVehicle,
   fetchVehicleByPlateNumberApi,
 } from '@/features/logistics/delivery-vehicles.hooks'
-import { useClients } from '@/features/crm/clients.hooks'
 import {
   OPERATIONAL_STATUSES,
   type DeliveryVehicle,
@@ -55,14 +54,12 @@ function VehicleFormContent({
   const createMutation = useCreateVehicle()
   const updateMutation = useUpdateVehicleDetails()
   const reactivateMutation = useReactivateVehicle()
-  const { data: clients = [] } = useClients()
 
   const [plateNumber, setPlateNumber] = useState(vehicle?.plateNumber || '')
   const [vehicleType, setVehicleType] = useState(vehicle?.vehicleType || VEHICLE_TYPES[0])
   const [model, setModel] = useState(vehicle?.model || '')
   const [capacity, setCapacity] = useState(vehicle?.capacity ? String(vehicle.capacity) : '')
   const [status, setStatus] = useState<VehicleStatus>(vehicle?.status || 'AVAILABLE')
-  const [destinationLocation, setDestinationLocation] = useState(vehicle?.destinationLocation || '')
   const [errorMsg, setErrorMsg] = useState('')
   const [deactivatedVehicleMatch, setDeactivatedVehicleMatch] = useState<DeliveryVehicle | null>(null)
 
@@ -108,11 +105,6 @@ function VehicleFormContent({
       return
     }
 
-    if (status === 'IN_DELIVERY' && !destinationLocation.trim()) {
-      setErrorMsg('Please specify the destination location / client for in-delivery status.')
-      return
-    }
-
     const parsedCap = capacity.trim() ? parseFloat(capacity) : null
 
     try {
@@ -147,10 +139,6 @@ function VehicleFormContent({
       await reactivateMutation.mutateAsync(deactivatedVehicleMatch.id)
       onClose()
     }
-  }
-
-  const handleSelectClientLocation = (clientAddress: string, clientName: string) => {
-    setDestinationLocation(`${clientName} - ${clientAddress}`)
   }
 
   const isPending =
@@ -280,13 +268,7 @@ function VehicleFormContent({
             </Label>
             <Select
               value={status}
-              onValueChange={(val) => {
-                const newStatus = val as VehicleStatus
-                setStatus(newStatus)
-                if (newStatus !== 'IN_DELIVERY') {
-                  setDestinationLocation('')
-                }
-              }}
+              onValueChange={(val) => setStatus(val as VehicleStatus)}
             >
               <SelectTrigger id="v-status">
                 <SelectValue placeholder="Select initial status..." />
@@ -312,59 +294,6 @@ function VehicleFormContent({
                 </SelectGroup>
               </SelectContent>
             </Select>
-          </div>
-        )}
-
-        {/* Destination Location input (Especially when IN_DELIVERY or editing route) */}
-        {(status === 'IN_DELIVERY' || isEditing) && (
-          <div className="flex flex-col gap-1.5 p-3 rounded-xl bg-muted/40 border border-border/80">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="v-destination" className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-                <MapPin className="size-3.5 text-primary" />
-                Delivery Destination / Client Location
-                {status === 'IN_DELIVERY' && <span className="text-primary">*</span>}
-              </Label>
-              {destinationLocation && (
-                <button
-                  type="button"
-                  onClick={() => setDestinationLocation('')}
-                  className="text-[10px] text-muted-foreground hover:text-foreground underline"
-                >
-                  Clear
-                </button>
-              )}
-            </div>
-
-            <Input
-              id="v-destination"
-              placeholder="e.g. Gaisano Mall Complex, J.P. Laurel Ave, Davao City"
-              value={destinationLocation}
-              onChange={(e) => setDestinationLocation(e.target.value)}
-              className="text-xs"
-              required={status === 'IN_DELIVERY'}
-            />
-
-            {/* Quick client select badges */}
-            {clients.length > 0 && (
-              <div className="flex flex-col gap-1 mt-1">
-                <span className="text-[10px] font-semibold text-muted-foreground flex items-center gap-1">
-                  <Building2 className="size-3" /> Quick pick destination from CRM clients:
-                </span>
-                <div className="flex flex-wrap gap-1 max-h-20 overflow-y-auto">
-                  {clients.map((c) => (
-                    <button
-                      key={c.id}
-                      type="button"
-                      onClick={() => handleSelectClientLocation(c.address, c.name)}
-                      className="px-2 py-0.5 rounded-md bg-card hover:bg-card/80 border border-border/70 text-[10px] text-foreground font-medium truncate max-w-[200px]"
-                      title={`${c.name} (${c.address})`}
-                    >
-                      {c.name}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
         )}
 

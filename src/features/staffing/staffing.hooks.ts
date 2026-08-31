@@ -63,22 +63,40 @@ export function useDeactivatedEmployees() {
   return useQuery<Employee[]>({
     queryKey: ['staffing', 'deactivated-employees'],
     queryFn: async () => {
-      const ids = getArchivedIds(ARCHIVED_EMPLOYEES_KEY)
-      if (ids.length === 0) return []
+      let activeEmployees: Employee[] = []
+      try {
+        activeEmployees = await fetchEmployeesApi()
+      } catch {
+        // Ignore
+      }
+
+      const activeIds = activeEmployees.map((e) => e.id)
+      const maxId = activeIds.length > 0 ? Math.max(...activeIds) : 0
+      const scanUpperLimit = Math.max(maxId + 5, 20)
+      const storedIds = getArchivedIds(ARCHIVED_EMPLOYEES_KEY)
+
+      const candidateIds = new Set<number>([
+        ...storedIds,
+        ...Array.from({ length: scanUpperLimit }, (_, i) => i + 1),
+      ])
+
       const results: Employee[] = []
-      for (const id of ids) {
+      const promises = Array.from(candidateIds).map(async (id) => {
         try {
           const emp = await fetchEmployeeByIdApi(id)
           if (emp && emp.isActive === false) {
             results.push(emp)
+            addArchivedId(ARCHIVED_EMPLOYEES_KEY, id)
           } else if (emp && emp.isActive !== false) {
             removeArchivedId(ARCHIVED_EMPLOYEES_KEY, id)
           }
         } catch {
-          // If deleted, skip
+          // If deleted or not found, skip
         }
-      }
-      return results
+      })
+
+      await Promise.all(promises)
+      return results.sort((a, b) => a.id - b.id)
     },
     staleTime: 0,
   })
@@ -217,22 +235,40 @@ export function useDeactivatedJobs() {
   return useQuery<Job[]>({
     queryKey: ['staffing', 'deactivated-jobs'],
     queryFn: async () => {
-      const ids = getArchivedIds(ARCHIVED_JOBS_KEY)
-      if (ids.length === 0) return []
+      let activeJobs: Job[] = []
+      try {
+        activeJobs = await fetchJobsApi()
+      } catch {
+        // Ignore
+      }
+
+      const activeIds = activeJobs.map((j) => j.id)
+      const maxId = activeIds.length > 0 ? Math.max(...activeIds) : 0
+      const scanUpperLimit = Math.max(maxId + 5, 20)
+      const storedIds = getArchivedIds(ARCHIVED_JOBS_KEY)
+
+      const candidateIds = new Set<number>([
+        ...storedIds,
+        ...Array.from({ length: scanUpperLimit }, (_, i) => i + 1),
+      ])
+
       const results: Job[] = []
-      for (const id of ids) {
+      const promises = Array.from(candidateIds).map(async (id) => {
         try {
           const job = await fetchJobByIdApi(id)
           if (job && job.isActive === false) {
             results.push(job)
+            addArchivedId(ARCHIVED_JOBS_KEY, id)
           } else if (job && job.isActive !== false) {
             removeArchivedId(ARCHIVED_JOBS_KEY, id)
           }
         } catch {
-          // If deleted, skip
+          // If deleted or not found, skip
         }
-      }
-      return results
+      })
+
+      await Promise.all(promises)
+      return results.sort((a, b) => a.id - b.id)
     },
     staleTime: 0,
   })

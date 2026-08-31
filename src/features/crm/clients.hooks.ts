@@ -31,22 +31,40 @@ export function useDeactivatedClients() {
   return useQuery<Client[]>({
     queryKey: ['clients', 'deactivated'],
     queryFn: async () => {
-      const ids = getArchivedIds(ARCHIVED_CLIENTS_KEY)
-      if (ids.length === 0) return []
+      let activeClients: Client[] = []
+      try {
+        activeClients = await fetchClientsApi()
+      } catch {
+        // Ignore
+      }
+
+      const activeIds = activeClients.map((c) => c.id)
+      const maxId = activeIds.length > 0 ? Math.max(...activeIds) : 0
+      const scanUpperLimit = Math.max(maxId + 5, 20)
+      const storedIds = getArchivedIds(ARCHIVED_CLIENTS_KEY)
+
+      const candidateIds = new Set<number>([
+        ...storedIds,
+        ...Array.from({ length: scanUpperLimit }, (_, i) => i + 1),
+      ])
+
       const results: Client[] = []
-      for (const id of ids) {
+      const promises = Array.from(candidateIds).map(async (id) => {
         try {
           const client = await fetchClientByIdApi(id)
           if (client && client.isActive === false) {
             results.push(client)
+            addArchivedId(ARCHIVED_CLIENTS_KEY, id)
           } else if (client && client.isActive !== false) {
             removeArchivedId(ARCHIVED_CLIENTS_KEY, id)
           }
         } catch {
-          // If deleted, skip
+          // If deleted or not found, skip
         }
-      }
-      return results
+      })
+
+      await Promise.all(promises)
+      return results.sort((a, b) => a.id - b.id)
     },
     staleTime: 0,
   })

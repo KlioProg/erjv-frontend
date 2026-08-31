@@ -46,22 +46,40 @@ export function useDeactivatedProducts() {
   return useQuery<InventoryItemResponse[]>({
     queryKey: ['products', 'deactivated-products'],
     queryFn: async () => {
-      const ids = getArchivedIds(ARCHIVED_PRODUCTS_KEY)
-      if (ids.length === 0) return []
+      let activeProducts: InventoryItemResponse[] = []
+      try {
+        activeProducts = await fetchProductsApi()
+      } catch {
+        // Ignore
+      }
+
+      const activeIds = activeProducts.map((p) => p.id)
+      const maxId = activeIds.length > 0 ? Math.max(...activeIds) : 0
+      const scanUpperLimit = Math.max(maxId + 5, 20)
+      const storedIds = getArchivedIds(ARCHIVED_PRODUCTS_KEY)
+
+      const candidateIds = new Set<number>([
+        ...storedIds,
+        ...Array.from({ length: scanUpperLimit }, (_, i) => i + 1),
+      ])
+
       const results: InventoryItemResponse[] = []
-      for (const id of ids) {
+      const promises = Array.from(candidateIds).map(async (id) => {
         try {
           const p = await fetchProductByIdApi(id)
           if (p && p.isActive === false) {
             results.push(p)
+            addArchivedId(ARCHIVED_PRODUCTS_KEY, id)
           } else if (p && p.isActive !== false) {
             removeArchivedId(ARCHIVED_PRODUCTS_KEY, id)
           }
         } catch {
-          // If deleted, skip
+          // If deleted or not found, skip
         }
-      }
-      return results
+      })
+
+      await Promise.all(promises)
+      return results.sort((a, b) => a.id - b.id)
     },
     staleTime: 0,
   })

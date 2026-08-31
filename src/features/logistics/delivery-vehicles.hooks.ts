@@ -41,22 +41,41 @@ export function useDeactivatedVehicles() {
   return useQuery<DeliveryVehicle[]>({
     queryKey: ['delivery-vehicles', 'deactivated'],
     queryFn: async () => {
-      const ids = getArchivedIds(ARCHIVED_VEHICLES_KEY)
-      if (ids.length === 0) return []
+      let activeVehicles: DeliveryVehicle[] = []
+      try {
+        activeVehicles = await fetchDeliveryVehiclesApi()
+      } catch {
+        // Ignore
+      }
+
+      const activeIds = activeVehicles.map((v) => v.id)
+      const maxId = activeIds.length > 0 ? Math.max(...activeIds) : 0
+      const scanUpperLimit = Math.max(maxId + 5, 20)
+      const storedIds = getArchivedIds(ARCHIVED_VEHICLES_KEY)
+
+      // Create a set of all candidate IDs to query from database
+      const candidateIds = new Set<number>([
+        ...storedIds,
+        ...Array.from({ length: scanUpperLimit }, (_, i) => i + 1),
+      ])
+
       const results: DeliveryVehicle[] = []
-      for (const id of ids) {
+      const promises = Array.from(candidateIds).map(async (id) => {
         try {
           const v = await fetchVehicleByIdApi(id)
           if (v && v.isActive === false) {
             results.push(v)
+            addArchivedId(ARCHIVED_VEHICLES_KEY, id)
           } else if (v && v.isActive !== false) {
             removeArchivedId(ARCHIVED_VEHICLES_KEY, id)
           }
         } catch {
           // If not found in DB, skip
         }
-      }
-      return results
+      })
+
+      await Promise.all(promises)
+      return results.sort((a, b) => a.id - b.id)
     },
     staleTime: 0,
   })
@@ -98,21 +117,8 @@ export function useUpdateVehicleDetails() {
 export function useUpdateVehicleStatus() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async ({
-      id,
-      status,
-      destinationLocation,
-    }: {
-      id: number
-      status: VehicleStatus
-      destinationLocation?: string | null
-    }) => {
-      const v = await updateVehicleStatusApi(id, status)
-      if (destinationLocation !== undefined) {
-        return await updateVehicleDetailsApi(id, { destinationLocation })
-      }
-      return v
-    },
+    mutationFn: ({ id, status }: { id: number; status: VehicleStatus }) =>
+      updateVehicleStatusApi(id, status),
     onSuccess: (v) => {
       void queryClient.invalidateQueries({ queryKey: VEHICLES_QUERY_KEY })
       toast.success(`Vehicle "${v.plateNumber}" status set to ${v.status}`)

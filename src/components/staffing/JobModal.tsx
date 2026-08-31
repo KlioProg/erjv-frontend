@@ -19,6 +19,7 @@ import {
   useCreateJob,
   useUpdateJobDetails,
   useReactivateJob,
+  useDeactivatedJobs,
 } from '@/features/staffing/staffing.hooks'
 import { fetchJobByNameApi } from '@/features/staffing/staffing.api'
 import type { Job } from '@/features/staffing/staffing.types'
@@ -39,6 +40,7 @@ function JobFormContent({
 }) {
   const isEditing = !!job
   const { data: allJobs = [] } = useJobs()
+  const { data: deactivatedJobs = [] } = useDeactivatedJobs()
   const createMutation = useCreateJob()
   const updateMutation = useUpdateJobDetails()
   const reactivateMutation = useReactivateJob()
@@ -68,14 +70,18 @@ function JobFormContent({
       }
     }
 
-    if (
-      backendMatch &&
-      typeof backendMatch === 'object' &&
-      backendMatch.id &&
-      backendMatch.id !== job?.id &&
-      backendMatch.isActive === false
-    ) {
-      setDeactivatedJobMatch(backendMatch)
+    const deactivatedMatch =
+      (backendMatch && backendMatch.id !== job?.id && backendMatch.isActive === false
+        ? backendMatch
+        : null) ||
+      deactivatedJobs.find(
+        (dj) =>
+          dj.id !== job?.id &&
+          dj.name.toLowerCase().trim() === cleanName.toLowerCase()
+      )
+
+    if (deactivatedMatch) {
+      setDeactivatedJobMatch(deactivatedMatch)
       setErrorMsg(
         `Job position "${cleanName}" is currently deactivated. You can reactivate it directly.`
       )

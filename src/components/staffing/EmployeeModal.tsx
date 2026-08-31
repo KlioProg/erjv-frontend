@@ -20,6 +20,7 @@ import {
   useReactivateEmployee,
   useUsers,
   useEmployees,
+  useDeactivatedEmployees,
 } from '@/features/staffing/staffing.hooks'
 import { fetchEmployeeByEmailApi } from '@/features/staffing/staffing.api'
 import type { Employee } from '@/features/staffing/staffing.types'
@@ -44,6 +45,7 @@ function EmployeeFormContent({
   const reactivateMutation = useReactivateEmployee()
   const { data: users = [] } = useUsers()
   const { data: allEmployees = [] } = useEmployees()
+  const { data: deactivatedEmployees = [] } = useDeactivatedEmployees()
 
   const [firstName, setFirstName] = useState(employee?.firstName || '')
   const [lastName, setLastName] = useState(employee?.lastName || '')
@@ -88,16 +90,21 @@ function EmployeeFormContent({
       }
     }
 
-    if (
-      backendEmailMatch &&
-      typeof backendEmailMatch === 'object' &&
-      backendEmailMatch.id &&
-      backendEmailMatch.id !== employee?.id &&
-      backendEmailMatch.isActive === false
-    ) {
-      setDeactivatedEmployeeMatch(backendEmailMatch)
+    const deactivatedMatch =
+      (backendEmailMatch && backendEmailMatch.id !== employee?.id && backendEmailMatch.isActive === false
+        ? backendEmailMatch
+        : null) ||
+      deactivatedEmployees.find(
+        (de) =>
+          de.id !== employee?.id &&
+          ((cleanEmail && de.email && de.email.toLowerCase().trim() === cleanEmail) ||
+            `${de.firstName} ${de.lastName}`.toLowerCase().trim() === targetFullName)
+      )
+
+    if (deactivatedMatch) {
+      setDeactivatedEmployeeMatch(deactivatedMatch)
       setErrorMsg(
-        `An employee profile for "${backendEmailMatch.firstName} ${backendEmailMatch.lastName}" (${backendEmailMatch.email || 'No email'}) is currently deactivated. You can restore their profile directly.`
+        `An employee profile for "${deactivatedMatch.firstName} ${deactivatedMatch.lastName}" (${deactivatedMatch.email || 'No email'}) is currently deactivated. You can restore their profile directly.`
       )
       return
     }

@@ -10,26 +10,14 @@ import {
   Clock,
   Wrench,
   AlertOctagon,
-  MapPin,
-  Building2,
-  Navigation,
   Archive,
   RotateCcw,
 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Spinner } from '@/components/ui/spinner'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -44,7 +32,6 @@ import {
   useReactivateVehicle,
   useUpdateVehicleStatus,
 } from '@/features/logistics/delivery-vehicles.hooks'
-import { useClients } from '@/features/crm/clients.hooks'
 import { useAuth } from '@/features/auth/AuthContext'
 import {
   VEHICLE_STATUSES,
@@ -84,13 +71,14 @@ function VehicleStatusBadge({ status }: { status: VehicleStatus }) {
           Out of Service
         </Badge>
       )
+    default:
+      return null
   }
 }
 
 export function VehicleList() {
   const { data: vehicles = [], isLoading } = useDeliveryVehicles()
   const { data: deactivatedVehicles = [] } = useDeactivatedVehicles()
-  const { data: clients = [] } = useClients()
   const deactivateMutation = useDeactivateVehicle()
   const reactivateMutation = useReactivateVehicle()
   const statusMutation = useUpdateVehicleStatus()
@@ -102,10 +90,6 @@ export function VehicleList() {
   const [selectedVehicle, setSelectedVehicle] = useState<DeliveryVehicle | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [vehicleToDeactivate, setVehicleToDeactivate] = useState<DeliveryVehicle | null>(null)
-
-  // Dispatch Destination Quick Modal state
-  const [vehicleForDispatch, setVehicleForDispatch] = useState<DeliveryVehicle | null>(null)
-  const [dispatchLocation, setDispatchLocation] = useState('')
 
   const activeVehicles = vehicles.filter((v) => v.isActive !== false)
   const archivedVehicles = [
@@ -119,8 +103,7 @@ export function VehicleList() {
     const matchesSearch =
       v.plateNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (v.model && v.model.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      v.vehicleType.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (v.destinationLocation && v.destinationLocation.toLowerCase().includes(searchTerm.toLowerCase()))
+      v.vehicleType.toLowerCase().includes(searchTerm.toLowerCase())
 
     const matchesStatus =
       activeTab !== 'ACTIVE' ||
@@ -146,27 +129,7 @@ export function VehicleList() {
   }
 
   const handleStatusChange = async (id: number, status: VehicleStatus) => {
-    if (status === 'IN_DELIVERY') {
-      const v = vehicles.find((veh) => veh.id === id)
-      if (v) {
-        setVehicleForDispatch(v)
-        setDispatchLocation(v.destinationLocation || '')
-        return
-      }
-    }
-    await statusMutation.mutateAsync({ id, status, destinationLocation: null })
-  }
-
-  const handleConfirmDispatch = async () => {
-    if (vehicleForDispatch) {
-      await statusMutation.mutateAsync({
-        id: vehicleForDispatch.id,
-        status: 'IN_DELIVERY',
-        destinationLocation: dispatchLocation.trim() || 'Client Location in Transit',
-      })
-      setVehicleForDispatch(null)
-      setDispatchLocation('')
-    }
+    await statusMutation.mutateAsync({ id, status })
   }
 
   const handleDeactivate = (vehicle: DeliveryVehicle) => {
@@ -477,20 +440,17 @@ export function VehicleList() {
                     )}
                   </div>
 
-                  {/* Uniform Status & Route Banner for ALL Cards */}
+                  {/* Uniform Status Banner for ALL Cards */}
                   <div className="min-h-[58px] flex items-center">
                     {isInDelivery ? (
-                      <div className="w-full flex items-start gap-2.5 p-2.5 rounded-xl bg-blue-500/10 border border-blue-500/25">
-                        <MapPin className="size-4 text-blue-600 shrink-0 mt-0.5" />
+                      <div className="w-full flex items-center gap-2.5 p-2.5 rounded-xl bg-blue-500/10 border border-blue-500/25">
+                        <Truck className="size-4 text-blue-600 shrink-0" />
                         <div className="min-w-0 flex-1">
                           <span className="text-[10px] font-bold uppercase tracking-wider text-blue-700 block">
-                            En Route To Destination:
+                            Active On Delivery:
                           </span>
-                          <span
-                            className="font-bold text-foreground text-xs block truncate"
-                            title={vehicle.destinationLocation || 'Commercial Client Location (In Transit)'}
-                          >
-                            {vehicle.destinationLocation || 'Commercial Client Location (In Transit)'}
+                          <span className="font-medium text-muted-foreground text-xs block truncate">
+                            Dispatched on route • In transit
                           </span>
                         </div>
                       </div>
@@ -597,92 +557,6 @@ export function VehicleList() {
         open={isModalOpen}
         onClose={() => setIsModalOpen(false)}
       />
-
-      {/* Quick Dispatch Destination Assignment Dialog */}
-      <Dialog open={!!vehicleForDispatch} onOpenChange={(open) => !open && setVehicleForDispatch(null)}>
-        <DialogContent className="sm:max-w-[460px]">
-          <DialogHeader>
-            <div className="flex size-11 items-center justify-center rounded-2xl bg-blue-500/10 text-blue-600 mb-2 shadow-2xs">
-              <Navigation className="size-5" />
-            </div>
-            <DialogTitle className="text-xl font-bold tracking-tight">
-              Dispatch Vehicle on Delivery Route
-            </DialogTitle>
-            <DialogDescription className="text-xs text-muted-foreground">
-              Set the delivery destination location for vehicle{' '}
-              <span className="font-mono font-bold text-foreground">{vehicleForDispatch?.plateNumber}</span>.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="flex flex-col gap-3.5 py-2">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="dispatch-dest" className="text-xs font-semibold text-foreground">
-                Destination Address / Client Location <span className="text-primary">*</span>
-              </Label>
-              <div className="relative">
-                <MapPin className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-blue-600 pointer-events-none" />
-                <Input
-                  id="dispatch-dest"
-                  placeholder="e.g. Gaisano Grand Mall Complex, J.P. Laurel Ave, Davao City"
-                  value={dispatchLocation}
-                  onChange={(e) => setDispatchLocation(e.target.value)}
-                  className="pl-10 text-xs font-medium"
-                  autoFocus
-                />
-              </div>
-            </div>
-
-            {/* Quick Client Selection */}
-            {clients.length > 0 && (
-              <div className="flex flex-col gap-1.5 p-3 rounded-xl bg-muted/40 border border-border/70">
-                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
-                  <Building2 className="size-3" /> Quick pick from registered commercial clients:
-                </span>
-                <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
-                  {clients.map((c) => (
-                    <button
-                      key={c.id}
-                      type="button"
-                      onClick={() => setDispatchLocation(`${c.name} - ${c.address}`)}
-                      className="px-2.5 py-1 rounded-lg bg-card hover:bg-primary/10 hover:border-primary/40 border border-border/80 text-[11px] font-medium text-foreground transition-colors text-left cursor-pointer"
-                    >
-                      <span className="font-bold block truncate max-w-[240px]">{c.name}</span>
-                      <span className="text-[10px] text-muted-foreground block truncate max-w-[240px]">{c.address}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-
-          <DialogFooter className="gap-2 pt-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setVehicleForDispatch(null)}
-              disabled={statusMutation.isPending}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              onClick={handleConfirmDispatch}
-              disabled={statusMutation.isPending}
-              className="bg-blue-600 hover:bg-blue-700 text-white font-bold gap-1.5 shadow-xs cursor-pointer"
-            >
-              {statusMutation.isPending ? (
-                <>
-                  <Spinner data-icon="inline-start" /> Dispatching...
-                </>
-              ) : (
-                <>
-                  <Navigation className="size-3.5" /> Dispatch Vehicle
-                </>
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Themed Deactivation Modal */}
       <ConfirmDeleteModal
