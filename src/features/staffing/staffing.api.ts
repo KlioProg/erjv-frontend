@@ -81,6 +81,11 @@ export async function deactivateEmployeeApi(id: number): Promise<Employee> {
   return data
 }
 
+export async function reactivateEmployeeApi(id: number): Promise<Employee> {
+  const { data } = await apiClient.patch<Employee>(`/employees/${id}/reactivate`)
+  return data
+}
+
 // ===================== JOBS =====================
 
 export async function fetchJobsApi(): Promise<Job[]> {

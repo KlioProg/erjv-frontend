@@ -16,6 +16,7 @@ import {
   fetchJobsForEmployeeApi,
   fetchUsersApi,
   linkEmployeeUserApi,
+  reactivateEmployeeApi,
   reactivateJobApi,
   removeEmployeeJobApi,
   replaceJobsForEmployeeApi,
@@ -183,24 +184,24 @@ export function useDeactivateEmployee() {
 export function useReactivateEmployee() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (emp: Employee) => {
-      const res = await updateEmployeeProfileApi(emp.id, {
-        firstName: emp.firstName,
-        lastName: emp.lastName,
-        email: emp.email || null,
-        phone: emp.phone || null,
-        address: emp.address || null,
-        hireDate: emp.hireDate || new Date().toISOString(),
-      })
-      return res
+    mutationFn: async (empOrId: Employee | number) => {
+      const id = typeof empOrId === 'number' ? empOrId : empOrId.id
+      const res = await reactivateEmployeeApi(id)
+      return { res, inputEmployee: typeof empOrId === 'object' ? empOrId : null, id }
     },
-    onSuccess: (data) => {
-      queryClient.setQueryData<Employee[]>(['staffing', 'deactivated-employees'], (old = []) =>
-        old.filter((e) => e.id !== data.id)
-      )
+    onSuccess: ({ res, inputEmployee, id }) => {
+      const targetId = res?.id || inputEmployee?.id || id
+      const name = res ? `${res.firstName} ${res.lastName}` : inputEmployee ? `${inputEmployee.firstName} ${inputEmployee.lastName}` : 'Employee'
+      if (res || inputEmployee) {
+        const entry: Employee = res || { ...(inputEmployee as Employee), isActive: true }
+        queryClient.setQueryData<Employee[]>(['staffing', 'deactivated-employees'], (old = []) => [
+          ...old.filter((e) => e.id !== targetId),
+          { ...entry, isActive: true },
+        ])
+      }
       void queryClient.invalidateQueries({ queryKey: staffingKeys.all })
       void queryClient.invalidateQueries({ queryKey: ['staffing', 'deactivated-employees'] })
-      toast.success(`Employee "${data.firstName} ${data.lastName}" profile updated`)
+      toast.success(`Employee profile "${name}" reactivated`)
     },
     onError: (err) => {
       toast.error(getErrorMessage(err))
