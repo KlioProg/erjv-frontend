@@ -22,6 +22,7 @@ import {
 } from '@/features/crm/clients.hooks'
 import type { Client } from '@/features/crm/clients.types'
 import { getErrorMessage } from '@/lib/api-client'
+import { sanitizePhilippinePhone, validatePhilippinePhone } from '@/lib/phone-utils'
 
 type ClientModalProps = {
   client: Client | null
@@ -104,14 +105,22 @@ function ClientFormContent({ client, onClose }: { client: Client | null; onClose
       }
     }
 
+    const phoneError = validatePhilippinePhone(phone, 'Phone number')
+    if (phoneError) {
+      setErrorMsg(phoneError)
+      return
+    }
+
     try {
+      const cleanPhone = sanitizePhilippinePhone(phone) || null
+
       if (isEditing && client) {
         await updateMutation.mutateAsync({
           id: client.id,
           payload: {
             name: name.trim(),
             contactPerson: contactPerson.trim() || null,
-            phone: phone.trim() || null,
+            phone: cleanPhone,
             email: email.trim() || null,
             address: address.trim(),
           },
@@ -120,7 +129,7 @@ function ClientFormContent({ client, onClose }: { client: Client | null; onClose
         await createMutation.mutateAsync({
           name: name.trim(),
           contactPerson: contactPerson.trim() || null,
-          phone: phone.trim() || null,
+          phone: cleanPhone,
           email: email.trim() || null,
           address: address.trim(),
           isActive: true,
@@ -221,16 +230,31 @@ function ClientFormContent({ client, onClose }: { client: Client | null; onClose
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="client-phone" className="text-xs font-semibold text-foreground/90">
-              Phone Number
-            </Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="client-phone" className="text-xs font-semibold text-foreground/90">
+                Phone Number
+              </Label>
+              {phone && (
+                <span
+                  className={`text-[10px] font-semibold ${
+                    phone.length === 11 && phone.startsWith('09')
+                      ? 'text-emerald-600 dark:text-emerald-400'
+                      : 'text-amber-600 dark:text-amber-400'
+                  }`}
+                >
+                  {phone.length}/11 digits
+                </span>
+              )}
+            </div>
             <div className="relative">
               <Phone className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
               <Input
                 id="client-phone"
-                placeholder="e.g. 0917-123-4567"
+                type="tel"
+                placeholder="09171234567"
                 value={phone}
-                onChange={(e) => setPhone(e.target.value)}
+                maxLength={11}
+                onChange={(e) => setPhone(sanitizePhilippinePhone(e.target.value))}
                 className="pl-9 h-10 text-sm transition-all duration-200"
               />
             </div>

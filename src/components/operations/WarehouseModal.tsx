@@ -20,6 +20,7 @@ import {
 } from '@/features/logistics/warehouses.hooks'
 import type { Warehouse } from '@/features/logistics/warehouses.types'
 import { getErrorMessage } from '@/lib/api-client'
+import { sanitizePhilippinePhone, validatePhilippinePhone } from '@/lib/phone-utils'
 
 type WarehouseModalProps = {
   warehouse: Warehouse | null
@@ -61,26 +62,34 @@ function WarehouseFormContent({
       return
     }
 
+    const phoneError = validatePhilippinePhone(contactNumber, 'Contact number')
+    if (phoneError) {
+      setErrorMsg(phoneError)
+      return
+    }
+
     // NOTE: removed client-side constraint validation, need backend to provide constraint errors
     // - deactivatedWarehouseMatch: set when there exists a deactivated warehouse with the specified name.
     // recommendations:
     // - just let the DB check the constraints and interpret it later
 
     try {
+      const cleanContactNumber = sanitizePhilippinePhone(contactNumber) || null
+
       if (isEditing && warehouse) {
         await updateMutation.mutateAsync({
           id: warehouse.id,
           payload: {
             name: name.trim(),
             address: address.trim(),
-            contactNumber: contactNumber.trim() || null,
+            contactNumber: cleanContactNumber,
           },
         })
       } else {
         await createMutation.mutateAsync({
           name: name.trim(),
           address: address.trim(),
-          contactNumber: contactNumber.trim() || null,
+          contactNumber: cleanContactNumber,
           isActive: true,
         })
       }
@@ -182,16 +191,31 @@ function WarehouseFormContent({
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="wh-phone" className="text-xs font-medium">
-            Contact Number / Hotline
-          </Label>
+          <div className="flex items-center justify-between">
+            <Label htmlFor="wh-phone" className="text-xs font-medium">
+              Contact Number / Hotline
+            </Label>
+            {contactNumber && (
+              <span
+                className={`text-[10px] font-semibold ${
+                  contactNumber.length === 11 && contactNumber.startsWith('09')
+                    ? 'text-emerald-600 dark:text-emerald-400'
+                    : 'text-amber-600 dark:text-amber-400'
+                }`}
+              >
+                {contactNumber.length}/11 digits
+              </span>
+            )}
+          </div>
           <div className="relative">
             <Phone className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
             <Input
               id="wh-phone"
-              placeholder="e.g. 082-234-5678 or 0917-000-1111"
+              type="tel"
+              placeholder="09171234567"
               value={contactNumber}
-              onChange={(e) => setContactNumber(e.target.value)}
+              maxLength={11}
+              onChange={(e) => setContactNumber(sanitizePhilippinePhone(e.target.value))}
               className="pl-9 transition-all duration-200"
             />
           </div>

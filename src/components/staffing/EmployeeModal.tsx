@@ -38,6 +38,7 @@ import {
 } from '@/features/staffing/staffing.hooks'
 import type { Employee } from '@/features/staffing/staffing.types'
 import { getErrorMessage } from '@/lib/api-client'
+import { sanitizePhilippinePhone, validatePhilippinePhone } from '@/lib/phone-utils'
 
 type EmployeeModalProps = {
   employee: Employee | null
@@ -89,6 +90,12 @@ function EmployeeFormContent({
       return
     }
 
+    const phoneError = validatePhilippinePhone(phone, 'Phone number')
+    if (phoneError) {
+      setErrorMsg(phoneError)
+      return
+    }
+
     // NOTE: removed client-side constraint validation, need backend to provide constraint errors
     // - deactivatedEmployeeMatch: set when there exists a deactivated employee with the specified email.
     // - also used to check for an active employee with matching email
@@ -100,6 +107,7 @@ function EmployeeFormContent({
     try {
       const parsedHireDate = new Date(hireDate).toISOString()
       const userId = selectedUserId !== 'none' ? Number(selectedUserId) : null
+      const cleanPhone = sanitizePhilippinePhone(phone) || null
 
       if (isEditing && employee) {
         await updateMutation.mutateAsync({
@@ -108,7 +116,7 @@ function EmployeeFormContent({
             firstName: firstName.trim(),
             lastName: lastName.trim(),
             email: email.trim() || null,
-            phone: phone.trim() || null,
+            phone: cleanPhone,
             address: address.trim() || null,
             hireDate: parsedHireDate,
           },
@@ -118,7 +126,7 @@ function EmployeeFormContent({
           firstName: firstName.trim(),
           lastName: lastName.trim(),
           email: email.trim() || null,
-          phone: phone.trim() || null,
+          phone: cleanPhone,
           address: address.trim() || null,
           hireDate: parsedHireDate,
           userId,
@@ -243,16 +251,31 @@ function EmployeeFormContent({
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="emp-phone" className="text-xs font-medium">
-              Phone Number
-            </Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="emp-phone" className="text-xs font-medium">
+                Phone Number
+              </Label>
+              {phone && (
+                <span
+                  className={`text-[10px] font-semibold ${
+                    phone.length === 11 && phone.startsWith('09')
+                      ? 'text-emerald-600 dark:text-emerald-400'
+                      : 'text-amber-600 dark:text-amber-400'
+                  }`}
+                >
+                  {phone.length}/11 digits
+                </span>
+              )}
+            </div>
             <div className="relative">
               <Phone className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
               <Input
                 id="emp-phone"
+                type="tel"
                 placeholder="09171234567"
                 value={phone}
-                onChange={(e) => setPhone(e.target.value)}
+                maxLength={11}
+                onChange={(e) => setPhone(sanitizePhilippinePhone(e.target.value))}
                 className="pl-9"
               />
             </div>
