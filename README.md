@@ -1,4 +1,4 @@
-# 💻 ERJV Enterprise Frontend & POS Platform
+# ERJV Enterprise Frontend & POS Platform
 
 <p align="center">
   <img src="https://img.shields.io/badge/React_18-61DAFB?style=for-the-badge&logo=react&logoColor=black" alt="React 18" />
@@ -13,7 +13,7 @@ The modern web application for the **ERJV Enterprise Business Platform**. Built 
 
 ---
 
-## 📑 Table of Contents
+## Table of Contents
 
 - [Key Features](#-key-features)
 - [Tech Stack](#-tech-stack)
@@ -28,7 +28,7 @@ The modern web application for the **ERJV Enterprise Business Platform**. Built 
 
 ---
 
-## ✨ Key Features
+## Key Features
 
 - **Executive & Operations Dashboards**: High-level KPIs, inventory alerts, fleet utilization, and quick action bars.
 - **Staffing & User Roles**: Employee profiles, user account linking, position assignments, and role-based permissions (`OWNER`, `ADMIN`, `STAFF`).
@@ -55,7 +55,7 @@ The modern web application for the **ERJV Enterprise Business Platform**. Built 
 
 ---
 
-## 📱 Application Modules
+## Application Modules
 
 1. **Dashboard (`/dashboard`)**:
    - Live fleet KPI cards, low-stock alerts, quick dispatch stats, and recent system activities.
@@ -70,7 +70,7 @@ The modern web application for the **ERJV Enterprise Business Platform**. Built 
 
 ---
 
-## 🚀 Getting Started
+## Getting Started
 
 ### Prerequisites
 
@@ -121,7 +121,7 @@ npm run preview
 
 ---
 
-## 🎨 Architecture & Design System
+## Architecture & Design System
 
 - **API Layer (`src/features/**/api.ts`)**: Pure async API functions communicating with backend REST endpoints via `apiClient`.
 - **Query Hooks (`src/features/**/hooks.ts`)**: TanStack Query custom hooks encapsulating query keys, cache invalidation, and toast feedback.
@@ -132,7 +132,7 @@ npm run preview
 
 ---
 
-## 📁 Project Directory Structure
+## Project Directory Structure
 
 ```text
 erjv-frontend/
