@@ -205,6 +205,11 @@ export async function deactivateUserApi(id: number): Promise<UserAccount> {
   return data
 }
 
+export async function reactivateUserApi(id: number): Promise<UserAccount> {
+  const { data } = await apiClient.patch<UserAccount>(`/users/${id}/reactivate`)
+  return data
+}
+
 // Hook alias exports
 export const fetchEmployeesForJobApi = fetchEmployeeJobsByJobApi
 export const fetchJobsForEmployeeApi = fetchEmployeeJobsByEmployeeApi

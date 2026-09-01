@@ -8,6 +8,7 @@ import {
   createJobApi,
   deactivateEmployeeApi,
   deactivateJobApi,
+  deactivateUserApi,
   fetchEmployeesApi,
   fetchEmployeesForJobApi,
   fetchJobsApi,
@@ -16,6 +17,7 @@ import {
   linkEmployeeUserApi,
   reactivateEmployeeApi,
   reactivateJobApi,
+  reactivateUserApi,
   removeEmployeeJobApi,
   replaceJobsForEmployeeApi,
   unlinkEmployeeUserApi,
@@ -30,6 +32,7 @@ import type {
   Job,
   UpdateEmployeeProfilePayload,
   UpdateJobPayload,
+  UserAccount,
 } from './staffing.types'
 
 export const staffingKeys = {
@@ -312,3 +315,70 @@ export function useUpdateUserRole() {
     },
   })
 }
+
+export function useDeactivateUser() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (userOrId: UserAccount | number) => {
+      const id = typeof userOrId === 'number' ? userOrId : userOrId.id
+      const res = await deactivateUserApi(id)
+
+      return {
+        res,
+        inputUser: typeof userOrId === 'object' ? userOrId : null,
+        id,
+      }
+    },
+    onSuccess: ({ res, inputUser }) => {
+      const name =
+        res?.fullName ??
+        inputUser?.fullName ??
+        inputUser?.email ??
+        'User'
+
+      void queryClient.invalidateQueries({
+        queryKey: staffingKeys.all,
+      })
+
+      toast.success(`User "${name}" deactivated`)
+    },
+    onError: (err) => {
+      toast.error(getErrorMessage(err))
+    },
+  })
+}
+
+export function useReactivateUser() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (userOrId: UserAccount | number) => {
+      const id = typeof userOrId === 'number' ? userOrId : userOrId.id
+      const res = await reactivateUserApi(id)
+
+      return {
+        res,
+        inputUser: typeof userOrId === 'object' ? userOrId : null,
+        id,
+      }
+    },
+    onSuccess: ({ res, inputUser }) => {
+      const name =
+        res?.fullName ??
+        inputUser?.fullName ??
+        inputUser?.email ??
+        'User'
+
+      void queryClient.invalidateQueries({
+        queryKey: staffingKeys.all,
+      })
+
+      toast.success(`User "${name}" reactivated`)
+    },
+    onError: (err) => {
+      toast.error(getErrorMessage(err))
+    },
+  })
+}
+

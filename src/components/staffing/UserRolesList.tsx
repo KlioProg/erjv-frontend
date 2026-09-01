@@ -20,14 +20,19 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Spinner } from '@/components/ui/spinner'
-import { useUsers, useUpdateUserRole, useEmployees } from '@/features/staffing/staffing.hooks'
+import { useAllUsers, useUpdateUserRole, useEmployees, useDeactivateUser, useReactivateUser } from '@/features/staffing/staffing.hooks'
 import { normalizeUserRole } from '@/features/auth/AuthContext'
 import type { UserRole } from '@/features/auth/auth.types'
 import { toast } from 'sonner'
 import { useQueryClient } from '@tanstack/react-query'
+import { Button } from '../ui/button'
 
 export function UserRolesList() {
-  const { data: users = [], isLoading, error } = useUsers()
+  const { data: users = [], isLoading, error } = useAllUsers()
+
+  const deactivateUser = useDeactivateUser()
+  const reactivateUser = useReactivateUser()
+
   const { data: employees = [] } = useEmployees()
   const updateRoleMutation = useUpdateUserRole()
   const queryClient = useQueryClient()
@@ -180,12 +185,31 @@ export function UserRolesList() {
                     </TableCell>
 
                     <TableCell>
-                      <Badge
-                        variant={u.isActive ? 'default' : 'secondary'}
-                        className="text-[10px] font-semibold"
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() =>
+                          u.isActive
+                            ? deactivateUser.mutate(u)
+                            : reactivateUser.mutate(u)
+                        }
+                        disabled={
+                          (deactivateUser.isPending &&
+                            typeof deactivateUser.variables !== 'number' &&
+                            deactivateUser.variables?.id === u.id) ||
+                          (reactivateUser.isPending &&
+                            typeof reactivateUser.variables !== 'number' &&
+                            reactivateUser.variables?.id === u.id)
+                        }
+                        className="h-auto p-0 hover:bg-transparent"
                       >
-                        {u.isActive ? 'Active' : 'Inactive'}
-                      </Badge>
+                        <Badge
+                          variant={u.isActive ? 'default' : 'secondary'}
+                          className="cursor-pointer text-[10px] font-semibold"
+                        >
+                          {u.isActive ? 'Active' : 'Inactive'}
+                        </Badge>
+                      </Button>
                     </TableCell>
 
                     <TableCell className="text-right">
