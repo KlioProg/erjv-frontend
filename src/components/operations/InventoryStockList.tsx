@@ -13,6 +13,7 @@ import {
   Archive,
   RotateCcw,
 } from 'lucide-react'
+import { ArchiveTabNav } from '@/components/ui/ArchiveTabNav'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -43,12 +44,12 @@ export function InventoryStockList() {
   const { data: allProducts = [], isLoading: isLoadingProducts } = useAllProducts()
   const { data: stockItems = [], isLoading: isLoadingStock } = useStockItems()
   const { data: warehouses = [] } = useWarehouses()
-  const deactivateProductMutation = useDeactivateProduct()
+  const [activeTab, setActiveTab] = useState<'ACTIVE' | 'ARCHIVED'>('ACTIVE')
+  const deactivateProductMutation = useDeactivateProduct({ onViewArchive: () => setActiveTab('ARCHIVED') })
   const reactivateProductMutation = useReactivateProduct()
   const deleteStockMutation = useDeleteStockItem()
   const { isOwner, isAdmin } = useAuth()
 
-  const [activeTab, setActiveTab] = useState<'ACTIVE' | 'ARCHIVED'>('ACTIVE')
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedWarehouseFilter, setSelectedWarehouseFilter] = useState<string>('ALL')
 
@@ -152,32 +153,17 @@ export function InventoryStockList() {
 
   return (
     <div className="flex flex-col gap-5">
-      {/* View Switcher: Active Catalog vs Archived Products */}
-      <div className="flex items-center gap-2 border-b border-border/80 pb-3">
-        <button
-          onClick={() => setActiveTab('ACTIVE')}
-          className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-            activeTab === 'ACTIVE'
-              ? 'bg-primary text-primary-foreground shadow-xs'
-              : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
-          }`}
-        >
-          <Package className="size-3.5" />
-          Active Products ({activeProducts.length})
-        </button>
-
-        <button
-          onClick={() => setActiveTab('ARCHIVED')}
-          className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-            activeTab === 'ARCHIVED'
-              ? 'bg-amber-500/10 text-amber-600 border border-amber-500/30'
-              : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
-          }`}
-        >
-          <Archive className="size-3.5" />
-          Deactivated Products ({archivedProducts.length})
-        </button>
-      </div>
+      {/* Catalog Archive / Active Tabs */}
+      <ArchiveTabNav
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        activeLabel="Active Products"
+        activeCount={activeProducts.length}
+        archivedLabel="Archived Products"
+        archivedCount={archivedProducts.length}
+        activeIcon={<Package className="size-3.5" />}
+        bannerDescription="Showing deactivated products catalog. Historical stock records and pricing specifications are safely preserved and can be reactivated anytime."
+      />
 
       {/* Header controls and Search */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
@@ -245,13 +231,30 @@ export function InventoryStockList() {
               {searchTerm || selectedWarehouseFilter !== 'ALL'
                 ? 'No products match your search filter or selected warehouse.'
                 : activeTab === 'ACTIVE'
-                  ? 'Get started by creating your wholesale and retail inventory products.'
-                  : 'Deactivated inventory items will appear here and can be reactivated at any time.'}
+                  ? archivedProducts.length > 0
+                    ? `All catalog items are currently archived (${archivedProducts.length} total).`
+                    : 'Get started by creating your wholesale and retail inventory products.'
+                  : 'Archived inventory items will appear here and can be reactivated at any time.'}
             </p>
+            {!searchTerm &&
+              selectedWarehouseFilter === 'ALL' &&
+              activeTab === 'ACTIVE' &&
+              archivedProducts.length > 0 && (
+                <Button
+                  onClick={() => setActiveTab('ARCHIVED')}
+                  size="sm"
+                  variant="outline"
+                  className="mt-3 gap-1.5 cursor-pointer text-xs"
+                >
+                  <Archive className="size-3.5 text-amber-600" />
+                  View Archived Products ({archivedProducts.length})
+                </Button>
+              )}
             {(isOwner || isAdmin) &&
               !searchTerm &&
               selectedWarehouseFilter === 'ALL' &&
-              activeTab === 'ACTIVE' && (
+              activeTab === 'ACTIVE' &&
+              archivedProducts.length === 0 && (
                 <Button
                   onClick={handleCreateProduct}
                   size="sm"
@@ -387,8 +390,8 @@ export function InventoryStockList() {
                                   onClick={() => handleDeleteProduct(prod)}
                                   className="gap-2 text-xs text-destructive focus:text-destructive cursor-pointer"
                                 >
-                                  <Trash2 className="size-3.5" />
-                                  Delete / Deactivate Product
+                                  <Archive className="size-3.5" />
+                                  Archive Product
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
@@ -521,20 +524,20 @@ export function InventoryStockList() {
         }}
       />
 
-      {/* Product Delete Confirmation Modal */}
+      {/* Product Archive Confirmation Modal */}
       <ConfirmDeleteModal
         open={!!productToDelete}
         onClose={() => setProductToDelete(null)}
         onConfirm={confirmDeleteProduct}
-        title="Delete Product from Active Catalog"
-        description="Are you sure you want to delete this product? It will be deactivated and no longer available for point-of-sale checkout or warehouse intake."
+        title="Archive Product from Active Catalog"
+        description="Are you sure you want to archive this product? It will be removed from active point-of-sale checkout and warehouse intake. All existing inventory records and price history remain preserved, and you can restore it anytime from the Archived Products tab."
         itemName={productToDelete?.name}
         itemDetails={
           productToDelete
             ? `₱${Number(productToDelete.unitPrice || 0).toFixed(2)} / unit`
             : undefined
         }
-        confirmText="Delete Product"
+        confirmText="Archive Product"
         variant="destructive"
       />
 

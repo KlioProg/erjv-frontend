@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { User, Search, CheckCircle2, Calendar, Shield, Sparkles } from 'lucide-react'
+import { User, Search, CheckCircle2, Calendar, Shield, Sparkles, RotateCcw } from 'lucide-react'
 import {
   Table,
   TableBody,
@@ -26,11 +26,13 @@ import type { UserRole } from '@/features/auth/auth.types'
 import { toast } from 'sonner'
 import { useQueryClient } from '@tanstack/react-query'
 import { Button } from '../ui/button'
+import { ArchiveTabNav } from '@/components/ui/ArchiveTabNav'
 
 export function UserRolesList() {
   const { data: users = [], isLoading, error } = useAllUsers()
 
-  const deactivateUser = useDeactivateUser()
+  const [activeTab, setActiveTab] = useState<'ACTIVE' | 'ARCHIVED'>('ACTIVE')
+  const deactivateUser = useDeactivateUser({ onViewArchive: () => setActiveTab('ARCHIVED') })
   const reactivateUser = useReactivateUser()
 
   const { data: employees = [] } = useEmployees()
@@ -40,7 +42,11 @@ export function UserRolesList() {
   const [searchQuery, setSearchQuery] = useState('')
   const [updatingId, setUpdatingId] = useState<number | null>(null)
 
-  const filteredUsers = users.filter(
+  const activeUsers = users.filter((u) => u.isActive !== false)
+  const archivedUsers = users.filter((u) => u.isActive === false)
+  const currentUsers = activeTab === 'ACTIVE' ? activeUsers : archivedUsers
+
+  const filteredUsers = currentUsers.filter(
     (u) =>
       u.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (u.fullName && u.fullName.toLowerCase().includes(searchQuery.toLowerCase())),
@@ -68,6 +74,18 @@ export function UserRolesList() {
 
   return (
     <div className="flex flex-col gap-4">
+      {/* Archive / Active Tabs */}
+      <ArchiveTabNav
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        activeLabel="Active Accounts"
+        activeCount={activeUsers.length}
+        archivedLabel="Archived Accounts"
+        archivedCount={archivedUsers.length}
+        activeIcon={<Shield className="size-3.5" />}
+        bannerDescription="Showing deactivated user accounts. Archived accounts cannot access POS or operations until reactivated."
+      />
+
       {/* Search Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div>
@@ -108,9 +126,29 @@ export function UserRolesList() {
             <p className="text-muted-foreground">Make sure the backend is running on port 3000.</p>
           </div>
         ) : filteredUsers.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-2">
+          <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-3">
             <User className="size-8 stroke-[1.5] text-muted-foreground/50" />
-            <p className="text-sm font-medium text-foreground">No user accounts found</p>
+            <div className="text-center">
+              <p className="text-sm font-medium text-foreground">
+                {activeTab === 'ACTIVE' ? 'No active user accounts found' : 'No archived user accounts'}
+              </p>
+              {searchQuery ? (
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  No accounts match "{searchQuery}"
+                </p>
+              ) : activeTab === 'ACTIVE' && archivedUsers.length > 0 ? (
+                <p className="text-xs text-muted-foreground mt-1">
+                  You have {archivedUsers.length} archived account{archivedUsers.length === 1 ? '' : 's'}.{' '}
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('ARCHIVED')}
+                    className="text-primary font-semibold hover:underline cursor-pointer"
+                  >
+                    View in Archive
+                  </button>
+                </p>
+              ) : null}
+            </div>
           </div>
         ) : (
           <Table>
@@ -119,7 +157,7 @@ export function UserRolesList() {
                 <TableHead>User Account</TableHead>
                 <TableHead>Linked Staff Profile</TableHead>
                 <TableHead>Registered Date</TableHead>
-                <TableHead>Status</TableHead>
+                <TableHead>{activeTab === 'ARCHIVED' ? 'Action' : 'Status'}</TableHead>
                 <TableHead className="text-right">System Role</TableHead>
               </TableRow>
             </TableHeader>
@@ -133,9 +171,13 @@ export function UserRolesList() {
                     ? `${linkedEmp.firstName} ${linkedEmp.lastName}`
                     : u.email.split('@')[0])
                 const initial = displayName.charAt(0).toUpperCase()
+                const isArchived = u.isActive === false
 
                 return (
-                  <TableRow key={u.id} className="hover:bg-muted/30">
+                  <TableRow
+                    key={u.id}
+                    className={`hover:bg-muted/30 ${isArchived ? 'opacity-85 bg-muted/15' : ''}`}
+                  >
                     <TableCell>
                       <div className="flex items-center gap-3">
                         <Avatar className="size-8.5 ring-1 ring-border shadow-2xs">
@@ -144,9 +186,19 @@ export function UserRolesList() {
                           </AvatarFallback>
                         </Avatar>
                         <div className="flex flex-col min-w-0">
-                          <span className="font-bold text-foreground text-xs leading-snug truncate">
-                            {displayName}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-foreground text-xs leading-snug truncate">
+                              {displayName}
+                            </span>
+                            {isArchived && (
+                              <Badge
+                                variant="outline"
+                                className="border-amber-500/30 bg-amber-500/10 text-amber-600 text-[9px] font-bold py-0"
+                              >
+                                Archived
+                              </Badge>
+                            )}
+                          </div>
                           <span className="text-[11px] text-muted-foreground font-mono truncate">
                             {u.email}
                           </span>
@@ -185,31 +237,42 @@ export function UserRolesList() {
                     </TableCell>
 
                     <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() =>
-                          u.isActive
-                            ? deactivateUser.mutate(u)
-                            : reactivateUser.mutate(u)
-                        }
-                        disabled={
-                          (deactivateUser.isPending &&
-                            typeof deactivateUser.variables !== 'number' &&
-                            deactivateUser.variables?.id === u.id) ||
-                          (reactivateUser.isPending &&
+                      {activeTab === 'ARCHIVED' ? (
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => reactivateUser.mutate(u)}
+                          disabled={
+                            reactivateUser.isPending &&
                             typeof reactivateUser.variables !== 'number' &&
-                            reactivateUser.variables?.id === u.id)
-                        }
-                        className="h-auto p-0 hover:bg-transparent"
-                      >
-                        <Badge
-                          variant={u.isActive ? 'default' : 'secondary'}
-                          className="cursor-pointer text-[10px] font-semibold"
+                            reactivateUser.variables?.id === u.id
+                          }
+                          className="h-8 px-3 gap-1.5 text-xs font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 rounded-xl cursor-pointer shadow-2xs"
                         >
-                          {u.isActive ? 'Active' : 'Inactive'}
-                        </Badge>
-                      </Button>
+                          <RotateCcw className="size-3" />
+                          Reactivate Account
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => deactivateUser.mutate(u)}
+                          disabled={
+                            deactivateUser.isPending &&
+                            typeof deactivateUser.variables !== 'number' &&
+                            deactivateUser.variables?.id === u.id
+                          }
+                          className="h-auto p-0 hover:bg-transparent"
+                          title="Click to archive user account"
+                        >
+                          <Badge
+                            variant="default"
+                            className="cursor-pointer text-[10px] font-semibold hover:bg-destructive hover:text-destructive-foreground transition-all"
+                          >
+                            Active
+                          </Badge>
+                        </Button>
+                      )}
                     </TableCell>
 
                     <TableCell className="text-right">

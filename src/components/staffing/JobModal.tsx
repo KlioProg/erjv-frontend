@@ -15,6 +15,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Spinner } from '@/components/ui/spinner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
+  useAllJobs,
   useCreateJob,
   useUpdateJobDetails,
   useReactivateJob,
@@ -30,6 +31,7 @@ type JobModalProps = {
 
 function JobFormContent({ job, onClose }: { job: Job | null; onClose: () => void }) {
   const isEditing = !!job
+  const { data: allJobs = [] } = useAllJobs()
   const createMutation = useCreateJob()
   const updateMutation = useUpdateJobDetails()
   const reactivateMutation = useReactivateJob()
@@ -50,8 +52,15 @@ function JobFormContent({ job, onClose }: { job: Job | null; onClose: () => void
       return
     }
 
-    // NOTE: same situation as EmployeeModal and WarehouseModal.
-    // the uniqueness constraint is cleanName.
+    if (!isEditing) {
+      const match = allJobs.find(
+        (j) => j.name.toLowerCase() === cleanName.toLowerCase() && j.isActive === false,
+      )
+      if (match) {
+        setDeactivatedJobMatch(match)
+        return
+      }
+    }
 
     try {
       if (isEditing && job) {
@@ -131,9 +140,17 @@ function JobFormContent({ job, onClose }: { job: Job | null; onClose: () => void
             placeholder="e.g. Warehouse Supervisor, Delivery Driver, POS Cashier"
             value={name}
             onChange={(e) => {
-              setName(e.target.value)
-              if (deactivatedJobMatch) setDeactivatedJobMatch(null)
+              const val = e.target.value
+              setName(val)
               if (errorMsg) setErrorMsg('')
+              if (!isEditing && val.trim()) {
+                const match = allJobs.find(
+                  (j) => j.name.toLowerCase() === val.trim().toLowerCase() && j.isActive === false,
+                )
+                setDeactivatedJobMatch(match || null)
+              } else {
+                setDeactivatedJobMatch(null)
+              }
             }}
             className="transition-all duration-200"
             required

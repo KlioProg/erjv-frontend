@@ -9,12 +9,12 @@ import {
   Search,
   MoreVertical,
   Edit2,
-  Trash2,
   CheckCircle2,
   User,
   Archive,
   RotateCcw,
 } from 'lucide-react'
+import { ArchiveTabNav } from '@/components/ui/ArchiveTabNav'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -37,12 +37,11 @@ import { ClientModal } from './ClientModal'
 import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal'
 
 export function ClientList() {
+  const [activeTab, setActiveTab] = useState<'ACTIVE' | 'ARCHIVED'>('ACTIVE')
   const { data: allClients = [], isLoading } = useAllClients()
-  const deactivateMutation = useDeactivateClient()
+  const deactivateMutation = useDeactivateClient({ onViewArchive: () => setActiveTab('ARCHIVED') })
   const reactivateMutation = useReactivateClient()
   const { isOwner, isAdmin } = useAuth()
-
-  const [activeTab, setActiveTab] = useState<'ACTIVE' | 'ARCHIVED'>('ACTIVE')
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedClient, setSelectedClient] = useState<Client | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -88,33 +87,17 @@ export function ClientList() {
 
   return (
     <div className="flex flex-col gap-5">
-      {/* Directory Tabs */}
-      <div className="flex items-center gap-2 border-b border-border/70 pb-3">
-        <button
-          type="button"
-          onClick={() => setActiveTab('ACTIVE')}
-          className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-            activeTab === 'ACTIVE'
-              ? 'bg-primary text-primary-foreground shadow-xs'
-              : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
-          }`}
-        >
-          <Users className="size-3.5" />
-          Active Clients ({activeClients.length})
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab('ARCHIVED')}
-          className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-            activeTab === 'ARCHIVED'
-              ? 'bg-primary text-primary-foreground shadow-xs'
-              : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
-          }`}
-        >
-          <Archive className="size-3.5" />
-          Deactivated Clients ({archivedClients.length})
-        </button>
-      </div>
+      {/* Directory Archive / Active Tabs */}
+      <ArchiveTabNav
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        activeLabel="Active Clients"
+        activeCount={activeClients.length}
+        archivedLabel="Archived Clients"
+        archivedCount={archivedClients.length}
+        activeIcon={<Users className="size-3.5" />}
+        bannerDescription="Showing deactivated commercial clients. Past orders, invoices, and contact data remain safely preserved and can be reactivated anytime."
+      />
 
       {/* Controls Bar */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
@@ -152,10 +135,23 @@ export function ClientList() {
               {searchTerm
                 ? 'No client accounts match your search filter.'
                 : activeTab === 'ACTIVE'
-                  ? 'Register commercial buyers and supermarket clients to manage wholesale accounts.'
-                  : 'Deactivated client profiles will appear here and can be reactivated at any time.'}
+                  ? archivedClients.length > 0
+                    ? `All client profiles are currently archived (${archivedClients.length} total).`
+                    : 'Register commercial buyers and supermarket clients to manage wholesale accounts.'
+                  : 'Archived client profiles will appear here and can be reactivated at any time.'}
             </p>
-            {!searchTerm && activeTab === 'ACTIVE' && (
+            {!searchTerm && activeTab === 'ACTIVE' && archivedClients.length > 0 && (
+              <Button
+                onClick={() => setActiveTab('ARCHIVED')}
+                size="sm"
+                variant="outline"
+                className="mt-3 gap-1.5 cursor-pointer text-xs"
+              >
+                <Archive className="size-3.5 text-amber-600" />
+                View Archived Clients ({archivedClients.length})
+              </Button>
+            )}
+            {!searchTerm && activeTab === 'ACTIVE' && archivedClients.length === 0 && (
               <Button
                 onClick={handleCreate}
                 size="sm"
@@ -252,8 +248,8 @@ export function ClientList() {
                                 onClick={() => handleDeactivate(client)}
                                 className="gap-2 text-xs text-destructive focus:text-destructive cursor-pointer"
                               >
-                                <Trash2 className="size-3.5" />
-                                Deactivate Client
+                                <Archive className="size-3.5" />
+                                Archive Client
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
@@ -314,15 +310,15 @@ export function ClientList() {
         open={!!clientToDeactivate}
         onClose={() => setClientToDeactivate(null)}
         onConfirm={confirmDeactivate}
-        title="Deactivate Commercial Client"
-        description="Are you sure you want to deactivate this client profile? Active orders, customer details, and invoices will be archived."
+        title="Archive Commercial Client"
+        description="Are you sure you want to archive this client profile? All contact details, invoices, and order histories are safely preserved and can be restored anytime from the Archived Clients tab."
         itemName={clientToDeactivate?.name}
         itemDetails={
           clientToDeactivate
             ? `Contact: ${clientToDeactivate.contactPerson || 'N/A'} • ${clientToDeactivate.phone || 'No phone'}`
             : undefined
         }
-        confirmText="Deactivate Client"
+        confirmText="Archive Client"
         variant="destructive"
       />
     </div>

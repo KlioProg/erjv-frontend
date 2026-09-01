@@ -60,7 +60,7 @@ export function useUpdateWarehouseDetails() {
   })
 }
 
-export function useDeactivateWarehouse() {
+export function useDeactivateWarehouse(options?: { onViewArchive?: () => void }) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (whOrId: Warehouse | number) => {
@@ -72,7 +72,15 @@ export function useDeactivateWarehouse() {
       const name = res?.name || inputWarehouse?.name || 'Facility'
       void queryClient.invalidateQueries({ queryKey: WAREHOUSES_QUERY_KEY })
       void queryClient.invalidateQueries({ queryKey: ['stock-items'] })
-      toast.success(`Warehouse "${name}" deactivated and moved to archive`)
+      toast.success(`Warehouse "${name}" archived`, {
+        description: 'Facility moved to the Archived Hubs tab.',
+        action: options?.onViewArchive
+          ? {
+              label: 'View in Archive',
+              onClick: options.onViewArchive,
+            }
+          : undefined,
+      })
     },
     onError: (err) => {
       toast.error(getErrorMessage(err))

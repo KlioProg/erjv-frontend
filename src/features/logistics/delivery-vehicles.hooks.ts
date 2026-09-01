@@ -82,7 +82,7 @@ export function useUpdateVehicleStatus() {
   })
 }
 
-export function useDeactivateVehicle() {
+export function useDeactivateVehicle(options?: { onViewArchive?: () => void }) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (vehicle: DeliveryVehicle | number) => {
@@ -93,7 +93,15 @@ export function useDeactivateVehicle() {
     onSuccess: ({ res, inputVehicle }) => {
       const plate = res?.plateNumber || inputVehicle?.plateNumber || 'Fleet asset'
       void queryClient.invalidateQueries({ queryKey: VEHICLES_QUERY_KEY })
-      toast.success(`Vehicle "${plate}" deactivated and moved to archive`)
+      toast.success(`Vehicle "${plate}" archived`, {
+        description: 'Vehicle moved to the Archived Fleet tab.',
+        action: options?.onViewArchive
+          ? {
+              label: 'View in Archive',
+              onClick: options.onViewArchive,
+            }
+          : undefined,
+      })
     },
     onError: (err) => {
       toast.error(getErrorMessage(err))

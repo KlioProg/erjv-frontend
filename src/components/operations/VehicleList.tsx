@@ -5,7 +5,6 @@ import {
   Search,
   MoreVertical,
   Edit2,
-  Trash2,
   CheckCircle2,
   Clock,
   Wrench,
@@ -13,6 +12,7 @@ import {
   Archive,
   RotateCcw,
 } from 'lucide-react'
+import { ArchiveTabNav } from '@/components/ui/ArchiveTabNav'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -88,13 +88,12 @@ function VehicleStatusBadge({ status }: { status: VehicleStatus }) {
 }
 
 export function VehicleList() {
+  const [activeTab, setActiveTab] = useState<'ACTIVE' | 'ARCHIVED'>('ACTIVE')
   const { data: allVehicles = [], isLoading } = useAllDeliveryVehicles()
-  const deactivateMutation = useDeactivateVehicle()
+  const deactivateMutation = useDeactivateVehicle({ onViewArchive: () => setActiveTab('ARCHIVED') })
   const reactivateMutation = useReactivateVehicle()
   const statusMutation = useUpdateVehicleStatus()
   const { isOwner, isAdmin } = useAuth()
-
-  const [activeTab, setActiveTab] = useState<'ACTIVE' | 'ARCHIVED'>('ACTIVE')
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('ALL')
   const [selectedVehicle, setSelectedVehicle] = useState<DeliveryVehicle | null>(null)
@@ -209,33 +208,17 @@ export function VehicleList() {
         </div>
       </div>
 
-      {/* Fleet Tabs */}
-      <div className="flex items-center gap-2 border-b border-border/70 pb-3">
-        <button
-          type="button"
-          onClick={() => setActiveTab('ACTIVE')}
-          className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-            activeTab === 'ACTIVE'
-              ? 'bg-primary text-primary-foreground shadow-xs'
-              : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
-          }`}
-        >
-          <Truck className="size-3.5" />
-          Active Fleet ({activeVehicles.length})
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab('ARCHIVED')}
-          className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-            activeTab === 'ARCHIVED'
-              ? 'bg-primary text-primary-foreground shadow-xs'
-              : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
-          }`}
-        >
-          <Archive className="size-3.5" />
-          Deactivated Vehicles ({archivedVehicles.length})
-        </button>
-      </div>
+      {/* Fleet Archive / Active Tabs */}
+      <ArchiveTabNav
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        activeLabel="Active Fleet"
+        activeCount={activeVehicles.length}
+        archivedLabel="Archived Fleet"
+        archivedCount={archivedVehicles.length}
+        activeIcon={<Truck className="size-3.5" />}
+        bannerDescription="Showing deactivated transport vehicles. License plates, service logs, and specs are safely preserved and can be restored anytime."
+      />
 
       {/* Controls & Filter */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
@@ -312,10 +295,23 @@ export function VehicleList() {
               {searchTerm || statusFilter !== 'ALL'
                 ? 'No transport vehicles match your search query or status filter.'
                 : activeTab === 'ACTIVE'
-                  ? 'Register your first delivery truck or cargo hauler.'
-                  : 'Deactivated delivery vehicles will appear here and can be reactivated at any time.'}
+                  ? archivedVehicles.length > 0
+                    ? `All vehicles are currently archived (${archivedVehicles.length} total).`
+                    : 'Register your first delivery truck or cargo hauler.'
+                  : 'Archived delivery vehicles will appear here and can be reactivated at any time.'}
             </p>
-            {!searchTerm && statusFilter === 'ALL' && activeTab === 'ACTIVE' && (
+            {!searchTerm && statusFilter === 'ALL' && activeTab === 'ACTIVE' && archivedVehicles.length > 0 && (
+              <Button
+                onClick={() => setActiveTab('ARCHIVED')}
+                size="sm"
+                variant="outline"
+                className="mt-3 gap-1.5 cursor-pointer text-xs"
+              >
+                <Archive className="size-3.5 text-amber-600" />
+                View Archived Fleet ({archivedVehicles.length})
+              </Button>
+            )}
+            {!searchTerm && statusFilter === 'ALL' && activeTab === 'ACTIVE' && archivedVehicles.length === 0 && (
               <Button onClick={handleCreate} size="sm" className="mt-4 gap-1.5 cursor-pointer">
                 <Plus className="size-3.5" />
                 Register Transport Asset
@@ -446,8 +442,8 @@ export function VehicleList() {
                                 onClick={() => handleDeactivate(vehicle)}
                                 className="gap-2 text-xs text-destructive focus:text-destructive cursor-pointer"
                               >
-                                <Trash2 className="size-3.5" />
-                                Deactivate Vehicle
+                                <Archive className="size-3.5" />
+                                Archive Vehicle
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
@@ -581,20 +577,20 @@ export function VehicleList() {
         onClose={() => setIsModalOpen(false)}
       />
 
-      {/* Themed Deactivation Modal */}
+      {/* Themed Archive Modal */}
       <ConfirmDeleteModal
         open={!!vehicleToDeactivate}
         onClose={() => setVehicleToDeactivate(null)}
         onConfirm={confirmDeactivate}
-        title="Deactivate Delivery Vehicle"
-        description="Are you sure you want to deactivate this transport vehicle? It will be removed from available dispatch allocations."
+        title="Archive Delivery Vehicle"
+        description="Are you sure you want to archive this transport vehicle? It will be removed from available dispatch allocations. All maintenance logs and transport details are safely preserved and can be restored anytime from the Archived Fleet tab."
         itemName={`Plate: ${vehicleToDeactivate?.plateNumber}`}
         itemDetails={
           vehicleToDeactivate
             ? `${vehicleToDeactivate.vehicleType} • ${vehicleToDeactivate.model || 'Standard Cargo Unit'}`
             : undefined
         }
-        confirmText="Deactivate Vehicle"
+        confirmText="Archive Vehicle"
         variant="destructive"
       />
     </div>

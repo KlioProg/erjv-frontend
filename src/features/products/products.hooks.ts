@@ -88,7 +88,7 @@ export function useUpdateProductPrice() {
 }
 
 // React Query mutation to deactivate a product
-export function useDeactivateProduct() {
+export function useDeactivateProduct(options?: { onViewArchive?: () => void }) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (productOrId: InventoryItemResponse | number) => {
@@ -100,7 +100,15 @@ export function useDeactivateProduct() {
       const name = res?.name || inputProduct?.name || 'Product'
       void queryClient.invalidateQueries({ queryKey: productKeys.all })
       void queryClient.invalidateQueries({ queryKey: ['stock-items'] })
-      toast.success(`Product "${name}" deactivated and moved to archive`)
+      toast.success(`Product "${name}" archived`, {
+        description: 'Product moved to the Archived Catalog tab.',
+        action: options?.onViewArchive
+          ? {
+              label: 'View in Archive',
+              onClick: options.onViewArchive,
+            }
+          : undefined,
+      })
     },
   })
 }

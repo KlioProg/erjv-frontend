@@ -5,7 +5,6 @@ import {
   MoreVertical,
   Briefcase,
   Edit2,
-  Trash2,
   Phone,
   Mail,
   Calendar,
@@ -15,6 +14,7 @@ import {
   Archive,
   RotateCcw,
 } from 'lucide-react'
+import { ArchiveTabNav } from '@/components/ui/ArchiveTabNav'
 import {
   Table,
   TableBody,
@@ -80,11 +80,10 @@ function EmployeeJobBadges({ employeeId }: { employeeId: number }) {
 }
 
 export function EmployeeList() {
-  const { data: allEmployees = [], isLoading, error } = useAllEmployees()
-  const deactivateMutation = useDeactivateEmployee()
-  const reactivateMutation = useReactivateEmployee()
-
   const [activeTab, setActiveTab] = useState<'ACTIVE' | 'ARCHIVED'>('ACTIVE')
+  const { data: allEmployees = [], isLoading, error } = useAllEmployees()
+  const deactivateMutation = useDeactivateEmployee({ onViewArchive: () => setActiveTab('ARCHIVED') })
+  const reactivateMutation = useReactivateEmployee()
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null)
   const [assigningEmployee, setAssigningEmployee] = useState<Employee | null>(null)
@@ -134,33 +133,17 @@ export function EmployeeList() {
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Staff Tabs */}
-      <div className="flex items-center gap-2 border-b border-border/70 pb-3">
-        <button
-          type="button"
-          onClick={() => setActiveTab('ACTIVE')}
-          className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-            activeTab === 'ACTIVE'
-              ? 'bg-primary text-primary-foreground shadow-xs'
-              : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
-          }`}
-        >
-          <Users className="size-3.5" />
-          Active Staff ({activeEmployees.length})
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab('ARCHIVED')}
-          className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-            activeTab === 'ARCHIVED'
-              ? 'bg-primary text-primary-foreground shadow-xs'
-              : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
-          }`}
-        >
-          <Archive className="size-3.5" />
-          Deactivated Staff ({archivedEmployees.length})
-        </button>
-      </div>
+      {/* Staff Archive / Active Tabs */}
+      <ArchiveTabNav
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        activeLabel="Active Staff"
+        activeCount={activeEmployees.length}
+        archivedLabel="Archived Staff"
+        archivedCount={archivedEmployees.length}
+        activeIcon={<Users className="size-3.5" />}
+        bannerDescription="Showing deactivated staff profiles. Historical assignments and user credentials are preserved and can be reactivated at any time."
+      />
 
       {/* Search and Action Bar */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
@@ -194,18 +177,33 @@ export function EmployeeList() {
             <p className="text-muted-foreground">Make sure the backend is running on port 3000.</p>
           </div>
         ) : filteredEmployees.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-2">
+          <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-3">
             <Building2 className="size-8 stroke-[1.5] text-muted-foreground/50" />
-            <p className="text-sm font-medium text-foreground">
-              {activeTab === 'ACTIVE' ? 'No active employees found' : 'No deactivated staff found'}
-            </p>
-            <p className="text-xs">
-              {searchQuery
-                ? 'Try adjusting your search criteria.'
-                : activeTab === 'ACTIVE'
-                  ? 'Click "Register Employee" above to add your first staff member.'
-                  : 'Deactivated staff profiles will appear here and can be reactivated at any time.'}
-            </p>
+            <div className="text-center">
+              <p className="text-sm font-medium text-foreground">
+                {activeTab === 'ACTIVE' ? 'No active employees found' : 'No archived staff found'}
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5 max-w-sm">
+                {searchQuery
+                  ? 'Try adjusting your search criteria.'
+                  : activeTab === 'ACTIVE'
+                    ? archivedEmployees.length > 0
+                      ? `All staff records in this view are currently archived (${archivedEmployees.length} total).`
+                      : 'Click "Register Employee" above to add your first staff member.'
+                    : 'Archived staff profiles will appear here and can be reactivated at any time.'}
+              </p>
+              {!searchQuery && activeTab === 'ACTIVE' && archivedEmployees.length > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setActiveTab('ARCHIVED')}
+                  className="mt-3 text-xs gap-1.5 cursor-pointer"
+                >
+                  <Archive className="size-3.5 text-amber-600" />
+                  View Archived Staff ({archivedEmployees.length})
+                </Button>
+              )}
+            </div>
           </div>
         ) : (
           <Table>
@@ -355,8 +353,8 @@ export function EmployeeList() {
                                 onClick={() => handleDeactivate(emp)}
                                 className="text-destructive focus:text-destructive focus:bg-destructive/10 cursor-pointer"
                               >
-                                <Trash2 className="size-4 mr-2" />
-                                Deactivate Employee
+                                <Archive className="size-4 mr-2" />
+                                Archive Employee
                               </DropdownMenuItem>
                             </DropdownMenuGroup>
                           </DropdownMenuContent>
@@ -385,13 +383,13 @@ export function EmployeeList() {
         onClose={() => setAssigningEmployee(null)}
       />
 
-      {/* Themed Deactivation Modal */}
+      {/* Themed Deactivation / Archive Modal */}
       <ConfirmDeleteModal
         open={!!employeeToDeactivate}
         onClose={() => setEmployeeToDeactivate(null)}
         onConfirm={confirmDeactivate}
-        title="Deactivate Employee Profile"
-        description="Are you sure you want to deactivate this employee? They will no longer be listed in active staff rosters."
+        title="Archive Employee Profile"
+        description="Are you sure you want to archive this employee? They will be removed from active staff rosters. All profile details and role history are safely preserved and can be restored anytime from the Archived Staff tab."
         itemName={
           employeeToDeactivate
             ? `${employeeToDeactivate.firstName} ${employeeToDeactivate.lastName}`
@@ -402,7 +400,7 @@ export function EmployeeList() {
             ? `Email: ${employeeToDeactivate.email || 'N/A'} • Phone: ${employeeToDeactivate.phone || 'N/A'}`
             : undefined
         }
-        confirmText="Deactivate Employee"
+        confirmText="Archive Employee"
         variant="destructive"
       />
     </div>

@@ -117,7 +117,7 @@ export function useUnlinkEmployeeUser() {
   })
 }
 
-export function useDeactivateEmployee() {
+export function useDeactivateEmployee(options?: { onViewArchive?: () => void }) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (empOrId: Employee | number) => {
@@ -132,7 +132,15 @@ export function useDeactivateEmployee() {
           ? `${inputEmployee.firstName} ${inputEmployee.lastName}`
           : 'Employee'
       void queryClient.invalidateQueries({ queryKey: staffingKeys.all })
-      toast.success(`Employee profile "${name}" deactivated and moved to archive`)
+      toast.success(`Employee profile "${name}" archived`, {
+        description: 'Profile moved to the Archived Staff tab.',
+        action: options?.onViewArchive
+          ? {
+              label: 'View in Archive',
+              onClick: options.onViewArchive,
+            }
+          : undefined,
+      })
     },
     onError: (err) => {
       toast.error(getErrorMessage(err))
@@ -205,7 +213,7 @@ export function useUpdateJobDetails() {
   })
 }
 
-export function useDeactivateJob() {
+export function useDeactivateJob(options?: { onViewArchive?: () => void }) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (jobOrId: Job | number) => {
@@ -216,7 +224,15 @@ export function useDeactivateJob() {
     onSuccess: ({ res, inputJob }) => {
       const name = res?.name || inputJob?.name || 'Role'
       void queryClient.invalidateQueries({ queryKey: staffingKeys.all })
-      toast.success(`Job position "${name}" deactivated and moved to archive`)
+      toast.success(`Job position "${name}" archived`, {
+        description: 'Position moved to the Archived Positions tab.',
+        action: options?.onViewArchive
+          ? {
+              label: 'View in Archive',
+              onClick: options.onViewArchive,
+            }
+          : undefined,
+      })
     },
     onError: (err) => {
       toast.error(getErrorMessage(err))
@@ -259,6 +275,8 @@ export function useJobEmployees(jobId: number) {
     enabled: jobId > 0,
   })
 }
+
+export const useEmployeesForJob = useJobEmployees
 
 export function useAssignEmployeeJob() {
   const queryClient = useQueryClient()
@@ -316,7 +334,7 @@ export function useUpdateUserRole() {
   })
 }
 
-export function useDeactivateUser() {
+export function useDeactivateUser(options?: { onViewArchive?: () => void }) {
   const queryClient = useQueryClient()
 
   return useMutation({
@@ -341,7 +359,15 @@ export function useDeactivateUser() {
         queryKey: staffingKeys.all,
       })
 
-      toast.success(`User "${name}" deactivated`)
+      toast.success(`User account "${name}" archived`, {
+        description: 'Account moved to the Archived Accounts tab.',
+        action: options?.onViewArchive
+          ? {
+              label: 'View in Archive',
+              onClick: options.onViewArchive,
+            }
+          : undefined,
+      })
     },
     onError: (err) => {
       toast.error(getErrorMessage(err))

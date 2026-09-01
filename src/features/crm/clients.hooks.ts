@@ -53,7 +53,7 @@ export function useUpdateClientDetails() {
   })
 }
 
-export function useDeactivateClient() {
+export function useDeactivateClient(options?: { onViewArchive?: () => void }) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (clientOrId: Client | number) => {
@@ -64,7 +64,15 @@ export function useDeactivateClient() {
     onSuccess: ({ res, inputClient }) => {
       const name = res?.name || inputClient?.name || 'Account'
       void queryClient.invalidateQueries({ queryKey: CLIENTS_QUERY_KEY })
-      toast.success(`Client "${name}" deactivated and moved to archive`)
+      toast.success(`Client "${name}" archived`, {
+        description: 'Client profile moved to the Archived Clients tab.',
+        action: options?.onViewArchive
+          ? {
+              label: 'View in Archive',
+              onClick: options.onViewArchive,
+            }
+          : undefined,
+      })
     },
     onError: (err) => {
       toast.error(getErrorMessage(err))

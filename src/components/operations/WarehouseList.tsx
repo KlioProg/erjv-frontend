@@ -12,6 +12,7 @@ import {
   Archive,
   RotateCcw,
 } from 'lucide-react'
+import { ArchiveTabNav } from '@/components/ui/ArchiveTabNav'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -36,13 +37,12 @@ import { WarehouseModal } from './WarehouseModal'
 import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal'
 
 export function WarehouseList() {
+  const [activeTab, setActiveTab] = useState<'ACTIVE' | 'ARCHIVED'>('ACTIVE')
   const { data: allWarehouses = [], isLoading } = useAllWarehouses()
   const { data: stockItems = [] } = useStockItems()
-  const deactivateMutation = useDeactivateWarehouse()
+  const deactivateMutation = useDeactivateWarehouse({ onViewArchive: () => setActiveTab('ARCHIVED') })
   const reactivateMutation = useReactivateWarehouse()
   const { isOwner, isAdmin } = useAuth()
-
-  const [activeTab, setActiveTab] = useState<'ACTIVE' | 'ARCHIVED'>('ACTIVE')
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedWarehouse, setSelectedWarehouse] = useState<Warehouse | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -124,48 +124,31 @@ export function WarehouseList() {
         </div>
       </div>
 
-      {/* Header with Search, Active/Archived Filter Tabs, and New Warehouse Button */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-        <div className="flex flex-1 flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full sm:w-auto">
-          <div className="relative flex-1 sm:max-w-xs">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
-            <Input
-              placeholder="Search warehouses & distribution depots..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-9 h-9 text-xs"
-            />
-          </div>
+      {/* Warehouse Archive / Active Tabs */}
+      <ArchiveTabNav
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        activeLabel="Active Hubs"
+        activeCount={activeWarehouses.length}
+        archivedLabel="Archived Facilities"
+        archivedCount={archivedWarehouses.length}
+        activeIcon={<WarehouseIcon className="size-3.5" />}
+        bannerDescription="Showing archived warehouse facilities. Stored stock items and location addresses are safely preserved and can be reactivated anytime."
+      />
 
-          <div className="flex items-center gap-1.5 p-1 rounded-xl bg-muted/60 border border-border/70">
-            <button
-              type="button"
-              onClick={() => setActiveTab('ACTIVE')}
-              className={`px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
-                activeTab === 'ACTIVE'
-                  ? 'bg-background text-foreground shadow-2xs border border-border/60'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              <CheckCircle2 className="size-3.5 text-emerald-600" />
-              Active Hubs ({activeWarehouses.length})
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('ARCHIVED')}
-              className={`px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
-                activeTab === 'ARCHIVED'
-                  ? 'bg-background text-foreground shadow-2xs border border-border/60'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              <Archive className="size-3.5 text-amber-600" />
-              Archived ({archivedWarehouses.length})
-            </button>
-          </div>
+      {/* Header with Search and New Warehouse Button */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div className="relative w-full sm:w-80">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
+          <Input
+            placeholder="Search warehouses & distribution depots..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-9 h-9 text-xs"
+          />
         </div>
 
-        {(isOwner || isAdmin) && (
+        {(isOwner || isAdmin) && activeTab === 'ACTIVE' && (
           <Button
             onClick={handleCreate}
             size="sm"
@@ -203,9 +186,22 @@ export function WarehouseList() {
                 <p className="text-xs text-muted-foreground mt-1 max-w-xs">
                   {searchTerm
                     ? 'No active facilities matched your search query.'
-                    : 'Register your central logistics complex, regional depots, and fulfillment hubs.'}
+                    : archivedWarehouses.length > 0
+                      ? `All warehouse hubs are currently archived (${archivedWarehouses.length} total).`
+                      : 'Register your central logistics complex, regional depots, and fulfillment hubs.'}
                 </p>
-                {(isOwner || isAdmin) && !searchTerm && (
+                {!searchTerm && archivedWarehouses.length > 0 && (
+                  <Button
+                    onClick={() => setActiveTab('ARCHIVED')}
+                    size="sm"
+                    variant="outline"
+                    className="mt-3 gap-1.5 cursor-pointer text-xs"
+                  >
+                    <Archive className="size-3.5 text-amber-600" />
+                    View Archived Facilities ({archivedWarehouses.length})
+                  </Button>
+                )}
+                {(isOwner || isAdmin) && !searchTerm && archivedWarehouses.length === 0 && (
                   <Button
                     onClick={handleCreate}
                     size="sm"
