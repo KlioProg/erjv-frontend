@@ -125,13 +125,33 @@ export function useDeactivateEmployee(options?: { onViewArchive?: () => void }) 
       const res = await deactivateEmployeeApi(id)
       return { res, inputEmployee: typeof empOrId === 'object' ? empOrId : null, id }
     },
+    onMutate: async (empOrId) => {
+      await queryClient.cancelQueries({ queryKey: staffingKeys.employees('true') })
+      const previousEmployees = queryClient.getQueryData<Employee[]>(staffingKeys.employees('true'))
+      const targetId = typeof empOrId === 'number' ? empOrId : empOrId.id
+
+      queryClient.setQueryData<Employee[]>(staffingKeys.employees('true'), (old) => {
+        if (!old) return []
+        return old.map((e) => (e.id === targetId ? { ...e, isActive: false } : e))
+      })
+
+      return { previousEmployees }
+    },
+    onError: (err, _, context) => {
+      if (context?.previousEmployees) {
+        queryClient.setQueryData(staffingKeys.employees('true'), context.previousEmployees)
+      }
+      toast.error(getErrorMessage(err))
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: staffingKeys.all })
+    },
     onSuccess: ({ res, inputEmployee }) => {
       const name = res
         ? `${res.firstName} ${res.lastName}`
         : inputEmployee
           ? `${inputEmployee.firstName} ${inputEmployee.lastName}`
           : 'Employee'
-      void queryClient.invalidateQueries({ queryKey: staffingKeys.all })
       toast.success(`Employee profile "${name}" archived`, {
         description: 'Profile moved to the Archived Staff tab.',
         action: options?.onViewArchive
@@ -141,9 +161,6 @@ export function useDeactivateEmployee(options?: { onViewArchive?: () => void }) 
             }
           : undefined,
       })
-    },
-    onError: (err) => {
-      toast.error(getErrorMessage(err))
     },
   })
 }
@@ -156,17 +173,34 @@ export function useReactivateEmployee() {
       const res = await reactivateEmployeeApi(id)
       return { res, inputEmployee: typeof empOrId === 'object' ? empOrId : null, id }
     },
+    onMutate: async (empOrId) => {
+      await queryClient.cancelQueries({ queryKey: staffingKeys.employees('true') })
+      const previousEmployees = queryClient.getQueryData<Employee[]>(staffingKeys.employees('true'))
+      const targetId = typeof empOrId === 'number' ? empOrId : empOrId.id
+
+      queryClient.setQueryData<Employee[]>(staffingKeys.employees('true'), (old) => {
+        if (!old) return []
+        return old.map((e) => (e.id === targetId ? { ...e, isActive: true } : e))
+      })
+
+      return { previousEmployees }
+    },
+    onError: (err, _, context) => {
+      if (context?.previousEmployees) {
+        queryClient.setQueryData(staffingKeys.employees('true'), context.previousEmployees)
+      }
+      toast.error(getErrorMessage(err))
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: staffingKeys.all })
+    },
     onSuccess: ({ res, inputEmployee }) => {
       const name = res
         ? `${res.firstName} ${res.lastName}`
         : inputEmployee
           ? `${inputEmployee.firstName} ${inputEmployee.lastName}`
           : 'Employee'
-      void queryClient.invalidateQueries({ queryKey: staffingKeys.all })
       toast.success(`Employee profile "${name}" reactivated`)
-    },
-    onError: (err) => {
-      toast.error(getErrorMessage(err))
     },
   })
 }
@@ -221,9 +255,29 @@ export function useDeactivateJob(options?: { onViewArchive?: () => void }) {
       const res = await deactivateJobApi(id)
       return { res, inputJob: typeof jobOrId === 'object' ? jobOrId : null, id }
     },
+    onMutate: async (jobOrId) => {
+      await queryClient.cancelQueries({ queryKey: staffingKeys.jobs('true') })
+      const previousJobs = queryClient.getQueryData<Job[]>(staffingKeys.jobs('true'))
+      const targetId = typeof jobOrId === 'number' ? jobOrId : jobOrId.id
+
+      queryClient.setQueryData<Job[]>(staffingKeys.jobs('true'), (old) => {
+        if (!old) return []
+        return old.map((j) => (j.id === targetId ? { ...j, isActive: false } : j))
+      })
+
+      return { previousJobs }
+    },
+    onError: (err, _, context) => {
+      if (context?.previousJobs) {
+        queryClient.setQueryData(staffingKeys.jobs('true'), context.previousJobs)
+      }
+      toast.error(getErrorMessage(err))
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: staffingKeys.all })
+    },
     onSuccess: ({ res, inputJob }) => {
       const name = res?.name || inputJob?.name || 'Role'
-      void queryClient.invalidateQueries({ queryKey: staffingKeys.all })
       toast.success(`Job position "${name}" archived`, {
         description: 'Position moved to the Archived Positions tab.',
         action: options?.onViewArchive
@@ -234,26 +288,42 @@ export function useDeactivateJob(options?: { onViewArchive?: () => void }) {
           : undefined,
       })
     },
-    onError: (err) => {
-      toast.error(getErrorMessage(err))
-    },
   })
 }
 
 export function useReactivateJob() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (id: number) => {
-      return await reactivateJobApi(id)
+    mutationFn: async (idOrJob: number | Job) => {
+      const id = typeof idOrJob === 'number' ? idOrJob : idOrJob.id
+      const res = await reactivateJobApi(id)
+      return { res, id }
     },
-    onSuccess: (data) => {
-      void queryClient.invalidateQueries({ queryKey: staffingKeys.all })
-      toast.success(
-        `Job position "${data?.name || 'Role'}" reactivated and restored to active roles`,
-      )
+    onMutate: async (idOrJob) => {
+      await queryClient.cancelQueries({ queryKey: staffingKeys.jobs('true') })
+      const previousJobs = queryClient.getQueryData<Job[]>(staffingKeys.jobs('true'))
+      const targetId = typeof idOrJob === 'number' ? idOrJob : idOrJob.id
+
+      queryClient.setQueryData<Job[]>(staffingKeys.jobs('true'), (old) => {
+        if (!old) return []
+        return old.map((j) => (j.id === targetId ? { ...j, isActive: true } : j))
+      })
+
+      return { previousJobs }
     },
-    onError: (err) => {
+    onError: (err, _, context) => {
+      if (context?.previousJobs) {
+        queryClient.setQueryData(staffingKeys.jobs('true'), context.previousJobs)
+      }
       toast.error(getErrorMessage(err))
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: staffingKeys.all })
+    },
+    onSuccess: ({ res }) => {
+      toast.success(
+        `Job position "${res?.name || 'Role'}" reactivated and restored to active roles`,
+      )
     },
   })
 }
@@ -348,16 +418,36 @@ export function useDeactivateUser(options?: { onViewArchive?: () => void }) {
         id,
       }
     },
+    onMutate: async (userOrId) => {
+      await queryClient.cancelQueries({ queryKey: staffingKeys.users('true') })
+      const previousUsers = queryClient.getQueryData<UserAccount[]>(staffingKeys.users('true'))
+
+      const targetId = typeof userOrId === 'number' ? userOrId : userOrId.id
+
+      queryClient.setQueryData<UserAccount[]>(staffingKeys.users('true'), (old) => {
+        if (!old) return []
+        return old.map((u) => (u.id === targetId ? { ...u, isActive: false } : u))
+      })
+
+      return { previousUsers }
+    },
+    onError: (err, _, context) => {
+      if (context?.previousUsers) {
+        queryClient.setQueryData(staffingKeys.users('true'), context.previousUsers)
+      }
+      toast.error(getErrorMessage(err))
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({
+        queryKey: staffingKeys.all,
+      })
+    },
     onSuccess: ({ res, inputUser }) => {
       const name =
         res?.fullName ??
         inputUser?.fullName ??
         inputUser?.email ??
         'User'
-
-      void queryClient.invalidateQueries({
-        queryKey: staffingKeys.all,
-      })
 
       toast.success(`User account "${name}" archived`, {
         description: 'Account moved to the Archived Accounts tab.',
@@ -368,9 +458,6 @@ export function useDeactivateUser(options?: { onViewArchive?: () => void }) {
             }
           : undefined,
       })
-    },
-    onError: (err) => {
-      toast.error(getErrorMessage(err))
     },
   })
 }
@@ -389,6 +476,30 @@ export function useReactivateUser() {
         id,
       }
     },
+    onMutate: async (userOrId) => {
+      await queryClient.cancelQueries({ queryKey: staffingKeys.users('true') })
+      const previousUsers = queryClient.getQueryData<UserAccount[]>(staffingKeys.users('true'))
+
+      const targetId = typeof userOrId === 'number' ? userOrId : userOrId.id
+
+      queryClient.setQueryData<UserAccount[]>(staffingKeys.users('true'), (old) => {
+        if (!old) return []
+        return old.map((u) => (u.id === targetId ? { ...u, isActive: true } : u))
+      })
+
+      return { previousUsers }
+    },
+    onError: (err, _, context) => {
+      if (context?.previousUsers) {
+        queryClient.setQueryData(staffingKeys.users('true'), context.previousUsers)
+      }
+      toast.error(getErrorMessage(err))
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({
+        queryKey: staffingKeys.all,
+      })
+    },
     onSuccess: ({ res, inputUser }) => {
       const name =
         res?.fullName ??
@@ -396,14 +507,7 @@ export function useReactivateUser() {
         inputUser?.email ??
         'User'
 
-      void queryClient.invalidateQueries({
-        queryKey: staffingKeys.all,
-      })
-
       toast.success(`User "${name}" reactivated`)
-    },
-    onError: (err) => {
-      toast.error(getErrorMessage(err))
     },
   })
 }

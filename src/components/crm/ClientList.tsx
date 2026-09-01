@@ -76,13 +76,14 @@ export function ClientList() {
 
   const confirmDeactivate = async () => {
     if (clientToDeactivate) {
-      await deactivateMutation.mutateAsync(clientToDeactivate)
+      const client = clientToDeactivate
       setClientToDeactivate(null)
+      await deactivateMutation.mutateAsync(client)
     }
   }
 
-  const handleReactivate = async (client: Client) => {
-    await reactivateMutation.mutateAsync(client.id)
+  const handleReactivate = (client: Client) => {
+    reactivateMutation.mutate(client)
   }
 
   return (
@@ -214,39 +215,53 @@ export function ClientList() {
                     {(isOwner || isAdmin) && (
                       <div>
                         {isArchived ? (
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            onClick={() => handleReactivate(client)}
-                            disabled={reactivateMutation.isPending}
-                            className="h-8.5 px-3.5 text-xs font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 rounded-xl gap-1.5 shadow-2xs cursor-pointer transition-all"
-                          >
-                            <RotateCcw className="size-3.5" />
-                            Reactivate Client
-                          </Button>
+                          (() => {
+                            const isReactivatingThis =
+                              reactivateMutation.isPending &&
+                              (typeof reactivateMutation.variables === 'number'
+                                ? reactivateMutation.variables === client.id
+                                : (reactivateMutation.variables as Client | undefined)?.id === client.id)
+
+                            return (
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                onClick={() => handleReactivate(client)}
+                                disabled={isReactivatingThis}
+                                className="h-8.5 px-3.5 text-xs font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-500/15 hover:bg-emerald-500/25 active:scale-95 border border-emerald-500/30 rounded-xl gap-2 shadow-2xs cursor-pointer transition-all duration-150"
+                              >
+                                {isReactivatingThis ? (
+                                  <Spinner className="size-3.5 text-emerald-600 animate-spin" />
+                                ) : (
+                                  <RotateCcw className="size-3.5 transition-transform duration-200 group-hover:-rotate-45" />
+                                )}
+                                <span>{isReactivatingThis ? 'Reactivating...' : 'Reactivate Client'}</span>
+                              </Button>
+                            )
+                          })()
                         ) : (
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="size-7 text-muted-foreground hover:text-foreground cursor-pointer"
+                                className="size-8 text-muted-foreground hover:text-foreground cursor-pointer rounded-lg hover:bg-muted active:scale-90 transition-all duration-150"
                               >
                                 <MoreVertical className="size-4" />
                                 <span className="sr-only">Client actions</span>
                               </Button>
                             </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
+                            <DropdownMenuContent align="end" className="p-1">
                               <DropdownMenuItem
                                 onClick={() => handleEdit(client)}
-                                className="gap-2 text-xs cursor-pointer"
+                                className="gap-2 text-xs cursor-pointer px-2 py-1.5 rounded-md active:scale-95 transition-transform"
                               >
                                 <Edit2 className="size-3.5" />
                                 Edit Details
                               </DropdownMenuItem>
                               <DropdownMenuItem
                                 onClick={() => handleDeactivate(client)}
-                                className="gap-2 text-xs text-destructive focus:text-destructive cursor-pointer"
+                                className="gap-2 text-xs text-destructive focus:text-destructive cursor-pointer px-2 py-1.5 rounded-md active:scale-95 transition-transform"
                               >
                                 <Archive className="size-3.5" />
                                 Archive Client

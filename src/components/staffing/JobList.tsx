@@ -79,13 +79,14 @@ export function JobList() {
 
   const confirmDeactivate = async () => {
     if (jobToDeactivate) {
-      await deactivateMutation.mutateAsync(jobToDeactivate)
+      const job = jobToDeactivate
       setJobToDeactivate(null)
+      await deactivateMutation.mutateAsync(job)
     }
   }
 
-  const handleReactivate = async (job: Job) => {
-    await reactivateMutation.mutateAsync(job.id)
+  const handleReactivate = (job: Job) => {
+    reactivateMutation.mutate(job)
   }
 
   return (
@@ -224,22 +225,36 @@ export function JobList() {
 
                   <div className="flex items-center gap-1.5">
                     {isArchived ? (
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        className="h-8.5 px-3.5 text-xs font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 rounded-xl gap-1.5 shadow-2xs cursor-pointer transition-all"
-                        onClick={() => handleReactivate(job)}
-                        disabled={reactivateMutation.isPending}
-                      >
-                        <RotateCcw className="size-3.5" />
-                        Reactivate Position
-                      </Button>
+                      (() => {
+                        const isReactivatingThis =
+                          reactivateMutation.isPending &&
+                          (typeof reactivateMutation.variables === 'number'
+                            ? reactivateMutation.variables === job.id
+                            : (reactivateMutation.variables as Job | undefined)?.id === job.id)
+
+                        return (
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            className="h-8.5 px-3.5 text-xs font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-500/15 hover:bg-emerald-500/25 active:scale-95 border border-emerald-500/30 rounded-xl gap-2 shadow-2xs cursor-pointer transition-all duration-150"
+                            onClick={() => handleReactivate(job)}
+                            disabled={isReactivatingThis}
+                          >
+                            {isReactivatingThis ? (
+                              <Spinner className="size-3.5 text-emerald-600 animate-spin" />
+                            ) : (
+                              <RotateCcw className="size-3.5 transition-transform duration-200 group-hover:-rotate-45" />
+                            )}
+                            <span>{isReactivatingThis ? 'Reactivating...' : 'Reactivate Position'}</span>
+                          </Button>
+                        )
+                      })()
                     ) : (
                       <>
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="h-7 text-xs px-2 cursor-pointer"
+                          className="h-7 text-xs px-2 cursor-pointer active:scale-95 transition-transform"
                           onClick={() => handleEdit(job)}
                         >
                           <Edit2 className="size-3 mr-1" />
@@ -248,7 +263,7 @@ export function JobList() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="h-7 text-xs px-2 text-destructive hover:bg-destructive/10 hover:text-destructive cursor-pointer"
+                          className="h-7 text-xs px-2 text-destructive hover:text-destructive hover:bg-destructive/10 cursor-pointer active:scale-95 transition-transform"
                           onClick={() => handleDeactivate(job)}
                         >
                           <Archive className="size-3 mr-1" />

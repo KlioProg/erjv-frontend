@@ -15,7 +15,7 @@ import type {
   InventoryItemResponse,
   UpdateInventoryItemDetailsPayload,
 } from './products.types'
-import type { FetchParams } from '@/lib/api-client'
+import { getErrorMessage, type FetchParams } from '@/lib/api-client'
 
 export const productKeys = {
   all: ['products'] as const,
@@ -96,10 +96,32 @@ export function useDeactivateProduct(options?: { onViewArchive?: () => void }) {
       const res = await deactivateProductApi(id)
       return { res, inputProduct: typeof productOrId === 'object' ? productOrId : null, id }
     },
-    onSuccess: ({ res, inputProduct }) => {
-      const name = res?.name || inputProduct?.name || 'Product'
+    onMutate: async (productOrId) => {
+      await queryClient.cancelQueries({ queryKey: productKeys.lists('true') })
+      const previousProducts = queryClient.getQueryData<InventoryItemResponse[]>(
+        productKeys.lists('true'),
+      )
+      const targetId = typeof productOrId === 'number' ? productOrId : productOrId.id
+
+      queryClient.setQueryData<InventoryItemResponse[]>(productKeys.lists('true'), (old) => {
+        if (!old) return []
+        return old.map((p) => (p.id === targetId ? { ...p, isActive: false } : p))
+      })
+
+      return { previousProducts }
+    },
+    onError: (err, _, context) => {
+      if (context?.previousProducts) {
+        queryClient.setQueryData(productKeys.lists('true'), context.previousProducts)
+      }
+      toast.error(getErrorMessage(err))
+    },
+    onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: productKeys.all })
       void queryClient.invalidateQueries({ queryKey: ['stock-items'] })
+    },
+    onSuccess: ({ res, inputProduct }) => {
+      const name = res?.name || inputProduct?.name || 'Product'
       toast.success(`Product "${name}" archived`, {
         description: 'Product moved to the Archived Catalog tab.',
         action: options?.onViewArchive
@@ -117,14 +139,38 @@ export function useDeactivateProduct(options?: { onViewArchive?: () => void }) {
 export function useReactivateProduct() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (id: number) => {
-      return await reactivateProductApi(id)
+    mutationFn: async (idOrProduct: number | InventoryItemResponse) => {
+      const id = typeof idOrProduct === 'number' ? idOrProduct : idOrProduct.id
+      const res = await reactivateProductApi(id)
+      return { res, id }
     },
-    onSuccess: (data) => {
+    onMutate: async (idOrProduct) => {
+      await queryClient.cancelQueries({ queryKey: productKeys.lists('true') })
+      const previousProducts = queryClient.getQueryData<InventoryItemResponse[]>(
+        productKeys.lists('true'),
+      )
+      const targetId = typeof idOrProduct === 'number' ? idOrProduct : idOrProduct.id
+
+      queryClient.setQueryData<InventoryItemResponse[]>(productKeys.lists('true'), (old) => {
+        if (!old) return []
+        return old.map((p) => (p.id === targetId ? { ...p, isActive: true } : p))
+      })
+
+      return { previousProducts }
+    },
+    onError: (err, _, context) => {
+      if (context?.previousProducts) {
+        queryClient.setQueryData(productKeys.lists('true'), context.previousProducts)
+      }
+      toast.error(getErrorMessage(err))
+    },
+    onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: productKeys.all })
       void queryClient.invalidateQueries({ queryKey: ['stock-items'] })
+    },
+    onSuccess: ({ res }) => {
       toast.success(
-        `Product "${data.name || 'Product'}" reactivated and restored to active catalog`,
+        `Product "${res.name || 'Product'}" reactivated and restored to active catalog`,
       )
     },
   })

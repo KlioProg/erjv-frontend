@@ -122,13 +122,14 @@ export function EmployeeList() {
 
   const confirmDeactivate = async () => {
     if (employeeToDeactivate) {
-      await deactivateMutation.mutateAsync(employeeToDeactivate)
+      const emp = employeeToDeactivate
       setEmployeeToDeactivate(null)
+      await deactivateMutation.mutateAsync(emp)
     }
   }
 
-  const handleReactivate = async (emp: Employee) => {
-    await reactivateMutation.mutateAsync(emp)
+  const handleReactivate = (emp: Employee) => {
+    reactivateMutation.mutate(emp)
   }
 
   return (
@@ -316,42 +317,68 @@ export function EmployeeList() {
 
                     <TableCell className="text-right">
                       {isArchived ? (
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          onClick={() => handleReactivate(emp)}
-                          disabled={reactivateMutation.isPending}
-                          className="h-8.5 px-3.5 gap-1.5 text-xs font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 rounded-xl shadow-2xs cursor-pointer transition-all"
-                        >
-                          <RotateCcw className="size-3.5" />
-                          Reactivate Profile
-                        </Button>
+                        (() => {
+                          const isReactivatingThis =
+                            reactivateMutation.isPending &&
+                            (typeof reactivateMutation.variables === 'number'
+                              ? reactivateMutation.variables === emp.id
+                              : reactivateMutation.variables?.id === emp.id)
+
+                          return (
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              onClick={() => handleReactivate(emp)}
+                              disabled={isReactivatingThis}
+                              className="h-8.5 px-3.5 gap-2 text-xs font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-500/15 hover:bg-emerald-500/25 active:scale-95 border border-emerald-500/30 rounded-xl shadow-2xs cursor-pointer transition-all duration-150"
+                            >
+                              {isReactivatingThis ? (
+                                <Spinner className="size-3.5 text-emerald-600 animate-spin" />
+                              ) : (
+                                <RotateCcw className="size-3.5 transition-transform duration-200 group-hover:-rotate-45" />
+                              )}
+                              <span>{isReactivatingThis ? 'Reactivating...' : 'Reactivate Profile'}</span>
+                            </Button>
+                          )
+                        })()
                       ) : (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="size-8 cursor-pointer">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="size-8 cursor-pointer rounded-lg hover:bg-muted active:scale-90 transition-all duration-150"
+                            >
                               <MoreVertical className="size-4" />
                               <span className="sr-only">Open actions</span>
                             </Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="w-44">
-                            <DropdownMenuLabel>Staff Actions</DropdownMenuLabel>
-                            <DropdownMenuSeparator />
+                          <DropdownMenuContent align="end" className="w-44 p-1">
+                            <DropdownMenuLabel className="px-2 py-1 text-xs text-muted-foreground font-normal">
+                              Staff Actions
+                            </DropdownMenuLabel>
+                            <DropdownMenuSeparator className="my-1" />
                             <DropdownMenuGroup>
-                              <DropdownMenuItem onClick={() => handleAssignPositions(emp)}>
+                              <DropdownMenuItem
+                                onClick={() => handleAssignPositions(emp)}
+                                className="px-2 py-1.5 text-xs cursor-pointer rounded-md active:scale-95 transition-transform"
+                              >
                                 <Briefcase className="size-4 mr-2 text-primary" />
                                 Assign Roles
                               </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => handleEdit(emp)}>
+                              <DropdownMenuItem
+                                onClick={() => handleEdit(emp)}
+                                className="px-2 py-1.5 text-xs cursor-pointer rounded-md active:scale-95 transition-transform"
+                              >
                                 <Edit2 className="size-4 mr-2" />
                                 Edit Profile
                               </DropdownMenuItem>
                             </DropdownMenuGroup>
-                            <DropdownMenuSeparator />
+                            <DropdownMenuSeparator className="my-1" />
                             <DropdownMenuGroup>
                               <DropdownMenuItem
                                 onClick={() => handleDeactivate(emp)}
-                                className="text-destructive focus:text-destructive focus:bg-destructive/10 cursor-pointer"
+                                className="text-destructive focus:text-destructive focus:bg-destructive/10 cursor-pointer text-xs gap-2 px-2 py-1.5 rounded-md active:scale-95 transition-transform"
                               >
                                 <Archive className="size-4 mr-2" />
                                 Archive Employee

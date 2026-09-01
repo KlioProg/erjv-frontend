@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, forwardRef } from 'react'
 import {
   User,
   Search,
@@ -48,52 +48,75 @@ import { Button } from '../ui/button'
 import { ArchiveTabNav } from '@/components/ui/ArchiveTabNav'
 import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal'
 
-// Role Badge with strict 4x spacing
-function RoleBadgeDisplay({
-  role,
-  interactive,
-  isUpdating,
-}: {
+// Role Badge with strict 4x spacing and native button semantics (prevents text selection carets)
+interface RoleBadgeProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   role: 'OWNER' | 'ADMIN' | 'STAFF'
   interactive?: boolean
   isUpdating?: boolean
-}) {
-  const configs = {
-    OWNER: {
-      label: 'OWNER',
-      icon: Sparkles,
-      color: 'bg-primary/10 text-primary border-primary/25 hover:bg-primary/15',
-    },
-    ADMIN: {
-      label: 'ADMIN',
-      icon: Shield,
-      color: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/25 hover:bg-blue-500/15',
-    },
-    STAFF: {
-      label: 'STAFF',
-      icon: User,
-      color: 'bg-muted/70 text-muted-foreground border-border/80 hover:bg-muted',
-    },
-  }[role]
-
-  const Icon = configs.icon
-
-  return (
-    <div
-      className={`inline-flex items-center gap-2 px-3 py-1 rounded-lg text-xs font-semibold border transition-all shadow-2xs ${configs.color} ${
-        interactive ? 'cursor-pointer' : 'cursor-default'
-      }`}
-    >
-      {isUpdating ? (
-        <Spinner className="size-3 text-current" />
-      ) : (
-        <Icon className="size-3 shrink-0" />
-      )}
-      <span>{configs.label}</span>
-      {interactive && <ChevronDown className="size-3 opacity-60 ml-0.5 shrink-0" />}
-    </div>
-  )
 }
+
+const RoleBadgeDisplay = forwardRef<HTMLButtonElement, RoleBadgeProps>(
+  ({ role, interactive = false, isUpdating = false, className, ...props }, ref) => {
+    const configs = {
+      OWNER: {
+        label: 'OWNER',
+        icon: Sparkles,
+        color:
+          'bg-primary/10 text-primary border-primary/25 hover:bg-primary/15 active:bg-primary/20',
+      },
+      ADMIN: {
+        label: 'ADMIN',
+        icon: Shield,
+        color:
+          'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/25 hover:bg-blue-500/15 active:bg-blue-500/20',
+      },
+      STAFF: {
+        label: 'STAFF',
+        icon: User,
+        color:
+          'bg-muted/70 text-muted-foreground border-border/80 hover:bg-muted active:bg-muted/90',
+      },
+    }[role]
+
+    const Icon = configs.icon
+
+    if (!interactive) {
+      return (
+        <div
+          className={`select-none inline-flex items-center gap-2 px-3 py-1 rounded-lg text-xs font-semibold border shadow-2xs cursor-default ${configs.color}`}
+        >
+          {isUpdating ? (
+            <Spinner className="size-3 text-current" />
+          ) : (
+            <Icon className="size-3 shrink-0 pointer-events-none" />
+          )}
+          <span className="select-none pointer-events-none">{configs.label}</span>
+        </div>
+      )
+    }
+
+    return (
+      <button
+        ref={ref}
+        type="button"
+        disabled={isUpdating}
+        className={`select-none inline-flex items-center gap-2 px-3 py-1 rounded-lg text-xs font-semibold border transition-all shadow-2xs outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer select-none ${configs.color} ${
+          className || ''
+        }`}
+        {...props}
+      >
+        {isUpdating ? (
+          <Spinner className="size-3 text-current" />
+        ) : (
+          <Icon className="size-3 shrink-0 pointer-events-none" />
+        )}
+        <span className="select-none pointer-events-none">{configs.label}</span>
+        <ChevronDown className="size-3 opacity-60 ml-0.5 shrink-0 pointer-events-none" />
+      </button>
+    )
+  },
+)
+RoleBadgeDisplay.displayName = 'RoleBadgeDisplay'
 
 export function UserRolesList() {
   const { isOwner, user: currentUser } = useAuth()
@@ -151,13 +174,14 @@ export function UserRolesList() {
 
   const confirmDeactivate = async () => {
     if (userToDeactivate) {
-      await deactivateUser.mutateAsync(userToDeactivate)
+      const user = userToDeactivate
       setUserToDeactivate(null)
+      await deactivateUser.mutateAsync(user)
     }
   }
 
-  const handleReactivate = async (user: typeof users[0]) => {
-    await reactivateUser.mutateAsync(user)
+  const handleReactivate = (user: typeof users[0]) => {
+    reactivateUser.mutate(user)
   }
 
   return (
@@ -340,13 +364,11 @@ export function UserRolesList() {
                         {isOwner && !isArchived ? (
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                              <div>
-                                <RoleBadgeDisplay
-                                  role={userRole}
-                                  interactive={true}
-                                  isUpdating={isUpdating}
-                                />
-                              </div>
+                              <RoleBadgeDisplay
+                                role={userRole}
+                                interactive={true}
+                                isUpdating={isUpdating}
+                              />
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="start" className="w-52 p-1">
                               <DropdownMenuLabel className="px-2 py-1 text-[11px] text-muted-foreground font-normal">
@@ -407,18 +429,18 @@ export function UserRolesList() {
                         {isArchived ? (
                           <Badge
                             variant="outline"
-                            className="bg-amber-500/10 text-amber-600 dark:text-amber-300 border-amber-500/30 text-[11px] font-semibold gap-1 px-3 py-1 shadow-2xs"
+                            className="select-none bg-amber-500/10 text-amber-600 dark:text-amber-300 border-amber-500/30 text-[11px] font-semibold gap-1 px-3 py-1 shadow-2xs cursor-default"
                           >
-                            <Archive className="size-3" />
-                            Archived
+                            <Archive className="size-3 pointer-events-none" />
+                            <span className="select-none pointer-events-none">Archived</span>
                           </Badge>
                         ) : (
                           <Badge
                             variant="outline"
-                            className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/25 text-[11px] font-semibold gap-1 px-3 py-1 shadow-2xs"
+                            className="select-none bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/25 text-[11px] font-semibold gap-1 px-3 py-1 shadow-2xs cursor-default"
                           >
-                            <CheckCircle2 className="size-3" />
-                            Active
+                            <CheckCircle2 className="size-3 pointer-events-none" />
+                            <span className="select-none pointer-events-none">Active</span>
                           </Badge>
                         )}
                       </TableCell>
@@ -438,27 +460,37 @@ export function UserRolesList() {
                       {/* Actions Column (4x spacing: size-8 rounded-lg) */}
                       <TableCell className="py-3 px-4 text-right">
                         {isArchived ? (
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            onClick={() => handleReactivate(u)}
-                            disabled={
+                          (() => {
+                            const isReactivatingThis =
                               reactivateUser.isPending &&
-                              typeof reactivateUser.variables !== 'number' &&
-                              reactivateUser.variables?.id === u.id
-                            }
-                            className="h-8 px-3 gap-2 text-xs font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 rounded-xl shadow-2xs cursor-pointer transition-all"
-                          >
-                            <RotateCcw className="size-3" />
-                            Reactivate Account
-                          </Button>
+                              (typeof reactivateUser.variables === 'number'
+                                ? reactivateUser.variables === u.id
+                                : reactivateUser.variables?.id === u.id)
+
+                            return (
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                onClick={() => handleReactivate(u)}
+                                disabled={isReactivatingThis}
+                                className="h-8 px-3 gap-2 text-xs font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-500/15 hover:bg-emerald-500/25 active:scale-95 border border-emerald-500/30 rounded-xl shadow-2xs cursor-pointer transition-all duration-150"
+                              >
+                                {isReactivatingThis ? (
+                                  <Spinner className="size-3 text-emerald-600 animate-spin" />
+                                ) : (
+                                  <RotateCcw className="size-3 transition-transform duration-200 group-hover:-rotate-45" />
+                                )}
+                                <span>{isReactivatingThis ? 'Reactivating...' : 'Reactivate Account'}</span>
+                              </Button>
+                            )
+                          })()
                         ) : (
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="size-8 cursor-pointer rounded-lg hover:bg-muted"
+                                className="size-8 cursor-pointer rounded-lg hover:bg-muted active:scale-90 transition-all duration-150"
                                 disabled={isSelf}
                                 title={
                                   isSelf
@@ -478,7 +510,7 @@ export function UserRolesList() {
                               <DropdownMenuGroup>
                                 <DropdownMenuItem
                                   onClick={() => handleDeactivate(u)}
-                                  className="text-destructive focus:text-destructive focus:bg-destructive/10 cursor-pointer text-xs gap-2 px-2 py-1.5 rounded-md"
+                                  className="text-destructive focus:text-destructive focus:bg-destructive/10 cursor-pointer text-xs gap-2 px-2 py-1.5 rounded-md active:scale-95 transition-transform"
                                 >
                                   <Archive className="size-4" />
                                   Archive Account

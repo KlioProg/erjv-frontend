@@ -68,10 +68,33 @@ export function useDeactivateWarehouse(options?: { onViewArchive?: () => void })
       const res = await deactivateWarehouseApi(id)
       return { res, inputWarehouse: typeof whOrId === 'object' ? whOrId : null, id }
     },
-    onSuccess: ({ res, inputWarehouse }) => {
-      const name = res?.name || inputWarehouse?.name || 'Facility'
+    onMutate: async (whOrId) => {
+      await queryClient.cancelQueries({ queryKey: [...WAREHOUSES_QUERY_KEY, 'true'] })
+      const previousWarehouses = queryClient.getQueryData<Warehouse[]>([
+        ...WAREHOUSES_QUERY_KEY,
+        'true',
+      ])
+      const targetId = typeof whOrId === 'number' ? whOrId : whOrId.id
+
+      queryClient.setQueryData<Warehouse[]>([...WAREHOUSES_QUERY_KEY, 'true'], (old) => {
+        if (!old) return []
+        return old.map((w) => (w.id === targetId ? { ...w, isActive: false } : w))
+      })
+
+      return { previousWarehouses }
+    },
+    onError: (err, _, context) => {
+      if (context?.previousWarehouses) {
+        queryClient.setQueryData([...WAREHOUSES_QUERY_KEY, 'true'], context.previousWarehouses)
+      }
+      toast.error(getErrorMessage(err))
+    },
+    onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: WAREHOUSES_QUERY_KEY })
       void queryClient.invalidateQueries({ queryKey: ['stock-items'] })
+    },
+    onSuccess: ({ res, inputWarehouse }) => {
+      const name = res?.name || inputWarehouse?.name || 'Facility'
       toast.success(`Warehouse "${name}" archived`, {
         description: 'Facility moved to the Archived Hubs tab.',
         action: options?.onViewArchive
@@ -82,25 +105,46 @@ export function useDeactivateWarehouse(options?: { onViewArchive?: () => void })
           : undefined,
       })
     },
-    onError: (err) => {
-      toast.error(getErrorMessage(err))
-    },
   })
 }
 
 export function useReactivateWarehouse() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (id: number) => reactivateWarehouseApi(id),
-    onSuccess: (data) => {
+    mutationFn: async (idOrWh: number | Warehouse) => {
+      const id = typeof idOrWh === 'number' ? idOrWh : idOrWh.id
+      const res = await reactivateWarehouseApi(id)
+      return { res, id }
+    },
+    onMutate: async (idOrWh) => {
+      await queryClient.cancelQueries({ queryKey: [...WAREHOUSES_QUERY_KEY, 'true'] })
+      const previousWarehouses = queryClient.getQueryData<Warehouse[]>([
+        ...WAREHOUSES_QUERY_KEY,
+        'true',
+      ])
+      const targetId = typeof idOrWh === 'number' ? idOrWh : idOrWh.id
+
+      queryClient.setQueryData<Warehouse[]>([...WAREHOUSES_QUERY_KEY, 'true'], (old) => {
+        if (!old) return []
+        return old.map((w) => (w.id === targetId ? { ...w, isActive: true } : w))
+      })
+
+      return { previousWarehouses }
+    },
+    onError: (err, _, context) => {
+      if (context?.previousWarehouses) {
+        queryClient.setQueryData([...WAREHOUSES_QUERY_KEY, 'true'], context.previousWarehouses)
+      }
+      toast.error(getErrorMessage(err))
+    },
+    onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: WAREHOUSES_QUERY_KEY })
       void queryClient.invalidateQueries({ queryKey: ['stock-items'] })
-      toast.success(
-        `Warehouse "${data?.name || 'Facility'}" reactivated and restored to active hubs`,
-      )
     },
-    onError: (err) => {
-      toast.error(getErrorMessage(err))
+    onSuccess: ({ res }) => {
+      toast.success(
+        `Warehouse "${res?.name || 'Facility'}" reactivated and restored to active hubs`,
+      )
     },
   })
 }

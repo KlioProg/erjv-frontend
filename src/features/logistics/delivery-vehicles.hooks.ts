@@ -90,9 +90,32 @@ export function useDeactivateVehicle(options?: { onViewArchive?: () => void }) {
       const res = await deactivateVehicleApi(id)
       return { res, inputVehicle: typeof vehicle === 'object' ? vehicle : null, id }
     },
+    onMutate: async (vehicle) => {
+      await queryClient.cancelQueries({ queryKey: [...VEHICLES_QUERY_KEY, 'true'] })
+      const previousVehicles = queryClient.getQueryData<DeliveryVehicle[]>([
+        ...VEHICLES_QUERY_KEY,
+        'true',
+      ])
+      const targetId = typeof vehicle === 'number' ? vehicle : vehicle.id
+
+      queryClient.setQueryData<DeliveryVehicle[]>([...VEHICLES_QUERY_KEY, 'true'], (old) => {
+        if (!old) return []
+        return old.map((v) => (v.id === targetId ? { ...v, isActive: false } : v))
+      })
+
+      return { previousVehicles }
+    },
+    onError: (err, _, context) => {
+      if (context?.previousVehicles) {
+        queryClient.setQueryData([...VEHICLES_QUERY_KEY, 'true'], context.previousVehicles)
+      }
+      toast.error(getErrorMessage(err))
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: VEHICLES_QUERY_KEY })
+    },
     onSuccess: ({ res, inputVehicle }) => {
       const plate = res?.plateNumber || inputVehicle?.plateNumber || 'Fleet asset'
-      void queryClient.invalidateQueries({ queryKey: VEHICLES_QUERY_KEY })
       toast.success(`Vehicle "${plate}" archived`, {
         description: 'Vehicle moved to the Archived Fleet tab.',
         action: options?.onViewArchive
@@ -103,26 +126,45 @@ export function useDeactivateVehicle(options?: { onViewArchive?: () => void }) {
           : undefined,
       })
     },
-    onError: (err) => {
-      toast.error(getErrorMessage(err))
-    },
   })
 }
 
 export function useReactivateVehicle() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (id: number) => {
-      return await reactivateVehicleApi(id)
+    mutationFn: async (idOrVehicle: number | DeliveryVehicle) => {
+      const id = typeof idOrVehicle === 'number' ? idOrVehicle : idOrVehicle.id
+      const res = await reactivateVehicleApi(id)
+      return { res, id }
     },
-    onSuccess: (data) => {
-      void queryClient.invalidateQueries({ queryKey: VEHICLES_QUERY_KEY })
-      toast.success(
-        `Vehicle "${data.plateNumber || 'Fleet asset'}" reactivated and restored to active fleet`,
-      )
+    onMutate: async (idOrVehicle) => {
+      await queryClient.cancelQueries({ queryKey: [...VEHICLES_QUERY_KEY, 'true'] })
+      const previousVehicles = queryClient.getQueryData<DeliveryVehicle[]>([
+        ...VEHICLES_QUERY_KEY,
+        'true',
+      ])
+      const targetId = typeof idOrVehicle === 'number' ? idOrVehicle : idOrVehicle.id
+
+      queryClient.setQueryData<DeliveryVehicle[]>([...VEHICLES_QUERY_KEY, 'true'], (old) => {
+        if (!old) return []
+        return old.map((v) => (v.id === targetId ? { ...v, isActive: true } : v))
+      })
+
+      return { previousVehicles }
     },
-    onError: (err) => {
+    onError: (err, _, context) => {
+      if (context?.previousVehicles) {
+        queryClient.setQueryData([...VEHICLES_QUERY_KEY, 'true'], context.previousVehicles)
+      }
       toast.error(getErrorMessage(err))
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: VEHICLES_QUERY_KEY })
+    },
+    onSuccess: ({ res }) => {
+      toast.success(
+        `Vehicle "${res?.plateNumber || 'Fleet asset'}" reactivated and restored to active fleet`,
+      )
     },
   })
 }

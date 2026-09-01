@@ -76,13 +76,14 @@ export function WarehouseList() {
 
   const confirmArchive = async () => {
     if (warehouseToArchive) {
-      await deactivateMutation.mutateAsync(warehouseToArchive.id)
+      const wh = warehouseToArchive
       setWarehouseToArchive(null)
+      await deactivateMutation.mutateAsync(wh.id)
     }
   }
 
-  const handleRestore = async (warehouse: Warehouse) => {
-    await reactivateMutation.mutateAsync(warehouse.id)
+  const handleRestore = (warehouse: Warehouse) => {
+    reactivateMutation.mutate(warehouse.id)
   }
 
   return (
@@ -331,18 +332,30 @@ export function WarehouseList() {
                     </div>
 
                     {isArchived ? (
-                      (isOwner || isAdmin) && (
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          onClick={() => handleRestore(wh)}
-                          disabled={reactivateMutation.isPending}
-                          className="h-8 px-3.5 text-xs font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 rounded-xl gap-1.5 shadow-2xs cursor-pointer transition-all ml-auto"
-                        >
-                          <RotateCcw className="size-3.5" />
-                          Restore Facility
-                        </Button>
-                      )
+                      (isOwner || isAdmin) && (() => {
+                        const isRestoringThis =
+                          reactivateMutation.isPending &&
+                          (typeof reactivateMutation.variables === 'number'
+                            ? reactivateMutation.variables === wh.id
+                            : (reactivateMutation.variables as Warehouse | undefined)?.id === wh.id)
+
+                        return (
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => handleRestore(wh)}
+                            disabled={isRestoringThis}
+                            className="h-8 px-3.5 text-xs font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-500/15 hover:bg-emerald-500/25 active:scale-95 border border-emerald-500/30 rounded-xl gap-2 shadow-2xs cursor-pointer transition-all duration-150 ml-auto"
+                          >
+                            {isRestoringThis ? (
+                              <Spinner className="size-3.5 text-emerald-600 animate-spin" />
+                            ) : (
+                              <RotateCcw className="size-3.5 transition-transform duration-200 group-hover:-rotate-45" />
+                            )}
+                            <span>{isRestoringThis ? 'Restoring...' : 'Restore Facility'}</span>
+                          </Button>
+                        )
+                      })()
                     ) : (
                       <Badge
                         variant="outline"

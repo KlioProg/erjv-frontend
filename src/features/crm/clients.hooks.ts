@@ -61,9 +61,29 @@ export function useDeactivateClient(options?: { onViewArchive?: () => void }) {
       const res = await deactivateClientApi(id)
       return { res, inputClient: typeof clientOrId === 'object' ? clientOrId : null, id }
     },
+    onMutate: async (clientOrId) => {
+      await queryClient.cancelQueries({ queryKey: [...CLIENTS_QUERY_KEY, 'true'] })
+      const previousClients = queryClient.getQueryData<Client[]>([...CLIENTS_QUERY_KEY, 'true'])
+      const targetId = typeof clientOrId === 'number' ? clientOrId : clientOrId.id
+
+      queryClient.setQueryData<Client[]>([...CLIENTS_QUERY_KEY, 'true'], (old) => {
+        if (!old) return []
+        return old.map((c) => (c.id === targetId ? { ...c, isActive: false } : c))
+      })
+
+      return { previousClients }
+    },
+    onError: (err, _, context) => {
+      if (context?.previousClients) {
+        queryClient.setQueryData([...CLIENTS_QUERY_KEY, 'true'], context.previousClients)
+      }
+      toast.error(getErrorMessage(err))
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: CLIENTS_QUERY_KEY })
+    },
     onSuccess: ({ res, inputClient }) => {
       const name = res?.name || inputClient?.name || 'Account'
-      void queryClient.invalidateQueries({ queryKey: CLIENTS_QUERY_KEY })
       toast.success(`Client "${name}" archived`, {
         description: 'Client profile moved to the Archived Clients tab.',
         action: options?.onViewArchive
@@ -74,26 +94,42 @@ export function useDeactivateClient(options?: { onViewArchive?: () => void }) {
           : undefined,
       })
     },
-    onError: (err) => {
-      toast.error(getErrorMessage(err))
-    },
   })
 }
 
 export function useReactivateClient() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (id: number) => {
-      return await reactivateClientApi(id)
+    mutationFn: async (idOrClient: number | Client) => {
+      const id = typeof idOrClient === 'number' ? idOrClient : idOrClient.id
+      const res = await reactivateClientApi(id)
+      return { res, id }
     },
-    onSuccess: (data) => {
-      void queryClient.invalidateQueries({ queryKey: CLIENTS_QUERY_KEY })
-      toast.success(
-        `Client "${data.name || 'Account'}" reactivated and restored to active directory`,
-      )
+    onMutate: async (idOrClient) => {
+      await queryClient.cancelQueries({ queryKey: [...CLIENTS_QUERY_KEY, 'true'] })
+      const previousClients = queryClient.getQueryData<Client[]>([...CLIENTS_QUERY_KEY, 'true'])
+      const targetId = typeof idOrClient === 'number' ? idOrClient : idOrClient.id
+
+      queryClient.setQueryData<Client[]>([...CLIENTS_QUERY_KEY, 'true'], (old) => {
+        if (!old) return []
+        return old.map((c) => (c.id === targetId ? { ...c, isActive: true } : c))
+      })
+
+      return { previousClients }
     },
-    onError: (err) => {
+    onError: (err, _, context) => {
+      if (context?.previousClients) {
+        queryClient.setQueryData([...CLIENTS_QUERY_KEY, 'true'], context.previousClients)
+      }
       toast.error(getErrorMessage(err))
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: CLIENTS_QUERY_KEY })
+    },
+    onSuccess: ({ res }) => {
+      toast.success(
+        `Client "${res.name || 'Account'}" reactivated and restored to active directory`,
+      )
     },
   })
 }
