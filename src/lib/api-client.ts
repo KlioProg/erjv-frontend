@@ -67,6 +67,21 @@ export function getErrorMessage(error: unknown): string {
     const url = axiosErr.config?.url || ''
     const lower = serverMessage.toLowerCase()
 
+    // 0. Login failures (/auth/login)
+    if (url.includes('/auth/login')) {
+      if (
+        status === 401 ||
+        lower.includes('invalid credentials') ||
+        lower.includes('unauthorized') ||
+        lower.includes('password')
+      ) {
+        return 'Incorrect email or password. Please verify your credentials and try again.'
+      }
+      if (status === 403 || lower.includes('deactivated') || lower.includes('inactive')) {
+        return 'Your account has been deactivated. Please contact an enterprise owner or administrator.'
+      }
+    }
+
     // 1. User Registration conflicts (/auth/register)
     if (
       url.includes('/auth/register') &&

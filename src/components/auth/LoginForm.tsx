@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { Mail, Lock, Eye, EyeOff, LogIn } from 'lucide-react'
+import { Mail, Lock, Eye, EyeOff, LogIn, AlertCircle, CheckCircle2 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -12,6 +12,7 @@ type LoginFormProps = {
   onSubmit: (event: FormEvent<HTMLFormElement>) => void
   onForgotPasswordClick: () => void
   isSubmitting: boolean
+  isSuccess?: boolean
   errorMessage: string
   successMessage: string
 }
@@ -20,6 +21,7 @@ export default function LoginForm({
   onSubmit,
   onForgotPasswordClick,
   isSubmitting,
+  isSuccess = false,
   errorMessage,
   successMessage,
 }: LoginFormProps) {
@@ -67,11 +69,26 @@ export default function LoginForm({
     onSubmit(e)
   }
 
+  const isPasswordRejected =
+    !!errorMessage &&
+    (errorMessage.toLowerCase().includes('password') ||
+      errorMessage.toLowerCase().includes('credentials') ||
+      errorMessage.toLowerCase().includes('rejected'))
+
   return (
     <form className="flex flex-col gap-3.5" onSubmit={handleSubmit} noValidate>
       {errorMessage && (
-        <Alert variant="destructive">
-          <AlertDescription>{errorMessage}</AlertDescription>
+        <Alert
+          variant="destructive"
+          className="flex items-start gap-2.5 rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-destructive animate-in fade-in-50 duration-200"
+        >
+          <AlertCircle className="size-4 shrink-0 mt-0.5" />
+          <div className="flex flex-col gap-0.5">
+            <span className="font-bold text-xs">Incorrect Email or Password</span>
+            <AlertDescription className="text-xs leading-normal opacity-90">
+              {errorMessage}
+            </AlertDescription>
+          </div>
         </Alert>
       )}
 
@@ -82,7 +99,10 @@ export default function LoginForm({
       )}
 
       {/* Email input */}
-      <div className="flex flex-col gap-1.5" data-invalid={emailVal.message ? true : undefined}>
+      <div
+        className="flex flex-col gap-1.5"
+        data-invalid={emailVal.message || isPasswordRejected ? true : undefined}
+      >
         <Label htmlFor="login-email" className="text-xs font-semibold text-foreground/90">
           Email address
         </Label>
@@ -95,8 +115,12 @@ export default function LoginForm({
             autoComplete="email"
             placeholder="you@company.com"
             value={email}
-            className="pl-9"
-            aria-invalid={emailVal.message ? true : undefined}
+            className={`pl-9 ${
+              isPasswordRejected
+                ? 'border-destructive/80 ring-1 ring-destructive/30 focus-visible:ring-destructive/30'
+                : ''
+            }`}
+            aria-invalid={emailVal.message || isPasswordRejected ? true : undefined}
             disabled={isSubmitting}
             onChange={(e) => {
               setEmail(e.target.value)
@@ -104,13 +128,19 @@ export default function LoginForm({
             }}
           />
         </div>
-        {emailVal.message && (
-          <p className="text-[11px] font-medium text-destructive">{emailVal.message}</p>
+        {(emailVal.message || isPasswordRejected) && (
+          <p className="text-[11px] font-semibold text-destructive flex items-center gap-1.5 animate-in fade-in-50">
+            <AlertCircle className="size-3 shrink-0" />
+            {emailVal.message || 'Please check your email address'}
+          </p>
         )}
       </div>
 
       {/* Password input */}
-      <div className="flex flex-col gap-1.5" data-invalid={passVal.message ? true : undefined}>
+      <div
+        className="flex flex-col gap-1.5"
+        data-invalid={passVal.message || isPasswordRejected ? true : undefined}
+      >
         <Label htmlFor="login-password" className="text-xs font-semibold text-foreground/90">
           Password
         </Label>
@@ -123,9 +153,13 @@ export default function LoginForm({
             autoComplete="current-password"
             placeholder="Enter your password"
             value={password}
-            className="pl-9 pr-10"
+            className={`pl-9 pr-10 ${
+              isPasswordRejected
+                ? 'border-destructive/80 ring-1 ring-destructive/30 focus-visible:ring-destructive/30'
+                : ''
+            }`}
             minLength={8}
-            aria-invalid={passVal.message ? true : undefined}
+            aria-invalid={passVal.message || isPasswordRejected ? true : undefined}
             disabled={isSubmitting}
             onChange={(e) => {
               setPassword(e.target.value)
@@ -142,8 +176,11 @@ export default function LoginForm({
             {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
           </button>
         </div>
-        {passVal.message && (
-          <p className="text-[11px] font-medium text-destructive">{passVal.message}</p>
+        {(passVal.message || isPasswordRejected) && (
+          <p className="text-[11px] font-semibold text-destructive flex items-center gap-1.5 animate-in fade-in-50">
+            <AlertCircle className="size-3 shrink-0" />
+            {passVal.message || 'Incorrect password or email address'}
+          </p>
         )}
       </div>
 
@@ -174,19 +211,26 @@ export default function LoginForm({
 
       <Button
         type="submit"
-        className="mt-1 w-full font-semibold shadow-md"
+        className={`mt-1 w-full font-bold shadow-md cursor-pointer transition-all duration-200 active:scale-[0.98] ${
+          isSuccess ? 'bg-emerald-600 hover:bg-emerald-600 text-white' : ''
+        }`}
         size="lg"
-        disabled={isSubmitting}
+        disabled={isSubmitting || isSuccess}
       >
-        {isSubmitting ? (
+        {isSuccess ? (
           <>
-            <Spinner data-icon="inline-start" />
-            Connecting to server...
+            <CheckCircle2 className="size-4 text-white animate-in zoom-in-50 duration-200" />
+            <span>Success! Entering dashboard...</span>
+          </>
+        ) : isSubmitting ? (
+          <>
+            <Spinner className="size-4 animate-spin text-primary-foreground" />
+            <span>Verifying credentials...</span>
           </>
         ) : (
           <>
-            <LogIn data-icon="inline-start" className="size-4" />
-            Sign in
+            <LogIn className="size-4" />
+            <span>Sign in</span>
           </>
         )}
       </Button>

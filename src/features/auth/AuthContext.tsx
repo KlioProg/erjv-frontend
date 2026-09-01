@@ -188,7 +188,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [token])
 
   const login = async (payload: LoginRequest, rememberMe: boolean = false) => {
-    setIsLoading(true)
     const cleanEmail = payload.email.trim().toLowerCase()
     const cleanPassword = payload.password
 
@@ -235,8 +234,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setToken(null)
       setUser(null)
       throw new Error(getErrorMessage(err), { cause: err })
-    } finally {
-      setIsLoading(false)
     }
   }
 

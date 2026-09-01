@@ -32,7 +32,11 @@ function AppContent() {
   }
 
   if (isAuthenticated) {
-    return <MainDashboard />
+    return (
+      <div className="animate-in fade-in-0 duration-300 min-h-svh">
+        <MainDashboard />
+      </div>
+    )
   }
 
   return (

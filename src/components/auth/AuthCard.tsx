@@ -26,6 +26,7 @@ type AuthCardProps = {
 export function AuthCard({ mode, onModeChange }: AuthCardProps) {
   const { login, register } = useAuth()
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isSuccess, setIsSuccess] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
   const [successMessage, setSuccessMessage] = useState('')
   const [isForgotPasswordOpen, setIsForgotPasswordOpen] = useState(false)
@@ -43,9 +44,12 @@ export function AuthCard({ mode, onModeChange }: AuthCardProps) {
 
     try {
       await login({ email, password }, rememberMe)
-      setSuccessMessage('Signed in successfully.')
+      setIsSuccess(true)
+      setSuccessMessage('Welcome back! Redirecting...')
+      await new Promise((resolve) => setTimeout(resolve, 400))
     } catch (err) {
-      setErrorMessage(getErrorMessage(err))
+      const message = getErrorMessage(err)
+      setErrorMessage(message)
     } finally {
       setIsSubmitting(false)
     }
@@ -84,7 +88,11 @@ export function AuthCard({ mode, onModeChange }: AuthCardProps) {
 
   return (
     <div className="w-full">
-      <Card className="w-full border-border/80 bg-card/95 backdrop-blur-sm shadow-xl ring-1 ring-black/5 sm:rounded-3xl">
+      <Card
+        className={`w-full border-border/80 bg-card/95 backdrop-blur-sm shadow-xl ring-1 ring-black/5 sm:rounded-3xl transition-all duration-300 ${
+          isSuccess ? 'scale-[0.98] opacity-90' : ''
+        }`}
+      >
         <CardHeader className="items-center pb-3 text-center">
           <ErjvPosLogo className="mb-1" />
           <CardTitle className="mt-1 text-2xl font-bold tracking-tight text-foreground">
@@ -108,8 +116,12 @@ export function AuthCard({ mode, onModeChange }: AuthCardProps) {
             className="w-full"
           >
             <TabsList className="grid w-full grid-cols-2 p-1 bg-secondary/80">
-              <TabsTrigger value="login">Sign In</TabsTrigger>
-              <TabsTrigger value="signup">Register</TabsTrigger>
+              <TabsTrigger value="login" className="text-xs font-semibold py-2">
+                Sign In
+              </TabsTrigger>
+              <TabsTrigger value="signup" className="text-xs font-semibold py-2">
+                Register Store
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent
@@ -120,6 +132,7 @@ export function AuthCard({ mode, onModeChange }: AuthCardProps) {
                 onSubmit={handleLoginSubmit}
                 onForgotPasswordClick={() => setIsForgotPasswordOpen(true)}
                 isSubmitting={isSubmitting}
+                isSuccess={isSuccess}
                 errorMessage={errorMessage}
                 successMessage={successMessage}
               />
