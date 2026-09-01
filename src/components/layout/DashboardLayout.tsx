@@ -151,7 +151,7 @@ export function DashboardLayout({ currentTab, onSelectTab, children }: Dashboard
                           handleSelectTab(item.key)
                           setIsMobileOpen(false)
                         }}
-                        className={`group relative flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-xs font-semibold transition-all duration-150 cursor-pointer ${
+                        className={`group relative flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-xs font-semibold transition-all duration-150 cursor-pointer select-none active:scale-[0.98] ${
                           isActive
                             ? 'bg-primary text-primary-foreground shadow-sm shadow-primary/25'
                             : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
@@ -262,7 +262,7 @@ export function DashboardLayout({ currentTab, onSelectTab, children }: Dashboard
               <Menu className="size-5" />
             </Button>
 
-            <div className="flex flex-col">
+            <div className="flex flex-col select-none">
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <span className="font-medium">{currentGroup?.title}</span>
                 <span>/</span>

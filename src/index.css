@@ -112,6 +112,17 @@ select:disabled {
   cursor: not-allowed;
 }
 
+/* Prevent accidental text cursor & selection on interactive controls, headers, and UI chrome */
+button,
+[role='button'],
+[role='tab'],
+header,
+nav,
+.select-none {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
 body {
   margin: 0;
   min-width: 320px;
