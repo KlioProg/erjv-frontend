@@ -345,12 +345,12 @@ export function WarehouseList() {
                             size="sm"
                             onClick={() => handleRestore(wh)}
                             disabled={isRestoringThis}
-                            className="h-8 px-3.5 text-xs font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-500/15 hover:bg-emerald-500/25 active:scale-95 border border-emerald-500/30 rounded-xl gap-2 shadow-2xs cursor-pointer transition-all duration-150 ml-auto"
+                            className="group h-8 px-3.5 text-xs font-bold text-emerald-600 dark:text-emerald-600 bg-emerald-500/15 hover:bg-emerald-500/25 active:scale-95 border border-emerald-500/30 rounded-xl gap-2 shadow-2xs cursor-pointer transition-all duration-150 ml-auto"
                           >
                             {isRestoringThis ? (
-                              <Spinner className="size-3.5 text-emerald-600 animate-spin" />
+                              <Spinner className="size-3.5 text-emerald-600 dark:text-emerald-600 animate-spin" />
                             ) : (
-                              <RotateCcw className="size-3.5 transition-transform duration-200 group-hover:-rotate-45" />
+                              <RotateCcw className="size-3.5 text-emerald-600 dark:text-emerald-600 transition-transform duration-200 group-hover:-rotate-45" />
                             )}
                             <span>{isRestoringThis ? 'Restoring...' : 'Restore Facility'}</span>
                           </Button>

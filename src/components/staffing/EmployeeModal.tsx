@@ -349,7 +349,7 @@ function EmployeeFormContent({
               type="button"
               onClick={handleRestoreFoundEmployee}
               disabled={isPending}
-              className="gap-2 font-bold shadow-xs bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer transition-all duration-300 animate-in fade-in-0 zoom-in-95"
+              className="group gap-2 font-bold shadow-xs bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer transition-all duration-300 animate-in fade-in-0 zoom-in-95"
             >
               {reactivateMutation.isPending ? (
                 <>
@@ -358,7 +358,7 @@ function EmployeeFormContent({
                 </>
               ) : (
                 <>
-                  <RotateCcw className="size-4" />
+                  <RotateCcw className="size-4 transition-transform duration-200 group-hover:-rotate-45" />
                   Reactivate Employee Profile
                 </>
               )}

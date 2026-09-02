@@ -278,7 +278,7 @@ export function InventoryStockList() {
             return (
               <Card
                 key={prod.id}
-                className={`overflow-hidden border-border/80 shadow-xs hover:border-primary/40 transition-all rounded-2xl ${
+                className={`group overflow-hidden border-border/80 shadow-xs hover:border-primary/40 transition-all rounded-2xl ${
                   isArchived ? 'opacity-75 bg-muted/20 border-dashed' : ''
                 }`}
               >
@@ -362,12 +362,12 @@ export function InventoryStockList() {
                                   size="sm"
                                   onClick={() => handleReactivateProduct(prod)}
                                   disabled={isReactivatingThis}
-                                  className="h-9 px-4 gap-2 text-xs font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-500/15 hover:bg-emerald-500/25 active:scale-95 border border-emerald-500/30 rounded-xl shadow-2xs cursor-pointer transition-all duration-150"
+                                  className="group h-9 px-4 gap-2 text-xs font-bold text-emerald-600 dark:text-emerald-600 bg-emerald-500/15 hover:bg-emerald-500/25 active:scale-95 border border-emerald-500/30 rounded-xl shadow-2xs cursor-pointer transition-all duration-150"
                                 >
                                   {isReactivatingThis ? (
-                                    <Spinner className="size-3.5 text-emerald-600 animate-spin" />
+                                    <Spinner className="size-3.5 text-emerald-600 dark:text-emerald-600 animate-spin" />
                                   ) : (
-                                    <RotateCcw className="size-3.5 transition-transform duration-200 group-hover:-rotate-45" />
+                                    <RotateCcw className="size-3.5 text-emerald-600 dark:text-emerald-600 transition-transform duration-200 group-hover:-rotate-45" />
                                   )}
                                   <span>{isReactivatingThis ? 'Reactivating...' : 'Reactivate Product'}</span>
                                 </Button>

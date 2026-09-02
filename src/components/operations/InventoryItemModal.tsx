@@ -422,7 +422,7 @@ function ItemFormContent({
                 type="button"
                 onClick={handleRestoreFoundProduct}
                 disabled={isPending}
-                className="gap-2 font-bold shadow-xs bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer transition-all duration-300 animate-in fade-in-0 zoom-in-95"
+                className="group gap-2 font-bold shadow-xs bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer transition-all duration-300 animate-in fade-in-0 zoom-in-95"
               >
                 {reactivateMutation.isPending ? (
                   <>
@@ -431,7 +431,7 @@ function ItemFormContent({
                   </>
                 ) : (
                   <>
-                    <RotateCcw className="size-4" />
+                    <RotateCcw className="size-4 transition-transform duration-200 group-hover:-rotate-45" />
                     Reactivate Product
                   </>
                 )}

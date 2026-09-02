@@ -17,6 +17,7 @@ import {
   useCreateWarehouse,
   useUpdateWarehouseDetails,
   useReactivateWarehouse,
+  fetchWarehouseByNameApi,
 } from '@/features/logistics/warehouses.hooks'
 import type { Warehouse } from '@/features/logistics/warehouses.types'
 import { getErrorMessage } from '@/lib/api-client'
@@ -86,6 +87,13 @@ function WarehouseFormContent({
           },
         })
       } else {
+        // Pre-check if an archived warehouse with this name exists so user can restore it directly
+        const existingMatch = await fetchWarehouseByNameApi(cleanName).catch(() => null)
+        if (existingMatch && existingMatch.isActive === false) {
+          setDeactivatedWarehouseMatch(existingMatch)
+          return
+        }
+
         await createMutation.mutateAsync({
           name: name.trim(),
           address: address.trim(),
@@ -95,7 +103,22 @@ function WarehouseFormContent({
       }
       onClose()
     } catch (err) {
-      setErrorMsg(getErrorMessage(err))
+      const msg = getErrorMessage(err)
+      if (
+        !isEditing &&
+        (msg.toLowerCase().includes('already exists') || msg.toLowerCase().includes('duplicate'))
+      ) {
+        try {
+          const match = await fetchWarehouseByNameApi(cleanName)
+          if (match && match.isActive === false) {
+            setDeactivatedWarehouseMatch(match)
+            return
+          }
+        } catch {
+          // Ignore
+        }
+      }
+      setErrorMsg(msg)
     }
   }
 
@@ -230,7 +253,7 @@ function WarehouseFormContent({
               type="button"
               onClick={handleRestoreFoundWarehouse}
               disabled={isPending}
-              className="gap-2 font-bold shadow-xs bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer transition-all duration-300 animate-in fade-in-0 zoom-in-95"
+              className="group gap-2 font-bold shadow-xs bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer transition-all duration-300 animate-in fade-in-0 zoom-in-95"
             >
               {reactivateMutation.isPending ? (
                 <>
@@ -239,7 +262,7 @@ function WarehouseFormContent({
                 </>
               ) : (
                 <>
-                  <RotateCcw className="size-4" />
+                  <RotateCcw className="size-4 transition-transform duration-200 group-hover:-rotate-45" />
                   Reactivate Warehouse Facility
                 </>
               )}

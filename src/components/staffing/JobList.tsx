@@ -175,7 +175,7 @@ export function JobList() {
             return (
               <Card
                 key={job.id}
-                className={`flex flex-col justify-between transition-all rounded-2xl ${
+                className={`group flex flex-col justify-between transition-all rounded-2xl ${
                   isArchived
                     ? 'bg-amber-500/5 border-dashed border-amber-500/30 shadow-2xs'
                     : 'hover:shadow-md border-border/80'
@@ -236,14 +236,14 @@ export function JobList() {
                           <Button
                             variant="secondary"
                             size="sm"
-                            className="h-8.5 px-3.5 text-xs font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-500/15 hover:bg-emerald-500/25 active:scale-95 border border-emerald-500/30 rounded-xl gap-2 shadow-2xs cursor-pointer transition-all duration-150"
+                            className="group h-8.5 px-3.5 text-xs font-bold text-emerald-600 dark:text-emerald-600 bg-emerald-500/15 hover:bg-emerald-500/25 active:scale-95 border border-emerald-500/30 rounded-xl gap-2 shadow-2xs cursor-pointer transition-all duration-150"
                             onClick={() => handleReactivate(job)}
                             disabled={isReactivatingThis}
                           >
                             {isReactivatingThis ? (
-                              <Spinner className="size-3.5 text-emerald-600 animate-spin" />
+                              <Spinner className="size-3.5 text-emerald-600 dark:text-emerald-600 animate-spin" />
                             ) : (
-                              <RotateCcw className="size-3.5 transition-transform duration-200 group-hover:-rotate-45" />
+                              <RotateCcw className="size-3.5 text-emerald-600 dark:text-emerald-600 transition-transform duration-200 group-hover:-rotate-45" />
                             )}
                             <span>{isReactivatingThis ? 'Reactivating...' : 'Reactivate Position'}</span>
                           </Button>

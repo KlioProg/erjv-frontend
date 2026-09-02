@@ -233,7 +233,7 @@ export function EmployeeList() {
                 return (
                   <TableRow
                     key={emp.id}
-                    className={`hover:bg-muted/30 ${isArchived ? 'opacity-75 bg-muted/10' : ''}`}
+                    className={`group hover:bg-muted/30 ${isArchived ? 'opacity-75 bg-muted/10' : ''}`}
                   >
                     <TableCell>
                       <div className="flex items-center gap-3">
@@ -330,12 +330,12 @@ export function EmployeeList() {
                               size="sm"
                               onClick={() => handleReactivate(emp)}
                               disabled={isReactivatingThis}
-                              className="h-8.5 px-3.5 gap-2 text-xs font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-500/15 hover:bg-emerald-500/25 active:scale-95 border border-emerald-500/30 rounded-xl shadow-2xs cursor-pointer transition-all duration-150"
+                              className="group h-8.5 px-3.5 gap-2 text-xs font-bold text-emerald-600 dark:text-emerald-600 bg-emerald-500/15 hover:bg-emerald-500/25 active:scale-95 border border-emerald-500/30 rounded-xl shadow-2xs cursor-pointer transition-all duration-150"
                             >
                               {isReactivatingThis ? (
-                                <Spinner className="size-3.5 text-emerald-600 animate-spin" />
+                                <Spinner className="size-3.5 text-emerald-600 dark:text-emerald-600 animate-spin" />
                               ) : (
-                                <RotateCcw className="size-3.5 transition-transform duration-200 group-hover:-rotate-45" />
+                                <RotateCcw className="size-3.5 text-emerald-600 dark:text-emerald-600 transition-transform duration-200 group-hover:-rotate-45" />
                               )}
                               <span>{isReactivatingThis ? 'Reactivating...' : 'Reactivate Profile'}</span>
                             </Button>

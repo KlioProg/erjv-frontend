@@ -473,7 +473,7 @@ export function UserRolesList() {
                                 size="sm"
                                 onClick={() => handleReactivate(u)}
                                 disabled={isReactivatingThis}
-                                className="h-8 px-3 gap-2 text-xs font-semibold text-emerald-600 dark:text-emerald-600 bg-emerald-500/15 hover:bg-emerald-500/25 active:scale-95 border border-emerald-500/30 rounded-xl shadow-2xs cursor-pointer transition-all duration-150"
+                                className="group h-8 px-3 gap-2 text-xs font-semibold text-emerald-600 dark:text-emerald-600 bg-emerald-500/15 hover:bg-emerald-500/25 active:scale-95 border border-emerald-500/30 rounded-xl shadow-2xs cursor-pointer transition-all duration-150"
                               >
                                 {isReactivatingThis ? (
                                   <Spinner className="size-3 text-emerald-600 dark:text-emerald-600 animate-spin" />
