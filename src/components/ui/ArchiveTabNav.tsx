@@ -75,7 +75,7 @@ export function ArchiveTabNav({
             <span
               className={
                 hasArchivedItems
-                  ? 'text-amber-600 dark:text-amber-400 group-hover:scale-110 transition-transform'
+                  ? 'text-[#f2bb05] dark:text-[#f2bb05] group-hover:scale-110 transition-transform'
                   : ''
               }
             >
@@ -97,9 +97,9 @@ export function ArchiveTabNav({
 
       {/* Informative Context Banner when on Archived tab */}
       {showBanner && isArchiveSelected && (
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 px-4 py-2.5 rounded-2xl bg-amber-500/10 border border-amber-500/25 text-amber-950 dark:text-amber-200 text-xs shadow-2xs animate-in fade-in-0 duration-200">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 px-4 py-2.5 rounded-2xl bg-amber-500/10 border border-amber-500/25 text-[#f2bb05] dark:text-[#f2bb05] text-xs shadow-2xs animate-in fade-in-0 duration-200">
           <div className="flex items-center gap-2.5">
-            <div className="flex size-7 shrink-0 items-center justify-center rounded-xl bg-amber-500/20 text-amber-700 dark:text-amber-300">
+            <div className="flex size-7 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-[#f2bb05] dark:text-[#f2bb05]">
               <Archive className="size-3.5" />
             </div>
             <div>
@@ -115,7 +115,7 @@ export function ArchiveTabNav({
             variant="ghost"
             size="sm"
             onClick={() => onTabChange('ACTIVE')}
-            className="h-7 px-2.5 text-xs font-bold text-amber-800 dark:text-amber-300 hover:bg-amber-500/20 rounded-xl cursor-pointer self-end sm:self-auto gap-1 shrink-0"
+            className="h-7 px-2.5 text-xs font-bold text-[#f2bb05] dark:text-[#f2bb05] hover:bg-amber-500/20 rounded-xl cursor-pointer self-end sm:self-auto gap-1 shrink-0"
           >
             <ArrowLeft className="size-3.5" />
             Back to Active

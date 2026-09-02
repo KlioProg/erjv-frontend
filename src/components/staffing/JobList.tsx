@@ -187,7 +187,7 @@ export function JobList() {
                       <div
                         className={`flex size-8 items-center justify-center rounded-lg ${
                           isArchived
-                            ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300'
+                            ? 'bg-amber-500/10 text-[#f2bb05] dark:text-[#f2bb05]'
                             : 'bg-primary/10 text-primary'
                         }`}
                       >
@@ -200,7 +200,7 @@ export function JobList() {
                     {isArchived ? (
                       <Badge
                         variant="outline"
-                        className="bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30 text-[11px] font-bold gap-1"
+                        className="bg-amber-500/15 text-[#f2bb05] dark:text-[#f2bb05] border-amber-500/30 text-[11px] font-bold gap-1"
                       >
                         <Archive className="size-3" />
                         Archived
