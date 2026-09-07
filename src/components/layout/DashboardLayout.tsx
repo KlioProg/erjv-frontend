@@ -24,7 +24,6 @@ import {
   DropdownMenuContent,
   DropdownMenuGroup,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
@@ -181,7 +180,7 @@ export function DashboardLayout({ currentTab, onSelectTab, children }: Dashboard
         </div>
 
         {/* Sidebar Footer / User Profile & Role Switcher - ALWAYS PINNED ON BOTTOM LEFT */}
-        <div className="p-3 border-t border-border/70 bg-card shrink-0">
+        <div className="p-3 bg-card shrink-0">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <div className="flex items-center justify-between gap-2.5 p-2 rounded-xl bg-white border border-border/70 cursor-pointer hover:bg-[#f2f2f2] transition-colors">
@@ -217,8 +216,7 @@ export function DashboardLayout({ currentTab, onSelectTab, children }: Dashboard
               </div>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" side="top" className="w-64 mb-2">
-              <DropdownMenuLabel className="text-xs font-bold">Active Session</DropdownMenuLabel>
-              <div className="px-2.5 py-2 text-xs text-muted-foreground flex flex-col gap-1 bg-muted/40 rounded-xl mx-1 border border-border/60">
+              <div className="px-2.5 py-2 text-xs text-muted-foreground flex flex-col gap-1 rounded-xl mx-1">
                 <span className="font-bold text-foreground truncate text-sm">{displayName}</span>
                 <span className="text-[11px] text-muted-foreground truncate font-mono">
                   {user?.email || 'Logged In'}
