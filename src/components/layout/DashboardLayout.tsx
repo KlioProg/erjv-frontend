@@ -184,7 +184,7 @@ export function DashboardLayout({ currentTab, onSelectTab, children }: Dashboard
         <div className="p-3 border-t border-border/70 bg-card shrink-0">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <div className="flex items-center justify-between gap-2.5 p-2 rounded-xl bg-muted/50 border border-border/70 cursor-pointer hover:bg-muted/90 transition-colors">
+              <div className="flex items-center justify-between gap-2.5 p-2 rounded-xl bg-white border border-border/70 cursor-pointer hover:bg-[#f2f2f2] transition-colors">
                 <div className="flex items-center gap-2.5 min-w-0">
                   <Avatar className="size-9 border border-primary/20 bg-primary/10 shrink-0">
                     {user?.avatarUrl && (
