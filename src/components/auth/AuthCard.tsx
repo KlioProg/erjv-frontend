@@ -8,12 +8,11 @@ import {
   CardTitle,
   CardFooter,
 } from '@/components/ui/card'
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import { Tabs, TabsContent } from '@/components/ui/tabs'
 import { Separator } from '@/components/ui/separator'
 import { ErjvPosLogo } from '../ui/ErjvPosLogo'
 import ForgotPasswordModal from './ForgotPasswordModal'
 import LoginForm from './LoginForm'
-import SignupForm from './SignupForm'
 import { useAuth } from '@/features/auth/AuthContext'
 import { getErrorMessage } from '@/lib/api-client'
 import type { AuthMode } from '../../features/auth/auth.types'
@@ -24,7 +23,7 @@ type AuthCardProps = {
 }
 
 export function AuthCard({ mode, onModeChange }: AuthCardProps) {
-  const { login, register } = useAuth()
+  const { login } = useAuth()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isSuccess, setIsSuccess] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
@@ -55,57 +54,24 @@ export function AuthCard({ mode, onModeChange }: AuthCardProps) {
     }
   }
 
-  async function handleSignupSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    setIsSubmitting(true)
-    setErrorMessage('')
-    setSuccessMessage('')
-
-    const formData = new FormData(event.currentTarget)
-    const email = String(formData.get('email')).trim()
-    const password = String(formData.get('password'))
-    const confirm = String(formData.get('confirmPassword'))
-    const role = (String(formData.get('role')) || 'STAFF') as 'OWNER' | 'ADMIN' | 'STAFF'
-
-    if (password !== confirm) {
-      setErrorMessage('Passwords do not match.')
-      setIsSubmitting(false)
-      return
-    }
-
-    try {
-      const newUser = await register({ email, password, role })
-      setSuccessMessage(`Account created successfully for ${newUser.email}! You can now sign in.`)
-      onModeChange('login')
-    } catch (err) {
-      setErrorMessage(getErrorMessage(err))
-    } finally {
-      setIsSubmitting(false)
-    }
-  }
-
-  const isLogin = mode === 'login'
-
   return (
-    <div className="w-full">
+    <div className="w-full max-w-[400px]">
       <Card
         className={`w-full border-border/80 bg-card/95 backdrop-blur-sm shadow-xl ring-1 ring-black/5 sm:rounded-3xl transition-all duration-300 ${
           isSuccess ? 'scale-[0.98] opacity-90' : ''
         }`}
       >
-        <CardHeader className="items-center pb-3 text-center">
-          <ErjvPosLogo className="mb-1" />
+        <CardHeader className="items-center pb-4 text-center">
+          <ErjvPosLogo className="mt-5 mb-1" />
           <CardTitle className="mt-1 text-2xl font-bold tracking-tight text-foreground">
-            {isLogin ? 'Welcome back' : 'Get started today'}
+            Welcome back
           </CardTitle>
           <CardDescription className="text-xs text-muted-foreground">
-            {isLogin
-              ? 'Sign in to access your register, analytics & inventory'
-              : 'Create your enterprise store account in under a minute'}
+            Sign in to access your register, analytics & inventory
           </CardDescription>
         </CardHeader>
 
-        <CardContent className="flex flex-col gap-4 px-6 pb-6">
+        <CardContent className="flex flex-col gap-10 px-10 pb-10">
           <Tabs
             value={mode}
             onValueChange={(val) => {
@@ -115,14 +81,6 @@ export function AuthCard({ mode, onModeChange }: AuthCardProps) {
             }}
             className="w-full"
           >
-            <TabsList className="grid w-full grid-cols-2 p-1 bg-secondary/80">
-              <TabsTrigger value="login" className="text-xs font-semibold py-2">
-                Sign In
-              </TabsTrigger>
-              <TabsTrigger value="signup" className="text-xs font-semibold py-2">
-                Register Store
-              </TabsTrigger>
-            </TabsList>
 
             <TabsContent
               value="login"
@@ -133,18 +91,6 @@ export function AuthCard({ mode, onModeChange }: AuthCardProps) {
                 onForgotPasswordClick={() => setIsForgotPasswordOpen(true)}
                 isSubmitting={isSubmitting}
                 isSuccess={isSuccess}
-                errorMessage={errorMessage}
-                successMessage={successMessage}
-              />
-            </TabsContent>
-
-            <TabsContent
-              value="signup"
-              className="mt-4 focus-visible:outline-none animate-auth-roll-down"
-            >
-              <SignupForm
-                onSubmit={handleSignupSubmit}
-                isSubmitting={isSubmitting}
                 errorMessage={errorMessage}
                 successMessage={successMessage}
               />
