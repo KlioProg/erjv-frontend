@@ -235,7 +235,7 @@ export function DashboardLayout({ currentTab, onSelectTab, children }: Dashboard
               <DropdownMenuGroup>
                 <DropdownMenuItem
                   onClick={logout}
-                  className="text-destructive gap-2 text-xs cursor-pointer font-semibold py-2"
+                  className="text-destructive gap-2 text-xs cursor-pointer font-semibold py-2 hover:bg-[#f2f2f2] focus:bg-[#f2f2f2] focus:text-destructive"
                 >
                   <LogOut className="size-3.5" />
                   Sign Out
