@@ -6,15 +6,8 @@ import type {
 } from './warehouses.types'
 
 export async function fetchWarehousesApi(params?: FetchParams): Promise<Warehouse[]> {
-  const isIncludeInactive =
-    params?.includeInactive === 'true' || params?.includeInactive === 'only'
-  const endpoint = isIncludeInactive ? '/warehouses/all' : '/warehouses'
-  const response = await apiClient.get(endpoint)
-  let list = extractArray<Warehouse>(response.data)
-  if (params?.includeInactive === 'only') {
-    list = list.filter((w) => w.isActive === false)
-  }
-  return list
+  const response = await apiClient.get('/warehouses', { params })
+  return extractArray<Warehouse>(response.data)
 }
 
 export async function fetchWarehouseByNameApi(name: string): Promise<Warehouse | null> {

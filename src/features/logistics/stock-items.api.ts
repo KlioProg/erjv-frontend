@@ -1,4 +1,4 @@
-import { apiClient, extractArray } from '@/lib/api-client'
+import { apiClient, extractArray, type FetchParams } from '@/lib/api-client'
 import type {
   AdjustStockQuantityPayload,
   CreateStockItemPayload,
@@ -7,8 +7,8 @@ import type {
   StockItemWithRelations,
 } from './stock-items.types'
 
-export async function fetchStockItemsApi(): Promise<StockItemWithRelations[]> {
-  const response = await apiClient.get('/stock-items')
+export async function fetchStockItemsApi(params: FetchParams): Promise<StockItemWithRelations[]> {
+  const response = await apiClient.get('/stock-items', { params })
   return extractArray<StockItemWithRelations>(response.data)
 }
 
