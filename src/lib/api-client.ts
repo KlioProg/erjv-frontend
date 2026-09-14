@@ -42,6 +42,93 @@ export function extractArray<T = Record<string, unknown>>(data: unknown): T[] {
   return []
 }
 
+// Helper to transform any raw error string, status code or message into clean, human-friendly text
+export function humanizeErrorMessage(raw: string, status?: number): string {
+  if (!raw || typeof raw !== 'string') {
+    return 'Unable to complete your request. Please check your connection and try again.'
+  }
+
+  const lower = raw.toLowerCase()
+
+  // 1. Gateway & Proxy connection issues (502, 503, 504, Bad Gateway, Service Unavailable)
+  if (
+    status === 502 ||
+    status === 503 ||
+    status === 504 ||
+    lower.includes('502') ||
+    lower.includes('503') ||
+    lower.includes('504') ||
+    lower.includes('bad gateway') ||
+    lower.includes('service unavailable') ||
+    lower.includes('gateway timeout')
+  ) {
+    return "The service is temporarily offline. We're working to get it back online right away. Please try again in a moment."
+  }
+
+  // 2. Network connectivity / Offline / Timeout / Refused
+  if (
+    lower.includes('network error') ||
+    lower.includes('econnrefused') ||
+    lower.includes('err_network') ||
+    lower.includes('econnaborted') ||
+    lower.includes('timed out') ||
+    lower.includes('timeout') ||
+    lower.includes('failed to fetch')
+  ) {
+    return 'Unable to connect to the server. Please check your network connection and try again.'
+  }
+
+  // 3. Permission / Forbidden (403)
+  if (status === 403 || lower.includes('forbidden') || lower.includes('403') || lower.includes('access denied')) {
+    return 'Access denied. Your account does not have permission to perform this action.'
+  }
+
+  // 4. Authentication / Unauthorized (401)
+  if (status === 401 || lower.includes('unauthorized') || lower.includes('401') || lower.includes('jwt') || lower.includes('token')) {
+    return 'Your session has expired or authentication failed. Please sign in again to continue.'
+  }
+
+  // 5. Not Found (404)
+  if (status === 404 || lower.includes('404') || lower.includes('not found')) {
+    return 'The requested record or resource could not be found.'
+  }
+
+  // 6. Conflict (409)
+  if (status === 409 || lower.includes('409') || lower.includes('conflict')) {
+    return 'This record conflicts with an existing entry. Please check for duplicate details and try again.'
+  }
+
+  // 7. Rate Limiting (429)
+  if (status === 429 || lower.includes('429') || lower.includes('too many requests')) {
+    return 'Too many requests. Please wait a moment before trying again.'
+  }
+
+  // 8. Server Error 500
+  if (status === 500 || lower.includes('500') || lower.includes('internal server error')) {
+    return 'An internal server error occurred while processing your request. Please try again in a few moments.'
+  }
+
+  // 9. Catch any remaining "Request failed with status code ..." pattern
+  if (/request failed with status code \d+/i.test(raw)) {
+    if (status && status >= 500) {
+      return "The service is temporarily offline. We're working to get it back online right away. Please try again in a moment."
+    }
+    if (status === 400) {
+      return 'The submitted information was invalid. Please review your input and try again.'
+    }
+    return 'Unable to complete your request. Please check your connection and try again.'
+  }
+
+  // 10. Clean up raw validation messages (capitalize first letter, ensure period at end)
+  const trimmed = raw.trim()
+  if (trimmed.length > 0) {
+    const formatted = trimmed.charAt(0).toUpperCase() + trimmed.slice(1)
+    return formatted.endsWith('.') ? formatted : `${formatted}.`
+  }
+
+  return 'Unable to complete your request. Please try again.'
+}
+
 // Format error messages from NestJS ValidationPipe, Prisma constraints, or HTTP exceptions
 export function getErrorMessage(error: unknown): string {
   if (axios.isAxiosError(error)) {
@@ -56,7 +143,7 @@ export function getErrorMessage(error: unknown): string {
 
     if (resData) {
       if (Array.isArray(resData.message)) {
-        serverMessage = resData.message.join(', ')
+        serverMessage = resData.message.join('. ')
       } else if (typeof resData.message === 'string' && resData.message.trim()) {
         serverMessage = resData.message
       } else if (typeof resData.error === 'string' && resData.error.trim()) {
@@ -67,7 +154,22 @@ export function getErrorMessage(error: unknown): string {
     const url = axiosErr.config?.url || ''
     const lower = serverMessage.toLowerCase()
 
-    // 0. Login failures (/auth/login)
+    // 0. Gateway and Network availability check (502, 503, 504, Network Error)
+    if (
+      status === 502 ||
+      status === 503 ||
+      status === 504 ||
+      lower.includes('bad gateway') ||
+      lower.includes('service unavailable') ||
+      lower.includes('gateway timeout') ||
+      axiosErr.code === 'ERR_NETWORK' ||
+      axiosErr.code === 'ECONNABORTED' ||
+      !axiosErr.response
+    ) {
+      return humanizeErrorMessage(axiosErr.message, status)
+    }
+
+    // 1. Login failures (/auth/login)
     if (url.includes('/auth/login')) {
       if (
         status === 401 ||
@@ -82,7 +184,7 @@ export function getErrorMessage(error: unknown): string {
       }
     }
 
-    // 1. User Registration conflicts (/auth/register)
+    // 2. User Registration conflicts (/auth/register)
     if (
       url.includes('/auth/register') &&
       (status === 500 ||
@@ -91,10 +193,10 @@ export function getErrorMessage(error: unknown): string {
         lower.includes('unique') ||
         lower.includes('duplicate'))
     ) {
-      return 'An account with this email address is already registered. Please sign in instead or use a different email address.'
+      return 'An account with this email address is already registered. Please use a different email address.'
     }
 
-    // 2. Prisma P2002 Unique Constraint / Duplicate Keys
+    // 3. Prisma P2002 Unique Constraint / Duplicate Keys
     if (
       lower.includes('unique') ||
       lower.includes('duplicate') ||
@@ -141,7 +243,7 @@ export function getErrorMessage(error: unknown): string {
       return 'A record with duplicate unique details already exists in the database.'
     }
 
-    // 2. Prisma P2003 Foreign Key Constraint Failures
+    // 4. Prisma P2003 Foreign Key Constraint Failures
     if (
       lower.includes('p2003') ||
       lower.includes('foreign key') ||
@@ -150,7 +252,7 @@ export function getErrorMessage(error: unknown): string {
       return 'Cannot complete operation: one of the related records (e.g. warehouse, job position, user, or product) does not exist or is currently in use.'
     }
 
-    // 3. Prisma P2025 Record Not Found / Already Deleted
+    // 5. Prisma P2025 Record Not Found / Already Deleted
     if (
       lower.includes('p2025') ||
       lower.includes('record to update not found') ||
@@ -159,39 +261,47 @@ export function getErrorMessage(error: unknown): string {
       return 'The requested record was not found or has already been removed from the database.'
     }
 
-    // 4. Role & Auth Guard Responses
+    // 6. Role & Auth Guard Responses
     if (status === 403 || lower.includes('forbidden')) {
-      return 'Access Denied (403): Your account role does not have permission to perform this action. Only Owners and Administrators can modify these records.'
+      return 'Access denied. Your account role does not have permission to perform this action.'
     }
 
     if (status === 401 || lower.includes('unauthorized')) {
-      return 'Invalid credentials or session expired. Please sign in again.'
+      return 'Your session has expired or authentication failed. Please sign in again.'
     }
 
     if (status === 404) {
-      return 'The requested item was not found.'
+      return 'The requested item could not be found.'
     }
 
-    // 5. Clean validation message if available
-    if (serverMessage && !lower.includes('internal server error')) {
-      return serverMessage
+    if (status === 409) {
+      return 'This record conflicts with an existing entry. Please check for duplicate details and try again.'
     }
 
-    // 6. Generic 500 fallback with actionable advice
+    if (status === 429) {
+      return 'Too many requests. Please wait a moment before trying again.'
+    }
+
+    // 7. Clean validation message if available and not technical
+    if (serverMessage && !lower.includes('internal server error') && !lower.includes('status code')) {
+      return humanizeErrorMessage(serverMessage, status)
+    }
+
+    // 8. Generic 500 fallback
     if (status === 500) {
-      return 'Database constraint error (500). Please check for duplicate unique fields or related records in the database.'
+      return 'An internal server error occurred while processing your request. Please try again in a few moments.'
     }
 
-    return axiosErr.message || 'Network communication error.'
+    return humanizeErrorMessage(axiosErr.message, status)
   }
 
   if (error instanceof Error) {
-    const lower = error.message.toLowerCase()
-    if (lower.includes('forbidden') || lower.includes('403')) {
-      return 'Access Denied (403): Your account role does not have permission to perform this action.'
-    }
-    return error.message
+    return humanizeErrorMessage(error.message)
   }
 
-  return 'An unexpected error occurred.'
+  if (typeof error === 'string') {
+    return humanizeErrorMessage(error)
+  }
+
+  return 'An unexpected error occurred. Please try again.'
 }

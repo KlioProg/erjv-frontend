@@ -7,7 +7,7 @@ import type {
   StockItemWithRelations,
 } from './stock-items.types'
 
-export async function fetchStockItemsApi(params: FetchParams): Promise<StockItemWithRelations[]> {
+export async function fetchStockItemsApi(params?: FetchParams): Promise<StockItemWithRelations[]> {
   const response = await apiClient.get('/stock-items', { params })
   return extractArray<StockItemWithRelations>(response.data)
 }

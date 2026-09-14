@@ -15,14 +15,14 @@ import type {
   CreateStockItemPayload,
   SetStockQuantityPayload,
 } from './stock-items.types'
-import { getErrorMessage } from '@/lib/api-client'
+import { getErrorMessage, type FetchParams } from '@/lib/api-client'
 
 export const STOCK_ITEMS_QUERY_KEY = ['stock-items'] as const
 
-export function useStockItems() {
+export function useStockItems(params?: FetchParams) {
   return useQuery({
-    queryKey: STOCK_ITEMS_QUERY_KEY,
-    queryFn: fetchStockItemsApi,
+    queryKey: [...STOCK_ITEMS_QUERY_KEY, params?.includeInactive ?? 'false'],
+    queryFn: () => fetchStockItemsApi(params),
   })
 }
 

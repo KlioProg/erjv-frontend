@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { getErrorMessage, type FetchParams } from '@/lib/api-client'
 import type { UserRole } from '../auth/auth.types'
+import { registerApi } from '../auth/auth.api'
 import {
   assignEmployeeJobApi,
   createEmployeeApi,
@@ -400,6 +401,42 @@ export function useUpdateUserRole() {
     mutationFn: ({ id, role }: { id: number; role: UserRole }) => updateUserRoleApi(id, role),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: staffingKeys.all })
+    },
+  })
+}
+
+export type RegisterUserPayload = {
+  email: string
+  password: string
+  role?: UserRole
+  employeeId?: number
+}
+
+export function useRegisterUser() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (payload: RegisterUserPayload) => {
+      const newUser = await registerApi({
+        email: payload.email,
+        password: payload.password,
+        role: payload.role || 'STAFF',
+      })
+
+      if (payload.employeeId) {
+        await linkEmployeeUserApi(payload.employeeId, newUser.id)
+      }
+
+      return newUser
+    },
+    onSuccess: (newUser) => {
+      void queryClient.invalidateQueries({ queryKey: staffingKeys.all })
+      void queryClient.invalidateQueries({ queryKey: ['users'] })
+      void queryClient.invalidateQueries({ queryKey: ['employees'] })
+      toast.success(`User account "${newUser.email}" registered successfully!`)
+    },
+    onError: (err) => {
+      toast.error(getErrorMessage(err))
     },
   })
 }

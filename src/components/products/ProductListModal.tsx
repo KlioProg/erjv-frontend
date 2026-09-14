@@ -78,7 +78,7 @@ export function ProductListModal({ open, onClose }: ProductListModalProps) {
             </div>
           ) : error ? (
             <div className="p-8 text-center text-xs text-destructive">
-              Unable to load product list from backend server.
+              Unable to load product catalog. Please check your connection and try again.
             </div>
           ) : filtered.length === 0 ? (
             <div className="p-10 text-center text-xs text-muted-foreground">

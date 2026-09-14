@@ -11,6 +11,8 @@ import {
   MoreVertical,
   ChevronDown,
   Check,
+  UserPlus,
+  AlertCircle,
 } from 'lucide-react'
 import {
   Table,
@@ -47,6 +49,8 @@ import { useQueryClient } from '@tanstack/react-query'
 import { Button } from '../ui/button'
 import { ArchiveTabNav } from '@/components/ui/ArchiveTabNav'
 import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal'
+import { RegisterUserModal } from './RegisterUserModal'
+import { getErrorMessage } from '@/lib/api-client'
 
 // Role Badge with strict 4x spacing and native button semantics (prevents text selection carets)
 interface RoleBadgeProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
@@ -120,8 +124,9 @@ RoleBadgeDisplay.displayName = 'RoleBadgeDisplay'
 
 export function UserRolesList() {
   const { isOwner, user: currentUser } = useAuth()
-  const { data: users = [], isLoading, error } = useAllUsers()
+  const { data: users = [], isLoading, error, refetch } = useAllUsers()
 
+  const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false)
   const [activeTab, setActiveTab] = useState<'ACTIVE' | 'ARCHIVED'>('ACTIVE')
   const deactivateUser = useDeactivateUser({ onViewArchive: () => setActiveTab('ARCHIVED') })
   const reactivateUser = useReactivateUser()
@@ -162,7 +167,7 @@ export function UserRolesList() {
       queryClient.invalidateQueries({ queryKey: ['employees'] })
       toast.success(`Role updated to ${role} for ${targetName}!`)
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Failed to update user role.')
+      toast.error(getErrorMessage(err))
     } finally {
       setUpdatingId(null)
     }
@@ -218,6 +223,17 @@ export function UserRolesList() {
             <Shield className="size-3 text-primary" />
             {isOwner ? 'Owner Mode • Role Management Active' : 'View Only • Managed by Enterprise Owner'}
           </Badge>
+
+          {isOwner && (
+            <Button
+              size="sm"
+              onClick={() => setIsRegisterModalOpen(true)}
+              className="gap-1.5 text-xs font-semibold h-8 shadow-xs cursor-pointer"
+            >
+              <UserPlus className="size-3.5" />
+              Register User
+            </Button>
+          )}
         </div>
       </div>
 
@@ -229,9 +245,25 @@ export function UserRolesList() {
             <p className="text-xs">Loading user accounts...</p>
           </div>
         ) : error ? (
-          <div className="flex flex-col items-center justify-center py-12 text-destructive gap-2 text-xs">
-            <p className="font-semibold">Unable to fetch users from backend server.</p>
-            <p className="text-muted-foreground">Make sure the backend is running on port 3000.</p>
+          <div className="flex flex-col items-center justify-center py-14 px-4 text-center">
+            <div className="size-12 rounded-2xl bg-destructive/10 border border-destructive/20 flex items-center justify-center text-destructive mb-3 shadow-2xs">
+              <AlertCircle className="size-6" />
+            </div>
+            <h3 className="text-sm font-semibold text-foreground">
+              Unable to load user accounts
+            </h3>
+            <p className="text-xs text-muted-foreground mt-1 max-w-sm">
+              We encountered an issue connecting to the service. Please check your network connection and try again.
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => refetch()}
+              className="mt-4 gap-2 text-xs font-semibold shadow-2xs border-border/80 hover:bg-muted cursor-pointer"
+            >
+              <RotateCcw className="size-3.5" />
+              Try Again
+            </Button>
           </div>
         ) : filteredUsers.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-4">
@@ -244,7 +276,23 @@ export function UserRolesList() {
                 <p className="text-xs text-muted-foreground mt-1">
                   No accounts match "{searchQuery}"
                 </p>
-              ) : activeTab === 'ACTIVE' && archivedUsers.length > 0 ? (
+              ) : activeTab === 'ACTIVE' ? (
+                <div className="mt-3 flex flex-col items-center gap-2">
+                  <p className="text-xs text-muted-foreground">
+                    Get started by registering user accounts for your team.
+                  </p>
+                  {isOwner && (
+                    <Button
+                      size="sm"
+                      onClick={() => setIsRegisterModalOpen(true)}
+                      className="gap-1.5 text-xs font-semibold shadow-xs cursor-pointer"
+                    >
+                      <UserPlus className="size-3.5" />
+                      Register First User Account
+                    </Button>
+                  )}
+                </div>
+              ) : archivedUsers.length > 0 ? (
                 <p className="text-xs text-muted-foreground mt-2">
                   You have {archivedUsers.length} archived account{archivedUsers.length === 1 ? '' : 's'}.{' '}
                   <button
@@ -544,6 +592,12 @@ export function UserRolesList() {
         }
         confirmText="Archive Account"
         variant="destructive"
+      />
+
+      {/* Register User Modal (Owner Only) */}
+      <RegisterUserModal
+        open={isRegisterModalOpen}
+        onClose={() => setIsRegisterModalOpen(false)}
       />
     </div>
   )

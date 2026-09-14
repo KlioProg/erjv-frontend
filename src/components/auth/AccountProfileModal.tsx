@@ -28,6 +28,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { toast } from 'sonner'
 import { useAuth } from '@/features/auth/AuthContext'
 import { useQueryClient } from '@tanstack/react-query'
+import { getErrorMessage } from '@/lib/api-client'
 
 type AccountProfileModalProps = {
   open: boolean
@@ -104,7 +105,7 @@ function AccountProfileForm({ onClose }: { onClose: () => void }) {
       toast.success('Profile details and photo saved successfully!')
       onClose()
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Failed to update profile.')
+      toast.error(getErrorMessage(err))
     } finally {
       setIsSaving(false)
     }

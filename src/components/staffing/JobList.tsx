@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Plus, Briefcase, Edit2, Archive, RotateCcw, CheckCircle2, Search } from 'lucide-react'
+import { Plus, Briefcase, Edit2, Archive, RotateCcw, CheckCircle2, Search, AlertCircle } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -42,7 +42,7 @@ function JobStaffCount({ jobId, isArchived }: { jobId: number; isArchived?: bool
 
 export function JobList() {
   const [activeTab, setActiveTab] = useState<'ACTIVE' | 'ARCHIVED'>('ACTIVE')
-  const { data: jobs = [], isLoading, error } = useAllJobs()
+  const { data: jobs = [], isLoading, error, refetch } = useAllJobs()
   const deactivateMutation = useDeactivateJob({ onViewArchive: () => setActiveTab('ARCHIVED') })
   const reactivateMutation = useReactivateJob()
 
@@ -130,9 +130,25 @@ export function JobList() {
           <p className="text-xs">Loading job positions...</p>
         </div>
       ) : error ? (
-        <div className="flex flex-col items-center justify-center py-12 text-destructive gap-1 text-xs">
-          <p className="font-semibold">Unable to fetch jobs from backend server.</p>
-          <p className="text-muted-foreground">Make sure the backend is running on port 3000.</p>
+        <div className="flex flex-col items-center justify-center py-14 px-4 text-center border rounded-2xl bg-card">
+          <div className="size-12 rounded-2xl bg-destructive/10 border border-destructive/20 flex items-center justify-center text-destructive mb-3 shadow-2xs">
+            <AlertCircle className="size-6" />
+          </div>
+          <h3 className="text-sm font-semibold text-foreground">
+            Unable to load job positions
+          </h3>
+          <p className="text-xs text-muted-foreground mt-1 max-w-sm">
+            We encountered an issue connecting to the service. Please check your network connection and try again.
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => refetch()}
+            className="mt-4 gap-2 text-xs font-semibold shadow-2xs border-border/80 hover:bg-muted cursor-pointer"
+          >
+            <RotateCcw className="size-3.5" />
+            Try Again
+          </Button>
         </div>
       ) : filteredJobList.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-3 border rounded-2xl bg-card">
