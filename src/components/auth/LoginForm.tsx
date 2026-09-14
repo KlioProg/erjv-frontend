@@ -184,8 +184,8 @@ export default function LoginForm({
         )}
       </div>
 
-      <div className="flex items-center justify-between gap-2 py-0.5">
-        <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between gap-3 py-1">
+        <div className="flex items-center gap-2.5">
           <Checkbox
             id="rememberMe"
             name="rememberMe"
@@ -195,7 +195,7 @@ export default function LoginForm({
           />
           <Label
             htmlFor="rememberMe"
-            className="text-xs font-normal text-muted-foreground cursor-pointer"
+            className="text-xs font-medium text-muted-foreground hover:text-foreground cursor-pointer select-none leading-none transition-colors"
           >
             Remember me
           </Label>
@@ -203,7 +203,7 @@ export default function LoginForm({
         <button
           type="button"
           onClick={onForgotPasswordClick}
-          className="text-xs font-semibold text-primary transition-colors hover:underline hover:text-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm cursor-pointer"
+          className="text-xs font-medium text-primary transition-colors hover:underline hover:text-primary/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-[4px] cursor-pointer"
         >
           Forgot password?
         </button>
