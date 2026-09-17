@@ -43,7 +43,7 @@ const AVATAR_PRESETS = [
 ]
 
 function AccountProfileForm({ onClose }: { onClose: () => void }) {
-  const { user, updateProfile, isOwner } = useAuth()
+  const { user, updateProfile, isAdmin } = useAuth()
   const queryClient = useQueryClient()
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
@@ -154,7 +154,7 @@ function AccountProfileForm({ onClose }: { onClose: () => void }) {
                 variant="outline"
                 className="text-[10px] bg-primary/10 text-primary border-primary/20"
               >
-                {user?.role || 'OWNER'}
+                {user?.role || 'ADMIN'}
               </Badge>
             </div>
             <p className="text-[11px] text-muted-foreground">
@@ -251,7 +251,7 @@ function AccountProfileForm({ onClose }: { onClose: () => void }) {
           <Label htmlFor="prof-name" className="text-xs font-semibold text-foreground">
             Display Name
           </Label>
-          {!isOwner && (
+          {!isAdmin && (
             <span className="text-[10px] text-muted-foreground font-medium">
               (Managed by Owner)
             </span>
@@ -264,12 +264,12 @@ function AccountProfileForm({ onClose }: { onClose: () => void }) {
             placeholder="Your full display name..."
             value={fullName}
             onChange={(e) => setFullName(e.target.value)}
-            disabled={!isOwner}
+            disabled={!isAdmin}
             className="pl-10 text-xs h-9 disabled:opacity-75 disabled:bg-muted/50"
           />
         </div>
         <p className="text-[10px] text-muted-foreground">
-          {isOwner
+          {isAdmin
             ? 'As Enterprise Owner, you can change your display name across all modules.'
             : 'Staff and Admin display names are set upon registration and managed centrally.'}
         </p>
@@ -300,7 +300,7 @@ function AccountProfileForm({ onClose }: { onClose: () => void }) {
         <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
           <Shield className="size-3.5 text-emerald-600 shrink-0" />
           <span>
-            Role: <strong className="text-foreground">{user?.role || 'OWNER'}</strong>
+            Role: <strong className="text-foreground">{user?.role || 'ADMIN'}</strong>
           </span>
         </div>
 

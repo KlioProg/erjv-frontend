@@ -19,7 +19,7 @@ export async function submitLogin(formData: FormData) {
 export async function submitSignup(formData: FormData) {
   const email = String(formData.get('email')).trim()
   const password = String(formData.get('password'))
-  const role = (String(formData.get('role')) || 'STAFF') as 'OWNER' | 'ADMIN' | 'STAFF'
+  const role = (String(formData.get('role')) || 'STAFF') as 'ADMIN' | 'MANAGER' | 'STAFF'
 
   const payload: RegisterRequest = {
     email,

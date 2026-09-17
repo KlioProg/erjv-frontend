@@ -93,7 +93,7 @@ export function VehicleList() {
   const deactivateMutation = useDeactivateVehicle({ onViewArchive: () => setActiveTab('ARCHIVED') })
   const reactivateMutation = useReactivateVehicle()
   const statusMutation = useUpdateVehicleStatus()
-  const { isOwner, isAdmin } = useAuth()
+  const { isAdmin, isManager } = useAuth()
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('ALL')
   const [selectedVehicle, setSelectedVehicle] = useState<DeliveryVehicle | null>(null)
@@ -270,7 +270,7 @@ export function VehicleList() {
           )}
         </div>
 
-        {(isOwner || isAdmin) && activeTab === 'ACTIVE' && (
+        {(isAdmin || isManager) && activeTab === 'ACTIVE' && (
           <Button onClick={handleCreate} size="sm" className="gap-1.5 shadow-xs cursor-pointer">
             <Plus className="size-4" />
             Register Vehicle
@@ -301,23 +301,29 @@ export function VehicleList() {
                     : 'Register your first delivery truck or cargo hauler.'
                   : 'Archived delivery vehicles will appear here and can be reactivated at any time.'}
             </p>
-            {!searchTerm && statusFilter === 'ALL' && activeTab === 'ACTIVE' && archivedVehicles.length > 0 && (
-              <Button
-                onClick={() => setActiveTab('ARCHIVED')}
-                size="sm"
-                variant="outline"
-                className="mt-3 gap-1.5 cursor-pointer text-xs"
-              >
-                <Archive className="size-3.5 text-amber-600" />
-                View Archived Fleet ({archivedVehicles.length})
-              </Button>
-            )}
-            {!searchTerm && statusFilter === 'ALL' && activeTab === 'ACTIVE' && archivedVehicles.length === 0 && (
-              <Button onClick={handleCreate} size="sm" className="mt-4 gap-1.5 cursor-pointer">
-                <Plus className="size-3.5" />
-                Register Transport Asset
-              </Button>
-            )}
+            {!searchTerm &&
+              statusFilter === 'ALL' &&
+              activeTab === 'ACTIVE' &&
+              archivedVehicles.length > 0 && (
+                <Button
+                  onClick={() => setActiveTab('ARCHIVED')}
+                  size="sm"
+                  variant="outline"
+                  className="mt-3 gap-1.5 cursor-pointer text-xs"
+                >
+                  <Archive className="size-3.5 text-amber-600" />
+                  View Archived Fleet ({archivedVehicles.length})
+                </Button>
+              )}
+            {!searchTerm &&
+              statusFilter === 'ALL' &&
+              activeTab === 'ACTIVE' &&
+              archivedVehicles.length === 0 && (
+                <Button onClick={handleCreate} size="sm" className="mt-4 gap-1.5 cursor-pointer">
+                  <Plus className="size-3.5" />
+                  Register Transport Asset
+                </Button>
+              )}
           </CardContent>
         </Card>
       ) : (
@@ -367,7 +373,7 @@ export function VehicleList() {
                       </div>
                     </div>
 
-                    {(isOwner || isAdmin) && (
+                    {(isAdmin || isManager) && (
                       <div className="flex items-center gap-1.5">
                         {isArchived ? (
                           (() => {
@@ -375,7 +381,8 @@ export function VehicleList() {
                               reactivateMutation.isPending &&
                               (typeof reactivateMutation.variables === 'number'
                                 ? reactivateMutation.variables === vehicle.id
-                                : (reactivateMutation.variables as DeliveryVehicle | undefined)?.id === vehicle.id)
+                                : (reactivateMutation.variables as DeliveryVehicle | undefined)
+                                    ?.id === vehicle.id)
 
                             return (
                               <Button
@@ -390,7 +397,9 @@ export function VehicleList() {
                                 ) : (
                                   <RotateCcw className="size-3.5 text-emerald-600 dark:text-emerald-600 transition-transform duration-200 group-hover:-rotate-45" />
                                 )}
-                                <span>{isReactivatingThis ? 'Reactivating...' : 'Reactivate Fleet'}</span>
+                                <span>
+                                  {isReactivatingThis ? 'Reactivating...' : 'Reactivate Fleet'}
+                                </span>
                               </Button>
                             )
                           })()

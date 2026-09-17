@@ -77,7 +77,7 @@ const NAV_GROUPS: NavGroup[] = [
 
 export function DashboardLayout({ currentTab, onSelectTab, children }: DashboardLayoutProps) {
   const queryClient = useQueryClient()
-  const { user, logout, isOwner, isAdmin, isStaff } = useAuth()
+  const { user, logout, isAdmin, isManager, isStaff } = useAuth()
   const { data: products = [] } = useProducts()
   const [isMobileOpen, setIsMobileOpen] = useState(false)
   const [isProductsModalOpen, setIsProductsModalOpen] = useState(false)
@@ -93,7 +93,7 @@ export function DashboardLayout({ currentTab, onSelectTab, children }: Dashboard
   // Filter out admin-only items if user is Staff
   const visibleGroups = NAV_GROUPS.map((group) => ({
     ...group,
-    items: group.items.filter((item) => !item.requiresAdmin || isOwner || isAdmin),
+    items: group.items.filter((item) => !item.requiresAdmin || isAdmin || isManager),
   })).filter((group) => group.items.length > 0)
 
   // Determine current section info
@@ -207,7 +207,7 @@ export function DashboardLayout({ currentTab, onSelectTab, children }: Dashboard
                     <div className="flex items-center gap-1.5 mt-0.5">
                       <span className="inline-block size-1.5 rounded-full bg-emerald-500 shrink-0" />
                       <span className="text-[10px] font-extrabold text-primary tracking-tight uppercase">
-                        {isOwner ? 'OWNER' : isAdmin ? 'ADMIN' : 'STAFF'}
+                        {isAdmin ? 'ADMIN' : isManager ? 'MANAGER' : 'STAFF'}
                       </span>
                     </div>
                   </div>
@@ -226,7 +226,7 @@ export function DashboardLayout({ currentTab, onSelectTab, children }: Dashboard
                     variant="outline"
                     className="font-bold text-[9px] text-primary bg-primary/10 py-0 px-1.5 border-primary/20"
                   >
-                    {isOwner ? 'OWNER' : isAdmin ? 'ADMIN' : 'STAFF'}
+                    {isAdmin ? 'ADMIN' : isManager ? 'MANAGER' : 'STAFF'}
                   </Badge>
                   <span className="text-[10px] text-emerald-600 font-semibold">● Online</span>
                 </div>
@@ -292,7 +292,7 @@ export function DashboardLayout({ currentTab, onSelectTab, children }: Dashboard
               <span
                 className={`size-1.5 rounded-full ${isStaff ? 'bg-blue-500' : 'bg-emerald-500'} animate-pulse`}
               />
-              {user?.role || 'OWNER'} Mode
+              {user?.role || 'ADMIN'} Mode
             </Badge>
           </div>
         </header>

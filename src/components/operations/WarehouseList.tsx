@@ -40,9 +40,11 @@ export function WarehouseList() {
   const [activeTab, setActiveTab] = useState<'ACTIVE' | 'ARCHIVED'>('ACTIVE')
   const { data: allWarehouses = [], isLoading } = useAllWarehouses()
   const { data: stockItems = [] } = useStockItems()
-  const deactivateMutation = useDeactivateWarehouse({ onViewArchive: () => setActiveTab('ARCHIVED') })
+  const deactivateMutation = useDeactivateWarehouse({
+    onViewArchive: () => setActiveTab('ARCHIVED'),
+  })
   const reactivateMutation = useReactivateWarehouse()
-  const { isOwner, isAdmin } = useAuth()
+  const { isAdmin, isManager } = useAuth()
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedWarehouse, setSelectedWarehouse] = useState<Warehouse | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -149,7 +151,7 @@ export function WarehouseList() {
           />
         </div>
 
-        {(isOwner || isAdmin) && activeTab === 'ACTIVE' && (
+        {(isAdmin || isManager) && activeTab === 'ACTIVE' && (
           <Button
             onClick={handleCreate}
             size="sm"
@@ -202,7 +204,7 @@ export function WarehouseList() {
                     View Archived Facilities ({archivedWarehouses.length})
                   </Button>
                 )}
-                {(isOwner || isAdmin) && !searchTerm && archivedWarehouses.length === 0 && (
+                {(isAdmin || isManager) && !searchTerm && archivedWarehouses.length === 0 && (
                   <Button
                     onClick={handleCreate}
                     size="sm"
@@ -254,7 +256,7 @@ export function WarehouseList() {
                       </div>
                     </div>
 
-                    {(isOwner || isAdmin) && (
+                    {(isAdmin || isManager) && (
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button
@@ -332,7 +334,8 @@ export function WarehouseList() {
                     </div>
 
                     {isArchived ? (
-                      (isOwner || isAdmin) && (() => {
+                      (isAdmin || isManager) &&
+                      (() => {
                         const isRestoringThis =
                           reactivateMutation.isPending &&
                           (typeof reactivateMutation.variables === 'number'

@@ -14,8 +14,8 @@ type AuthContextType = {
   token: string | null
   isAuthenticated: boolean
   isLoading: boolean
-  isOwner: boolean
   isAdmin: boolean
+  isManager: boolean
   isStaff: boolean
   canManageStaff: boolean
   canManageOperations: boolean
@@ -23,20 +23,17 @@ type AuthContextType = {
   register: (payload: RegisterRequest) => Promise<SafeUserResponse>
   updateProfile: (payload: UpdateUserProfilePayload) => Promise<SafeUserResponse>
   logout: () => void
-  setDemoUser: (role?: 'OWNER' | 'ADMIN' | 'STAFF') => void
-  switchRole: (role: 'OWNER' | 'ADMIN' | 'STAFF') => void
+  setDemoUser: (role?: 'ADMIN' | 'MANAGER' | 'STAFF') => void
+  switchRole: (role: 'ADMIN' | 'MANAGER' | 'STAFF') => void
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-export function normalizeUserRole(rawRole: unknown): 'OWNER' | 'ADMIN' | 'STAFF' {
-  if (!rawRole) return 'STAFF'
+export function normalizeUserRole(rawRole: unknown): 'ADMIN' | 'MANAGER' | 'STAFF' | 'UNKNOWN' {
+  if (!rawRole) return 'UNKNOWN'
   const str = String(rawRole).trim().toUpperCase()
-  if (str === 'OWNER' || str.includes('OWNER') || str === 'SUPER_ADMIN' || str === 'SUPERADMIN')
-    return 'OWNER'
-  if (str === 'ADMIN' || str.includes('ADMIN') || str === 'MANAGER' || str === 'OPERATIONS')
-    return 'ADMIN'
-  return 'STAFF'
+  if (str === 'ADMIN' || str === 'MANAGER' || str === 'STAFF') return str
+  return 'UNKNOWN'
 }
 
 export function normalizeUser(
@@ -87,9 +84,9 @@ export function normalizeUser(
     jobTitle:
       (userObj.jobTitle as string) ||
       (rawUser.jobTitle as string) ||
-      (resolvedRole === 'OWNER'
+      (resolvedRole === 'ADMIN'
         ? 'Enterprise Owner'
-        : resolvedRole === 'ADMIN'
+        : resolvedRole === 'MANAGER'
           ? 'System Administrator'
           : 'Staff Member'),
     bio: (userObj.bio as string) || (rawUser.bio as string) || null,
@@ -261,9 +258,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       throw new Error('No user is currently logged in.')
     }
 
-    const isOwner = user.role === 'OWNER'
+    const isAdmin = user.role === 'ADMIN'
     const newFullName =
-      isOwner && payload.fullName !== undefined ? payload.fullName.trim() : user.fullName
+      isAdmin && payload.fullName !== undefined ? payload.fullName.trim() : user.fullName
 
     const updatedUser: SafeUserResponse = {
       ...user,
@@ -289,20 +286,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null)
   }
 
-  const setDemoUser = (demoRole: 'OWNER' | 'ADMIN' | 'STAFF' = 'OWNER') => {
+  const setDemoUser = (demoRole: 'ADMIN' | 'MANAGER' | 'STAFF' = 'ADMIN') => {
     const demo: SafeUserResponse = {
       id: 1,
       email: `${demoRole.toLowerCase()}@erjvpos.com`,
       fullName:
-        demoRole === 'OWNER'
+        demoRole === 'ADMIN'
           ? 'Marcus Villaruel'
-          : demoRole === 'ADMIN'
+          : demoRole === 'MANAGER'
             ? 'Sarah Chen-Santos'
             : 'Danilo Reyes',
       jobTitle:
-        demoRole === 'OWNER'
+        demoRole === 'ADMIN'
           ? 'Enterprise Owner'
-          : demoRole === 'ADMIN'
+          : demoRole === 'MANAGER'
             ? 'System Administrator'
             : 'Staff Member',
       role: demoRole,
@@ -316,7 +313,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(demo)
   }
 
-  const switchRole = (newRole: 'OWNER' | 'ADMIN' | 'STAFF') => {
+  const switchRole = (newRole: 'ADMIN' | 'MANAGER' | 'STAFF') => {
     if (!user) {
       setDemoUser(newRole)
       return
@@ -331,11 +328,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const userRecord = user as unknown as Record<string, unknown> | null
   const userRole = normalizeUserRole(user?.role || userRecord?.userRole || userRecord?.roleName)
-  const isOwner = userRole === 'OWNER'
   const isAdmin = userRole === 'ADMIN'
+  const isManager = userRole === 'MANAGER'
   const isStaff = userRole === 'STAFF'
-  const canManageStaff = isOwner || isAdmin
-  const canManageOperations = isOwner || isAdmin
+  const canManageStaff = isAdmin || isManager
+  const canManageOperations = isAdmin || isManager
 
   return (
     <AuthContext.Provider
@@ -344,8 +341,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         token,
         isAuthenticated: !!user,
         isLoading,
-        isOwner,
         isAdmin,
+        isManager,
         isStaff,
         canManageStaff,
         canManageOperations,

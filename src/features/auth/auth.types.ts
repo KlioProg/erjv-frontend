@@ -1,4 +1,4 @@
-export type UserRole = 'OWNER' | 'ADMIN' | 'STAFF'
+export type UserRole = 'ADMIN' | 'MANAGER' | 'STAFF'
 
 export type AuthMode = 'login' | 'signup' | 'forgot-password'
 

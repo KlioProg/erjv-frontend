@@ -50,7 +50,7 @@ import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal'
 
 // Role Badge with strict 4x spacing and native button semantics (prevents text selection carets)
 interface RoleBadgeProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  role: 'OWNER' | 'ADMIN' | 'STAFF'
+  role: 'ADMIN' | 'MANAGER' | 'STAFF'
   interactive?: boolean
   isUpdating?: boolean
 }
@@ -58,14 +58,14 @@ interface RoleBadgeProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
 const RoleBadgeDisplay = forwardRef<HTMLButtonElement, RoleBadgeProps>(
   ({ role, interactive = false, isUpdating = false, className, ...props }, ref) => {
     const configs = {
-      OWNER: {
-        label: 'OWNER',
-        icon: Sparkles,
+      ADMIN: {
+        label: 'ADMIN',
+        icon: Sparkles, // TODO:  crown?
         color:
           'bg-primary/10 text-primary border-primary/25 hover:bg-primary/15 active:bg-primary/20',
       },
-      ADMIN: {
-        label: 'ADMIN',
+      MANAGER: {
+        label: 'MANAGER',
         icon: Shield,
         color:
           'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/25 hover:bg-blue-500/15 active:bg-blue-500/20',
@@ -119,7 +119,7 @@ const RoleBadgeDisplay = forwardRef<HTMLButtonElement, RoleBadgeProps>(
 RoleBadgeDisplay.displayName = 'RoleBadgeDisplay'
 
 export function UserRolesList() {
-  const { isOwner, user: currentUser } = useAuth()
+  const { isAdmin, user: currentUser } = useAuth()
   const { data: users = [], isLoading, error } = useAllUsers()
 
   const [activeTab, setActiveTab] = useState<'ACTIVE' | 'ARCHIVED'>('ACTIVE')
@@ -132,7 +132,7 @@ export function UserRolesList() {
 
   const [searchQuery, setSearchQuery] = useState('')
   const [updatingId, setUpdatingId] = useState<number | null>(null)
-  const [userToDeactivate, setUserToDeactivate] = useState<typeof users[0] | null>(null)
+  const [userToDeactivate, setUserToDeactivate] = useState<(typeof users)[0] | null>(null)
 
   const activeUsers = users.filter((u) => u.isActive !== false)
   const archivedUsers = users.filter((u) => u.isActive === false)
@@ -151,7 +151,7 @@ export function UserRolesList() {
   }
 
   const handleRoleChange = async (userId: number, role: UserRole, targetName: string) => {
-    if (!isOwner) {
+    if (!isAdmin) {
       toast.error('Only enterprise owners are authorized to change user roles.')
       return
     }
@@ -168,7 +168,7 @@ export function UserRolesList() {
     }
   }
 
-  const handleDeactivate = (user: typeof users[0]) => {
+  const handleDeactivate = (user: (typeof users)[0]) => {
     setUserToDeactivate(user)
   }
 
@@ -180,7 +180,7 @@ export function UserRolesList() {
     }
   }
 
-  const handleReactivate = (user: typeof users[0]) => {
+  const handleReactivate = (user: (typeof users)[0]) => {
     reactivateUser.mutate(user)
   }
 
@@ -216,7 +216,9 @@ export function UserRolesList() {
             className="text-xs py-1 px-3 bg-muted/40 border-border/80 gap-2 text-muted-foreground font-medium shadow-2xs"
           >
             <Shield className="size-3 text-primary" />
-            {isOwner ? 'Owner Mode • Role Management Active' : 'View Only • Managed by Enterprise Owner'}
+            {isAdmin
+              ? 'Owner Mode • Role Management Active'
+              : 'View Only • Managed by Enterprise Owner'}
           </Badge>
         </div>
       </div>
@@ -238,7 +240,9 @@ export function UserRolesList() {
             <User className="size-8 stroke-[1.5] text-muted-foreground/50" />
             <div className="text-center">
               <p className="text-sm font-medium text-foreground">
-                {activeTab === 'ACTIVE' ? 'No active user accounts found' : 'No archived user accounts'}
+                {activeTab === 'ACTIVE'
+                  ? 'No active user accounts found'
+                  : 'No archived user accounts'}
               </p>
               {searchQuery ? (
                 <p className="text-xs text-muted-foreground mt-1">
@@ -246,7 +250,8 @@ export function UserRolesList() {
                 </p>
               ) : activeTab === 'ACTIVE' && archivedUsers.length > 0 ? (
                 <p className="text-xs text-muted-foreground mt-2">
-                  You have {archivedUsers.length} archived account{archivedUsers.length === 1 ? '' : 's'}.{' '}
+                  You have {archivedUsers.length} archived account
+                  {archivedUsers.length === 1 ? '' : 's'}.{' '}
                   <button
                     type="button"
                     onClick={() => setActiveTab('ARCHIVED')}
@@ -361,7 +366,7 @@ export function UserRolesList() {
 
                       {/* System Role Column (Interactive Badge Menu for Owner, Static Badge for Non-Owner) */}
                       <TableCell className="py-3 px-4">
-                        {isOwner && !isArchived ? (
+                        {isAdmin && !isArchived ? (
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <RoleBadgeDisplay
@@ -377,26 +382,26 @@ export function UserRolesList() {
                               <DropdownMenuSeparator className="my-1" />
                               <DropdownMenuGroup>
                                 <DropdownMenuItem
-                                  onClick={() => handleRoleChange(u.id, 'OWNER', displayName)}
+                                  onClick={() => handleRoleChange(u.id, 'ADMIN', displayName)}
                                   className="flex items-center justify-between gap-2 px-2 py-1.5 text-xs cursor-pointer rounded-md"
                                 >
                                   <span className="flex items-center gap-2 font-bold text-primary">
                                     <Sparkles className="size-3.5" />
-                                    OWNER
+                                    ADMIN
                                   </span>
-                                  {userRole === 'OWNER' && (
+                                  {userRole === 'ADMIN' && (
                                     <Check className="size-3.5 text-primary" />
                                   )}
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
-                                  onClick={() => handleRoleChange(u.id, 'ADMIN', displayName)}
+                                  onClick={() => handleRoleChange(u.id, 'MANAGER', displayName)}
                                   className="flex items-center justify-between gap-2 px-2 py-1.5 text-xs cursor-pointer rounded-md"
                                 >
                                   <span className="flex items-center gap-2 font-semibold text-foreground">
                                     <Shield className="size-3.5 text-blue-500" />
-                                    ADMIN (Operations)
+                                    MANAGER (Operations)
                                   </span>
-                                  {userRole === 'ADMIN' && (
+                                  {userRole === 'MANAGER' && (
                                     <Check className="size-3.5 text-primary" />
                                   )}
                                 </DropdownMenuItem>
@@ -480,7 +485,9 @@ export function UserRolesList() {
                                 ) : (
                                   <RotateCcw className="size-3 text-emerald-600 dark:text-emerald-600 transition-transform duration-200 group-hover:-rotate-45" />
                                 )}
-                                <span>{isReactivatingThis ? 'Reactivating...' : 'Reactivate Account'}</span>
+                                <span>
+                                  {isReactivatingThis ? 'Reactivating...' : 'Reactivate Account'}
+                                </span>
                               </Button>
                             )
                           })()
