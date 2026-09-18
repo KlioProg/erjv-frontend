@@ -37,15 +37,15 @@ export function normalizeUser(
 ): SafeUserResponse {
   if (!rawUser) {
     return {
-      id: 1,
+      id: 0,
       email: '',
       fullName: null,
       phone: null,
       avatarUrl: null,
-      jobTitle: 'Staff Member',
+      jobTitle: 'Unverified Account',
       bio: null,
-      role: 'STAFF',
-      isActive: true,
+      role: USER_ROLES.UNKNOWN,
+      isActive: false,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     }
@@ -84,7 +84,9 @@ export function normalizeUser(
         ? 'Enterprise Administrator'
         : resolvedRole === USER_ROLES.MANAGER
           ? 'Operations Manager'
-          : 'Staff Member'),
+          : resolvedRole === USER_ROLES.STAFF
+            ? 'Staff Member'
+            : 'Unverified Account'),
     bio: (userObj.bio as string) || (rawUser.bio as string) || null,
     role: resolvedRole,
     isActive: userObj.isActive !== false && rawUser.isActive !== false,
