@@ -61,7 +61,7 @@ interface RoleBadgeProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
 
 const RoleBadgeDisplay = forwardRef<HTMLButtonElement, RoleBadgeProps>(
   ({ role, interactive = false, isUpdating = false, className, ...props }, ref) => {
-    const config = ROLE_DETAILS[role] || ROLE_DETAILS[USER_ROLES.STAFF]
+    const config = ROLE_DETAILS[role] || ROLE_DETAILS[USER_ROLES.UNKNOWN]
     const Icon = config.icon
 
     if (!interactive) {
@@ -392,7 +392,7 @@ export function UserRolesList() {
                         )}
                       </TableCell>
 
-                      {/* System Role Column (Interactive Badge Menu for Owner, Static Badge for Non-Owner) */}
+                      {/* System Role Column (Interactive Badge Menu for Admin, Static Badge for Non-Admin) */}
                       <TableCell className="py-3 px-4">
                         {isAdmin && !isArchived ? (
                           <DropdownMenu>
@@ -574,14 +574,14 @@ export function UserRolesList() {
         itemName={userToDeactivate?.fullName || userToDeactivate?.email}
         itemDetails={
           userToDeactivate
-            ? `Email: ${userToDeactivate.email} • Role: ${userToDeactivate.role || 'STAFF'}`
+            ? `Email: ${userToDeactivate.email} • Role: ${userToDeactivate.role || USER_ROLES.UNKNOWN}`
             : undefined
         }
         confirmText="Archive Account"
         variant="destructive"
       />
 
-      {/* Register User Modal (Owner Only) */}
+      {/* Register User Modal (Admin Only) */}
       <RegisterUserModal
         open={isRegisterModalOpen}
         onClose={() => setIsRegisterModalOpen(false)}

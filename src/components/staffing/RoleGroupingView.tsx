@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Users, Briefcase, UserX, UserPlus, Shield, CheckCircle2, Crown } from 'lucide-react'
+import { Users, Briefcase, UserX, UserPlus, Shield, CheckCircle2, Crown, HelpCircle } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -248,6 +248,10 @@ export function RoleGroupingView() {
     const rec = u as unknown as Record<string, unknown>
     return normalizeUserRole(u.role || rec.userRole) === USER_ROLES.STAFF
   })
+  const unknownUsers = users.filter((u) => {
+    const rec = u as unknown as Record<string, unknown>
+    return normalizeUserRole(u.role || rec.userRole) === USER_ROLES.UNKNOWN
+  })
 
   const getLinkedEmployee = (userId: number, email?: string) => {
     return employees.find(
@@ -458,6 +462,44 @@ export function RoleGroupingView() {
                 )}
               </CardContent>
             </Card>
+
+            {/* 4. Unverified / Unknown Role Tier (Defensive Quarantine) */}
+            {unknownUsers.length > 0 && (
+              <Card className="border border-rose-500/30 shadow-2xs overflow-hidden rounded-2xl bg-rose-500/5">
+                <CardHeader className="bg-rose-500/10 p-4 border-b border-rose-500/20">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <div className="flex size-9 items-center justify-center rounded-xl bg-rose-500/20 text-rose-600 dark:text-rose-400">
+                        <HelpCircle className="size-4" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <CardTitle className="text-sm font-bold text-foreground">
+                            Unverified / Unknown Role Tier
+                          </CardTitle>
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] font-bold bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/30"
+                          >
+                            {unknownUsers.length} {unknownUsers.length === 1 ? 'account' : 'accounts'}
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Accounts with unrecognized or unverified roles placed in defensive quarantine with zero system privileges.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-4">
+                  {renderUserCards(
+                    unknownUsers,
+                    'UNKNOWN',
+                    'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30',
+                  )}
+                </CardContent>
+              </Card>
+            )}
           </div>
         )
       ) : /* Grouped by Job Position */

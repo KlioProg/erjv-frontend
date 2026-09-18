@@ -27,7 +27,7 @@ import { Badge } from '@/components/ui/badge'
 import { Spinner } from '@/components/ui/spinner'
 import { toast } from 'sonner'
 import { useAuth } from '@/features/auth/AuthContext'
-import { USER_ROLES } from '@/features/auth/roles'
+import { USER_ROLES, ROLE_DETAILS } from '@/features/auth/roles'
 import { useQueryClient } from '@tanstack/react-query'
 import { getErrorMessage } from '@/lib/api-client'
 
@@ -47,6 +47,7 @@ const AVATAR_PRESETS = [
 function AccountProfileForm({ onClose }: { onClose: () => void }) {
   const { user, updateProfile, isAdmin } = useAuth()
   const queryClient = useQueryClient()
+  const roleConfig = ROLE_DETAILS[user?.role || USER_ROLES.UNKNOWN] || ROLE_DETAILS[USER_ROLES.UNKNOWN]
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   const [fullName, setFullName] = useState(user?.fullName || '')
@@ -154,9 +155,9 @@ function AccountProfileForm({ onClose }: { onClose: () => void }) {
               <span className="text-xs font-bold text-foreground">Profile Picture</span>
               <Badge
                 variant="outline"
-                className="text-[10px] bg-primary/10 text-primary border-primary/20"
+                className={`text-[10px] ${roleConfig.badgeClass}`}
               >
-                {user?.role || USER_ROLES.ADMIN}
+                {roleConfig.label}
               </Badge>
             </div>
             <p className="text-[11px] text-muted-foreground">
@@ -302,7 +303,7 @@ function AccountProfileForm({ onClose }: { onClose: () => void }) {
         <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
           <Shield className="size-3.5 text-emerald-600 shrink-0" />
           <span>
-            Role: <strong className="text-foreground">{user?.role || USER_ROLES.ADMIN}</strong>
+            Role: <strong className="text-foreground">{roleConfig.label}</strong>
           </span>
         </div>
 

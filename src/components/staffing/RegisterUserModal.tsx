@@ -349,11 +349,11 @@ export function RegisterUserModal({ open, onClose }: RegisterUserModalProps) {
             </div>
           </div>
 
-          {/* Owner Notice Callout */}
+          {/* Admin Notice Callout */}
           <div className="rounded-xl border border-primary/20 bg-primary/5 p-3.5 text-[11px] text-muted-foreground leading-relaxed flex items-start gap-2.5 mt-1">
             <Sparkles className="size-4 text-primary shrink-0 mt-0.5" />
             <div>
-              <span className="font-semibold text-foreground">Owner Provisioning: </span>
+              <span className="font-semibold text-foreground">Admin Provisioning: </span>
               This account will be created immediately. The user can sign in right away using these credentials. You can modify their role or archive the account anytime.
             </div>
           </div>

@@ -37,6 +37,7 @@ import {
   useUsers,
 } from '@/features/staffing/staffing.hooks'
 import type { Employee } from '@/features/staffing/staffing.types'
+import { USER_ROLES } from '@/features/auth/roles'
 import { getErrorMessage } from '@/lib/api-client'
 import { sanitizePhilippinePhone, validatePhilippinePhone } from '@/lib/phone-utils'
 
@@ -330,7 +331,7 @@ function EmployeeFormContent({
                     <SelectItem value="none">No linked account</SelectItem>
                     {users.map((u) => (
                       <SelectItem key={u.id} value={String(u.id)}>
-                        {u.email} ({u.role})
+                        {u.email} ({u.role || USER_ROLES.UNKNOWN})
                       </SelectItem>
                     ))}
                   </SelectGroup>

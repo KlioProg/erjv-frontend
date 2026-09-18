@@ -28,7 +28,7 @@ export async function submitSignup(formData: FormData) {
   }
 
   const user = await registerApi(payload)
-  return `Account created successfully for ${user.email} (${user.role}). You can now sign in.`
+  return `Account created successfully for ${user.email} (${user.role || USER_ROLES.UNKNOWN}). You can now sign in.`
 }
 
 export async function submitForgotPassword(email: string) {

@@ -8,7 +8,7 @@ import type {
   SafeUserResponse,
   UpdateUserProfilePayload,
 } from './auth.types'
-import { USER_ROLES, BACKEND_ROLE_MAP, type UserRole } from './roles'
+import { USER_ROLES, type UserRole } from './roles'
 
 type AuthContextType = {
   user: SafeUserResponse | null
@@ -29,7 +29,26 @@ type AuthContextType = {
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function normalizeUserRole(rawRole: unknown): UserRole {
-  return BACKEND_ROLE_MAP.fromBackend(rawRole)
+  if (!rawRole) return USER_ROLES.UNKNOWN
+  const str = String(rawRole).trim().toUpperCase()
+
+  // 1. Top Tier: ADMIN (also maps legacy OWNER so OWNER is never shown in frontend)
+  if (str === USER_ROLES.ADMIN || str === 'OWNER' || str === 'SUPER_ADMIN' || str === 'SUPERADMIN') {
+    return USER_ROLES.ADMIN
+  }
+
+  // 2. Operations Tier: MANAGER
+  if (str === USER_ROLES.MANAGER || str === 'OPERATIONS') {
+    return USER_ROLES.MANAGER
+  }
+
+  // 3. Base Tier: STAFF
+  if (str === USER_ROLES.STAFF) {
+    return USER_ROLES.STAFF
+  }
+
+  // 4. Default: UNKNOWN ("who are you tier")
+  return USER_ROLES.UNKNOWN
 }
 
 export function normalizeUser(

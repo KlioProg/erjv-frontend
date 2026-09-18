@@ -3,10 +3,11 @@ import { Users, Briefcase, Layers, Shield, LogOut, Package, Sparkles } from 'luc
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Card } from '@/components/ui/card'
 import { ErjvPosLogo } from '@/components/ui/ErjvPosLogo'
 import { useAuth } from '@/features/auth/AuthContext'
+import { USER_ROLES, ROLE_DETAILS } from '@/features/auth/roles'
 import { useEmployees, useJobs, useUsers } from '@/features/staffing/staffing.hooks'
 import { useProducts } from '@/features/products/products.hooks'
 import { EmployeeList } from './EmployeeList'
@@ -21,6 +22,9 @@ type StaffingDashboardProps = {
 
 export function StaffingDashboard({ onSwitchToOperations }: StaffingDashboardProps = {}) {
   const { user, logout } = useAuth()
+  const roleConfig = ROLE_DETAILS[user?.role || USER_ROLES.UNKNOWN] || ROLE_DETAILS[USER_ROLES.UNKNOWN]
+  const displayName = user?.fullName?.trim() || user?.email || 'User Account'
+  const userInitial = displayName.charAt(0).toUpperCase()
   const { data: employees = [] } = useEmployees()
   const { data: jobs = [] } = useJobs()
   const { data: users = [] } = useUsers()
@@ -79,20 +83,21 @@ export function StaffingDashboard({ onSwitchToOperations }: StaffingDashboardPro
             {/* User Profile & Role Info */}
             <div className="flex items-center gap-2 pl-2 border-l border-border">
               <Avatar className="size-8 ring-1 ring-border">
-                <AvatarFallback className="bg-primary text-primary-foreground text-xs font-bold">
-                  {user?.email?.charAt(0).toUpperCase() || '?'}
+                {user?.avatarUrl && <AvatarImage src={user.avatarUrl} alt={displayName} />}
+                <AvatarFallback className="bg-primary/10 text-primary text-xs font-bold">
+                  {userInitial}
                 </AvatarFallback>
               </Avatar>
               <div className="hidden sm:flex flex-col text-left">
-                <span className="text-xs font-semibold text-foreground truncate max-w-[140px]">
-                  {user?.email || '<UNKNOWN EMAIL>'}
+                <span className="text-xs font-semibold text-foreground truncate max-w-[140px]" title={displayName}>
+                  {displayName}
                 </span>
                 <div className="flex items-center gap-1">
                   <Badge
                     variant="outline"
-                    className="text-[9px] py-0 px-1.5 font-bold uppercase tracking-wider text-primary border-primary/30"
+                    className={`text-[9px] py-0 px-1.5 font-bold uppercase tracking-wider ${roleConfig.badgeClass}`}
                   >
-                    {user?.role || '<UNKNOWN ROLE>'}
+                    {roleConfig.label}
                   </Badge>
                 </div>
               </div>

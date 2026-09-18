@@ -12,10 +12,11 @@ import {
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Card } from '@/components/ui/card'
 import { ErjvPosLogo } from '@/components/ui/ErjvPosLogo'
 import { useAuth } from '@/features/auth/AuthContext'
+import { USER_ROLES, ROLE_DETAILS } from '@/features/auth/roles'
 import { useWarehouses } from '@/features/logistics/warehouses.hooks'
 import { useStockItems } from '@/features/logistics/stock-items.hooks'
 import { useDeliveryVehicles } from '@/features/logistics/delivery-vehicles.hooks'
@@ -39,8 +40,9 @@ export function OperationsDashboard({ onSwitchToStaffing }: OperationsDashboardP
 
   const totalStockUnits = stockItems.reduce((acc, s) => acc + parseFloat(s.quantity), 0)
   const availableVehiclesCount = vehicles.filter((v) => v.status === 'AVAILABLE').length
-
-  const userInitial = user?.email ? user.email.charAt(0).toUpperCase() : 'U'
+  const displayName = user?.fullName?.trim() || user?.email || 'User Account'
+  const userInitial = displayName.charAt(0).toUpperCase()
+  const roleConfig = ROLE_DETAILS[user?.role || USER_ROLES.UNKNOWN] || ROLE_DETAILS[USER_ROLES.UNKNOWN]
 
   return (
     <div className="min-h-svh bg-background text-foreground flex flex-col antialiased">
@@ -73,16 +75,23 @@ export function OperationsDashboard({ onSwitchToStaffing }: OperationsDashboardP
 
             <div className="flex items-center gap-2 pl-2 border-l border-border/60">
               <Avatar className="size-8 border border-border">
+                {user?.avatarUrl && <AvatarImage src={user.avatarUrl} alt={displayName} />}
                 <AvatarFallback className="bg-primary/10 text-primary font-bold text-xs">
                   {userInitial}
                 </AvatarFallback>
               </Avatar>
               <div className="hidden sm:flex flex-col text-left">
-                <span className="text-xs font-bold leading-none text-foreground truncate max-w-[140px]">
-                  {user?.email}
+                <span className="text-xs font-bold leading-none text-foreground truncate max-w-[140px]" title={displayName}>
+                  {displayName}
                 </span>
-                <span className="text-[10px] text-muted-foreground font-medium mt-0.5">
-                  {user?.role} Access
+                <span className="text-[10px] text-muted-foreground font-medium mt-0.5 flex items-center gap-1">
+                  <Badge
+                    variant="outline"
+                    className={`text-[8px] py-0 px-1 font-bold uppercase tracking-wider ${roleConfig.badgeClass}`}
+                  >
+                    {roleConfig.label}
+                  </Badge>
+                  Access
                 </span>
               </div>
             </div>

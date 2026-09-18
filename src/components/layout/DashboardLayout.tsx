@@ -29,6 +29,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { ErjvPosLogo } from '@/components/ui/ErjvPosLogo'
 import { useAuth } from '@/features/auth/AuthContext'
+import { USER_ROLES, ROLE_DETAILS } from '@/features/auth/roles'
 import { useProducts } from '@/features/products/products.hooks'
 import { ProductListModal } from '../products/ProductListModal'
 
@@ -77,7 +78,8 @@ const NAV_GROUPS: NavGroup[] = [
 
 export function DashboardLayout({ currentTab, onSelectTab, children }: DashboardLayoutProps) {
   const queryClient = useQueryClient()
-  const { user, logout, isAdmin, isManager, isStaff } = useAuth()
+  const { user, logout, isAdmin, isManager } = useAuth()
+  const roleConfig = ROLE_DETAILS[user?.role || USER_ROLES.UNKNOWN] || ROLE_DETAILS[USER_ROLES.UNKNOWN]
   const { data: products = [] } = useProducts()
   const [isMobileOpen, setIsMobileOpen] = useState(false)
   const [isProductsModalOpen, setIsProductsModalOpen] = useState(false)
@@ -205,9 +207,19 @@ export function DashboardLayout({ currentTab, onSelectTab, children }: Dashboard
                       {displayName}
                     </span>
                     <div className="flex items-center gap-1.5 mt-0.5">
-                      <span className="inline-block size-1.5 rounded-full bg-emerald-500 shrink-0" />
-                      <span className="text-[10px] font-extrabold text-primary tracking-tight uppercase">
-                        {isAdmin ? 'ADMIN' : isManager ? 'MANAGER' : 'STAFF'}
+                      <span
+                        className={`inline-block size-1.5 rounded-full shrink-0 ${
+                          roleConfig.role === USER_ROLES.ADMIN
+                            ? 'bg-emerald-500'
+                            : roleConfig.role === USER_ROLES.MANAGER
+                              ? 'bg-blue-500'
+                              : roleConfig.role === USER_ROLES.STAFF
+                                ? 'bg-muted-foreground'
+                                : 'bg-rose-500'
+                        }`}
+                      />
+                      <span className="text-[10px] font-extrabold tracking-tight uppercase text-muted-foreground">
+                        {roleConfig.label}
                       </span>
                     </div>
                   </div>
@@ -224,9 +236,9 @@ export function DashboardLayout({ currentTab, onSelectTab, children }: Dashboard
                 <div className="flex items-center gap-1.5 mt-1">
                   <Badge
                     variant="outline"
-                    className="font-bold text-[9px] text-primary bg-primary/10 py-0 px-1.5 border-primary/20"
+                    className={`font-bold text-[9px] py-0 px-1.5 ${roleConfig.badgeClass}`}
                   >
-                    {isAdmin ? 'ADMIN' : isManager ? 'MANAGER' : 'STAFF'}
+                    {roleConfig.label}
                   </Badge>
                   <span className="text-[10px] text-emerald-600 font-semibold">● Online</span>
                 </div>
@@ -284,15 +296,27 @@ export function DashboardLayout({ currentTab, onSelectTab, children }: Dashboard
             <Badge
               variant="outline"
               className={`hidden sm:flex text-[11px] font-medium gap-1.5 ${
-                isStaff
-                  ? 'bg-blue-500/10 text-blue-600 border-blue-500/20'
-                  : 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20'
+                roleConfig.role === USER_ROLES.ADMIN
+                  ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20'
+                  : roleConfig.role === USER_ROLES.MANAGER
+                    ? 'bg-blue-500/10 text-blue-600 border-blue-500/20'
+                    : roleConfig.role === USER_ROLES.STAFF
+                      ? 'bg-muted/80 text-muted-foreground border-border'
+                      : 'bg-rose-500/10 text-rose-600 border-rose-500/20'
               }`}
             >
               <span
-                className={`size-1.5 rounded-full ${isStaff ? 'bg-blue-500' : 'bg-emerald-500'} animate-pulse`}
+                className={`size-1.5 rounded-full ${
+                  roleConfig.role === USER_ROLES.ADMIN
+                    ? 'bg-emerald-500'
+                    : roleConfig.role === USER_ROLES.MANAGER
+                      ? 'bg-blue-500'
+                      : roleConfig.role === USER_ROLES.STAFF
+                        ? 'bg-muted-foreground'
+                        : 'bg-rose-500'
+                } animate-pulse`}
               />
-              {user?.role || 'ADMIN'} Mode
+              {roleConfig.label} Mode
             </Badge>
           </div>
         </header>
