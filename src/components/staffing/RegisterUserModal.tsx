@@ -31,7 +31,7 @@ import {
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Spinner } from '@/components/ui/spinner'
 import { useRegisterUser, useEmployees, useUsers } from '@/features/staffing/staffing.hooks'
-import type { UserRole } from '@/features/auth/auth.types'
+import { USER_ROLES, type UserRole } from '@/features/auth/roles'
 import { getErrorMessage } from '@/lib/api-client'
 
 type RegisterUserModalProps = {
@@ -47,7 +47,7 @@ export function RegisterUserModal({ open, onClose }: RegisterUserModalProps) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
-  const [role, setRole] = useState<UserRole>('STAFF')
+  const [role, setRole] = useState<UserRole>(USER_ROLES.STAFF)
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('none')
 
   const [showPassword, setShowPassword] = useState(false)
@@ -62,7 +62,7 @@ export function RegisterUserModal({ open, onClose }: RegisterUserModalProps) {
     setEmail('')
     setPassword('')
     setConfirmPassword('')
-    setRole('STAFF')
+    setRole(USER_ROLES.STAFF)
     setSelectedEmployeeId('none')
     setShowPassword(false)
     setShowConfirmPassword(false)
@@ -195,7 +195,7 @@ export function RegisterUserModal({ open, onClose }: RegisterUserModalProps) {
                 <SelectValue placeholder="Select role" />
               </SelectTrigger>
               <SelectContent className="p-1">
-                <SelectItem value="STAFF" className="text-xs cursor-pointer py-2.5 px-3 rounded-lg">
+                <SelectItem value={USER_ROLES.STAFF} className="text-xs cursor-pointer py-2.5 px-3 rounded-lg">
                   <div className="flex items-center gap-3 py-0.5">
                     <div className="size-8 rounded-lg bg-muted flex items-center justify-center shrink-0">
                       <User className="size-4 text-muted-foreground" />
@@ -210,14 +210,14 @@ export function RegisterUserModal({ open, onClose }: RegisterUserModalProps) {
                     </div>
                   </div>
                 </SelectItem>
-                <SelectItem value="ADMIN" className="text-xs cursor-pointer py-2.5 px-3 rounded-lg">
+                <SelectItem value={USER_ROLES.MANAGER} className="text-xs cursor-pointer py-2.5 px-3 rounded-lg">
                   <div className="flex items-center gap-3 py-0.5">
                     <div className="size-8 rounded-lg bg-blue-500/10 flex items-center justify-center shrink-0">
                       <Shield className="size-4 text-blue-600 dark:text-blue-400" />
                     </div>
                     <div className="flex flex-col text-left gap-0.5 min-w-0">
                       <span className="font-semibold text-xs text-blue-600 dark:text-blue-400 leading-tight">
-                        ADMIN (Operations)
+                        MANAGER (Operations)
                       </span>
                       <span className="text-[11px] text-muted-foreground leading-tight">
                         Warehouse, inventory, logistics and team management
@@ -225,17 +225,17 @@ export function RegisterUserModal({ open, onClose }: RegisterUserModalProps) {
                     </div>
                   </div>
                 </SelectItem>
-                <SelectItem value="OWNER" className="text-xs cursor-pointer py-2.5 px-3 rounded-lg">
+                <SelectItem value={USER_ROLES.ADMIN} className="text-xs cursor-pointer py-2.5 px-3 rounded-lg">
                   <div className="flex items-center gap-3 py-0.5">
                     <div className="size-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
                       <Sparkles className="size-4 text-primary" />
                     </div>
                     <div className="flex flex-col text-left gap-0.5 min-w-0">
                       <span className="font-semibold text-xs text-primary leading-tight">
-                        OWNER (Enterprise)
+                        ADMIN (Administrator)
                       </span>
                       <span className="text-[11px] text-muted-foreground leading-tight">
-                        Full administrative authority and system configuration
+                        Full administrative authority, user registration, and system configuration
                       </span>
                     </div>
                   </div>

@@ -1,5 +1,6 @@
 import { loginApi, registerApi } from '@/features/auth/auth.api'
 import type { LoginRequest, RegisterRequest } from '@/features/auth/auth.types'
+import { USER_ROLES, type UserRole } from '@/features/auth/roles'
 
 export async function submitLogin(formData: FormData) {
   const email = String(formData.get('email')).trim()
@@ -19,7 +20,7 @@ export async function submitLogin(formData: FormData) {
 export async function submitSignup(formData: FormData) {
   const email = String(formData.get('email')).trim()
   const password = String(formData.get('password'))
-  const role = (String(formData.get('role')) || 'STAFF') as 'OWNER' | 'ADMIN' | 'STAFF'
+  const role = (String(formData.get('role')) || USER_ROLES.STAFF) as UserRole
 
   const payload: RegisterRequest = {
     email,

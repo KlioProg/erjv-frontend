@@ -1,5 +1,6 @@
 import { apiClient, extractArray, type FetchParams } from '@/lib/api-client'
 import type { UserRole } from '../auth/auth.types'
+import { BACKEND_ROLE_MAP } from '../auth/roles'
 import type {
   CreateEmployeePayload,
   CreateJobPayload,
@@ -192,12 +193,20 @@ export async function replaceEmployeeJobsApi(employeeId: number, jobIds: number[
 
 export async function fetchUsersApi(params?: FetchParams): Promise<UserAccount[]> {
   const response = await apiClient.get('/users', { params })
-  return extractArray<UserAccount>(response.data)
+  const users = extractArray<UserAccount>(response.data)
+  return users.map((u) => ({
+    ...u,
+    role: BACKEND_ROLE_MAP.fromBackend(u.role),
+  }))
 }
 
 export async function updateUserRoleApi(id: number, role: UserRole): Promise<UserAccount> {
-  const { data } = await apiClient.patch<UserAccount>(`/users/${id}/role`, { role })
-  return data
+  const backendRole = BACKEND_ROLE_MAP.toBackend(role)
+  const { data } = await apiClient.patch<UserAccount>(`/users/${id}/role`, { role: backendRole })
+  return {
+    ...data,
+    role: BACKEND_ROLE_MAP.fromBackend(data.role),
+  }
 }
 
 export async function deactivateUserApi(id: number): Promise<UserAccount> {

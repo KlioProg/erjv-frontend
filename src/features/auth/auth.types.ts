@@ -1,4 +1,6 @@
-export type UserRole = 'OWNER' | 'ADMIN' | 'STAFF'
+import type { UserRole, BackendUserRole, RoleConfig } from './roles'
+export { USER_ROLES, BACKEND_ROLE_MAP, ROLE_DETAILS } from './roles'
+export type { UserRole, BackendUserRole, RoleConfig }
 
 export type AuthMode = 'login' | 'signup' | 'forgot-password'
 

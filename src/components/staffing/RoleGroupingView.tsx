@@ -21,6 +21,7 @@ import {
   useUsers,
 } from '@/features/staffing/staffing.hooks'
 import { normalizeUserRole } from '@/features/auth/AuthContext'
+import { USER_ROLES } from '@/features/auth/roles'
 import type { Job, Employee } from '@/features/staffing/staffing.types'
 import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal'
 
@@ -235,17 +236,17 @@ export function RoleGroupingView() {
 
   const [viewMode, setViewMode] = useState<'SYSTEM_ROLE' | 'JOB_POSITION'>('SYSTEM_ROLE')
 
-  const ownerUsers = users.filter((u) => {
-    const rec = u as unknown as Record<string, unknown>
-    return normalizeUserRole(u.role || rec.userRole) === 'OWNER'
-  })
   const adminUsers = users.filter((u) => {
     const rec = u as unknown as Record<string, unknown>
-    return normalizeUserRole(u.role || rec.userRole) === 'ADMIN'
+    return normalizeUserRole(u.role || rec.userRole) === USER_ROLES.ADMIN
+  })
+  const managerUsers = users.filter((u) => {
+    const rec = u as unknown as Record<string, unknown>
+    return normalizeUserRole(u.role || rec.userRole) === USER_ROLES.MANAGER
   })
   const staffUsers = users.filter((u) => {
     const rec = u as unknown as Record<string, unknown>
-    return normalizeUserRole(u.role || rec.userRole) === 'STAFF'
+    return normalizeUserRole(u.role || rec.userRole) === USER_ROLES.STAFF
   })
 
   const getLinkedEmployee = (userId: number, email?: string) => {
@@ -354,7 +355,7 @@ export function RoleGroupingView() {
           </div>
         ) : (
           <div className="flex flex-col gap-4">
-            {/* 1. Super Admins (Owners) */}
+            {/* 1. Enterprise Administrators (Admins) */}
             <Card className="border border-primary/20 shadow-2xs overflow-hidden rounded-2xl">
               <CardHeader className="bg-primary/5 p-4 border-b border-primary/15">
                 <div className="flex items-center justify-between">
@@ -365,13 +366,13 @@ export function RoleGroupingView() {
                     <div>
                       <div className="flex items-center gap-2">
                         <CardTitle className="text-sm font-bold text-foreground">
-                          Enterprise Owners (Owner)
+                          Enterprise Administrators (Admins)
                         </CardTitle>
                         <Badge
                           variant="outline"
                           className="text-[10px] font-bold bg-primary/10 text-primary border-primary/30"
                         >
-                          {ownerUsers.length} {ownerUsers.length === 1 ? 'member' : 'members'}
+                          {adminUsers.length} {adminUsers.length === 1 ? 'member' : 'members'}
                         </Badge>
                       </div>
                       <p className="text-xs text-muted-foreground mt-0.5">
@@ -383,14 +384,14 @@ export function RoleGroupingView() {
               </CardHeader>
               <CardContent className="p-4">
                 {renderUserCards(
-                  ownerUsers,
-                  'OWNER',
+                  adminUsers,
+                  'ADMIN',
                   'bg-primary/10 text-primary border-primary/30',
                 )}
               </CardContent>
             </Card>
 
-            {/* 2. System Administrators */}
+            {/* 2. Managers */}
             <Card className="border border-border/80 shadow-2xs overflow-hidden rounded-2xl">
               <CardHeader className="bg-muted/40 p-4 border-b">
                 <div className="flex items-center justify-between">
@@ -401,10 +402,10 @@ export function RoleGroupingView() {
                     <div>
                       <div className="flex items-center gap-2">
                         <CardTitle className="text-sm font-bold text-foreground">
-                          System Administrators (Admins)
+                          Managers
                         </CardTitle>
                         <Badge variant="secondary" className="text-[10px] font-bold">
-                          {adminUsers.length} {adminUsers.length === 1 ? 'member' : 'members'}
+                          {managerUsers.length} {managerUsers.length === 1 ? 'member' : 'members'}
                         </Badge>
                       </div>
                       <p className="text-xs text-muted-foreground mt-0.5">
@@ -417,8 +418,8 @@ export function RoleGroupingView() {
               </CardHeader>
               <CardContent className="p-4">
                 {renderUserCards(
-                  adminUsers,
-                  'ADMIN',
+                  managerUsers,
+                  'MANAGER',
                   'bg-blue-500/10 text-blue-600 border-blue-200',
                 )}
               </CardContent>

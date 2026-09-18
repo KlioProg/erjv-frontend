@@ -41,7 +41,7 @@ export function ClientList() {
   const { data: allClients = [], isLoading } = useAllClients()
   const deactivateMutation = useDeactivateClient({ onViewArchive: () => setActiveTab('ARCHIVED') })
   const reactivateMutation = useReactivateClient()
-  const { isOwner, isAdmin } = useAuth()
+  const { isAdmin, isManager } = useAuth()
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedClient, setSelectedClient] = useState<Client | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -112,7 +112,7 @@ export function ClientList() {
           />
         </div>
 
-        {(isOwner || isAdmin) && activeTab === 'ACTIVE' && (
+        {(isAdmin || isManager) && activeTab === 'ACTIVE' && (
           <Button onClick={handleCreate} size="sm" className="gap-1.5 shadow-xs cursor-pointer">
             <Plus className="size-4" />
             Register New Client
@@ -212,7 +212,7 @@ export function ClientList() {
                       </div>
                     </div>
 
-                    {(isOwner || isAdmin) && (
+                    {(isAdmin || isManager) && (
                       <div>
                         {isArchived ? (
                           (() => {
@@ -220,7 +220,8 @@ export function ClientList() {
                               reactivateMutation.isPending &&
                               (typeof reactivateMutation.variables === 'number'
                                 ? reactivateMutation.variables === client.id
-                                : (reactivateMutation.variables as Client | undefined)?.id === client.id)
+                                : (reactivateMutation.variables as Client | undefined)?.id ===
+                                  client.id)
 
                             return (
                               <Button
@@ -235,7 +236,9 @@ export function ClientList() {
                                 ) : (
                                   <RotateCcw className="size-3.5 text-emerald-600 dark:text-emerald-600 transition-transform duration-200 group-hover:-rotate-45" />
                                 )}
-                                <span>{isReactivatingThis ? 'Reactivating...' : 'Reactivate Client'}</span>
+                                <span>
+                                  {isReactivatingThis ? 'Reactivating...' : 'Reactivate Client'}
+                                </span>
                               </Button>
                             )
                           })()

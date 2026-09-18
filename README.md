@@ -31,7 +31,7 @@ The modern web application for the **ERJV Enterprise Business Platform**. Built 
 ## Key Features
 
 - **Executive & Operations Dashboards**: High-level KPIs, inventory alerts, fleet utilization, and quick action bars.
-- **Staffing & User Roles**: Employee profiles, user account linking, position assignments, and role-based permissions (`OWNER`, `ADMIN`, `STAFF`).
+- **Staffing & User Roles**: Employee profiles, user account linking, position assignments, and role-based permissions (`ADMIN`, `MANAGER`, `STAFF`).
 - **Warehouse & Stock Management**: Multi-warehouse allocation, real-time quantity adjustments (increments, decrements, and exact audits), and pricing oversight.
 - **Fleet & Transport Tracking**: Delivery vehicle status management (`Available`, `In Delivery`, `Maintenance`, `Out of Service`), payload capacity specs, and dispatch readiness.
 - **Client Relations (CRM)**: Searchable client directory, contact person management, and delivery locations.
@@ -42,16 +42,16 @@ The modern web application for the **ERJV Enterprise Business Platform**. Built 
 
 ## 🛠 Tech Stack
 
-| Category | Technology | Purpose |
-| :--- | :--- | :--- |
-| **Core Framework** | [React 18](https://react.dev/) + [TypeScript](https://www.typescriptlang.org/) | Modern component architecture with type safety |
-| **Bundler & Dev Server** | [Vite 8](https://vite.dev/) | Instant HMR and optimized production bundling |
-| **Styling** | [Tailwind CSS 3](https://tailwindcss.com/) + Custom Design Tokens | Utility-first responsive styling with Dark Mode |
-| **UI Primitives** | [Radix UI](https://www.radix-ui.com/) / [shadcn](https://ui.shadcn.com/) | Accessible dialogs, dropdown menus, and tabs |
-| **Server State & Data Fetching** | [TanStack React Query v5](https://tanstack.com/query) | Cache synchronization, mutations, and optimistic UI |
-| **HTTP Client** | [Axios](https://axios-http.com/) | Custom interceptors for JWT token injection and error formatting |
-| **Notifications** | [Sonner](https://sonner.emilkowal.ski/) | Toast notification system with custom actions |
-| **Icons** | [Lucide React](https://lucide.dev/) | Comprehensive vector icons |
+| Category                         | Technology                                                                     | Purpose                                                          |
+| :------------------------------- | :----------------------------------------------------------------------------- | :--------------------------------------------------------------- |
+| **Core Framework**               | [React 18](https://react.dev/) + [TypeScript](https://www.typescriptlang.org/) | Modern component architecture with type safety                   |
+| **Bundler & Dev Server**         | [Vite 8](https://vite.dev/)                                                    | Instant HMR and optimized production bundling                    |
+| **Styling**                      | [Tailwind CSS 3](https://tailwindcss.com/) + Custom Design Tokens              | Utility-first responsive styling with Dark Mode                  |
+| **UI Primitives**                | [Radix UI](https://www.radix-ui.com/) / [shadcn](https://ui.shadcn.com/)       | Accessible dialogs, dropdown menus, and tabs                     |
+| **Server State & Data Fetching** | [TanStack React Query v5](https://tanstack.com/query)                          | Cache synchronization, mutations, and optimistic UI              |
+| **HTTP Client**                  | [Axios](https://axios-http.com/)                                               | Custom interceptors for JWT token injection and error formatting |
+| **Notifications**                | [Sonner](https://sonner.emilkowal.ski/)                                        | Toast notification system with custom actions                    |
+| **Icons**                        | [Lucide React](https://lucide.dev/)                                            | Comprehensive vector icons                                       |
 
 ---
 
@@ -83,6 +83,7 @@ The modern web application for the **ERJV Enterprise Business Platform**. Built 
 ### Environment Configuration
 
 1. Create a `.env` file from `.env.example`:
+
    ```bash
    cp .env.example .env
    ```

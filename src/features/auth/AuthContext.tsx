@@ -8,14 +8,15 @@ import type {
   SafeUserResponse,
   UpdateUserProfilePayload,
 } from './auth.types'
+import { USER_ROLES, BACKEND_ROLE_MAP, type UserRole } from './roles'
 
 type AuthContextType = {
   user: SafeUserResponse | null
   token: string | null
   isAuthenticated: boolean
   isLoading: boolean
-  isOwner: boolean
   isAdmin: boolean
+  isManager: boolean
   isStaff: boolean
   canManageStaff: boolean
   canManageOperations: boolean
@@ -23,20 +24,14 @@ type AuthContextType = {
   register: (payload: RegisterRequest) => Promise<SafeUserResponse>
   updateProfile: (payload: UpdateUserProfilePayload) => Promise<SafeUserResponse>
   logout: () => void
-  setDemoUser: (role?: 'OWNER' | 'ADMIN' | 'STAFF') => void
-  switchRole: (role: 'OWNER' | 'ADMIN' | 'STAFF') => void
+  setDemoUser: (role?: UserRole) => void
+  switchRole: (role: UserRole) => void
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-export function normalizeUserRole(rawRole: unknown): 'OWNER' | 'ADMIN' | 'STAFF' {
-  if (!rawRole) return 'STAFF'
-  const str = String(rawRole).trim().toUpperCase()
-  if (str === 'OWNER' || str.includes('OWNER') || str === 'SUPER_ADMIN' || str === 'SUPERADMIN')
-    return 'OWNER'
-  if (str === 'ADMIN' || str.includes('ADMIN') || str === 'MANAGER' || str === 'OPERATIONS')
-    return 'ADMIN'
-  return 'STAFF'
+export function normalizeUserRole(rawRole: unknown): UserRole {
+  return BACKEND_ROLE_MAP.fromBackend(rawRole)
 }
 
 export function normalizeUser(
@@ -87,10 +82,10 @@ export function normalizeUser(
     jobTitle:
       (userObj.jobTitle as string) ||
       (rawUser.jobTitle as string) ||
-      (resolvedRole === 'OWNER'
-        ? 'Enterprise Owner'
-        : resolvedRole === 'ADMIN'
-          ? 'System Administrator'
+      (resolvedRole === USER_ROLES.ADMIN
+        ? 'Enterprise Administrator'
+        : resolvedRole === USER_ROLES.MANAGER
+          ? 'Operations Manager'
           : 'Staff Member'),
     bio: (userObj.bio as string) || (rawUser.bio as string) || null,
     role: resolvedRole,
@@ -261,9 +256,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       throw new Error('No user is currently logged in.')
     }
 
-    const isOwner = user.role === 'OWNER'
+    const isAdmin = user.role === 'ADMIN'
     const newFullName =
-      isOwner && payload.fullName !== undefined ? payload.fullName.trim() : user.fullName
+      isAdmin && payload.fullName !== undefined ? payload.fullName.trim() : user.fullName
 
     const updatedUser: SafeUserResponse = {
       ...user,
@@ -289,21 +284,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null)
   }
 
-  const setDemoUser = (demoRole: 'OWNER' | 'ADMIN' | 'STAFF' = 'OWNER') => {
+  const setDemoUser = (demoRole: UserRole = USER_ROLES.ADMIN) => {
     const demo: SafeUserResponse = {
       id: 1,
       email: `${demoRole.toLowerCase()}@erjvpos.com`,
       fullName:
-        demoRole === 'OWNER'
+        demoRole === USER_ROLES.ADMIN
           ? 'Marcus Villaruel'
-          : demoRole === 'ADMIN'
+          : demoRole === USER_ROLES.MANAGER
             ? 'Sarah Chen-Santos'
             : 'Danilo Reyes',
       jobTitle:
-        demoRole === 'OWNER'
-          ? 'Enterprise Owner'
-          : demoRole === 'ADMIN'
-            ? 'System Administrator'
+        demoRole === USER_ROLES.ADMIN
+          ? 'Enterprise Administrator'
+          : demoRole === USER_ROLES.MANAGER
+            ? 'Operations Manager'
             : 'Staff Member',
       role: demoRole,
       isActive: true,
@@ -316,7 +311,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(demo)
   }
 
-  const switchRole = (newRole: 'OWNER' | 'ADMIN' | 'STAFF') => {
+  const switchRole = (newRole: UserRole) => {
     if (!user) {
       setDemoUser(newRole)
       return
@@ -331,11 +326,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const userRecord = user as unknown as Record<string, unknown> | null
   const userRole = normalizeUserRole(user?.role || userRecord?.userRole || userRecord?.roleName)
-  const isOwner = userRole === 'OWNER'
-  const isAdmin = userRole === 'ADMIN'
-  const isStaff = userRole === 'STAFF'
-  const canManageStaff = isOwner || isAdmin
-  const canManageOperations = isOwner || isAdmin
+  const isAdmin = userRole === USER_ROLES.ADMIN
+  const isManager = userRole === USER_ROLES.MANAGER
+  const isStaff = userRole === USER_ROLES.STAFF
+  const canManageStaff = isAdmin || isManager
+  const canManageOperations = isAdmin || isManager
 
   return (
     <AuthContext.Provider
@@ -344,8 +339,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         token,
         isAuthenticated: !!user,
         isLoading,
-        isOwner,
         isAdmin,
+        isManager,
         isStaff,
         canManageStaff,
         canManageOperations,

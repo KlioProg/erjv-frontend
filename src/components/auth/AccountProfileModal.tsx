@@ -27,6 +27,7 @@ import { Badge } from '@/components/ui/badge'
 import { Spinner } from '@/components/ui/spinner'
 import { toast } from 'sonner'
 import { useAuth } from '@/features/auth/AuthContext'
+import { USER_ROLES } from '@/features/auth/roles'
 import { useQueryClient } from '@tanstack/react-query'
 import { getErrorMessage } from '@/lib/api-client'
 
@@ -44,7 +45,7 @@ const AVATAR_PRESETS = [
 ]
 
 function AccountProfileForm({ onClose }: { onClose: () => void }) {
-  const { user, updateProfile, isOwner } = useAuth()
+  const { user, updateProfile, isAdmin } = useAuth()
   const queryClient = useQueryClient()
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
@@ -155,7 +156,7 @@ function AccountProfileForm({ onClose }: { onClose: () => void }) {
                 variant="outline"
                 className="text-[10px] bg-primary/10 text-primary border-primary/20"
               >
-                {user?.role || 'OWNER'}
+                {user?.role || USER_ROLES.ADMIN}
               </Badge>
             </div>
             <p className="text-[11px] text-muted-foreground">
@@ -246,15 +247,15 @@ function AccountProfileForm({ onClose }: { onClose: () => void }) {
         </div>
       </div>
 
-      {/* Full Display Name (Only Owner can edit) */}
+      {/* Full Display Name (Only Administrator can edit) */}
       <div className="flex flex-col gap-1.5">
         <div className="flex items-center justify-between">
           <Label htmlFor="prof-name" className="text-xs font-semibold text-foreground">
             Display Name
           </Label>
-          {!isOwner && (
+          {!isAdmin && (
             <span className="text-[10px] text-muted-foreground font-medium">
-              (Managed by Owner)
+              (Managed by Administrator)
             </span>
           )}
         </div>
@@ -265,14 +266,14 @@ function AccountProfileForm({ onClose }: { onClose: () => void }) {
             placeholder="Your full display name..."
             value={fullName}
             onChange={(e) => setFullName(e.target.value)}
-            disabled={!isOwner}
+            disabled={!isAdmin}
             className="pl-10 text-xs h-9 disabled:opacity-75 disabled:bg-muted/50"
           />
         </div>
         <p className="text-[10px] text-muted-foreground">
-          {isOwner
-            ? 'As Enterprise Owner, you can change your display name across all modules.'
-            : 'Staff and Admin display names are set upon registration and managed centrally.'}
+          {isAdmin
+            ? 'As Administrator, you can change your display name across all modules.'
+            : 'Staff and Manager display names are set upon registration and managed centrally.'}
         </p>
       </div>
 
@@ -301,7 +302,7 @@ function AccountProfileForm({ onClose }: { onClose: () => void }) {
         <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
           <Shield className="size-3.5 text-emerald-600 shrink-0" />
           <span>
-            Role: <strong className="text-foreground">{user?.role || 'OWNER'}</strong>
+            Role: <strong className="text-foreground">{user?.role || USER_ROLES.ADMIN}</strong>
           </span>
         </div>
 

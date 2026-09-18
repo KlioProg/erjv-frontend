@@ -180,7 +180,7 @@ export function getErrorMessage(error: unknown): string {
         return 'Incorrect email or password. Please verify your credentials and try again.'
       }
       if (status === 403 || lower.includes('deactivated') || lower.includes('inactive')) {
-        return 'Your account has been deactivated. Please contact an enterprise owner or administrator.'
+        return 'Your account has been deactivated. Please contact an enterprise administrator.'
       }
     }
 

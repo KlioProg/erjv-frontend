@@ -80,19 +80,19 @@ export function StaffingDashboard({ onSwitchToOperations }: StaffingDashboardPro
             <div className="flex items-center gap-2 pl-2 border-l border-border">
               <Avatar className="size-8 ring-1 ring-border">
                 <AvatarFallback className="bg-primary text-primary-foreground text-xs font-bold">
-                  {user?.email?.charAt(0).toUpperCase() || 'U'}
+                  {user?.email?.charAt(0).toUpperCase() || '?'}
                 </AvatarFallback>
               </Avatar>
               <div className="hidden sm:flex flex-col text-left">
                 <span className="text-xs font-semibold text-foreground truncate max-w-[140px]">
-                  {user?.email || 'Authenticated User'}
+                  {user?.email || '<UNKNOWN EMAIL>'}
                 </span>
                 <div className="flex items-center gap-1">
                   <Badge
                     variant="outline"
                     className="text-[9px] py-0 px-1.5 font-bold uppercase tracking-wider text-primary border-primary/30"
                   >
-                    {user?.role || 'OWNER'}
+                    {user?.role || '<UNKNOWN ROLE>'}
                   </Badge>
                 </div>
               </div>

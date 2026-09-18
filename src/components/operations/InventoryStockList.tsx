@@ -45,10 +45,12 @@ export function InventoryStockList() {
   const { data: stockItems = [], isLoading: isLoadingStock } = useStockItems()
   const { data: warehouses = [] } = useWarehouses()
   const [activeTab, setActiveTab] = useState<'ACTIVE' | 'ARCHIVED'>('ACTIVE')
-  const deactivateProductMutation = useDeactivateProduct({ onViewArchive: () => setActiveTab('ARCHIVED') })
+  const deactivateProductMutation = useDeactivateProduct({
+    onViewArchive: () => setActiveTab('ARCHIVED'),
+  })
   const reactivateProductMutation = useReactivateProduct()
   const deleteStockMutation = useDeleteStockItem()
-  const { isOwner, isAdmin } = useAuth()
+  const { isAdmin, isManager } = useAuth()
 
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedWarehouseFilter, setSelectedWarehouseFilter] = useState<string>('ALL')
@@ -202,7 +204,7 @@ export function InventoryStockList() {
           </div>
         </div>
 
-        {(isOwner || isAdmin) && activeTab === 'ACTIVE' && (
+        {(isAdmin || isManager) && activeTab === 'ACTIVE' && (
           <div className="flex items-center gap-2">
             <Button
               onClick={handleCreateProduct}
@@ -251,7 +253,7 @@ export function InventoryStockList() {
                   View Archived Products ({archivedProducts.length})
                 </Button>
               )}
-            {(isOwner || isAdmin) &&
+            {(isAdmin || isManager) &&
               !searchTerm &&
               selectedWarehouseFilter === 'ALL' &&
               activeTab === 'ACTIVE' &&
@@ -346,7 +348,7 @@ export function InventoryStockList() {
                         </span>
                       </div>
 
-                      {(isOwner || isAdmin) && (
+                      {(isAdmin || isManager) && (
                         <div className="flex items-center gap-1.5">
                           {isArchived ? (
                             (() => {
@@ -354,7 +356,10 @@ export function InventoryStockList() {
                                 reactivateProductMutation.isPending &&
                                 (typeof reactivateProductMutation.variables === 'number'
                                   ? reactivateProductMutation.variables === prod.id
-                                  : (reactivateProductMutation.variables as InventoryItemResponse | undefined)?.id === prod.id)
+                                  : (
+                                      reactivateProductMutation.variables as
+                                        InventoryItemResponse | undefined
+                                    )?.id === prod.id)
 
                               return (
                                 <Button
@@ -369,7 +374,9 @@ export function InventoryStockList() {
                                   ) : (
                                     <RotateCcw className="size-3.5 text-emerald-600 dark:text-emerald-600 transition-transform duration-200 group-hover:-rotate-45" />
                                   )}
-                                  <span>{isReactivatingThis ? 'Reactivating...' : 'Reactivate Product'}</span>
+                                  <span>
+                                    {isReactivatingThis ? 'Reactivating...' : 'Reactivate Product'}
+                                  </span>
                                 </Button>
                               )
                             })()
@@ -425,7 +432,7 @@ export function InventoryStockList() {
                       Warehouse Stock Allocation & Adjustments
                     </span>
 
-                    {(isOwner || isAdmin) && stockInHubs.length > 0 && (
+                    {(isAdmin || isManager) && stockInHubs.length > 0 && (
                       <Button
                         variant="ghost"
                         size="sm"
@@ -443,7 +450,7 @@ export function InventoryStockList() {
                       <span className="text-muted-foreground font-medium">
                         No stock units allocated to any warehouse facility yet.
                       </span>
-                      {(isOwner || isAdmin) && (
+                      {(isAdmin || isManager) && (
                         <Button
                           variant="secondary"
                           size="sm"
@@ -484,7 +491,7 @@ export function InventoryStockList() {
                               </div>
                             </div>
 
-                            {(isOwner || isAdmin) && (
+                            {(isAdmin || isManager) && (
                               <div className="flex items-center gap-1 shrink-0">
                                 <Button
                                   variant="secondary"

@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { getErrorMessage, type FetchParams } from '@/lib/api-client'
-import type { UserRole } from '../auth/auth.types'
+import { USER_ROLES, type UserRole } from '../auth/roles'
 import { registerApi } from '../auth/auth.api'
 import {
   assignEmployeeJobApi,
@@ -420,7 +420,7 @@ export function useRegisterUser() {
       const newUser = await registerApi({
         email: payload.email,
         password: payload.password,
-        role: payload.role || 'STAFF',
+        role: payload.role || USER_ROLES.STAFF,
       })
 
       if (payload.employeeId) {
