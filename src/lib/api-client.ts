@@ -15,10 +15,14 @@ export const apiClient = axios.create({
   timeout: 5000,
 })
 
-// Attach JWT access token to outgoing requests if present (and not demo-token)
+// Attach JWT access token to outgoing requests if present
 apiClient.interceptors.request.use((config) => {
   const token = localStorage.getItem('erjv_access_token')
-  if (token && token !== 'demo-token' && config.headers) {
+  if (token === 'demo-token') {
+    localStorage.removeItem('erjv_access_token')
+    return config
+  }
+  if (token && config.headers) {
     config.headers.Authorization = `Bearer ${token}`
   }
   return config

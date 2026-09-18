@@ -13,7 +13,6 @@ export async function submitLogin(formData: FormData) {
 
   const { accessToken } = await loginApi(payload)
   localStorage.setItem('erjv_access_token', accessToken)
-  localStorage.removeItem('erjv_demo_user')
   return 'Signed in successfully.'
 }
 

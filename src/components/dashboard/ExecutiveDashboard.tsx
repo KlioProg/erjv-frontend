@@ -5,65 +5,28 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useDeliveryVehicles } from '@/features/logistics/delivery-vehicles.hooks'
 
-const RECENT_TRANSACTIONS = [
-  {
-    id: 1,
-    title: 'Kohaku Red',
-    price: '₱ 1,350.00',
-    orderNumber: '#6767',
-    status: 'Completed',
-    avatarBg: 'bg-rose-500/15 text-rose-600',
-    initials: 'KR',
-  },
-  {
-    id: 2,
-    title: 'Joker',
-    price: '₱ 1,450.00',
-    orderNumber: '#69420',
-    status: 'Pending',
-    avatarBg: 'bg-emerald-500/15 text-emerald-600',
-    initials: 'JK',
-  },
-  {
-    id: 3,
-    title: 'Mr. Chow Super Rice',
-    price: '₱ 1,250.00',
-    orderNumber: '#15321',
-    status: 'Completed',
-    avatarBg: 'bg-amber-500/15 text-amber-600',
-    initials: 'MC',
-  },
-]
+export interface Transaction {
+  id: number
+  title: string
+  price: string
+  orderNumber: string
+  status: 'Completed' | 'Pending' | 'Cancelled'
+  avatarBg: string
+  initials: string
+}
 
-const POPULAR_PURCHASES = [
-  {
-    id: 1,
-    title: 'Joker',
-    orders: 'Orders: x50',
-    stockStatus: 'In Stock',
-    price: '₱1,450.00',
-    avatarBg: 'bg-emerald-500/15 text-emerald-600',
-    initials: 'JK',
-  },
-  {
-    id: 2,
-    title: 'Kohaku Red',
-    orders: 'Orders: x21',
-    stockStatus: 'In Stock',
-    price: '₱1,350.00',
-    avatarBg: 'bg-rose-500/15 text-rose-600',
-    initials: 'KR',
-  },
-  {
-    id: 3,
-    title: 'Mr. Chow Super Rice',
-    orders: 'Orders: x20',
-    stockStatus: 'In Stock',
-    price: '₱1,250.00',
-    avatarBg: 'bg-amber-500/15 text-amber-600',
-    initials: 'MC',
-  },
-]
+export interface PurchaseItem {
+  id: number
+  title: string
+  orders: string
+  stockStatus: string
+  price: string
+  avatarBg: string
+  initials: string
+}
+
+const RECENT_TRANSACTIONS: Transaction[] = []
+const POPULAR_PURCHASES: PurchaseItem[] = []
 
 export function ExecutiveDashboard() {
   const { data: vehicles = [] } = useDeliveryVehicles()
@@ -71,7 +34,7 @@ export function ExecutiveDashboard() {
   const [period, setPeriod] = useState<'This week' | 'This month' | 'This year'>('This week')
   const [yearPeriod, setYearPeriod] = useState<'2026' | '2025'>('2026')
 
-  const deliveriesInProgress = vehicles.filter((v) => v.status === 'IN_DELIVERY').length || 4
+  const deliveriesInProgress = vehicles.filter((v) => v.status === 'IN_DELIVERY').length
 
   return (
     <div className="flex flex-col gap-6">
@@ -167,38 +130,44 @@ export function ExecutiveDashboard() {
           </CardHeader>
 
           <CardContent className="p-0 flex flex-col gap-3">
-            {RECENT_TRANSACTIONS.map((tx) => (
-              <div
-                key={tx.id}
-                className="flex items-center justify-between p-2.5 rounded-xl hover:bg-muted/40 transition-colors border border-transparent hover:border-border/60"
-              >
-                <div className="flex items-center gap-3">
-                  <div
-                    className={`flex size-10 items-center justify-center rounded-full font-bold text-xs shadow-xs ${tx.avatarBg}`}
-                  >
-                    {tx.initials}
-                  </div>
-                  <div>
-                    <h5 className="text-xs font-bold text-foreground leading-tight">{tx.title}</h5>
-                    <p className="text-[11px] text-muted-foreground mt-0.5">
-                      {tx.price}{' '}
-                      <span className="font-mono text-muted-foreground/80">{tx.orderNumber}</span>
-                    </p>
-                  </div>
-                </div>
-
-                <Badge
-                  variant="outline"
-                  className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full ${
-                    tx.status === 'Completed'
-                      ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20'
-                      : 'bg-amber-500/10 text-amber-600 border-amber-500/20'
-                  }`}
-                >
-                  {tx.status}
-                </Badge>
+            {RECENT_TRANSACTIONS.length === 0 ? (
+              <div className="py-8 text-center text-xs text-muted-foreground">
+                No recent transactions recorded.
               </div>
-            ))}
+            ) : (
+              RECENT_TRANSACTIONS.map((tx) => (
+                <div
+                  key={tx.id}
+                  className="flex items-center justify-between p-2.5 rounded-xl hover:bg-muted/40 transition-colors border border-transparent hover:border-border/60"
+                >
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={`flex size-10 items-center justify-center rounded-full font-bold text-xs shadow-xs ${tx.avatarBg}`}
+                    >
+                      {tx.initials}
+                    </div>
+                    <div>
+                      <h5 className="text-xs font-bold text-foreground leading-tight">{tx.title}</h5>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">
+                        {tx.price}{' '}
+                        <span className="font-mono text-muted-foreground/80">{tx.orderNumber}</span>
+                      </p>
+                    </div>
+                  </div>
+
+                  <Badge
+                    variant="outline"
+                    className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full ${
+                      tx.status === 'Completed'
+                        ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20'
+                        : 'bg-amber-500/10 text-amber-600 border-amber-500/20'
+                    }`}
+                  >
+                    {tx.status}
+                  </Badge>
+                </div>
+              ))
+            )}
           </CardContent>
         </Card>
 
@@ -217,29 +186,35 @@ export function ExecutiveDashboard() {
           </CardHeader>
 
           <CardContent className="p-0 flex flex-col gap-3">
-            {POPULAR_PURCHASES.map((p) => (
-              <div
-                key={p.id}
-                className="flex items-center justify-between p-2.5 rounded-xl hover:bg-muted/40 transition-colors border border-transparent hover:border-border/60"
-              >
-                <div className="flex items-center gap-3">
-                  <div
-                    className={`flex size-10 items-center justify-center rounded-full font-bold text-xs shadow-xs ${p.avatarBg}`}
-                  >
-                    {p.initials}
-                  </div>
-                  <div>
-                    <h5 className="text-xs font-bold text-foreground leading-tight">{p.title}</h5>
-                    <p className="text-[11px] text-muted-foreground mt-0.5">{p.orders}</p>
-                  </div>
-                </div>
-
-                <div className="text-right">
-                  <span className="text-[11px] font-bold text-rose-600 block">{p.stockStatus}</span>
-                  <span className="text-xs font-extrabold text-foreground">{p.price}</span>
-                </div>
+            {POPULAR_PURCHASES.length === 0 ? (
+              <div className="py-8 text-center text-xs text-muted-foreground">
+                No popular purchases recorded.
               </div>
-            ))}
+            ) : (
+              POPULAR_PURCHASES.map((p) => (
+                <div
+                  key={p.id}
+                  className="flex items-center justify-between p-2.5 rounded-xl hover:bg-muted/40 transition-colors border border-transparent hover:border-border/60"
+                >
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={`flex size-10 items-center justify-center rounded-full font-bold text-xs shadow-xs ${p.avatarBg}`}
+                    >
+                      {p.initials}
+                    </div>
+                    <div>
+                      <h5 className="text-xs font-bold text-foreground leading-tight">{p.title}</h5>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">{p.orders}</p>
+                    </div>
+                  </div>
+
+                  <div className="text-right">
+                    <span className="text-[11px] font-bold text-rose-600 block">{p.stockStatus}</span>
+                    <span className="text-xs font-extrabold text-foreground">{p.price}</span>
+                  </div>
+                </div>
+              ))
+            )}
           </CardContent>
         </Card>
       </div>

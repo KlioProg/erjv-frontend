@@ -24,8 +24,6 @@ type AuthContextType = {
   register: (payload: RegisterRequest) => Promise<SafeUserResponse>
   updateProfile: (payload: UpdateUserProfilePayload) => Promise<SafeUserResponse>
   logout: () => void
-  setDemoUser: (role?: UserRole) => void
-  switchRole: (role: UserRole) => void
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -107,11 +105,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let isMounted = true
 
     async function initializeAuth() {
-      // Check 30-day session expiration
+      // Proactively purge any legacy mock/demo storage
+      localStorage.removeItem('erjv_current_user')
+      localStorage.removeItem('erjv_demo_user')
+
+      const currentToken = localStorage.getItem('erjv_access_token')
+      if (currentToken === 'demo-token') {
+        localStorage.removeItem('erjv_access_token')
+        if (isMounted) {
+          setToken(null)
+          setUser(null)
+          setIsLoading(false)
+        }
+        return
+      }
+
+      // Check session expiration
       const expiry = localStorage.getItem('erjv_session_expiry')
       if (expiry && Date.now() > Number(expiry)) {
         localStorage.removeItem('erjv_access_token')
-        localStorage.removeItem('erjv_current_user')
         localStorage.removeItem('erjv_session_expiry')
         if (isMounted) {
           setToken(null)
@@ -121,13 +133,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return
       }
 
-      if (token && token !== 'demo-token') {
+      if (token) {
         try {
           const profile = await getProfileApi()
           if (isMounted) {
             const normalized = normalizeUser(profile)
             setUser(normalized)
-            localStorage.setItem('erjv_current_user', JSON.stringify(normalized))
           }
         } catch (err: unknown) {
           const status =
@@ -138,26 +149,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (status === 401 || status === 403) {
             // Revoked, expired, or invalid token
             localStorage.removeItem('erjv_access_token')
-            localStorage.removeItem('erjv_current_user')
             localStorage.removeItem('erjv_session_expiry')
             if (isMounted) {
               setToken(null)
               setUser(null)
             }
           } else {
-            // Network connection error: only restore cached user if valid session existed
-            const storedUser = localStorage.getItem('erjv_current_user')
-            if (storedUser && isMounted) {
-              try {
-                setUser(normalizeUser(JSON.parse(storedUser)))
-              } catch {
-                localStorage.removeItem('erjv_current_user')
-                setToken(null)
-                setUser(null)
-              }
-            } else if (isMounted) {
-              localStorage.removeItem('erjv_access_token')
-              setToken(null)
+            if (isMounted) {
               setUser(null)
             }
           }
@@ -211,7 +209,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       const normalized = normalizeUser(profile || { email: cleanEmail })
-      localStorage.setItem('erjv_current_user', JSON.stringify(normalized))
       setUser(normalized)
 
       const expiryTime = Date.now() + (rememberMe ? THIRTY_DAYS_MS : ONE_DAY_MS)
@@ -225,7 +222,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     } catch (err) {
       localStorage.removeItem('erjv_access_token')
-      localStorage.removeItem('erjv_current_user')
       setToken(null)
       setUser(null)
       throw new Error(getErrorMessage(err), { cause: err })
@@ -271,57 +267,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     setUser(updatedUser)
-    localStorage.setItem('erjv_current_user', JSON.stringify(updatedUser))
-
     return updatedUser
   }
 
   const logout = () => {
     localStorage.removeItem('erjv_access_token')
     localStorage.removeItem('erjv_current_user')
+    localStorage.removeItem('erjv_demo_user')
     localStorage.removeItem('erjv_session_expiry')
     setToken(null)
     setUser(null)
-  }
-
-  const setDemoUser = (demoRole: UserRole = USER_ROLES.ADMIN) => {
-    const demo: SafeUserResponse = {
-      id: 1,
-      email: `${demoRole.toLowerCase()}@erjvpos.com`,
-      fullName:
-        demoRole === USER_ROLES.ADMIN
-          ? 'Marcus Villaruel'
-          : demoRole === USER_ROLES.MANAGER
-            ? 'Sarah Chen-Santos'
-            : 'Danilo Reyes',
-      jobTitle:
-        demoRole === USER_ROLES.ADMIN
-          ? 'Enterprise Administrator'
-          : demoRole === USER_ROLES.MANAGER
-            ? 'Operations Manager'
-            : 'Staff Member',
-      role: demoRole,
-      isActive: true,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    }
-    localStorage.setItem('erjv_current_user', JSON.stringify(demo))
-    localStorage.setItem('erjv_access_token', 'demo-token')
-    setToken('demo-token')
-    setUser(demo)
-  }
-
-  const switchRole = (newRole: UserRole) => {
-    if (!user) {
-      setDemoUser(newRole)
-      return
-    }
-    const updatedUser: SafeUserResponse = {
-      ...user,
-      role: newRole,
-    }
-    setUser(updatedUser)
-    localStorage.setItem('erjv_current_user', JSON.stringify(updatedUser))
   }
 
   const userRecord = user as unknown as Record<string, unknown> | null
@@ -348,8 +303,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         register,
         updateProfile,
         logout,
-        setDemoUser,
-        switchRole,
       }}
     >
       {children}

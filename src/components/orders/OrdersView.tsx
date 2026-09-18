@@ -13,53 +13,22 @@ import {
   TableRow,
 } from '@/components/ui/table'
 
-const SAMPLE_ORDERS = [
-  {
-    id: 1,
-    invoiceNo: 'INV-2026-006767',
-    clientName: 'Davao Fresh Supermarket',
-    itemSummary: 'Kohaku Red (x1)',
-    total: 1350.0,
-    status: 'Completed',
-    date: 'Today, 4:56 PM',
-    cashier: 'Ada Santos (Cashier)',
-  },
-  {
-    id: 2,
-    invoiceNo: 'INV-2026-006942',
-    clientName: 'Matina Central Grocery',
-    itemSummary: 'Joker (x1)',
-    total: 1450.0,
-    status: 'Pending',
-    date: 'Today, 3:20 PM',
-    cashier: 'Ada Santos (Cashier)',
-  },
-  {
-    id: 3,
-    invoiceNo: 'INV-2026-001532',
-    clientName: 'Southern Food Distribution Co.',
-    itemSummary: 'Mr. Chow Super Rice (x1)',
-    total: 1250.0,
-    status: 'Completed',
-    date: 'Today, 1:15 PM',
-    cashier: 'Karl Lawrence Magno (Admin)',
-  },
-  {
-    id: 4,
-    invoiceNo: 'INV-2026-001489',
-    clientName: 'Panabo Express Retailers',
-    itemSummary: 'POS Receipt Paper Roll (x20)',
-    total: 900.0,
-    status: 'Completed',
-    date: 'Yesterday, 5:40 PM',
-    cashier: 'Marco Reyes (Staff)',
-  },
-]
+export interface Order {
+  id: number
+  invoiceNo: string
+  clientName: string
+  itemSummary: string
+  total: number
+  status: 'Completed' | 'Pending' | 'Cancelled'
+  date: string
+  cashier: string
+}
 
 export function OrdersView() {
+  const [orders] = useState<Order[]>([])
   const [searchTerm, setSearchTerm] = useState('')
 
-  const filteredOrders = SAMPLE_ORDERS.filter(
+  const filteredOrders = orders.filter(
     (o) =>
       o.invoiceNo.toLowerCase().includes(searchTerm.toLowerCase()) ||
       o.clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -100,44 +69,55 @@ export function OrdersView() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredOrders.map((order) => (
-              <TableRow key={order.id} className="hover:bg-muted/20">
-                <TableCell className="font-mono text-xs font-bold text-foreground">
-                  <div className="flex items-center gap-1.5">
-                    <Receipt className="size-3.5 text-rose-600" />
-                    <span>{order.invoiceNo}</span>
+            {filteredOrders.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={6} className="h-32 text-center text-xs text-muted-foreground">
+                  <div className="flex flex-col items-center justify-center gap-2">
+                    <Receipt className="size-8 text-muted-foreground/40" />
+                    <span>No sales orders found</span>
                   </div>
-                  <span className="text-[10px] text-muted-foreground font-sans block mt-0.5">
-                    {order.date}
-                  </span>
-                </TableCell>
-
-                <TableCell className="text-xs font-semibold text-foreground">
-                  {order.clientName}
-                </TableCell>
-
-                <TableCell className="text-xs text-foreground/90">{order.itemSummary}</TableCell>
-
-                <TableCell className="text-xs text-muted-foreground">{order.cashier}</TableCell>
-
-                <TableCell className="text-xs font-bold text-foreground text-right">
-                  ₱{order.total.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                </TableCell>
-
-                <TableCell className="text-center">
-                  <Badge
-                    variant="outline"
-                    className={`text-[10px] font-semibold px-2.5 py-0.5 rounded-full ${
-                      order.status === 'Completed'
-                        ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20'
-                        : 'bg-amber-500/10 text-amber-600 border-amber-500/20'
-                    }`}
-                  >
-                    {order.status}
-                  </Badge>
                 </TableCell>
               </TableRow>
-            ))}
+            ) : (
+              filteredOrders.map((order) => (
+                <TableRow key={order.id} className="hover:bg-muted/20">
+                  <TableCell className="font-mono text-xs font-bold text-foreground">
+                    <div className="flex items-center gap-1.5">
+                      <Receipt className="size-3.5 text-rose-600" />
+                      <span>{order.invoiceNo}</span>
+                    </div>
+                    <span className="text-[10px] text-muted-foreground font-sans block mt-0.5">
+                      {order.date}
+                    </span>
+                  </TableCell>
+
+                  <TableCell className="text-xs font-semibold text-foreground">
+                    {order.clientName}
+                  </TableCell>
+
+                  <TableCell className="text-xs text-foreground/90">{order.itemSummary}</TableCell>
+
+                  <TableCell className="text-xs text-muted-foreground">{order.cashier}</TableCell>
+
+                  <TableCell className="text-xs font-bold text-foreground text-right">
+                    ₱{order.total.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  </TableCell>
+
+                  <TableCell className="text-center">
+                    <Badge
+                      variant="outline"
+                      className={`text-[10px] font-semibold px-2.5 py-0.5 rounded-full ${
+                        order.status === 'Completed'
+                          ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20'
+                          : 'bg-amber-500/10 text-amber-600 border-amber-500/20'
+                      }`}
+                    >
+                      {order.status}
+                    </Badge>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
           </TableBody>
         </Table>
       </Card>
