@@ -3,25 +3,18 @@ import {
   Warehouse as WarehouseIcon,
   Package,
   AlertTriangle,
-  Plus,
 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useStockItems } from '@/features/logistics/stock-items.hooks'
-import { useAuth } from '@/features/auth/AuthContext'
 import { InventoryStockList } from '@/components/operations/InventoryStockList'
 import { InventoryItemCatalog } from './InventoryItemCatalog'
 import { LowStockList } from './LowStockList'
-import { InventoryItemModal } from '@/components/operations/InventoryItemModal'
 
 type InventorySubTab = 'warehouse-stock' | 'catalog' | 'low-stock'
 
 export function InventoryHub() {
   const [activeSubTab, setActiveSubTab] = useState<InventorySubTab>('warehouse-stock')
   const { data: stockItems = [] } = useStockItems()
-  const { isAdmin, isManager } = useAuth()
-
-  const [isRegisterProductOpen, setIsRegisterProductOpen] = useState(false)
 
   // Count low stock items (quantity <= 20)
   const lowStockCount = useMemo(() => {
@@ -31,7 +24,7 @@ export function InventoryHub() {
   return (
     <div className="flex flex-col gap-5">
       {/* Calm & Clean Sub-Navigation Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-border/70">
+      <div className="flex items-center justify-between gap-3 pb-3 border-b border-border/70">
         {/* Navigation Tabs */}
         <div className="flex items-center gap-1.5 p-1 bg-muted/50 rounded-2xl border border-border/60 self-start">
           <button
@@ -81,18 +74,6 @@ export function InventoryHub() {
             )}
           </button>
         </div>
-
-        {/* Single Clear Primary Action */}
-        {(isAdmin || isManager) && (
-          <Button
-            size="sm"
-            onClick={() => setIsRegisterProductOpen(true)}
-            className="text-xs font-bold h-9 gap-1.5 rounded-xl cursor-pointer shadow-xs shrink-0 self-start sm:self-auto"
-          >
-            <Plus className="size-3.5" />
-            <span>Register Product</span>
-          </Button>
-        )}
       </div>
 
       {/* Sub-View Render Area */}
@@ -101,13 +82,6 @@ export function InventoryHub() {
         {activeSubTab === 'catalog' && <InventoryItemCatalog />}
         {activeSubTab === 'low-stock' && <LowStockList />}
       </div>
-
-      {/* Register Product Modal */}
-      <InventoryItemModal
-        item={null}
-        open={isRegisterProductOpen}
-        onClose={() => setIsRegisterProductOpen(false)}
-      />
     </div>
   )
 }

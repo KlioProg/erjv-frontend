@@ -7,7 +7,6 @@ import {
   Search,
   CheckCircle2,
   Package,
-  SlidersHorizontal,
   Tag,
   Flame,
 } from 'lucide-react'
@@ -132,12 +131,6 @@ export function LowStockList() {
   const handleRestock = (stock: StockItemWithRelations) => {
     setStockToUpdate(stock)
     setAdjustMode('increase')
-    setIsAdjustModalOpen(true)
-  }
-
-  const handleAuditCount = (stock: StockItemWithRelations) => {
-    setStockToUpdate(stock)
-    setAdjustMode('set')
     setIsAdjustModalOpen(true)
   }
 
@@ -373,7 +366,7 @@ export function LowStockList() {
                   Urgency Status
                 </TableHead>
                 {(isAdmin || isManager) && (
-                  <TableHead className="text-xs font-bold text-foreground text-right w-44">
+                  <TableHead className="text-xs font-bold text-foreground text-right w-36">
                     Quick Action
                   </TableHead>
                 )}
@@ -464,54 +457,50 @@ export function LowStockList() {
 
                     {/* Urgency Status */}
                     <TableCell className="text-center">
-                      <span
-                        className={`inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider ${
-                          isOut
-                            ? 'text-rose-600'
-                            : isCritical
-                              ? 'text-amber-600'
-                              : 'text-amber-700 dark:text-amber-400'
-                        }`}
-                      >
+                      <div className="inline-flex items-center justify-center">
                         <span
-                          className={`size-2 rounded-full ${
+                          className={`inline-flex items-center gap-2 px-2.5 py-1 rounded-full text-[11px] font-bold tracking-wide border ${
                             isOut
-                              ? 'bg-rose-600 animate-ping'
+                              ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/25'
                               : isCritical
-                                ? 'bg-amber-600 animate-pulse'
-                                : 'bg-amber-500'
+                                ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/25'
+                                : 'bg-amber-500/5 text-amber-700 dark:text-amber-400 border-amber-500/20'
                           }`}
-                        />
-                        {isOut
-                          ? 'Out of Stock'
-                          : isCritical
-                            ? 'Critical Deficit'
-                            : 'Low Stock Buffer'}
-                      </span>
+                        >
+                          {isOut ? (
+                            <span className="relative flex size-2 shrink-0">
+                              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose-500 opacity-75" />
+                              <span className="relative inline-flex size-2 rounded-full bg-rose-600" />
+                            </span>
+                          ) : isCritical ? (
+                            <span className="relative flex size-2 shrink-0">
+                              <span className="inline-flex size-2 rounded-full bg-amber-500 animate-pulse" />
+                            </span>
+                          ) : (
+                            <span className="inline-flex size-2 rounded-full bg-amber-500/80 shrink-0" />
+                          )}
+                          <span className="whitespace-nowrap">
+                            {isOut
+                              ? 'Out of Stock'
+                              : isCritical
+                                ? 'Critical Deficit'
+                                : 'Low Stock Buffer'}
+                          </span>
+                        </span>
+                      </div>
                     </TableCell>
 
                     {/* Quick Action */}
                     {(isAdmin || isManager) && (
                       <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <Button
-                            size="sm"
-                            onClick={() => handleRestock(stock)}
-                            className="h-8 px-2.5 text-xs font-bold gap-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer shadow-2xs"
-                          >
-                            <PlusCircle className="size-3.5" />
-                            Restock Now
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleAuditCount(stock)}
-                            title="Audit / Set Count"
-                            className="size-8 rounded-xl text-muted-foreground hover:text-foreground cursor-pointer"
-                          >
-                            <SlidersHorizontal className="size-3.5" />
-                          </Button>
-                        </div>
+                        <Button
+                          size="sm"
+                          onClick={() => handleRestock(stock)}
+                          className="h-8 px-3 text-xs font-bold gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer shadow-2xs"
+                        >
+                          <PlusCircle className="size-3.5" />
+                          Restock Now
+                        </Button>
                       </TableCell>
                     )}
                   </TableRow>
