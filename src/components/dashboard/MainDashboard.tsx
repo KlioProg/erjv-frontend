@@ -11,7 +11,7 @@ import {
 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { DashboardLayout, type NavItemKey } from '../layout/DashboardLayout'
-import { InventoryStockList } from '../operations/InventoryStockList'
+import { InventoryHub } from '../inventory/InventoryHub'
 import { WarehouseList } from '../operations/WarehouseList'
 import { VehicleList } from '../operations/VehicleList'
 import { ClientList } from '../crm/ClientList'
@@ -256,7 +256,7 @@ export function MainDashboard() {
         {/* Lightweight Main Section Card View */}
         <Card className="border-border/80 bg-card shadow-xs rounded-2xl overflow-hidden">
           <CardContent className="p-4 sm:p-6">
-            {effectiveTab === 'inventory' && <InventoryStockList />}
+            {effectiveTab === 'inventory' && <InventoryHub />}
             {effectiveTab === 'warehouses' && <WarehouseList />}
             {effectiveTab === 'fleet' && <VehicleList />}
             {effectiveTab === 'clients' && <ClientList />}
