@@ -4,6 +4,10 @@ import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
+import { OrderModal, type OrderFormValues } from './OrderModal'
+import { useClients } from '@/features/crm/clients.hooks'
+import { useProducts } from '@/features/products/products.hooks'
+import { useAuth } from '@/features/auth/AuthContext'
 import {
   Table,
   TableBody,
@@ -19,14 +23,35 @@ export interface Order {
   clientName: string
   itemSummary: string
   total: number
-  status: 'Completed' | 'Pending' | 'Cancelled'
+  status: 'Completed' | 'Pending'
   date: string
   cashier: string
 }
 
 export function OrdersView() {
-  const [orders] = useState<Order[]>([])
+  const [orders, setOrders] = useState<Order[]>([])
   const [searchTerm, setSearchTerm] = useState('')
+  const [isOrderModalOpen, setIsOrderModalOpen] = useState(false)
+  const { data: clients = [] } = useClients()
+  const { data: products = [] } = useProducts()
+  const { user } = useAuth()
+
+  const cashier = user?.fullName || user?.email || 'Current User'
+
+  const handleAddOrder = (values: OrderFormValues) => {
+    setOrders((currentOrders) => [
+      {
+        id: Date.now(),
+        ...values,
+        date: new Date().toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric',
+        }),
+      },
+      ...currentOrders,
+    ])
+  }
 
   const filteredOrders = orders.filter(
     (o) =>
@@ -49,37 +74,42 @@ export function OrdersView() {
           />
         </div>
 
-        <Button size="sm" className="bg-rose-600 hover:bg-rose-700 text-white gap-1.5 shadow-xs">
+        <Button size="sm" onClick={() => setIsOrderModalOpen(true)}>
           <Plus className="size-4" />
           Create POS Order
         </Button>
       </div>
 
       {/* Orders Table */}
-      <Card className="overflow-hidden border-border/80 shadow-xs">
-        <Table>
-          <TableHeader className="bg-muted/40">
-            <TableRow>
-              <TableHead className="text-xs font-semibold">Invoice No</TableHead>
-              <TableHead className="text-xs font-semibold">Client / Customer</TableHead>
-              <TableHead className="text-xs font-semibold">Items Ordered</TableHead>
-              <TableHead className="text-xs font-semibold">Processed By</TableHead>
-              <TableHead className="text-xs font-semibold text-right">Amount (₱)</TableHead>
-              <TableHead className="text-xs font-semibold text-center">Status</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filteredOrders.length === 0 ? (
+      {filteredOrders.length === 0 ? (
+        <Card className="flex min-h-[360px] items-center justify-center border-dashed bg-muted/20 shadow-xs">
+          <div className="flex flex-col items-center justify-center text-center">
+            <Receipt className="size-8 text-muted-foreground/40" />
+            <span className="text-sm font-semibold text-foreground">
+              {searchTerm.trim() ? `No orders match "${searchTerm.trim()}"` : 'No sales orders found'}
+            </span>
+            <p className="text-xs text-muted-foreground mt-1 max-w-xs">
+              {searchTerm.trim()
+                ? 'Try a different invoice number, client, or item.'
+                : 'Make your first order today!'}
+            </p>
+          </div>
+        </Card>
+      ) : (
+        <Card className="overflow-hidden border-border/80 shadow-xs">
+          <Table>
+            <TableHeader className="bg-muted/40">
               <TableRow>
-                <TableCell colSpan={6} className="h-32 text-center text-xs text-muted-foreground">
-                  <div className="flex flex-col items-center justify-center gap-2">
-                    <Receipt className="size-8 text-muted-foreground/40" />
-                    <span>No sales orders found</span>
-                  </div>
-                </TableCell>
+                <TableHead className="text-xs font-semibold">Invoice No</TableHead>
+                <TableHead className="text-xs font-semibold">Client / Customer</TableHead>
+                <TableHead className="text-xs font-semibold">Items Ordered</TableHead>
+                <TableHead className="text-xs font-semibold">Processed By</TableHead>
+                <TableHead className="text-xs font-semibold text-right">Amount (₱)</TableHead>
+                <TableHead className="text-xs font-semibold text-center">Status</TableHead>
               </TableRow>
-            ) : (
-              filteredOrders.map((order) => (
+            </TableHeader>
+            <TableBody>
+              {filteredOrders.map((order) => (
                 <TableRow key={order.id} className="hover:bg-muted/20">
                   <TableCell className="font-mono text-xs font-bold text-foreground">
                     <div className="flex items-center gap-1.5">
@@ -116,11 +146,22 @@ export function OrdersView() {
                     </Badge>
                   </TableCell>
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </Card>
+              ))}
+            </TableBody>
+          </Table>
+        </Card>
+      )}
+
+      {isOrderModalOpen && (
+        <OrderModal
+          open
+          onClose={() => setIsOrderModalOpen(false)}
+          onSubmit={handleAddOrder}
+          clients={clients}
+          products={products}
+          cashier={cashier}
+        />
+      )}
     </div>
   )
 }

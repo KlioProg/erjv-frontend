@@ -17,6 +17,7 @@ import { VehicleList } from '../operations/VehicleList'
 import { ClientList } from '../crm/ClientList'
 import { EmployeeList } from '../staffing/EmployeeList'
 import { JobList } from '../staffing/JobList'
+import { OrdersView } from '../orders/OrdersView'
 import { RoleGroupingView } from '../staffing/RoleGroupingView'
 import { UserRolesList } from '../staffing/UserRolesList'
 import { useWarehouses } from '@/features/logistics/warehouses.hooks'
@@ -142,7 +143,7 @@ export function MainDashboard() {
         )}
 
         {/* KPI Top Bar when inside CRM */}
-        {effectiveTab === 'clients' && (
+        {(effectiveTab === 'clients' || effectiveTab === 'orders') && (
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
             <Card className="p-4 bg-card border-border/80 shadow-xs flex flex-col justify-between rounded-2xl">
               <div className="flex items-center justify-between">
@@ -259,6 +260,7 @@ export function MainDashboard() {
             {effectiveTab === 'inventory' && <InventoryHub />}
             {effectiveTab === 'warehouses' && <WarehouseList />}
             {effectiveTab === 'fleet' && <VehicleList />}
+            {effectiveTab === 'orders' && <OrdersView />}
             {effectiveTab === 'clients' && <ClientList />}
             {effectiveTab === 'employees' && <EmployeeList />}
             {effectiveTab === 'jobs' && <JobList />}

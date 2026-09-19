@@ -9,7 +9,6 @@ import {
   Mail,
   Calendar,
   ShieldCheck,
-  Building2,
   Users,
   Archive,
   RotateCcw,
@@ -48,6 +47,7 @@ import type { Employee } from '@/features/staffing/staffing.types'
 import { EmployeeModal } from './EmployeeModal'
 import { PositionAssignModal } from './PositionAssignModal'
 import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal'
+import { Card } from '../ui/card'
 
 // Inline helper subcomponent for displaying assigned positions badge
 function EmployeeJobBadges({ employeeId }: { employeeId: number }) {
@@ -133,6 +133,8 @@ export function EmployeeList() {
     reactivateMutation.mutate(emp)
   }
 
+  const isEmptyState = !isLoading && !error && filteredEmployees.length === 0
+
   return (
     <div className="flex flex-col gap-4">
       {/* Staff Archive / Active Tabs */}
@@ -167,7 +169,11 @@ export function EmployeeList() {
       </div>
 
       {/* Employees Table Card */}
-      <div className="rounded-2xl border border-border bg-card shadow-xs overflow-hidden">
+      <div
+        className={`rounded-2xl border shadow-xs overflow-hidden ${
+          isEmptyState ? 'border-dashed bg-muted/20' : 'border-border bg-card'
+        }`}
+      >
         {isLoading ? (
           <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-2">
             <Spinner className="size-6 text-primary" />
@@ -195,10 +201,10 @@ export function EmployeeList() {
             </Button>
           </div>
         ) : filteredEmployees.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-3">
-            <Building2 className="size-8 stroke-[1.5] text-muted-foreground/50" />
+          <Card className="flex flex-col min-h-[360px] items-center justify-center border-0 bg-transparent shadow-none">
+            <Users className="size-10 text-muted-foreground/50 mb-3" />
             <div className="text-center">
-              <p className="text-sm font-medium text-foreground">
+              <p className="text-sm font-semibold text-foreground">
                 {activeTab === 'ACTIVE' ? 'No active employees found' : 'No archived staff found'}
               </p>
               <p className="text-xs text-muted-foreground mt-0.5 max-w-sm">
@@ -222,7 +228,7 @@ export function EmployeeList() {
                 </Button>
               )}
             </div>
-          </div>
+          </Card>
         ) : (
           <Table>
             <TableHeader className="bg-muted/40">

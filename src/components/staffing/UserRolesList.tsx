@@ -169,6 +169,8 @@ export function UserRolesList() {
     reactivateUser.mutate(user)
   }
 
+  const isEmptyState = !isLoading && !error && filteredUsers.length === 0
+
   return (
     <div className="flex flex-col gap-6">
       {/* Archive / Active Tabs */}
@@ -220,7 +222,11 @@ export function UserRolesList() {
       </div>
 
       {/* Users Table */}
-      <div className="rounded-2xl border border-border/80 bg-card shadow-xs overflow-hidden">
+      <div
+        className={`rounded-2xl border shadow-xs overflow-hidden ${
+          isEmptyState ? 'border-dashed bg-muted/20' : 'border-border/80 bg-card'
+        }`}
+      >
         {isLoading ? (
           <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-2">
             <Spinner className="size-6 text-primary" />

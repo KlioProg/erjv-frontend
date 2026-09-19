@@ -151,7 +151,7 @@ export function JobList() {
           </Button>
         </div>
       ) : filteredJobList.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-3 border rounded-2xl bg-card">
+        <div className="flex min-h-[360px] flex-col items-center justify-center gap-3 rounded-2xl border border-dashed bg-muted/20 py-16 text-muted-foreground">
           <Briefcase className="size-8 stroke-[1.5] text-muted-foreground/50" />
           <div className="text-center">
             <p className="text-sm font-medium text-foreground">

@@ -15,6 +15,7 @@ import {
   ChevronRight,
   Building2,
   ChevronDown,
+  Store,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -34,7 +35,7 @@ import { useProducts } from '@/features/products/products.hooks'
 import { ProductListModal } from '../products/ProductListModal'
 
 export type NavItemKey =
-  'inventory' | 'warehouses' | 'fleet' | 'clients' | 'employees' | 'jobs' | 'grouping' | 'users'
+  'inventory' | 'warehouses' | 'fleet' | 'clients' | 'employees' | 'jobs' | 'grouping' | 'users' | 'orders'
 
 type DashboardLayoutProps = {
   currentTab: NavItemKey
@@ -63,7 +64,11 @@ const NAV_GROUPS: NavGroup[] = [
   },
   {
     title: 'Customer Relations (CRM)',
-    items: [{ key: 'clients', label: 'Client Management', icon: Building2 }],
+    items: [
+      { key: 'clients', label: 'Client Management', icon: Building2 },
+      { key: 'orders', label: 'Orders & Deliveries', icon: Store},
+    ],
+    
   },
   {
     title: 'Staffing & HR',
