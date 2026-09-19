@@ -78,7 +78,9 @@ export function InventoryHub() {
 
       {/* Sub-View Render Area */}
       <div className="animate-in fade-in-50 duration-150">
-        {activeSubTab === 'warehouse-stock' && <InventoryStockList />}
+        {activeSubTab === 'warehouse-stock' && (
+          <InventoryStockList onNavigateToLowStock={() => setActiveSubTab('low-stock')} />
+        )}
         {activeSubTab === 'catalog' && <InventoryItemCatalog />}
         {activeSubTab === 'low-stock' && <LowStockList />}
       </div>

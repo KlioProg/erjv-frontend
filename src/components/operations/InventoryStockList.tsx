@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import {
   Package,
   Plus,
@@ -12,6 +12,8 @@ import {
   Warehouse as WarehouseIcon,
   Archive,
   RotateCcw,
+  AlertTriangle,
+  ChevronRight,
 } from 'lucide-react'
 import { ArchiveTabNav } from '@/components/ui/ArchiveTabNav'
 import { Card, CardContent } from '@/components/ui/card'
@@ -40,7 +42,11 @@ import type { InventoryItemResponse } from '@/features/products/products.types'
 import type { StockItemWithRelations } from '@/features/logistics/stock-items.types'
 import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal'
 
-export function InventoryStockList() {
+export interface InventoryStockListProps {
+  onNavigateToLowStock?: () => void
+}
+
+export function InventoryStockList({ onNavigateToLowStock }: InventoryStockListProps = {}) {
   const { data: allProducts = [], isLoading: isLoadingProducts } = useAllProducts()
   const { data: stockItems = [], isLoading: isLoadingStock } = useStockItems()
   const { data: warehouses = [] } = useWarehouses()
@@ -54,6 +60,35 @@ export function InventoryStockList() {
 
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedWarehouseFilter, setSelectedWarehouseFilter] = useState<string>('ALL')
+
+  // Compute all low stock allocations (quantity <= 20) across facilities
+  const lowStockAllocations = useMemo(() => {
+    return stockItems
+      .map((stock) => {
+        const qty = parseFloat(stock.quantity || '0')
+        const prod = allProducts.find((p) => p.id === stock.inventoryItemId)
+        const wh = warehouses.find((w) => w.id === stock.warehouseId)
+        return {
+          id: stock.id,
+          stock,
+          qty,
+          isOut: qty <= 0,
+          isCritical: qty > 0 && qty <= 10,
+          prodName: prod?.name || `Item #${stock.inventoryItemId}`,
+          prodVariety: prod?.variety,
+          whName: wh?.name ? wh.name.split(' ')[0] : `WH #${stock.warehouseId}`,
+        }
+      })
+      .filter((item) => item.qty <= 20)
+      .sort((a, b) => a.qty - b.qty)
+  }, [stockItems, allProducts, warehouses])
+
+  // Contextual low stock for the currently selected warehouse filter
+  const contextualLowStock = useMemo(() => {
+    if (selectedWarehouseFilter === 'ALL') return lowStockAllocations
+    const whId = parseInt(selectedWarehouseFilter, 10)
+    return lowStockAllocations.filter((item) => item.stock.warehouseId === whId)
+  }, [lowStockAllocations, selectedWarehouseFilter])
 
   // Modals state
   const [isCatalogModalOpen, setIsCatalogModalOpen] = useState(false)
@@ -202,6 +237,22 @@ export function InventoryStockList() {
               </Button>
             ))}
           </div>
+
+          {/* Small compact low-stock message */}
+          {activeTab === 'ACTIVE' && contextualLowStock.length > 0 && (
+            <button
+              type="button"
+              onClick={onNavigateToLowStock}
+              className="inline-flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 font-medium px-2 py-1 rounded-lg hover:bg-amber-500/10 cursor-pointer transition-colors shrink-0 self-start sm:self-center"
+              title="Click to view depleted items in Low-Stock Alerts"
+            >
+              <AlertTriangle className="size-3.5 shrink-0" />
+              <span>
+                {contextualLowStock.length} {contextualLowStock.length === 1 ? 'item low' : 'items low'}
+              </span>
+              <ChevronRight className="size-3 opacity-60" />
+            </button>
+          )}
         </div>
 
         {(isAdmin || isManager) && activeTab === 'ACTIVE' && (
@@ -327,8 +378,24 @@ export function InventoryStockList() {
                           Total Stock (All Hubs)
                         </span>
                         <div className="flex items-center justify-end gap-1.5 font-extrabold text-foreground text-sm">
-                          <Boxes className="size-3.5 text-primary" />
-                          <span>
+                          <Boxes
+                            className={`size-3.5 ${
+                              totalStockUnits === 0
+                                ? 'text-rose-600'
+                                : totalStockUnits <= 20
+                                  ? 'text-amber-600'
+                                  : 'text-primary'
+                            }`}
+                          />
+                          <span
+                            className={
+                              totalStockUnits === 0
+                                ? 'text-rose-600'
+                                : totalStockUnits <= 20
+                                  ? 'text-amber-600 dark:text-amber-400'
+                                  : 'text-foreground'
+                            }
+                          >
                             {totalStockUnits.toLocaleString()}{' '}
                             <span className="text-xs font-normal text-muted-foreground">units</span>
                           </span>
@@ -468,22 +535,56 @@ export function InventoryStockList() {
                         const wh =
                           stock.warehouse || warehouses.find((w) => w.id === stock.warehouseId)
                         const whDisplayName = wh?.name || `Warehouse #${stock.warehouseId}`
+                        const qtyNum = parseFloat(stock.quantity || '0')
+                        const isOut = qtyNum <= 0
+                        const isLow = qtyNum > 0 && qtyNum <= 20
 
                         return (
                           <div
                             key={stock.id}
-                            className="flex items-center justify-between p-3.5 rounded-2xl bg-card border border-border/80 shadow-2xs hover:border-primary/40 transition-all gap-3"
+                            className={`flex items-center justify-between p-3.5 rounded-2xl border shadow-2xs transition-all gap-3 ${
+                              isOut
+                                ? 'bg-rose-500/5 border-rose-500/30 hover:border-rose-500/50'
+                                : isLow
+                                  ? 'bg-amber-500/5 border-amber-500/30 hover:border-amber-500/50'
+                                  : 'bg-card border-border/80 hover:border-primary/40'
+                            }`}
                           >
                             <div className="min-w-0 flex-1">
-                              <span
-                                className="text-xs font-bold text-foreground truncate block leading-tight"
-                                title={whDisplayName}
-                              >
-                                {whDisplayName}
-                              </span>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span
+                                  className="text-xs font-bold text-foreground truncate leading-tight"
+                                  title={whDisplayName}
+                                >
+                                  {whDisplayName}
+                                </span>
+                                {isOut ? (
+                                  <Badge
+                                    variant="outline"
+                                    className="text-[9px] px-1.5 py-0 rounded-md bg-rose-500/15 text-rose-600 border-rose-500/30 font-bold uppercase tracking-wider"
+                                  >
+                                    Out of Stock
+                                  </Badge>
+                                ) : isLow ? (
+                                  <Badge
+                                    variant="outline"
+                                    className="text-[9px] px-1.5 py-0 rounded-md bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30 font-semibold"
+                                  >
+                                    Low Stock
+                                  </Badge>
+                                ) : null}
+                              </div>
                               <div className="flex items-baseline gap-1.5 mt-1.5">
-                                <span className="text-sm font-extrabold text-primary tracking-tight">
-                                  {parseFloat(stock.quantity).toLocaleString()}
+                                <span
+                                  className={`text-sm font-extrabold tracking-tight ${
+                                    isOut
+                                      ? 'text-rose-600'
+                                      : isLow
+                                        ? 'text-amber-600 dark:text-amber-400'
+                                        : 'text-primary'
+                                  }`}
+                                >
+                                  {qtyNum.toLocaleString()}
                                 </span>
                                 <span className="text-[11px] font-medium text-muted-foreground">
                                   units
