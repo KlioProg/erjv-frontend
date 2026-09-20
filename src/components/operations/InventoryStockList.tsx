@@ -238,19 +238,19 @@ export function InventoryStockList({ onNavigateToLowStock }: InventoryStockListP
             ))}
           </div>
 
-          {/* Small compact low-stock message */}
+          {/* High-visibility compact low-stock message */}
           {activeTab === 'ACTIVE' && contextualLowStock.length > 0 && (
             <button
               type="button"
               onClick={onNavigateToLowStock}
-              className="inline-flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 font-medium px-2 py-1 rounded-lg hover:bg-amber-500/10 cursor-pointer transition-colors shrink-0 self-start sm:self-center"
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-950 dark:text-amber-100 bg-amber-100 dark:bg-amber-950 border border-amber-300 dark:border-amber-700 px-2.5 py-1 rounded-xl hover:bg-amber-200 dark:hover:bg-amber-900 cursor-pointer transition-all shrink-0 self-start sm:self-center shadow-2xs"
               title="Click to view depleted items in Low-Stock Alerts"
             >
-              <AlertTriangle className="size-3.5 shrink-0" />
+              <AlertTriangle className="size-3.5 text-amber-800 dark:text-amber-300 shrink-0" />
               <span>
                 {contextualLowStock.length} {contextualLowStock.length === 1 ? 'item low' : 'items low'}
               </span>
-              <ChevronRight className="size-3 opacity-60" />
+              <ChevronRight className="size-3 text-amber-800 dark:text-amber-300" />
             </button>
           )}
         </div>
@@ -542,16 +542,16 @@ export function InventoryStockList({ onNavigateToLowStock }: InventoryStockListP
                         return (
                           <div
                             key={stock.id}
-                            className={`flex items-center justify-between p-3.5 rounded-2xl border shadow-2xs transition-all gap-3 ${
+                            className={`flex items-center justify-between p-3.5 rounded-2xl border bg-card shadow-2xs transition-all gap-3 ${
                               isOut
-                                ? 'bg-rose-500/5 border-rose-500/30 hover:border-rose-500/50'
+                                ? 'border-rose-400 dark:border-rose-600 ring-1 ring-rose-400/30'
                                 : isLow
-                                  ? 'bg-amber-500/5 border-amber-500/30 hover:border-amber-500/50'
-                                  : 'bg-card border-border/80 hover:border-primary/40'
+                                  ? 'border-amber-400 dark:border-amber-600 ring-1 ring-amber-400/30'
+                                  : 'border-border/80 hover:border-primary/40'
                             }`}
                           >
                             <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-1.5 flex-wrap">
+                              <div className="flex items-center gap-2 flex-wrap">
                                 <span
                                   className="text-xs font-bold text-foreground truncate leading-tight"
                                   title={whDisplayName}
@@ -559,29 +559,25 @@ export function InventoryStockList({ onNavigateToLowStock }: InventoryStockListP
                                   {whDisplayName}
                                 </span>
                                 {isOut ? (
-                                  <Badge
-                                    variant="outline"
-                                    className="text-[9px] px-1.5 py-0 rounded-md bg-rose-500/15 text-rose-600 border-rose-500/30 font-bold uppercase tracking-wider"
-                                  >
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-rose-100 text-rose-950 dark:bg-rose-950 dark:text-rose-200 border border-rose-300 dark:border-rose-800">
+                                    <span className="size-1.5 rounded-full bg-rose-600 dark:bg-rose-400 shrink-0" />
                                     Out of Stock
-                                  </Badge>
+                                  </span>
                                 ) : isLow ? (
-                                  <Badge
-                                    variant="outline"
-                                    className="text-[9px] px-1.5 py-0 rounded-md bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30 font-semibold"
-                                  >
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-100 text-amber-950 dark:bg-amber-950 dark:text-amber-200 border border-amber-300 dark:border-amber-700">
+                                    <span className="size-1.5 rounded-full bg-amber-600 dark:bg-amber-400 shrink-0" />
                                     Low Stock
-                                  </Badge>
+                                  </span>
                                 ) : null}
                               </div>
                               <div className="flex items-baseline gap-1.5 mt-1.5">
                                 <span
-                                  className={`text-sm font-extrabold tracking-tight ${
+                                  className={`text-base font-extrabold tracking-tight ${
                                     isOut
-                                      ? 'text-rose-600'
+                                      ? 'text-rose-700 dark:text-rose-400'
                                       : isLow
-                                        ? 'text-amber-600 dark:text-amber-400'
-                                        : 'text-primary'
+                                        ? 'text-amber-950 dark:text-amber-200'
+                                        : 'text-foreground'
                                   }`}
                                 >
                                   {qtyNum.toLocaleString()}
@@ -595,12 +591,12 @@ export function InventoryStockList({ onNavigateToLowStock }: InventoryStockListP
                             {(isAdmin || isManager) && (
                               <div className="flex items-center gap-1 shrink-0">
                                 <Button
-                                  variant="secondary"
+                                  variant="outline"
                                   size="sm"
                                   onClick={() => handleAdjustStock(stock)}
-                                  className="h-7.5 px-2.5 text-[11px] font-bold rounded-xl gap-1 cursor-pointer"
+                                  className="h-7.5 px-2.5 text-[11px] font-bold rounded-xl gap-1.5 cursor-pointer bg-background hover:bg-muted/70 text-foreground border-border/80 shadow-2xs"
                                 >
-                                  <ArrowUpDown className="size-3 text-primary" />
+                                  <ArrowUpDown className="size-3 text-muted-foreground" />
                                   Adjust
                                 </Button>
                                 <Button

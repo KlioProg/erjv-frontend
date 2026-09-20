@@ -75,7 +75,7 @@ export function ArchiveTabNav({
             <span
               className={
                 hasArchivedItems
-                  ? 'text-[#f2bb05] dark:text-[#f2bb05] group-hover:scale-110 transition-transform'
+                  ? 'text-amber-700 dark:text-amber-400 group-hover:scale-110 transition-transform'
                   : ''
               }
             >
@@ -85,7 +85,7 @@ export function ArchiveTabNav({
             <span
               className={`ml-0.5 px-2 py-0.5 rounded-full text-[11px] font-extrabold transition-all ${
                 hasArchivedItems
-                  ? 'bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30 shadow-2xs'
+                  ? 'bg-amber-100 text-amber-950 dark:bg-amber-950 dark:text-amber-200 border border-amber-300 dark:border-amber-700 shadow-2xs'
                   : 'bg-muted text-muted-foreground'
               }`}
             >
@@ -97,9 +97,9 @@ export function ArchiveTabNav({
 
       {/* Informative Context Banner when on Archived tab */}
       {showBanner && isArchiveSelected && (
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 px-4 py-2.5 rounded-2xl bg-amber-500/10 border border-amber-500/25 text-[#f2bb05] dark:text-[#f2bb05] text-xs shadow-2xs animate-in fade-in-0 duration-200">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 px-4 py-2.5 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 text-foreground text-xs shadow-2xs animate-in fade-in-0 duration-200">
           <div className="flex items-center gap-2.5">
-            <div className="flex size-7 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-[#f2bb05] dark:text-[#f2bb05]">
+            <div className="flex size-7 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-300">
               <Archive className="size-3.5" />
             </div>
             <div>
