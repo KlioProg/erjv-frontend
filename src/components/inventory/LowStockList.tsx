@@ -144,20 +144,20 @@ export function LowStockList() {
           onClick={() => setSeverityFilter('OUT')}
           className={`p-4 border shadow-xs rounded-2xl cursor-pointer transition-all ${
             severityFilter === 'OUT'
-              ? 'border-rose-500 bg-rose-500/10'
+              ? 'border-rose-500/50 bg-rose-500/10'
               : 'border-border/80 bg-card hover:border-rose-500/40'
           }`}
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-rose-950 dark:text-rose-200">
+            <span className="text-xs font-bold text-foreground">
               Out of Stock
             </span>
-            <div className="p-2 rounded-xl bg-rose-100 text-rose-800 dark:bg-rose-950/80 dark:text-rose-300">
+            <div className="size-8 rounded-full bg-rose-500/15 border border-rose-500/30 text-rose-600 dark:text-rose-400 flex items-center justify-center shadow-2xs">
               <Flame className="size-4" />
             </div>
           </div>
           <div className="mt-3">
-            <div className="text-2xl font-extrabold text-rose-700 dark:text-rose-400">
+            <div className="text-2xl font-extrabold text-rose-600 dark:text-rose-400">
               {kpis.outCount}
             </div>
             <p className="text-[11px] text-muted-foreground mt-0.5">Zero units available</p>
@@ -168,20 +168,20 @@ export function LowStockList() {
           onClick={() => setSeverityFilter('CRITICAL')}
           className={`p-4 border shadow-xs rounded-2xl cursor-pointer transition-all ${
             severityFilter === 'CRITICAL'
-              ? 'border-amber-500 bg-amber-50 dark:bg-amber-950/30'
+              ? 'border-amber-500/50 bg-amber-500/10'
               : 'border-border/80 bg-card hover:border-amber-500/40'
           }`}
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-amber-950 dark:text-amber-200">
+            <span className="text-xs font-bold text-foreground">
               Critical Level (≤10)
             </span>
-            <div className="p-2 rounded-xl bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300">
+            <div className="size-8 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-600 dark:text-[#ffb627] flex items-center justify-center shadow-2xs">
               <AlertTriangle className="size-4" />
             </div>
           </div>
           <div className="mt-3">
-            <div className="text-2xl font-extrabold text-amber-900 dark:text-amber-300">
+            <div className="text-2xl font-extrabold text-amber-600 dark:text-[#ffb627]">
               {kpis.criticalCount}
             </div>
             <p className="text-[11px] text-muted-foreground mt-0.5">Depletion imminent</p>
@@ -192,15 +192,15 @@ export function LowStockList() {
           onClick={() => setSeverityFilter('LOW')}
           className={`p-4 border shadow-xs rounded-2xl cursor-pointer transition-all ${
             severityFilter === 'LOW'
-              ? 'border-amber-400 bg-amber-50 dark:bg-amber-950/30'
+              ? 'border-amber-500/50 bg-amber-500/10'
               : 'border-border/80 bg-card hover:border-amber-500/30'
           }`}
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-amber-950 dark:text-amber-200">
+            <span className="text-xs font-bold text-foreground">
               Low Buffer (≤{threshold})
             </span>
-            <div className="p-2 rounded-xl bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300">
+            <div className="size-8 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-600 dark:text-[#ffb627] flex items-center justify-center shadow-2xs">
               <Boxes className="size-4" />
             </div>
           </div>
@@ -213,7 +213,7 @@ export function LowStockList() {
         <Card className="p-4 border-border/80 bg-card shadow-xs rounded-2xl">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-muted-foreground">Impacted Hubs</span>
-            <div className="p-2 rounded-xl bg-primary/10 text-primary">
+            <div className="size-8 rounded-full bg-primary/10 border border-primary/20 text-primary flex items-center justify-center shadow-2xs">
               <WarehouseIcon className="size-4" />
             </div>
           </div>
@@ -286,7 +286,7 @@ export function LowStockList() {
               size="sm"
               onClick={() => setSeverityFilter('CRITICAL')}
               className={`h-8 text-xs font-semibold cursor-pointer rounded-xl ${
-                kpis.criticalCount > 0 ? 'text-amber-600' : ''
+                kpis.criticalCount > 0 ? 'text-amber-600 dark:text-[#ffb627]' : ''
               }`}
             >
               Critical ({kpis.criticalCount})
@@ -383,7 +383,7 @@ export function LowStockList() {
                   <TableRow
                     key={stock.id}
                     className={`hover:bg-muted/20 transition-colors ${
-                      isOut ? 'bg-rose-500/5' : isCritical ? 'bg-amber-500/5' : ''
+                      isOut ? 'bg-rose-500/[0.04]' : isCritical ? 'bg-amber-500/[0.04]' : ''
                     }`}
                   >
                     {/* Item */}
@@ -392,9 +392,9 @@ export function LowStockList() {
                         <div
                           className={`p-2 rounded-xl shrink-0 mt-0.5 ${
                             isOut
-                              ? 'bg-rose-500/15 text-rose-600'
+                              ? 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/25'
                               : isCritical
-                                ? 'bg-amber-500/15 text-amber-600'
+                                ? 'bg-amber-500/15 text-amber-600 dark:text-[#ffb627] border border-amber-500/25'
                                 : 'bg-primary/10 text-primary'
                           }`}
                         >
@@ -445,10 +445,10 @@ export function LowStockList() {
                         variant="outline"
                         className={`text-xs px-2.5 py-1 font-extrabold rounded-xl ${
                           isOut
-                            ? 'bg-rose-100 text-rose-950 border-rose-300 dark:bg-rose-950 dark:text-rose-200 dark:border-rose-800'
+                            ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/25'
                             : isCritical
-                              ? 'bg-amber-100 text-amber-950 border-amber-300 dark:bg-amber-950 dark:text-amber-200 dark:border-amber-800'
-                              : 'bg-amber-50 text-amber-900 border-amber-200 dark:bg-amber-950/60 dark:text-amber-200 dark:border-amber-800'
+                              ? 'bg-amber-500/10 text-amber-600 dark:text-[#ffb627] border-amber-500/25'
+                              : 'bg-amber-500/[0.06] text-amber-600 dark:text-[#ffb627] border-amber-500/20'
                         }`}
                       >
                         {stock.quantityNum.toLocaleString()} units
@@ -461,10 +461,10 @@ export function LowStockList() {
                         <span
                           className={`inline-flex items-center gap-2 px-2.5 py-1 rounded-full text-[11px] font-bold tracking-wide border ${
                             isOut
-                              ? 'bg-rose-100 text-rose-950 border-rose-300 dark:bg-rose-950 dark:text-rose-200 dark:border-rose-800'
+                              ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30'
                               : isCritical
-                                ? 'bg-amber-100 text-amber-950 border-amber-300 dark:bg-amber-950 dark:text-amber-200 dark:border-amber-800'
-                                : 'bg-amber-50 text-amber-900 border-amber-200 dark:bg-amber-950/60 dark:text-amber-200 dark:border-amber-800'
+                                ? 'bg-amber-500/10 text-amber-600 dark:text-[#ffb627] border-amber-500/30'
+                                : 'bg-amber-500/[0.06] text-amber-600 dark:text-[#ffb627] border-amber-500/20'
                           }`}
                         >
                           {isOut ? (

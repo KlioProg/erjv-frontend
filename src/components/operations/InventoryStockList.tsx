@@ -243,14 +243,14 @@ export function InventoryStockList({ onNavigateToLowStock }: InventoryStockListP
             <button
               type="button"
               onClick={onNavigateToLowStock}
-              className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-950 dark:text-amber-100 bg-amber-100 dark:bg-amber-950 border border-amber-300 dark:border-amber-700 px-2.5 py-1 rounded-xl hover:bg-amber-200 dark:hover:bg-amber-900 cursor-pointer transition-all shrink-0 self-start sm:self-center shadow-2xs"
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-600 dark:text-[#ffb627] bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 px-2.5 py-1 rounded-xl cursor-pointer transition-all shrink-0 self-start sm:self-center shadow-2xs group"
               title="Click to view depleted items in Low-Stock Alerts"
             >
-              <AlertTriangle className="size-3.5 text-amber-800 dark:text-amber-300 shrink-0" />
+              <AlertTriangle className="size-3.5 text-amber-600 dark:text-[#ffb627] shrink-0" />
               <span>
                 {contextualLowStock.length} {contextualLowStock.length === 1 ? 'item low' : 'items low'}
               </span>
-              <ChevronRight className="size-3 text-amber-800 dark:text-amber-300" />
+              <ChevronRight className="size-3 text-amber-600 dark:text-[#ffb627] transition-transform group-hover:translate-x-0.5" />
             </button>
           )}
         </div>
@@ -381,18 +381,18 @@ export function InventoryStockList({ onNavigateToLowStock }: InventoryStockListP
                           <Boxes
                             className={`size-3.5 ${
                               totalStockUnits === 0
-                                ? 'text-rose-600'
+                                ? 'text-rose-600 dark:text-rose-400'
                                 : totalStockUnits <= 20
-                                  ? 'text-amber-600'
+                                  ? 'text-amber-600 dark:text-[#ffb627]'
                                   : 'text-primary'
                             }`}
                           />
                           <span
                             className={
                               totalStockUnits === 0
-                                ? 'text-rose-600'
+                                ? 'text-rose-600 dark:text-rose-400'
                                 : totalStockUnits <= 20
-                                  ? 'text-amber-600 dark:text-amber-400'
+                                  ? 'text-amber-600 dark:text-[#ffb627]'
                                   : 'text-foreground'
                             }
                           >
@@ -559,13 +559,13 @@ export function InventoryStockList({ onNavigateToLowStock }: InventoryStockListP
                                   {whDisplayName}
                                 </span>
                                 {isOut ? (
-                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-rose-100 text-rose-950 dark:bg-rose-950 dark:text-rose-200 border border-rose-300 dark:border-rose-800">
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/25">
                                     <span className="size-1.5 rounded-full bg-rose-600 dark:bg-rose-400 shrink-0" />
                                     Out of Stock
                                   </span>
                                 ) : isLow ? (
-                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-100 text-amber-950 dark:bg-amber-950 dark:text-amber-200 border border-amber-300 dark:border-amber-700">
-                                    <span className="size-1.5 rounded-full bg-amber-600 dark:bg-amber-400 shrink-0" />
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-600 dark:text-[#ffb627] border border-amber-500/25">
+                                    <span className="size-1.5 rounded-full bg-amber-600 dark:bg-[#ffb627] shrink-0" />
                                     Low Stock
                                   </span>
                                 ) : null}
@@ -574,9 +574,9 @@ export function InventoryStockList({ onNavigateToLowStock }: InventoryStockListP
                                 <span
                                   className={`text-base font-extrabold tracking-tight ${
                                     isOut
-                                      ? 'text-rose-700 dark:text-rose-400'
+                                      ? 'text-rose-600 dark:text-rose-400'
                                       : isLow
-                                        ? 'text-amber-950 dark:text-amber-200'
+                                        ? 'text-amber-600 dark:text-[#ffb627]'
                                         : 'text-foreground'
                                   }`}
                                 >
