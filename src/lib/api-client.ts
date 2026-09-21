@@ -97,8 +97,43 @@ export function humanizeErrorMessage(raw: string, status?: number): string {
     return 'The requested record or resource could not be found.'
   }
 
-  // 6. Conflict (409)
-  if (status === 409 || lower.includes('409') || lower.includes('conflict')) {
+  // Specific logistics & workflow domain conflict errors
+  if (lower.includes('vehicle is not available') || lower.includes('vehicle not available')) {
+    return 'The selected vehicle is currently not available for delivery. Please select an available vehicle from the fleet.'
+  }
+  if (lower.includes('driver is not active') || lower.includes('driver not active')) {
+    return 'The assigned driver is currently marked inactive. Please assign an active driver.'
+  }
+  if (lower.includes('only a draft delivery can be scheduled')) {
+    return 'Only a delivery in Draft status can be scheduled.'
+  }
+  if (lower.includes('only a scheduled delivery can be dispatched')) {
+    return 'Only a delivery in Scheduled status can be dispatched.'
+  }
+  if (lower.includes('only a dispatched delivery can be completed')) {
+    return 'Only a delivery currently in transit (Dispatched) can be recorded as completed.'
+  }
+  if (lower.includes('delivery quantity exceeds remaining allocation')) {
+    return 'Delivery quantity exceeds the remaining unfulfilled allocation for this sales order.'
+  }
+  if (lower.includes('insufficient available stock') || lower.includes('insufficient physical or reserved stock')) {
+    return 'Insufficient warehouse stock available to fulfill this allocation.'
+  }
+  if (lower.includes('sales order is not deliverable')) {
+    return 'This sales order is not in a deliverable status (must be Confirmed or Partially Delivered).'
+  }
+  if (lower.includes('outgoing delivery cannot be cancelled')) {
+    return 'This delivery cannot be cancelled because it has already progressed or has recorded stock movements.'
+  }
+
+  // 6. Generic Conflict (409) / Database constraint
+  if (
+    lower.includes('database constraint conflict') ||
+    lower.includes('unique constraint') ||
+    raw === '409' ||
+    lower === 'conflict' ||
+    lower.includes('request failed with status code 409')
+  ) {
     return 'This record conflicts with an existing entry. Please check for duplicate details and try again.'
   }
 
@@ -274,6 +309,11 @@ export function getErrorMessage(error: unknown): string {
       return 'Your session has expired or authentication failed. Please sign in again.'
     }
 
+    // 7. Clean validation or domain message if available from server
+    if (serverMessage && !lower.includes('internal server error') && !lower.includes('status code')) {
+      return humanizeErrorMessage(serverMessage, status)
+    }
+
     if (status === 404) {
       return 'The requested item could not be found.'
     }
@@ -284,11 +324,6 @@ export function getErrorMessage(error: unknown): string {
 
     if (status === 429) {
       return 'Too many requests. Please wait a moment before trying again.'
-    }
-
-    // 7. Clean validation message if available and not technical
-    if (serverMessage && !lower.includes('internal server error') && !lower.includes('status code')) {
-      return humanizeErrorMessage(serverMessage, status)
     }
 
     // 8. Generic 500 fallback

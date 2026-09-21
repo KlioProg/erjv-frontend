@@ -5,6 +5,7 @@ import {
   deactivateVehicleApi,
   fetchAvailableVehiclesApi,
   fetchDeliveryVehiclesApi,
+  fetchVehicleByIdApi,
   fetchVehicleByPlateNumberApi,
   reactivateVehicleApi,
   updateVehicleDetailsApi,
@@ -35,6 +36,25 @@ export function useAvailableVehicles() {
   return useQuery({
     queryKey: [...VEHICLES_QUERY_KEY, 'available'],
     queryFn: fetchAvailableVehiclesApi,
+  })
+}
+
+export function useVehicleById(id?: number) {
+  return useQuery({
+    queryKey: [...VEHICLES_QUERY_KEY, 'id', id],
+    queryFn: () => (id ? fetchVehicleByIdApi(id) : Promise.reject('No vehicle ID')),
+    enabled: Boolean(id && id > 0),
+  })
+}
+
+export function useVehicleByPlateNumber(plateNumber?: string) {
+  return useQuery({
+    queryKey: [...VEHICLES_QUERY_KEY, 'plate', plateNumber?.trim().toUpperCase() || ''],
+    queryFn: () =>
+      plateNumber?.trim()
+        ? fetchVehicleByPlateNumberApi(plateNumber.trim().toUpperCase())
+        : Promise.resolve(null),
+    enabled: Boolean(plateNumber && plateNumber.trim().length > 0),
   })
 }
 

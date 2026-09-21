@@ -18,6 +18,7 @@ import { ClientList } from '../crm/ClientList'
 import { EmployeeList } from '../staffing/EmployeeList'
 import { JobList } from '../staffing/JobList'
 import { OrdersView } from '../orders/OrdersView'
+import { DeliveriesHub } from '../deliveries/DeliveriesHub'
 import { RoleGroupingView } from '../staffing/RoleGroupingView'
 import { UserRolesList } from '../staffing/UserRolesList'
 import { useWarehouses } from '@/features/logistics/warehouses.hooks'
@@ -260,6 +261,7 @@ export function MainDashboard() {
             {effectiveTab === 'inventory' && <InventoryHub />}
             {effectiveTab === 'warehouses' && <WarehouseList />}
             {effectiveTab === 'fleet' && <VehicleList />}
+            {effectiveTab === 'deliveries' && <DeliveriesHub />}
             {effectiveTab === 'orders' && <OrdersView />}
             {effectiveTab === 'clients' && <ClientList />}
             {effectiveTab === 'employees' && <EmployeeList />}
