@@ -1,10 +1,11 @@
 import { useState } from 'react'
-import { Search, Plus, Receipt } from 'lucide-react'
+import { CheckCircle2, Edit2, Plus, Receipt, Search, XCircle } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { OrderModal, type OrderFormValues } from './OrderModal'
+import { StatusTabNav } from '@/components/ui/StatusTabNav'
+import { OrderModal, type OrderFormValues, type OrderStatus } from './OrderModal'
 import { useClients } from '@/features/crm/clients.hooks'
 import { useProducts } from '@/features/products/products.hooks'
 import { useAuth } from '@/features/auth/AuthContext'
@@ -22,8 +23,11 @@ export interface Order {
   invoiceNo: string
   clientName: string
   itemSummary: string
+  lines: OrderFormValues['lines']
+  discountType: OrderFormValues['discountType']
+  discountValue: number
   total: number
-  status: 'Completed' | 'Pending'
+  status: OrderStatus
   date: string
   cashier: string
 }
@@ -31,19 +35,39 @@ export interface Order {
 export function OrdersView() {
   const [orders, setOrders] = useState<Order[]>([])
   const [searchTerm, setSearchTerm] = useState('')
+  const [activeStatus, setActiveStatus] = useState<OrderStatus>('Active')
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false)
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
   const { data: clients = [] } = useClients()
   const { data: products = [] } = useProducts()
   const { user } = useAuth()
 
   const cashier = user?.fullName || user?.email || 'Current User'
 
-  const handleAddOrder = (values: OrderFormValues) => {
+  const handleSaveOrder = (values: OrderFormValues) => {
+    if (selectedOrder) {
+      setOrders((currentOrders) =>
+        currentOrders.map((order) =>
+          order.id === selectedOrder.id
+            ? { ...order, ...values }
+            : order,
+        ),
+      )
+      setSelectedOrder(null)
+      setIsOrderModalOpen(false)
+      return
+    }
+
+    const postedAt = new Date()
+    const orderId = postedAt.getTime()
+    const invoiceNo = `POS-${orderId.toString(36).toUpperCase()}`
+
     setOrders((currentOrders) => [
       {
-        id: Date.now(),
+        id: orderId,
+        invoiceNo,
         ...values,
-        date: new Date().toLocaleDateString('en-US', {
+        date: postedAt.toLocaleDateString('en-US', {
           year: 'numeric',
           month: 'short',
           day: 'numeric',
@@ -51,17 +75,51 @@ export function OrdersView() {
       },
       ...currentOrders,
     ])
+    setIsOrderModalOpen(false)
   }
+
+  const statusCount = (status: OrderStatus) => orders.filter((order) => order.status === status).length
 
   const filteredOrders = orders.filter(
     (o) =>
-      o.invoiceNo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      o.clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      o.itemSummary.toLowerCase().includes(searchTerm.toLowerCase()),
+      o.status === activeStatus &&
+      (
+        o.invoiceNo.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        o.clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        o.itemSummary.toLowerCase().includes(searchTerm.toLowerCase())
+      ),
   )
 
   return (
     <div className="flex flex-col gap-5">
+      <StatusTabNav
+        activeTab={activeStatus}
+        onTabChange={(tab) => setActiveStatus(tab as OrderStatus)}
+        tabs={[
+          {
+            value: 'Active',
+            label: 'Active Orders',
+            count: statusCount('Active'),
+            icon: <CheckCircle2 className="size-3.5" />,
+            accent: 'green',
+          },
+          {
+            value: 'Completed',
+            label: 'Completed Orders',
+            count: statusCount('Completed'),
+            icon: <CheckCircle2 className="size-3.5" />,
+            accent: 'blue',
+          },
+          {
+            value: 'Cancelled',
+            label: 'Cancelled Orders',
+            count: statusCount('Cancelled'),
+            icon: <XCircle className="size-3.5" />,
+            accent: 'red',
+          },
+        ]}
+      />
+
       {/* Top Controls */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div className="relative w-full sm:w-80">
@@ -74,7 +132,13 @@ export function OrdersView() {
           />
         </div>
 
-        <Button size="sm" onClick={() => setIsOrderModalOpen(true)}>
+        <Button
+          size="sm"
+          onClick={() => {
+            setSelectedOrder(null)
+            setIsOrderModalOpen(true)
+          }}
+        >
           <Plus className="size-4" />
           Create POS Order
         </Button>
@@ -86,12 +150,16 @@ export function OrdersView() {
           <div className="flex flex-col items-center justify-center text-center">
             <Receipt className="size-8 text-muted-foreground/40" />
             <span className="text-sm font-semibold text-foreground">
-              {searchTerm.trim() ? `No orders match "${searchTerm.trim()}"` : 'No sales orders found'}
+              {searchTerm.trim()
+                ? `No ${activeStatus.toLowerCase()} orders match "${searchTerm.trim()}"`
+                : `No ${activeStatus.toLowerCase()} orders found`}
             </span>
             <p className="text-xs text-muted-foreground mt-1 max-w-xs">
               {searchTerm.trim()
                 ? 'Try a different invoice number, client, or item.'
-                : 'Make your first order today!'}
+                : activeStatus === 'Active'
+                  ? 'Make your first order today!'
+                  : 'Orders moved into this status will appear here.'}
             </p>
           </div>
         </Card>
@@ -106,6 +174,7 @@ export function OrdersView() {
                 <TableHead className="text-xs font-semibold">Processed By</TableHead>
                 <TableHead className="text-xs font-semibold text-right">Amount (₱)</TableHead>
                 <TableHead className="text-xs font-semibold text-center">Status</TableHead>
+                <TableHead className="text-xs font-semibold text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -136,14 +205,30 @@ export function OrdersView() {
                   <TableCell className="text-center">
                     <Badge
                       variant="outline"
-                      className={`text-[10px] font-semibold px-2.5 py-0.5 rounded-full ${
+                      className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${
                         order.status === 'Completed'
-                          ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20'
-                          : 'bg-amber-500/10 text-amber-600 border-amber-500/20'
+                          ? 'bg-blue-500/10 text-blue-600 border-blue-500/20'
+                          : order.status === 'Cancelled'
+                            ? 'bg-rose-500/10 text-rose-600 border-rose-500/20'
+                            : 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20'
                       }`}
                     >
                       {order.status}
                     </Badge>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label={`Edit order ${order.invoiceNo}`}
+                      onClick={() => {
+                        setSelectedOrder(order)
+                        setIsOrderModalOpen(true)
+                      }}
+                      className="size-8 text-muted-foreground hover:text-foreground"
+                    >
+                      <Edit2 className="size-3.5" />
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))}
@@ -156,10 +241,11 @@ export function OrdersView() {
         <OrderModal
           open
           onClose={() => setIsOrderModalOpen(false)}
-          onSubmit={handleAddOrder}
+          onSubmit={handleSaveOrder}
           clients={clients}
           products={products}
           cashier={cashier}
+          order={selectedOrder || undefined}
         />
       )}
     </div>
