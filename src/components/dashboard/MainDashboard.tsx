@@ -19,6 +19,7 @@ import { EmployeeList } from '../staffing/EmployeeList'
 import { JobList } from '../staffing/JobList'
 import { OrdersView } from '../orders/OrdersView'
 import { DeliveriesHub } from '../deliveries/DeliveriesHub'
+import { PurchasesView } from '../purchases/PurchasesView'
 import { RoleGroupingView } from '../staffing/RoleGroupingView'
 import { UserRolesList } from '../staffing/UserRolesList'
 import { useWarehouses } from '@/features/logistics/warehouses.hooks'
@@ -262,6 +263,7 @@ export function MainDashboard() {
             {effectiveTab === 'warehouses' && <WarehouseList />}
             {effectiveTab === 'fleet' && <VehicleList />}
             {effectiveTab === 'deliveries' && <DeliveriesHub />}
+            {effectiveTab === 'purchases' && <PurchasesView />}
             {effectiveTab === 'orders' && <OrdersView />}
             {effectiveTab === 'clients' && <ClientList />}
             {effectiveTab === 'employees' && <EmployeeList />}

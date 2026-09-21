@@ -40,6 +40,7 @@ export type NavItemKey =
   | 'warehouses'
   | 'fleet'
   | 'deliveries'
+  | 'purchases'
   | 'clients'
   | 'employees'
   | 'jobs'
@@ -71,6 +72,7 @@ const NAV_GROUPS: NavGroup[] = [
       { key: 'warehouses', label: 'Warehouses', icon: WarehouseIcon },
       { key: 'fleet', label: 'Delivery Fleet', icon: Truck },
       { key: 'deliveries', label: 'Deliveries Hub', icon: Navigation },
+      { key: 'purchases', label: 'Purchases', icon: Package },
     ],
   },
   {
