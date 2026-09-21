@@ -43,20 +43,18 @@ export function ArchiveTabNav({
           <button
             type="button"
             onClick={() => onTabChange('ACTIVE')}
-            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-150 active:scale-95 cursor-pointer select-none ${
-              !isArchiveSelected
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-150 active:scale-95 cursor-pointer select-none ${!isArchiveSelected
                 ? 'bg-background text-foreground shadow-2xs border border-border/60'
                 : 'text-muted-foreground hover:text-foreground hover:bg-background/40'
-            }`}
+              }`}
           >
             {activeIcon}
             <span>{activeLabel}</span>
             <span
-              className={`ml-0.5 px-2 py-0.5 rounded-full text-[11px] font-extrabold transition-colors ${
-                !isArchiveSelected
+              className={`ml-0.5 px-2 py-0.5 rounded-full text-[11px] font-extrabold transition-colors ${!isArchiveSelected
                   ? 'bg-primary/10 text-primary'
                   : 'bg-muted text-muted-foreground'
-              }`}
+                }`}
             >
               {activeCount}
             </span>
@@ -68,24 +66,26 @@ export function ArchiveTabNav({
             onClick={() => onTabChange('ARCHIVED')}
             className={`group flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-150 active:scale-95 cursor-pointer select-none ${
               isArchiveSelected
-                ? 'bg-background text-foreground shadow-2xs border border-border/60 ring-1 ring-amber-500/30'
+                ? 'bg-background text-foreground shadow-2xs border border-border/60'
                 : 'text-muted-foreground hover:text-foreground hover:bg-background/40'
             }`}
           >
             <span
               className={
-                hasArchivedItems
-                  ? 'text-[#f2bb05] dark:text-[#f2bb05] group-hover:scale-110 transition-transform'
-                  : ''
+                isArchiveSelected
+                  ? 'text-amber-600 dark:text-[#ffb627]'
+                  : hasArchivedItems
+                    ? 'text-amber-600/70 dark:text-[#ffb627]/70 group-hover:scale-110 transition-transform'
+                    : ''
               }
             >
               {archivedIcon}
             </span>
             <span>{archivedLabel}</span>
             <span
-              className={`ml-0.5 px-2 py-0.5 rounded-full text-[11px] font-extrabold transition-all ${
-                hasArchivedItems
-                  ? 'bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30 shadow-2xs'
+              className={`ml-0.5 px-2 py-0.5 rounded-full text-[11px] font-extrabold transition-colors ${
+                isArchiveSelected
+                  ? 'bg-primary/10 text-primary'
                   : 'bg-muted text-muted-foreground'
               }`}
             >
@@ -97,14 +97,14 @@ export function ArchiveTabNav({
 
       {/* Informative Context Banner when on Archived tab */}
       {showBanner && isArchiveSelected && (
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 px-4 py-2.5 rounded-2xl bg-amber-500/10 border border-amber-500/25 text-[#f2bb05] dark:text-[#f2bb05] text-xs shadow-2xs animate-in fade-in-0 duration-200">
-          <div className="flex items-center gap-2.5">
-            <div className="flex size-7 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-[#f2bb05] dark:text-[#f2bb05]">
-              <Archive className="size-3.5" />
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 px-4 py-3 rounded-2xl bg-amber-500/[0.06] dark:bg-amber-500/[0.1] border border-amber-500/25 text-foreground text-xs shadow-2xs animate-in fade-in-0 duration-200">
+          <div className="flex items-center gap-3">
+            <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-600 dark:text-[#ffb627] shadow-2xs">
+              <Archive className="size-4" />
             </div>
             <div>
               <span className="font-bold text-foreground">Archived Records Directory</span>
-              <span className="text-muted-foreground ml-1.5">
+              <span className="text-foreground/75 dark:text-foreground/80 ml-1.5 leading-normal">
                 {bannerDescription ||
                   `Showing ${archivedCount} archived record${archivedCount === 1 ? '' : 's'}. You can restore records to the active view anytime using the Reactivate action.`}
               </span>
@@ -112,12 +112,12 @@ export function ArchiveTabNav({
           </div>
           <Button
             type="button"
-            variant="ghost"
+            variant="outline"
             size="sm"
             onClick={() => onTabChange('ACTIVE')}
-            className="h-7 px-2.5 text-xs font-bold text-[#f2bb05] dark:text-[#f2bb05] hover:bg-amber-500/20 rounded-xl cursor-pointer self-end sm:self-auto gap-1 shrink-0"
+            className="group h-7.5 px-3 text-xs font-bold text-foreground hover:text-amber-600 dark:hover:text-[#ffb627] hover:bg-amber-500/15 bg-background/90 border-border/70 hover:border-amber-500/30 rounded-xl cursor-pointer self-end sm:self-auto gap-1.5 shrink-0 transition-all duration-150 active:scale-95 shadow-2xs"
           >
-            <ArrowLeft className="size-3.5" />
+            <ArrowLeft className="size-3.5 transition-transform duration-200 group-hover:-translate-x-1" />
             Back to Active
           </Button>
         </div>
