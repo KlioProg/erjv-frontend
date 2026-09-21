@@ -23,13 +23,17 @@ import type { Client } from '@/features/crm/clients.types'
 import type { InventoryItemResponse } from '@/features/products/products.types'
 
 export type OrderFormValues = {
-  invoiceNo: string
   clientName: string
   itemSummary: string
+  lines: OrderLine[]
+  discountType: 'peso' | 'percentage'
+  discountValue: number
   total: number
-  status: 'Completed' | 'Pending'
+  status: OrderStatus
   cashier: string
 }
+
+export type OrderStatus = 'Completed' | 'Active' | 'Cancelled'
 
 type OrderModalProps = {
   open: boolean
@@ -38,9 +42,16 @@ type OrderModalProps = {
   clients: Client[]
   products: InventoryItemResponse[]
   cashier: string
+  order?: {
+    clientName: string
+    lines: OrderLine[]
+    discountType: 'peso' | 'percentage'
+    discountValue: number
+    status: OrderStatus
+  }
 }
 
-type OrderLine = {
+export type OrderLine = {
   productId: number
   name: string
   variety?: string | null
@@ -61,17 +72,58 @@ export function OrderModal({
   clients,
   products,
   cashier,
+  order,
 }: OrderModalProps) {
-  const [invoiceNo, setInvoiceNo] = useState('POS-NEW')
-  const [customerType, setCustomerType] = useState('')
-  const [customerName, setCustomerName] = useState('')
+  const initialClient = order && clients.find((client) => client.name === order.clientName)
+  const [customerType, setCustomerType] = useState(
+    initialClient ? `client:${initialClient.id}` : order ? 'walk-in' : '',
+  )
+  const [customerName, setCustomerName] = useState(order?.clientName || '')
   const [selectedProductId, setSelectedProductId] = useState('none')
-  const [lines, setLines] = useState<OrderLine[]>([])
+  const [lines, setLines] = useState<OrderLine[]>(order?.lines || [])
+  const [discountType, setDiscountType] = useState<'peso' | 'percentage'>(
+    order?.discountType || 'peso',
+  )
+  const [discountValue, setDiscountValue] = useState(
+    order && order.discountValue > 0 ? String(order.discountValue) : '',
+  )
+  const [status, setStatus] = useState<OrderStatus>(order?.status || 'Active')
   const [errorMessage, setErrorMessage] = useState('')
 
   const grossTotal = lines.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0)
   const subtotal = grossTotal * (1 - VAT_RATE)
   const vat = grossTotal * VAT_RATE
+  const numericDiscountValue = Number(discountValue) || 0
+  const discountAmount =
+    discountType === 'percentage'
+      ? grossTotal * (numericDiscountValue / 100)
+      : Math.min(numericDiscountValue, grossTotal)
+  const totalAfterDiscount = Math.max(0, grossTotal - discountAmount)
+
+  const setDiscount = (value: string) => {
+    if (value === '') {
+      setErrorMessage('')
+      setDiscountValue('')
+      return
+    }
+
+    const numericValue = Number(value)
+    const maximum = discountType === 'percentage' ? 100 : grossTotal
+    if (numericValue < 0) {
+      setErrorMessage('Discount cannot be negative.')
+      return
+    }
+    if (numericValue > maximum) {
+      setErrorMessage(
+        discountType === 'percentage'
+          ? 'Discount cannot exceed 100%.'
+          : 'Discount cannot exceed the gross total.',
+      )
+      return
+    }
+    setErrorMessage('')
+    setDiscountValue(value)
+  }
 
   const handleAddProduct = () => {
     const selectedProduct = products.find((product) => String(product.id) === selectedProductId)
@@ -127,11 +179,10 @@ export function OrderModal({
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    const cleanInvoiceNo = invoiceNo.trim()
     const cleanCustomerName = customerName.trim()
 
-    if (!cleanInvoiceNo || !customerType || !cleanCustomerName) {
-      setErrorMessage('Complete the invoice and customer fields.')
+    if (!customerType || !cleanCustomerName) {
+      setErrorMessage('Complete the customer fields.')
       return
     }
 
@@ -141,13 +192,15 @@ export function OrderModal({
     }
 
     onSubmit({
-      invoiceNo: cleanInvoiceNo,
       clientName: cleanCustomerName,
       itemSummary: lines
         .map((line) => `${line.name}${line.variety ? ` - ${line.variety}` : ''} x${line.quantity}`)
         .join(', '),
-      total: grossTotal,
-      status: 'Pending',
+      lines,
+      discountType,
+      discountValue: numericDiscountValue,
+      total: totalAfterDiscount,
+      status,
       cashier,
     })
     onClose()
@@ -160,7 +213,9 @@ export function OrderModal({
           <div className="mb-2 flex size-11 items-center justify-center rounded-2xl bg-primary/10 text-primary shadow-2xs">
             <ClipboardList className="size-5" />
           </div>
-          <DialogTitle className="text-xl font-bold tracking-tight">Create POS Order</DialogTitle>
+          <DialogTitle className="text-xl font-bold tracking-tight">
+            {order ? 'Edit POS Order' : 'Create POS Order'}
+          </DialogTitle>
           <DialogDescription className="text-xs leading-relaxed">
             Build the receipt, adjust quantities, and post the order when it is ready.
           </DialogDescription>
@@ -173,19 +228,6 @@ export function OrderModal({
         )}
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="order-invoice" className="text-xs font-semibold text-foreground/90">
-              Invoice No <span className="text-primary">*</span>
-            </Label>
-            <Input
-              id="order-invoice"
-              value={invoiceNo}
-              onChange={(event) => setInvoiceNo(event.target.value)}
-              className="h-10 text-sm"
-              required
-            />
-          </div>
-
           <section className="overflow-hidden rounded-xl border border-border/80 bg-muted/10">
             <div className="flex flex-col gap-3 border-b border-border/70 p-4 sm:flex-row sm:items-end sm:justify-between">
               <div>
@@ -194,7 +236,7 @@ export function OrderModal({
                 </p>
                 <p className="mt-1 text-[11px] text-muted-foreground">Prices are fixed from inventory.</p>
               </div>
-              <div className="flex w-full gap-2 sm:w-auto">
+              <div className="flex flex-wrap w-full gap-2 sm:w-auto">
                 <Select value={selectedProductId} onValueChange={setSelectedProductId}>
                   <SelectTrigger className="h-9 min-w-0 flex-1 text-xs sm:w-64 sm:flex-none">
                     <SelectValue placeholder="Choose inventory item" />
@@ -221,6 +263,7 @@ export function OrderModal({
                 >
                   <Plus className="size-3.5" /> Add
                 </Button>
+
               </div>
             </div>
 
@@ -297,9 +340,44 @@ export function OrderModal({
                   <span>VAT (12%)</span>
                   <span>{formatCurrency(vat)}</span>
                 </div>
+                {lines.length > 0 && (
+                  <div className="flex items-center justify-between gap-3 text-muted-foreground">
+                    <span>Discount</span>
+                    <div className="flex min-w-0 items-center gap-2">
+                      <Select
+                        value={discountType}
+                        onValueChange={(value) => {
+                          setDiscountType(value as 'peso' | 'percentage')
+                          setDiscountValue('')
+                          setErrorMessage('')
+                        }}
+                      >
+                        <SelectTrigger className="h-8 w-20 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="peso">₱</SelectItem>
+                          <SelectItem value="percentage">%</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Input
+                        aria-label="Discount amount"
+                        type="number"
+                        min={0}
+                        max={discountType === 'percentage' ? 100 : grossTotal}
+                        step="0.01"
+                        value={discountValue}
+                        onChange={(event) => setDiscount(event.target.value)}
+                        placeholder= {discountType === 'percentage' ? '0' : '0.00'}
+                        inputMode="decimal"
+                        className="h-8 w-20 text-right text-xs [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      />
+                    </div>
+                  </div>
+                )}
                 <div className="mt-1 flex justify-between border-t border-border/70 pt-2 text-sm font-extrabold text-foreground">
                   <span>Total</span>
-                  <span>{formatCurrency(grossTotal)}</span>
+                  <span>{formatCurrency(totalAfterDiscount)}</span>
                 </div>
               </div>
             </div>
@@ -349,13 +427,31 @@ export function OrderModal({
             <Input id="order-cashier" value={cashier} readOnly className="h-10 bg-muted/40 text-sm" />
           </div>
 
+          {order && (
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="order-status" className="text-xs font-semibold text-foreground/90">
+                Order Status
+              </Label>
+              <Select value={status} onValueChange={(value) => setStatus(value as OrderStatus)}>
+                <SelectTrigger id="order-status">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Active">Active</SelectItem>
+                  <SelectItem value="Completed">Completed</SelectItem>
+                  <SelectItem value="Cancelled">Cancelled</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           <DialogFooter className="mt-2 gap-2 sm:gap-2">
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>
             <Button type="submit" className="font-semibold">
               <ClipboardList className="size-4" />
-              Post Order
+              {order ? 'Save Changes' : 'Post Order'}
             </Button>
           </DialogFooter>
         </form>
