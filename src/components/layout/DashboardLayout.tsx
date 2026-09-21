@@ -15,8 +15,8 @@ import {
   ChevronRight,
   Building2,
   ChevronDown,
-  Navigation,
-  Receipt,
+  Route,
+  ShoppingBag,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -71,7 +71,7 @@ const NAV_GROUPS: NavGroup[] = [
       { key: 'inventory', label: 'Inventory & Stock', icon: Boxes },
       { key: 'warehouses', label: 'Warehouses', icon: WarehouseIcon },
       { key: 'fleet', label: 'Delivery Fleet', icon: Truck },
-      { key: 'deliveries', label: 'Deliveries Hub', icon: Navigation },
+      { key: 'deliveries', label: 'Deliveries Hub', icon: Route },
       { key: 'purchases', label: 'Purchases', icon: Package },
     ],
   },
@@ -79,7 +79,7 @@ const NAV_GROUPS: NavGroup[] = [
     title: 'Customer Relations (CRM)',
     items: [
       { key: 'clients', label: 'Client Management', icon: Building2 },
-      { key: 'orders', label: 'Sales Orders', icon: Receipt },
+      { key: 'orders', label: 'Sales Orders', icon: ShoppingBag },
     ],
   },
   {
