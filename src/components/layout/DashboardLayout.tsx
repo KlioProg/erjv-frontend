@@ -36,6 +36,7 @@ import { ProductListModal } from '../products/ProductListModal'
 
 export type NavItemKey =
   'inventory' | 'warehouses' | 'fleet' | 'clients' | 'employees' | 'jobs' | 'grouping' | 'users' | 'orders'
+  | 'purchases'
 
 type DashboardLayoutProps = {
   currentTab: NavItemKey
@@ -60,6 +61,7 @@ const NAV_GROUPS: NavGroup[] = [
       { key: 'inventory', label: 'Inventory & Stock', icon: Boxes },
       { key: 'warehouses', label: 'Warehouses', icon: WarehouseIcon },
       { key: 'fleet', label: 'Delivery Fleet', icon: Truck },
+      { key: 'purchases', label: 'Purchases', icon: Package },
     ],
   },
   {
