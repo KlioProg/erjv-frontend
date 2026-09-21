@@ -149,15 +149,15 @@ export function LowStockList() {
           }`}
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-rose-600 dark:text-rose-400">
+            <span className="text-xs font-bold text-rose-950 dark:text-rose-200">
               Out of Stock
             </span>
-            <div className="p-2 rounded-xl bg-rose-500/10 text-rose-600">
+            <div className="p-2 rounded-xl bg-rose-100 text-rose-800 dark:bg-rose-950/80 dark:text-rose-300">
               <Flame className="size-4" />
             </div>
           </div>
           <div className="mt-3">
-            <div className="text-2xl font-extrabold text-rose-600 dark:text-rose-400">
+            <div className="text-2xl font-extrabold text-rose-700 dark:text-rose-400">
               {kpis.outCount}
             </div>
             <p className="text-[11px] text-muted-foreground mt-0.5">Zero units available</p>
@@ -168,20 +168,20 @@ export function LowStockList() {
           onClick={() => setSeverityFilter('CRITICAL')}
           className={`p-4 border shadow-xs rounded-2xl cursor-pointer transition-all ${
             severityFilter === 'CRITICAL'
-              ? 'border-amber-500 bg-amber-500/10'
+              ? 'border-amber-500 bg-amber-50 dark:bg-amber-950/30'
               : 'border-border/80 bg-card hover:border-amber-500/40'
           }`}
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-amber-600 dark:text-amber-400">
+            <span className="text-xs font-bold text-amber-950 dark:text-amber-200">
               Critical Level (≤10)
             </span>
-            <div className="p-2 rounded-xl bg-amber-500/10 text-amber-600">
+            <div className="p-2 rounded-xl bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300">
               <AlertTriangle className="size-4" />
             </div>
           </div>
           <div className="mt-3">
-            <div className="text-2xl font-extrabold text-amber-600 dark:text-amber-400">
+            <div className="text-2xl font-extrabold text-amber-900 dark:text-amber-300">
               {kpis.criticalCount}
             </div>
             <p className="text-[11px] text-muted-foreground mt-0.5">Depletion imminent</p>
@@ -192,15 +192,15 @@ export function LowStockList() {
           onClick={() => setSeverityFilter('LOW')}
           className={`p-4 border shadow-xs rounded-2xl cursor-pointer transition-all ${
             severityFilter === 'LOW'
-              ? 'border-amber-500/50 bg-amber-500/10'
+              ? 'border-amber-400 bg-amber-50 dark:bg-amber-950/30'
               : 'border-border/80 bg-card hover:border-amber-500/30'
           }`}
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-amber-700 dark:text-amber-300">
+            <span className="text-xs font-bold text-amber-950 dark:text-amber-200">
               Low Buffer (≤{threshold})
             </span>
-            <div className="p-2 rounded-xl bg-amber-500/10 text-amber-600">
+            <div className="p-2 rounded-xl bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300">
               <Boxes className="size-4" />
             </div>
           </div>
@@ -445,10 +445,10 @@ export function LowStockList() {
                         variant="outline"
                         className={`text-xs px-2.5 py-1 font-extrabold rounded-xl ${
                           isOut
-                            ? 'bg-rose-500/15 text-rose-600 border-rose-500/30'
+                            ? 'bg-rose-100 text-rose-950 border-rose-300 dark:bg-rose-950 dark:text-rose-200 dark:border-rose-800'
                             : isCritical
-                              ? 'bg-amber-500/15 text-amber-600 border-amber-500/30'
-                              : 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/20'
+                              ? 'bg-amber-100 text-amber-950 border-amber-300 dark:bg-amber-950 dark:text-amber-200 dark:border-amber-800'
+                              : 'bg-amber-50 text-amber-900 border-amber-200 dark:bg-amber-950/60 dark:text-amber-200 dark:border-amber-800'
                         }`}
                       >
                         {stock.quantityNum.toLocaleString()} units
@@ -461,10 +461,10 @@ export function LowStockList() {
                         <span
                           className={`inline-flex items-center gap-2 px-2.5 py-1 rounded-full text-[11px] font-bold tracking-wide border ${
                             isOut
-                              ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/25'
+                              ? 'bg-rose-100 text-rose-950 border-rose-300 dark:bg-rose-950 dark:text-rose-200 dark:border-rose-800'
                               : isCritical
-                                ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/25'
-                                : 'bg-amber-500/5 text-amber-700 dark:text-amber-400 border-amber-500/20'
+                                ? 'bg-amber-100 text-amber-950 border-amber-300 dark:bg-amber-950 dark:text-amber-200 dark:border-amber-800'
+                                : 'bg-amber-50 text-amber-900 border-amber-200 dark:bg-amber-950/60 dark:text-amber-200 dark:border-amber-800'
                           }`}
                         >
                           {isOut ? (
