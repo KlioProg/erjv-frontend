@@ -273,7 +273,7 @@ export function ScheduleDeliveryModal({
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-      <DialogContent className="w-[94vw] max-w-3xl sm:max-w-4xl max-h-[92vh] flex flex-col p-4 sm:p-5 gap-2.5 overflow-x-hidden">
+      <DialogContent className="w-[94vw] max-w-3xl sm:max-w-4xl max-h-[92vh] flex flex-col p-4 sm:p-5 gap-3 overflow-hidden">
         <DialogHeader className="pb-0 shrink-0">
           <div className="flex items-center gap-2">
             <div className="flex size-6.5 items-center justify-center rounded-lg bg-primary/10 text-primary shrink-0">
@@ -296,7 +296,7 @@ export function ScheduleDeliveryModal({
           </Alert>
         )}
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-2 min-h-0 flex-1 overflow-x-hidden">
+        <form onSubmit={handleSubmit} className="flex flex-col gap-3 min-h-0 flex-1 overflow-y-auto pr-1">
           {/* Order and Warehouse Row (2-Column Grid) */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 shrink-0">
             {/* Order Selection */}
@@ -402,15 +402,15 @@ export function ScheduleDeliveryModal({
                   No allocations found for this order matching the selected warehouse.
                 </div>
               ) : (
-                <div className="max-h-[160px] overflow-y-auto overflow-x-hidden">
+                <div className="max-h-[190px] overflow-y-auto overflow-x-hidden rounded-md border border-border/60">
                   <table className="w-full table-fixed text-xs">
-                    <thead className="bg-muted/20 text-left text-[10px] font-bold uppercase tracking-wider text-muted-foreground border-b border-border/60 sticky top-0 bg-muted/95 backdrop-blur-xs z-10">
+                    <thead className="bg-muted/30 text-left text-[10px] font-bold uppercase tracking-wider text-muted-foreground border-b border-border/70 sticky top-0 bg-muted/95 backdrop-blur-xs z-10">
                       <tr>
-                        <th className="px-3 py-1.5 w-[36%]">Product Item</th>
-                        <th className="px-2 py-1.5 text-right w-[14%]">Total Ordered</th>
-                        <th className="px-2 py-1.5 text-right w-[18%]">Already Sched.</th>
-                        <th className="px-2 py-1.5 text-right font-semibold text-foreground w-[15%]">Available</th>
-                        <th className="px-3 py-1.5 text-right w-[17%]">Qty to Ship</th>
+                        <th className="px-3 py-2 w-[32%]">Product Item</th>
+                        <th className="px-2 py-2 text-right w-[14%]">Total Ordered</th>
+                        <th className="px-2 py-2 text-right w-[18%]">Already Sched.</th>
+                        <th className="px-2 py-2 text-right font-semibold text-foreground w-[14%]">Available</th>
+                        <th className="px-3 py-2 text-right w-[22%]">Qty to Ship</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border/60">
@@ -426,7 +426,7 @@ export function ScheduleDeliveryModal({
 
                         return (
                           <tr key={alloc.allocationId} className={isDepleted ? 'bg-muted/20 opacity-75' : 'hover:bg-muted/15'}>
-                            <td className="px-3 py-1.5">
+                            <td className="px-3 py-2.5">
                               <div className="flex items-center gap-2 min-w-0">
                                 <div className="flex flex-col min-w-0">
                                   <span className="font-semibold text-foreground text-xs truncate flex items-center gap-1">
@@ -444,22 +444,22 @@ export function ScheduleDeliveryModal({
                               </div>
                             </td>
 
-                            <td className="px-2 py-1.5 text-right font-mono">
+                            <td className="px-2 py-2.5 text-right font-mono">
                               <span className="font-bold text-foreground">{formatCount(alloc.allocatedQuantity)}</span>{' '}
                               <span className="text-[10px] text-muted-foreground font-sans">{alloc.unit}</span>
                             </td>
 
-                            <td className="px-2 py-1.5 text-right font-mono">
-                              <div className="flex flex-col items-end">
-                                <div>
+                            <td className="px-2 py-2.5 text-right font-mono">
+                              <div className="flex flex-col items-end justify-center py-0.5">
+                                <div className="leading-tight">
                                   <span className="text-muted-foreground font-semibold">
                                     {alloc.alreadyScheduledQuantity > 0 ? formatCount(alloc.alreadyScheduledQuantity) : '0'}
                                   </span>{' '}
                                   <span className="text-[10px] font-sans text-muted-foreground">{alloc.unit}</span>
                                 </div>
                                 {totalOrderedNum > 0 && (
-                                  <div className="flex items-center gap-1 mt-0.5 justify-end">
-                                    <div className="w-10 h-1 bg-muted rounded-full overflow-hidden">
+                                  <div className="flex items-center gap-1.5 mt-1 justify-end">
+                                    <div className="w-12 h-1.5 bg-muted rounded-full overflow-hidden">
                                       <div
                                         className={`h-full ${
                                           pctFulfilled >= 100
@@ -471,25 +471,25 @@ export function ScheduleDeliveryModal({
                                         style={{ width: `${pctFulfilled}%` }}
                                       />
                                     </div>
-                                    <span className="text-[9px] text-muted-foreground">{pctFulfilled}%</span>
+                                    <span className="text-[9px] font-sans text-muted-foreground">{pctFulfilled}%</span>
                                   </div>
                                 )}
                               </div>
                             </td>
 
-                            <td className="px-2 py-1.5 text-right">
+                            <td className="px-2 py-2.5 text-right">
                               {isDepleted ? (
                                 <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-muted text-muted-foreground border border-border/80">
                                   0 {alloc.unit}
                                 </span>
                               ) : (
-                                <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/25">
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/25">
                                   {formatCount(alloc.remainingQuantity)} {alloc.unit}
                                 </span>
                               )}
                             </td>
 
-                            <td className="px-3 py-1.5 text-right">
+                            <td className="px-3 py-2.5 text-right">
                               {isDepleted ? (
                                 <span className="text-[10px] text-muted-foreground italic pr-2">Scheduled</span>
                               ) : (
@@ -677,16 +677,13 @@ export function ScheduleDeliveryModal({
               <Label htmlFor="delivery-scheduled-at" className="text-xs font-semibold">
                 Scheduled Date & Time
               </Label>
-              <div className="relative">
-                <Calendar className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 size-3 text-muted-foreground" />
-                <Input
-                  id="delivery-scheduled-at"
-                  type="datetime-local"
-                  value={scheduledAt}
-                  onChange={(e) => setScheduledAt(e.target.value)}
-                  className="pl-7 h-8 text-xs font-mono"
-                />
-              </div>
+              <Input
+                id="delivery-scheduled-at"
+                type="datetime-local"
+                value={scheduledAt}
+                onChange={(e) => setScheduledAt(e.target.value)}
+                className="h-8.5 text-xs font-mono px-3"
+              />
             </div>
 
             <div className="flex flex-col gap-1">
