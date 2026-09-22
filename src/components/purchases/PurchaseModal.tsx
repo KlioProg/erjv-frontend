@@ -1,5 +1,13 @@
 import { useState, type FormEvent } from 'react'
-import { CalendarDays, ClipboardList, Minus, Package, Plus, Trash2 } from 'lucide-react'
+import {
+  CalendarDays,
+  ClipboardList,
+  Minus,
+  Package,
+  Plus,
+  Sparkles,
+  Trash2,
+} from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -12,6 +20,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Badge } from '@/components/ui/badge'
 import {
   Select,
   SelectContent,
@@ -19,17 +28,23 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { useQueryClient } from '@tanstack/react-query'
+import { productKeys } from '@/features/products/products.hooks'
+import { createProductApi } from '@/features/products/products.api'
 import type { Supplier } from '@/features/logistics/suppliers.types'
 import type { InventoryItemResponse } from '@/features/products/products.types'
 import type { CreatePurchaseOrderPayload } from '@/features/logistics/purchase-orders.types'
+import { getErrorMessage } from '@/lib/api-client'
 
 export type PurchaseLine = {
-  inventoryItemId: number
+  id: string
+  inventoryItemId?: number
   name: string
   variety?: string | null
-  unit?: string
+  unit: string
   unitCost: number
   quantity: number
+  isNewCatalogItem?: boolean
 }
 
 type PurchaseModalProps = {
@@ -53,64 +68,117 @@ export function PurchaseModal({
   products,
   processedBy,
 }: PurchaseModalProps) {
+  const queryClient = useQueryClient()
   const [selectedSupplierId, setSelectedSupplierId] = useState<string>(
     suppliers[0] ? String(suppliers[0].id) : '',
   )
   const [referenceNo, setReferenceNo] = useState('')
   const [expectedAt, setExpectedAt] = useState('')
   const [notes, setNotes] = useState('')
-  const [selectedProductId, setSelectedProductId] = useState('none')
+
+  // New item inputs
+  const [itemName, setItemName] = useState('')
+  const [itemVariety, setItemVariety] = useState('')
+  const [itemUnit, setItemUnit] = useState('kg')
+  const [itemCost, setItemCost] = useState('')
+  const [itemQty, setItemQty] = useState('1')
+  const [selectedCatalogProductId, setSelectedCatalogProductId] = useState('none')
+
   const [lines, setLines] = useState<PurchaseLine[]>([])
   const [errorMessage, setErrorMessage] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const total = lines.reduce((sum, line) => sum + line.unitCost * line.quantity, 0)
 
-  const handleAddProduct = () => {
-    const product = products.find((p) => String(p.id) === selectedProductId)
-    if (!product) return
+  const handleAddItem = () => {
+    const trimmedName = itemName.trim()
+    if (!trimmedName) {
+      setErrorMessage('Please provide an item or material name.')
+      return
+    }
+
+    const qty = parseFloat(itemQty)
+    if (isNaN(qty) || qty <= 0) {
+      setErrorMessage('Quantity must be greater than 0.')
+      return
+    }
+
+    const cost = parseFloat(itemCost)
+    if (isNaN(cost) || cost < 0) {
+      setErrorMessage('Unit cost cannot be negative.')
+      return
+    }
+
+    // Check if this item matches an existing product in the catalog
+    let matchedProduct = products.find(
+      (p) => String(p.id) === selectedCatalogProductId && p.isActive,
+    )
+
+    if (!matchedProduct) {
+      matchedProduct = products.find(
+        (p) => p.name.trim().toLowerCase() === trimmedName.toLowerCase() && p.isActive,
+      )
+    }
+
+    const lineId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 
     setLines((current) => {
-      const existing = current.find((l) => l.inventoryItemId === product.id)
+      // If line with identical name already added, increment its quantity
+      const existing = current.find(
+        (l) => l.name.trim().toLowerCase() === trimmedName.toLowerCase(),
+      )
       if (existing) {
         return current.map((l) =>
-          l.inventoryItemId === product.id ? { ...l, quantity: l.quantity + 1 } : l,
+          l.id === existing.id
+            ? { ...l, quantity: l.quantity + qty, unitCost: cost > 0 ? cost : l.unitCost }
+            : l,
         )
       }
+
       return [
         ...current,
         {
-          inventoryItemId: product.id,
-          name: product.name,
-          variety: product.variety,
-          unit: product.unit,
-          unitCost: product.unitPrice || 0,
-          quantity: 1,
+          id: lineId,
+          inventoryItemId: matchedProduct ? matchedProduct.id : undefined,
+          name: trimmedName,
+          variety: itemVariety.trim() || matchedProduct?.variety || null,
+          unit: itemUnit.trim() || matchedProduct?.unit || 'kg',
+          unitCost: cost,
+          quantity: qty,
+          isNewCatalogItem: !matchedProduct,
         },
       ]
     })
-    setSelectedProductId('none')
+
+    // Clear inputs for the next item
+    setItemName('')
+    setItemVariety('')
+    setItemCost('')
+    setItemQty('1')
+    setSelectedCatalogProductId('none')
     setErrorMessage('')
   }
 
-  const changeQuantity = (inventoryItemId: number, delta: number) => {
+  const changeQuantity = (lineId: string, delta: number) => {
     setLines((current) =>
       current
         .map((l) =>
-          l.inventoryItemId === inventoryItemId
-            ? { ...l, quantity: Math.max(0, l.quantity + delta) }
-            : l,
+          l.id === lineId ? { ...l, quantity: Math.max(0, l.quantity + delta) } : l,
         )
         .filter((l) => l.quantity > 0),
     )
   }
 
-  const updateCost = (inventoryItemId: number, cost: number) => {
+  const updateCost = (lineId: string, cost: number) => {
     setLines((current) =>
       current.map((l) =>
-        l.inventoryItemId === inventoryItemId ? { ...l, unitCost: Math.max(0, cost) } : l,
+        l.id === lineId ? { ...l, unitCost: Math.max(0, cost) } : l,
       ),
     )
+  }
+
+  const removeLine = (lineId: string) => {
+    setLines((current) => current.filter((l) => l.id !== lineId))
   }
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
@@ -129,24 +197,54 @@ export function PurchaseModal({
     try {
       setIsSubmitting(true)
       setErrorMessage('')
+
+      // Resolve each line to an inventoryItemId
+      // If the line is a new item not yet in the inventory, provision it in the catalog first
+      const resolvedItems: Array<{ inventoryItemId: number; quantity: number; unitPrice: number }> = []
+
+      for (const line of lines) {
+        let itemId = line.inventoryItemId
+
+        if (!itemId) {
+          // Double check if a product with this name already exists in products
+          const existing = products.find(
+            (p) => p.name.trim().toLowerCase() === line.name.trim().toLowerCase(),
+          )
+          if (existing) {
+            itemId = existing.id
+          } else {
+            // Automatically register new product in catalog
+            const created = await createProductApi({
+              name: line.name.trim(),
+              variety: line.variety?.trim() || undefined,
+              unit: line.unit.trim() || 'kg',
+              unitPrice: line.unitCost,
+            })
+            itemId = created.id
+          }
+        }
+
+        resolvedItems.push({
+          inventoryItemId: itemId,
+          quantity: line.quantity,
+          unitPrice: line.unitCost,
+        })
+      }
+
       await onSubmit({
         supplierId,
         expectedAt: expectedAt ? new Date(expectedAt).toISOString() : null,
         externalReference: referenceNo.trim() || undefined,
         notes: notes.trim() || undefined,
-        items: lines.map((l) => ({
-          inventoryItemId: l.inventoryItemId,
-          quantity: l.quantity,
-          unitPrice: l.unitCost,
-        })),
+        items: resolvedItems,
       })
+
+      // Invalidate product cache so new items immediately appear in inventory catalog
+      void queryClient.invalidateQueries({ queryKey: productKeys.all })
+
       onClose()
     } catch (err: unknown) {
-      if (err instanceof Error) {
-        setErrorMessage(err.message)
-      } else {
-        setErrorMessage('Failed to create purchase order.')
-      }
+      setErrorMessage(getErrorMessage(err))
     } finally {
       setIsSubmitting(false)
     }
@@ -154,7 +252,7 @@ export function PurchaseModal({
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-      <DialogContent className="max-h-[min(860px,calc(100vh-2rem))] overflow-y-auto sm:max-w-2xl gap-5 p-6">
+      <DialogContent className="max-h-[min(900px,calc(100vh-2rem))] overflow-y-auto sm:max-w-2xl gap-5 p-6">
         <DialogHeader className="pb-1">
           <div className="mb-2 flex size-11 items-center justify-center rounded-2xl bg-primary/10 text-primary shadow-2xs">
             <ClipboardList className="size-5" />
@@ -163,7 +261,7 @@ export function PurchaseModal({
             Create Purchase Order
           </DialogTitle>
           <DialogDescription className="text-xs leading-relaxed">
-            Order materials, raw goods, or merchandise from accredited suppliers.
+            Record supplier orders for raw materials, produce, or merchandise. Enter any items purchased—new items will be automatically placed into your inventory catalog.
           </DialogDescription>
         </DialogHeader>
 
@@ -232,59 +330,175 @@ export function PurchaseModal({
             </div>
           </div>
 
-          {/* Item Selection */}
+          {/* Purchased Items Builder */}
           <section className="overflow-hidden rounded-xl border border-border/80 bg-muted/10">
-            <div className="flex flex-col gap-3 border-b border-border/70 p-4 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-[0.08em] text-muted-foreground">
-                  Order Items
-                </p>
-                <p className="mt-0.5 text-[11px] text-muted-foreground">
-                  Add inventory products and specify purchase cost.
-                </p>
+            <div className="border-b border-border/70 p-3.5 bg-muted/20">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[0.08em] text-muted-foreground">
+                    Purchased Goods & Materials
+                  </p>
+                  <p className="mt-0.5 text-[11px] text-muted-foreground">
+                    Type any purchased item. New items are automatically provisioned in your inventory.
+                  </p>
+                </div>
               </div>
-              <div className="flex flex-wrap w-full gap-2 sm:w-auto">
-                <Select value={selectedProductId} onValueChange={setSelectedProductId}>
-                  <SelectTrigger className="h-9 min-w-0 flex-1 text-xs sm:w-64 sm:flex-none">
-                    <SelectValue placeholder="Choose inventory item" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Choose inventory item</SelectItem>
-                    {products
-                      .filter((p) => p.isActive)
-                      .map((product) => (
-                        <SelectItem key={product.id} value={String(product.id)}>
-                          <span className="flex items-center gap-2">
-                            <Package className="size-3.5 text-primary" />
-                            {product.name} {product.variety ? `- ${product.variety}` : ''}
-                          </span>
-                        </SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={handleAddProduct}
-                  disabled={selectedProductId === 'none'}
-                  className="h-9 shrink-0 gap-1.5 text-xs"
-                >
-                  <Plus className="size-3.5" /> Add
-                </Button>
+
+              {/* Input Form */}
+              <div className="mt-3 rounded-lg border border-border/80 bg-background/90 p-3 flex flex-col gap-2.5">
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-2">
+                  <div className="sm:col-span-6 flex flex-col gap-1">
+                    <Label className="text-[11px] font-semibold">
+                      Item Name <span className="text-primary">*</span>
+                    </Label>
+                    <Input
+                      value={itemName}
+                      onChange={(e) => {
+                        setItemName(e.target.value)
+                        setSelectedCatalogProductId('none')
+                      }}
+                      placeholder="e.g. Jasmine Rice 50kg"
+                      className="h-8 text-xs"
+                      list="catalog-datalist"
+                    />
+                    <datalist id="catalog-datalist">
+                      {products
+                        .filter((p) => p.isActive)
+                        .map((p) => (
+                          <option key={p.id} value={p.name}>
+                            {p.variety ? `${p.variety} • ` : ''}₱{p.unitPrice}/{p.unit}
+                          </option>
+                        ))}
+                    </datalist>
+                  </div>
+
+                  <div className="sm:col-span-3 flex flex-col gap-1">
+                    <Label className="text-[11px] font-semibold">Variety / Brand</Label>
+                    <Input
+                      value={itemVariety}
+                      onChange={(e) => setItemVariety(e.target.value)}
+                      placeholder="e.g. Grade A"
+                      className="h-8 text-xs"
+                    />
+                  </div>
+
+                  <div className="sm:col-span-3 flex flex-col gap-1">
+                    <Label className="text-[11px] font-semibold">Unit</Label>
+                    <Select value={itemUnit} onValueChange={setItemUnit}>
+                      <SelectTrigger className="h-8 text-xs">
+                        <SelectValue placeholder="Unit" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="kg">kg (Kilogram)</SelectItem>
+                        <SelectItem value="sack">sack (Sack)</SelectItem>
+                        <SelectItem value="box">box (Box)</SelectItem>
+                        <SelectItem value="pcs">pcs (Pieces)</SelectItem>
+                        <SelectItem value="bag">bag (Bag)</SelectItem>
+                        <SelectItem value="pack">pack (Pack)</SelectItem>
+                        <SelectItem value="tin">tin (Tin)</SelectItem>
+                        <SelectItem value="liter">liter (Liter)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-end">
+                  <div className="sm:col-span-5 flex flex-col gap-1">
+                    <Label className="text-[11px] text-muted-foreground flex items-center gap-1">
+                      <Package className="size-3" />
+                      Or pick from existing catalog:
+                    </Label>
+                    <Select
+                      value={selectedCatalogProductId}
+                      onValueChange={(val) => {
+                        setSelectedCatalogProductId(val)
+                        const p = products.find((prod) => String(prod.id) === val)
+                        if (p) {
+                          setItemName(p.name)
+                          setItemVariety(p.variety || '')
+                          setItemUnit(p.unit || 'kg')
+                          setItemCost(String(p.unitPrice || ''))
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="h-8 text-xs bg-muted/20">
+                        <SelectValue placeholder="Select to quick fill..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Select to quick fill...</SelectItem>
+                        {products
+                          .filter((p) => p.isActive)
+                          .map((p) => (
+                            <SelectItem key={p.id} value={String(p.id)}>
+                              <span className="flex items-center gap-1.5">
+                                <Package className="size-3 text-primary" />
+                                <span>{p.name}</span>
+                                {p.variety && (
+                                  <span className="text-muted-foreground font-normal">
+                                    ({p.variety})
+                                  </span>
+                                )}
+                                <span className="text-[10px] text-muted-foreground font-mono ml-auto">
+                                  ₱{p.unitPrice}/{p.unit}
+                                </span>
+                              </span>
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="sm:col-span-3 flex flex-col gap-1">
+                    <Label className="text-[11px] font-semibold">Cost per Unit (₱) *</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={itemCost}
+                      onChange={(e) => setItemCost(e.target.value)}
+                      placeholder="0.00"
+                      className="h-8 text-xs font-mono"
+                    />
+                  </div>
+
+                  <div className="sm:col-span-2 flex flex-col gap-1">
+                    <Label className="text-[11px] font-semibold">Quantity *</Label>
+                    <Input
+                      type="number"
+                      min="1"
+                      value={itemQty}
+                      onChange={(e) => setItemQty(e.target.value)}
+                      className="h-8 text-xs font-mono"
+                    />
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={handleAddItem}
+                      disabled={!itemName.trim()}
+                      className="h-8 w-full gap-1 text-xs font-semibold"
+                    >
+                      <Plus className="size-3.5" /> Add
+                    </Button>
+                  </div>
+                </div>
               </div>
             </div>
 
+            {/* Added Lines Table */}
             {lines.length === 0 ? (
-              <div className="flex min-h-24 items-center justify-center px-4 text-center text-xs text-muted-foreground">
-                No items added yet. Select a product above to add.
+              <div className="flex min-h-20 items-center justify-center px-4 text-center text-xs text-muted-foreground">
+                No items added to this purchase order yet. Type an item above and click Add.
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[500px] text-xs">
                   <thead className="bg-muted/40 text-left text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
                     <tr>
-                      <th className="px-4 py-2.5">Product</th>
+                      <th className="px-4 py-2.5">Item & Catalog Status</th>
+                      <th className="px-3 py-2.5 text-center">Unit</th>
                       <th className="px-3 py-2.5 text-right">Unit Cost (₱)</th>
                       <th className="px-3 py-2.5 text-center">Quantity</th>
                       <th className="px-4 py-2.5 text-right">Subtotal</th>
@@ -293,14 +507,35 @@ export function PurchaseModal({
                   </thead>
                   <tbody className="divide-y divide-border/60">
                     {lines.map((line) => (
-                      <tr key={line.inventoryItemId}>
+                      <tr key={line.id}>
                         <td className="px-4 py-3 font-semibold text-foreground">
-                          {line.name}
-                          {line.variety && (
-                            <span className="ml-1 font-normal text-muted-foreground">
-                              {line.variety}
-                            </span>
-                          )}
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span>{line.name}</span>
+                            {line.variety && (
+                              <span className="font-normal text-muted-foreground text-[11px]">
+                                ({line.variety})
+                              </span>
+                            )}
+                            {line.isNewCatalogItem ? (
+                              <Badge
+                                variant="outline"
+                                className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-[10px] gap-0.5 px-1.5 py-0"
+                              >
+                                <Sparkles className="size-2.5" />
+                                New Item
+                              </Badge>
+                            ) : (
+                              <Badge
+                                variant="outline"
+                                className="bg-muted text-muted-foreground border-border text-[10px] px-1.5 py-0"
+                              >
+                                Catalog #{line.inventoryItemId}
+                              </Badge>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-3 py-3 text-center text-muted-foreground font-mono">
+                          {line.unit}
                         </td>
                         <td className="px-3 py-3 text-right">
                           <Input
@@ -309,44 +544,41 @@ export function PurchaseModal({
                             step="0.01"
                             value={line.unitCost}
                             onChange={(e) =>
-                              updateCost(line.inventoryItemId, parseFloat(e.target.value) || 0)
+                              updateCost(line.id, parseFloat(e.target.value) || 0)
                             }
-                            className="h-7 w-24 text-right text-xs ml-auto"
+                            className="h-7 w-20 text-right text-xs ml-auto font-mono"
                           />
                         </td>
                         <td className="px-3 py-3">
                           <div className="mx-auto flex w-fit items-center rounded-lg border border-border bg-background">
                             <button
                               type="button"
-                              onClick={() => changeQuantity(line.inventoryItemId, -1)}
+                              onClick={() => changeQuantity(line.id, -1)}
                               className="flex size-7 items-center justify-center text-muted-foreground hover:text-foreground"
                             >
                               <Minus className="size-3.5" />
                             </button>
-                            <span className="w-8 text-center text-xs font-bold">
+                            <span className="w-8 text-center text-xs font-bold font-mono">
                               {line.quantity}
                             </span>
                             <button
                               type="button"
-                              onClick={() => changeQuantity(line.inventoryItemId, 1)}
+                              onClick={() => changeQuantity(line.id, 1)}
                               className="flex size-7 items-center justify-center text-muted-foreground hover:text-foreground"
                             >
                               <Plus className="size-3.5" />
                             </button>
                           </div>
                         </td>
-                        <td className="px-4 py-3 text-right font-bold text-foreground">
+                        <td className="px-4 py-3 text-right font-bold text-foreground font-mono">
                           {formatCurrency(line.unitCost * line.quantity)}
                         </td>
                         <td className="px-2 py-3 text-center">
                           <button
                             type="button"
-                            onClick={() =>
-                              setLines((cur) =>
-                                cur.filter((l) => l.inventoryItemId !== line.inventoryItemId),
-                              )
-                            }
+                            onClick={() => removeLine(line.id)}
                             className="text-muted-foreground hover:text-destructive"
+                            title="Remove item"
                           >
                             <Trash2 className="size-3.5" />
                           </button>
@@ -358,10 +590,16 @@ export function PurchaseModal({
               </div>
             )}
 
-            <div className="border-t border-border/70 bg-background/60 px-4 py-3">
-              <div className="ml-auto flex max-w-xs justify-between items-center text-sm font-extrabold text-foreground">
+            <div className="border-t border-border/70 bg-background/60 px-4 py-2.5 flex items-center justify-between">
+              <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                <Sparkles className="size-3.5 text-emerald-600" />
+                <span>
+                  New items entered will be added to the inventory catalog automatically.
+                </span>
+              </div>
+              <div className="flex items-center gap-2 text-sm font-extrabold text-foreground">
                 <span>Estimated Total:</span>
-                <span>{formatCurrency(total)}</span>
+                <span className="font-mono text-primary">{formatCurrency(total)}</span>
               </div>
             </div>
           </section>
@@ -385,7 +623,7 @@ export function PurchaseModal({
             </Button>
             <Button type="submit" size="sm" disabled={isSubmitting} className="font-semibold">
               <ClipboardList className="size-4 mr-1" />
-              {isSubmitting ? 'Submitting...' : 'Post Purchase Order'}
+              {isSubmitting ? 'Submitting PO...' : 'Post Purchase Order'}
             </Button>
           </DialogFooter>
         </form>

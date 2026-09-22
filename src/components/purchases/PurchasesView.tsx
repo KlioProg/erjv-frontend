@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react'
 import {
+  ArrowDownToLine,
   Building2,
   Check,
   CheckCircle2,
@@ -22,6 +23,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { StatusTabNav } from '@/components/ui/StatusTabNav'
 import { PurchaseModal } from './PurchaseModal'
 import { SupplierModal } from './SupplierModal'
+import { QuickIntakeModal } from './QuickIntakeModal'
 import { useAuth } from '@/features/auth/AuthContext'
 import { useProducts } from '@/features/products/products.hooks'
 import {
@@ -37,8 +39,9 @@ import {
   useDeleteSupplier,
   useReactivateSupplier,
 } from '@/features/logistics/suppliers.hooks'
+import { useWarehouses } from '@/features/logistics/warehouses.hooks'
 import type { Supplier } from '@/features/logistics/suppliers.types'
-import type { CreatePurchaseOrderPayload } from '@/features/logistics/purchase-orders.types'
+import type { CreatePurchaseOrderPayload, PurchaseOrderRecord } from '@/features/logistics/purchase-orders.types'
 import {
   Table,
   TableBody,
@@ -59,6 +62,7 @@ export function PurchasesView() {
   const [isPurchaseModalOpen, setIsPurchaseModalOpen] = useState(false)
   const [isSupplierModalOpen, setIsSupplierModalOpen] = useState(false)
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null)
+  const [quickIntakePO, setQuickIntakePO] = useState<PurchaseOrderRecord | null>(null)
 
   const { user } = useAuth()
   const processedBy = user?.fullName || user?.email || 'Current User'
@@ -67,6 +71,7 @@ export function PurchasesView() {
   const { data: purchaseOrders = [], isLoading: isLoadingPOs } = usePurchaseOrders()
   const { data: suppliers = [], isLoading: isLoadingSuppliers } = useSuppliers()
   const { data: products = [] } = useProducts()
+  const { data: warehouses = [] } = useWarehouses()
 
   // Mutations
   const createPOMutation = useCreatePurchaseOrder()
@@ -446,16 +451,40 @@ export function PurchasesView() {
                               </>
                             )}
                             {po.status === 'CONFIRMED' && (
+                              <div className="flex items-center gap-1">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-7 px-2.5 text-[11px] font-semibold text-emerald-700 dark:text-emerald-300 border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/20 shadow-2xs"
+                                  onClick={() => setQuickIntakePO(po)}
+                                  title="Receive items and intake stock directly into warehouse"
+                                >
+                                  <ArrowDownToLine className="size-3 mr-1 text-emerald-600" />
+                                  Receive Items
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 px-2 text-[11px] text-rose-600 hover:bg-rose-500/10"
+                                  onClick={() => cancelPOMutation.mutate(po.id)}
+                                  disabled={cancelPOMutation.isPending}
+                                  title="Cancel Purchase Order"
+                                >
+                                  <X className="size-3 mr-1" />
+                                  Cancel
+                                </Button>
+                              </div>
+                            )}
+                            {po.status === 'PARTIALLY_RECEIVED' && (
                               <Button
-                                variant="ghost"
+                                variant="outline"
                                 size="sm"
-                                className="h-7 px-2 text-[11px] text-rose-600 hover:bg-rose-500/10"
-                                onClick={() => cancelPOMutation.mutate(po.id)}
-                                disabled={cancelPOMutation.isPending}
-                                title="Cancel Purchase Order"
+                                className="h-7 px-2.5 text-[11px] font-semibold text-indigo-700 dark:text-indigo-300 border-indigo-500/40 bg-indigo-500/10 hover:bg-indigo-500/20 shadow-2xs"
+                                onClick={() => setQuickIntakePO(po)}
+                                title="Receive remaining items into warehouse"
                               >
-                                <X className="size-3 mr-1" />
-                                Cancel
+                                <ArrowDownToLine className="size-3 mr-1 text-indigo-600" />
+                                Receive Remaining
                               </Button>
                             )}
                           </div>
@@ -637,6 +666,17 @@ export function PurchasesView() {
           onSubmit={handleSaveSupplier}
           supplier={selectedSupplier}
           isSubmitting={createSupplierMutation.isPending || updateSupplierMutation.isPending}
+        />
+      )}
+
+      {quickIntakePO && (
+        <QuickIntakeModal
+          open
+          onClose={() => setQuickIntakePO(null)}
+          purchaseOrder={quickIntakePO}
+          warehouses={warehouses}
+          products={products}
+          supplierName={supplierMap.get(quickIntakePO.supplierId)?.name}
         />
       )}
     </div>
