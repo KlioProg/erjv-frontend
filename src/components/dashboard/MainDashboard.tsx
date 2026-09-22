@@ -263,7 +263,9 @@ export function MainDashboard() {
             {effectiveTab === 'warehouses' && <WarehouseList />}
             {effectiveTab === 'fleet' && <VehicleList />}
             {effectiveTab === 'deliveries' && <DeliveriesHub />}
-            {effectiveTab === 'purchases' && <PurchasesView />}
+            {effectiveTab === 'purchases' && (
+              <PurchasesView onNavigateToDeliveries={() => setCurrentTab('deliveries')} />
+            )}
             {effectiveTab === 'orders' && <OrdersView />}
             {effectiveTab === 'clients' && <ClientList />}
             {effectiveTab === 'employees' && <EmployeeList />}

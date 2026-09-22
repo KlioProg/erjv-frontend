@@ -4,8 +4,10 @@ import {
   Building2,
   Check,
   CheckCircle2,
+  ChevronRight,
   Clock,
   Edit2,
+  Info,
   Package,
   Plus,
   Power,
@@ -23,7 +25,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { StatusTabNav } from '@/components/ui/StatusTabNav'
 import { PurchaseModal } from './PurchaseModal'
 import { SupplierModal } from './SupplierModal'
-import { QuickIntakeModal } from './QuickIntakeModal'
 import { useAuth } from '@/features/auth/AuthContext'
 import { useProducts } from '@/features/products/products.hooks'
 import {
@@ -39,9 +40,8 @@ import {
   useDeleteSupplier,
   useReactivateSupplier,
 } from '@/features/logistics/suppliers.hooks'
-import { useWarehouses } from '@/features/logistics/warehouses.hooks'
 import type { Supplier } from '@/features/logistics/suppliers.types'
-import type { CreatePurchaseOrderPayload, PurchaseOrderRecord } from '@/features/logistics/purchase-orders.types'
+import type { CreatePurchaseOrderPayload } from '@/features/logistics/purchase-orders.types'
 import {
   Table,
   TableBody,
@@ -53,7 +53,11 @@ import {
 
 export type PurchaseTabFilter = 'Active' | 'Completed' | 'Cancelled'
 
-export function PurchasesView() {
+type PurchasesViewProps = {
+  onNavigateToDeliveries?: () => void
+}
+
+export function PurchasesView({ onNavigateToDeliveries }: PurchasesViewProps = {}) {
   const [activeSection, setActiveSection] = useState<'orders' | 'suppliers'>('orders')
   const [searchTerm, setSearchTerm] = useState('')
   const [activeStatus, setActiveStatus] = useState<PurchaseTabFilter>('Active')
@@ -62,7 +66,6 @@ export function PurchasesView() {
   const [isPurchaseModalOpen, setIsPurchaseModalOpen] = useState(false)
   const [isSupplierModalOpen, setIsSupplierModalOpen] = useState(false)
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null)
-  const [quickIntakePO, setQuickIntakePO] = useState<PurchaseOrderRecord | null>(null)
 
   const { user } = useAuth()
   const processedBy = user?.fullName || user?.email || 'Current User'
@@ -71,7 +74,6 @@ export function PurchasesView() {
   const { data: purchaseOrders = [], isLoading: isLoadingPOs } = usePurchaseOrders()
   const { data: suppliers = [], isLoading: isLoadingSuppliers } = useSuppliers()
   const { data: products = [] } = useProducts()
-  const { data: warehouses = [] } = useWarehouses()
 
   // Mutations
   const createPOMutation = useCreatePurchaseOrder()
@@ -287,6 +289,30 @@ export function PurchasesView() {
             ]}
           />
 
+          {activeStatus === 'Active' && (
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 rounded-xl border border-primary/20 bg-primary/5 px-3.5 py-2.5 text-xs text-muted-foreground">
+              <div className="flex items-center gap-2">
+                <Info className="size-4 text-primary shrink-0" />
+                <span>
+                  Delivered shipments are scheduled and received in{' '}
+                  <strong className="text-foreground font-semibold">Deliveries Hub → Inbound Receiving</strong>.
+                </span>
+              </div>
+              {onNavigateToDeliveries && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={onNavigateToDeliveries}
+                  className="h-7 text-xs font-semibold gap-1 px-2.5 shrink-0 bg-background hover:bg-muted"
+                >
+                  Go to Inbound Receiving
+                  <ChevronRight className="size-3.5" />
+                </Button>
+              )}
+            </div>
+          )}
+
           <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
             <div className="relative w-full sm:w-80">
               <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -451,17 +477,27 @@ export function PurchasesView() {
                               </>
                             )}
                             {po.status === 'CONFIRMED' && (
-                              <div className="flex items-center gap-1">
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="h-7 px-2.5 text-[11px] font-semibold text-emerald-700 dark:text-emerald-300 border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/20 shadow-2xs"
-                                  onClick={() => setQuickIntakePO(po)}
-                                  title="Receive items and intake stock directly into warehouse"
-                                >
-                                  <ArrowDownToLine className="size-3 mr-1 text-emerald-600" />
-                                  Receive Items
-                                </Button>
+                              <div className="flex items-center justify-end gap-1.5">
+                                {onNavigateToDeliveries ? (
+                                  <button
+                                    type="button"
+                                    onClick={onNavigateToDeliveries}
+                                    className="group inline-flex items-center gap-1 rounded-md border border-border/80 bg-muted/40 px-2 py-1 text-[10px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted/70 transition-colors"
+                                    title="Go to Deliveries Hub → Inbound Receiving to schedule and receive materials"
+                                  >
+                                    <ArrowDownToLine className="size-3 text-primary group-hover:translate-y-0.5 transition-transform" />
+                                    <span>Inbound Receiving</span>
+                                    <ChevronRight className="size-2.5 opacity-60" />
+                                  </button>
+                                ) : (
+                                  <span
+                                    className="inline-flex items-center gap-1 rounded-md border border-border/80 bg-muted/40 px-2 py-1 text-[10px] font-medium text-muted-foreground"
+                                    title="Receive materials via Deliveries Hub → Inbound Receiving"
+                                  >
+                                    <ArrowDownToLine className="size-3 text-primary" />
+                                    <span>Inbound Receiving</span>
+                                  </span>
+                                )}
                                 <Button
                                   variant="ghost"
                                   size="sm"
@@ -476,16 +512,28 @@ export function PurchasesView() {
                               </div>
                             )}
                             {po.status === 'PARTIALLY_RECEIVED' && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="h-7 px-2.5 text-[11px] font-semibold text-indigo-700 dark:text-indigo-300 border-indigo-500/40 bg-indigo-500/10 hover:bg-indigo-500/20 shadow-2xs"
-                                onClick={() => setQuickIntakePO(po)}
-                                title="Receive remaining items into warehouse"
-                              >
-                                <ArrowDownToLine className="size-3 mr-1 text-indigo-600" />
-                                Receive Remaining
-                              </Button>
+                              <div className="flex items-center justify-end">
+                                {onNavigateToDeliveries ? (
+                                  <button
+                                    type="button"
+                                    onClick={onNavigateToDeliveries}
+                                    className="group inline-flex items-center gap-1 rounded-md border border-border/80 bg-muted/40 px-2 py-1 text-[10px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted/70 transition-colors"
+                                    title="Go to Deliveries Hub → Inbound Receiving to receive remaining cargo"
+                                  >
+                                    <ArrowDownToLine className="size-3 text-indigo-500 group-hover:translate-y-0.5 transition-transform" />
+                                    <span>Receive in Inbound</span>
+                                    <ChevronRight className="size-2.5 opacity-60" />
+                                  </button>
+                                ) : (
+                                  <span
+                                    className="inline-flex items-center gap-1 rounded-md border border-border/80 bg-muted/40 px-2 py-1 text-[10px] font-medium text-muted-foreground"
+                                    title="Receive remaining materials via Deliveries Hub → Inbound Receiving"
+                                  >
+                                    <ArrowDownToLine className="size-3 text-indigo-500" />
+                                    <span>Receive in Inbound</span>
+                                  </span>
+                                )}
+                              </div>
                             )}
                           </div>
                         </TableCell>
@@ -666,17 +714,6 @@ export function PurchasesView() {
           onSubmit={handleSaveSupplier}
           supplier={selectedSupplier}
           isSubmitting={createSupplierMutation.isPending || updateSupplierMutation.isPending}
-        />
-      )}
-
-      {quickIntakePO && (
-        <QuickIntakeModal
-          open
-          onClose={() => setQuickIntakePO(null)}
-          purchaseOrder={quickIntakePO}
-          warehouses={warehouses}
-          products={products}
-          supplierName={supplierMap.get(quickIntakePO.supplierId)?.name}
         />
       )}
     </div>
