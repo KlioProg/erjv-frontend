@@ -109,7 +109,7 @@ export function OrderDetailDrawer({
       return 3
     if (order.status === 'CONFIRMED') return 2
     return 1 // DRAFT
-  }, [order?.status, activeDelivery?.status])
+  }, [order, activeDelivery?.status])
 
   if (!order) return null
 
@@ -607,7 +607,7 @@ export function OrderDetailDrawer({
                   No line items recorded for this order.
                 </div>
               ) : (
-                (order.items || []).map((item) => {
+                (order.items || []).map((item, idx) => {
                   const product = item?.inventoryItemId ? productMap.get(item.inventoryItemId) : null
                   const allocations = item?.allocations || []
                   const allocation = allocations[0]
@@ -615,7 +615,7 @@ export function OrderDetailDrawer({
                   const warehouse = stock?.warehouseId ? warehouseMap.get(stock.warehouseId) : null
 
                   return (
-                    <div key={item.id || item.lineNumber || Math.random()} className="p-3 flex items-center justify-between">
+                    <div key={item.id ?? item.lineNumber ?? idx} className="p-3 flex items-center justify-between">
                       <div>
                         <div className="font-semibold text-foreground">
                           {product ? product.name : `Product #${item.inventoryItemId}`}

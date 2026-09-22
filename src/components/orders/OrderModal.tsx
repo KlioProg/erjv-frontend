@@ -173,7 +173,9 @@ export function OrderModal({
 
   const selectedProductTotalAvailable = useMemo(() => {
     if (!selectedProduct) return 0
-    return getTotalAvailableStock(selectedProduct.id)
+    return stockItems
+      .filter((s) => s.inventoryItemId === selectedProduct.id)
+      .reduce((sum, s) => sum + getAvailableStock(s), 0)
   }, [selectedProduct, stockItems])
 
   const selectedProductExistingLine = useMemo(() => {

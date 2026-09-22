@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, type FormEvent } from 'react'
+import { useState, useMemo, type FormEvent } from 'react'
 import {
   Boxes,
   PlusCircle,
@@ -74,20 +74,13 @@ function StockAdjustContent({
   )
 
   const [selectedWarehouseId, setSelectedWarehouseId] = useState<string>(() =>
-    stockItem
-      ? String(stockItem.warehouseId)
-      : activeWarehouses[0]?.id
-        ? String(activeWarehouses[0].id)
-        : '',
+    stockItem ? String(stockItem.warehouseId) : '',
   )
 
-  useEffect(() => {
-    if (!selectedWarehouseId && activeWarehouses.length > 0) {
-      setSelectedWarehouseId(String(activeWarehouses[0].id))
-    }
-  }, [activeWarehouses, selectedWarehouseId])
+  const effectiveWarehouseId =
+    selectedWarehouseId || (activeWarehouses[0]?.id ? String(activeWarehouses[0].id) : '')
 
-  const activeWhId = stockItem ? stockItem.warehouseId : Number(selectedWarehouseId)
+  const activeWhId = stockItem ? stockItem.warehouseId : Number(effectiveWarehouseId)
   const { data: pairStockItem, isLoading: isLoadingPair } = useStockItemByPair(
     inventoryItem?.id,
     !stockItem && activeWhId > 0 ? activeWhId : undefined,
@@ -165,7 +158,7 @@ function StockAdjustContent({
           })
         }
       } else if (inventoryItem) {
-        const whId = Number(selectedWarehouseId)
+        const whId = Number(effectiveWarehouseId)
         if (!whId) {
           setErrorMsg('Please select a target warehouse facility.')
           return
@@ -241,7 +234,7 @@ function StockAdjustContent({
               </Alert>
             ) : (
               <Select
-                value={selectedWarehouseId}
+                value={effectiveWarehouseId}
                 onValueChange={(val) => {
                   setSelectedWarehouseId(val)
                   setErrorMsg(null)

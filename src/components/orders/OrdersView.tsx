@@ -148,28 +148,24 @@ export function OrdersView() {
 
   // Submit handler: creates sales order with backend allocations and immediately opens detail drawer
   const handleSaveOrder = async (values: OrderFormValues) => {
-    try {
-      const created = await createOrderMutation.mutateAsync({
-        clientId: values.clientId,
-        deliveryAddress: values.deliveryAddress,
-        notes: values.notes,
-        items: values.lines.map((line) => ({
-          inventoryItemId: line.productId,
-          quantity: String(line.quantity),
-          unitPrice: String(line.unitPrice),
-          allocations: line.stockItemId
-            ? [{ stockItemId: line.stockItemId, quantity: String(line.quantity) }]
-            : undefined,
-        })),
-      })
+    const created = await createOrderMutation.mutateAsync({
+      clientId: values.clientId,
+      deliveryAddress: values.deliveryAddress,
+      notes: values.notes,
+      items: values.lines.map((line) => ({
+        inventoryItemId: line.productId,
+        quantity: String(line.quantity),
+        unitPrice: String(line.unitPrice),
+        allocations: line.stockItemId
+          ? [{ stockItemId: line.stockItemId, quantity: String(line.quantity) }]
+          : undefined,
+      })),
+    })
 
-      setIsOrderModalOpen(false)
-      if (created) {
-        setSelectedOrderRecord(created)
-        setIsDetailDrawerOpen(true)
-      }
-    } catch (err) {
-      throw err
+    setIsOrderModalOpen(false)
+    if (created) {
+      setSelectedOrderRecord(created)
+      setIsDetailDrawerOpen(true)
     }
   }
 

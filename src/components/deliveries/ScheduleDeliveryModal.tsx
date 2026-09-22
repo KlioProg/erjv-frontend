@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, type FormEvent } from 'react'
+import { useState, useMemo, type FormEvent } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -104,37 +104,41 @@ export function ScheduleDeliveryModal({
   const [errorMessage, setErrorMessage] = useState<string>('')
   const [autoSchedule, setAutoSchedule] = useState<boolean>(true)
 
-  // Helper to switch order and auto-populate fulfillment warehouse
-  const selectOrderAndDefaultWarehouse = (orderIdStr: string) => {
-    setSelectedOrderId(orderIdStr)
-    setErrorMessage('')
+  const effectiveOrderId =
+    selectedOrderId ||
+    (preselectedOrderId
+      ? String(preselectedOrderId)
+      : deliverableOrders[0]?.id
+        ? String(deliverableOrders[0].id)
+        : '')
 
-    const order = salesOrders.find((o) => String(o.id) === orderIdStr)
+  const defaultWarehouseId = useMemo(() => {
+    const order = salesOrders.find((o) => String(o.id) === effectiveOrderId)
     if (order && (order.items || []).length > 0) {
-      // Find first warehouse associated with this order's stock allocations
       const firstAlloc = (order.items || []).flatMap((i) => i.allocations || [])[0]
       if (firstAlloc) {
         const stock = stockItems.find((s) => s.id === firstAlloc.stockItemId)
         if (stock) {
-          setSelectedWarehouseId(String(stock.warehouseId))
+          return String(stock.warehouseId)
         }
       }
     }
-  }
+    return ''
+  }, [salesOrders, effectiveOrderId, stockItems])
 
-  // Auto-select initial order if preselectedOrderId is provided or default to the first available deliverable order
-  useEffect(() => {
-    if (preselectedOrderId) {
-      selectOrderAndDefaultWarehouse(String(preselectedOrderId))
-    } else if (!selectedOrderId && deliverableOrders.length > 0) {
-      selectOrderAndDefaultWarehouse(String(deliverableOrders[0].id))
-    }
-  }, [preselectedOrderId, deliverableOrders, selectedOrderId])
+  const effectiveWarehouseId = selectedWarehouseId || defaultWarehouseId
+
+  // Helper to switch order and auto-populate fulfillment warehouse
+  const handleOrderChange = (orderIdStr: string) => {
+    setSelectedOrderId(orderIdStr)
+    setSelectedWarehouseId('')
+    setErrorMessage('')
+  }
 
   // Map allocations for selected sales order
   const selectedOrder = useMemo(
-    () => salesOrders.find((o) => String(o.id) === selectedOrderId),
-    [salesOrders, selectedOrderId],
+    () => salesOrders.find((o) => String(o.id) === effectiveOrderId),
+    [salesOrders, effectiveOrderId],
   )
 
   // Derive allocation rows
@@ -189,17 +193,15 @@ export function ScheduleDeliveryModal({
 
   // Filter allocation rows by selected warehouse if one is chosen
   const filteredAllocations = useMemo(() => {
-    if (!selectedWarehouseId) return availableAllocations
-    const whId = parseInt(selectedWarehouseId, 10)
+    if (!effectiveWarehouseId) return availableAllocations
+    const whId = parseInt(effectiveWarehouseId, 10)
     return availableAllocations.filter((a) => a.warehouseId === whId || a.warehouseId === 0)
-  }, [availableAllocations, selectedWarehouseId])
+  }, [availableAllocations, effectiveWarehouseId])
 
   const isOrderFullyScheduled = useMemo(() => {
     if (!selectedOrder || availableAllocations.length === 0) return false
     return availableAllocations.every((a) => a.remainingQuantity <= 0)
   }, [selectedOrder, availableAllocations])
-
-  const handleOrderChange = selectOrderAndDefaultWarehouse
 
   const handleQuantityChange = (allocationId: number, qty: string) => {
     const cleanQty = qty === '' ? '' : qty.replace(/[^0-9]/g, '')
@@ -220,8 +222,8 @@ export function ScheduleDeliveryModal({
     e.preventDefault()
     setErrorMessage('')
 
-    const orderIdNum = parseInt(selectedOrderId, 10)
-    const warehouseIdNum = parseInt(selectedWarehouseId, 10)
+    const orderIdNum = parseInt(effectiveOrderId, 10)
+    const warehouseIdNum = parseInt(effectiveWarehouseId, 10)
 
     if (isNaN(orderIdNum) || orderIdNum <= 0) {
       setErrorMessage('Please choose a confirmed sales order to deliver.')
@@ -332,7 +334,7 @@ export function ScheduleDeliveryModal({
               <Label htmlFor="delivery-sales-order" className="text-xs font-semibold">
                 Sales Order to Fulfill <span className="text-primary">*</span>
               </Label>
-              <Select value={selectedOrderId} onValueChange={handleOrderChange}>
+              <Select value={effectiveOrderId} onValueChange={handleOrderChange}>
                 <SelectTrigger id="delivery-sales-order" className="h-8 text-xs">
                   <SelectValue placeholder="Choose confirmed sales order" />
                 </SelectTrigger>
@@ -364,7 +366,7 @@ export function ScheduleDeliveryModal({
               <Label htmlFor="delivery-warehouse" className="text-xs font-semibold">
                 Source Warehouse <span className="text-primary">*</span>
               </Label>
-              <Select value={selectedWarehouseId} onValueChange={setSelectedWarehouseId}>
+              <Select value={effectiveWarehouseId} onValueChange={setSelectedWarehouseId}>
                 <SelectTrigger id="delivery-warehouse" className="h-8 text-xs">
                   <SelectValue placeholder="Select fulfillment warehouse" />
                 </SelectTrigger>

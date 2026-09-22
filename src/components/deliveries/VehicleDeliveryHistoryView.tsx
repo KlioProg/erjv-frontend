@@ -46,12 +46,17 @@ export function VehicleDeliveryHistoryView() {
   const [inspectDeliveryId, setInspectDeliveryId] = useState<number | null>(null)
   const [remoteVehicle, setRemoteVehicle] = useState<DeliveryVehicle | null>(null)
 
+  const handlePlateSearchChange = (val: string) => {
+    setPlateSearchTerm(val)
+    if (!val.trim()) {
+      setRemoteVehicle(null)
+    }
+  }
+
   useEffect(() => {
     const term = plateSearchTerm.trim().toUpperCase()
-    if (!term) {
-      setRemoteVehicle(null)
-      return
-    }
+    if (!term) return
+
     const localMatch = vehicles.find((v) => v.plateNumber.toUpperCase().includes(term))
     if (!localMatch && term.length >= 3) {
       let active = true
@@ -139,7 +144,7 @@ export function VehicleDeliveryHistoryView() {
           <Input
             type="text"
             value={plateSearchTerm}
-            onChange={(e) => setPlateSearchTerm(e.target.value)}
+            onChange={(e) => handlePlateSearchChange(e.target.value)}
             placeholder="Filter plate number..."
             className="w-48 h-9 text-xs font-mono uppercase"
           />

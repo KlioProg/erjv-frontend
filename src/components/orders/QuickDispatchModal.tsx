@@ -59,8 +59,8 @@ export function QuickDispatchModal({
   const queryClient = useQueryClient()
   const [selectedVehicleId, setSelectedVehicleId] = useState<string>('')
   const [selectedDriverId, setSelectedDriverId] = useState<string>('')
-  const [scheduledAt, setScheduledAt] = useState<string>(
-    new Date(Date.now() + 30 * 60000).toISOString().slice(0, 16), // 30 mins from now
+  const [scheduledAt, setScheduledAt] = useState<string>(() =>
+    new Date(Date.now() + 30 * 60000).toISOString().slice(0, 16),
   )
   const [destinationAddress, setDestinationAddress] = useState(
     order.deliveryAddress || 'Commercial Client Address',

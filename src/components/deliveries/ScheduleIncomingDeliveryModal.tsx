@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, type FormEvent } from 'react'
+import { useState, useMemo, type FormEvent } from 'react'
 import { ArrowDownToLine, Calendar, CheckCircle2, Info, Package, RotateCcw, Warehouse as WarehouseIcon } from 'lucide-react'
 import {
   Dialog,
@@ -73,7 +73,7 @@ export function ScheduleIncomingDeliveryModal({
   const [selectedWarehouseId, setSelectedWarehouseId] = useState<string>(
     warehouses[0] ? String(warehouses[0].id) : '',
   )
-  const [scheduledAt, setScheduledAt] = useState<string>(
+  const [scheduledAt, setScheduledAt] = useState<string>(() =>
     new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 16),
   )
   const [supplierRef, setSupplierRef] = useState('')
@@ -88,21 +88,18 @@ export function ScheduleIncomingDeliveryModal({
     return eligiblePOs.find((po) => String(po.id) === selectedPOId)
   }, [eligiblePOs, selectedPOId])
 
-  const [lines, setLines] = useState<DeliveryLineState[]>([])
+  const [customQuantities, setCustomQuantities] = useState<Record<number, number>>({})
 
-  // Recalculate remaining quantities whenever selected PO or delivery records update
-  useEffect(() => {
-    if (!selectedPO) {
-      setLines([])
-      return
-    }
+  // Compute lines purely with useMemo based on selected PO, previous receipts, and any user quantity overrides
+  const lines: DeliveryLineState[] = useMemo(() => {
+    if (!selectedPO) return []
 
     // Deliveries already tied to this PO that are not cancelled
     const poDeliveries = allIncomingDeliveries.filter(
       (d) => d.purchaseOrderId === selectedPO.id && d.status !== 'CANCELLED',
     )
 
-    const initialLines: DeliveryLineState[] = selectedPO.items.map((item) => {
+    return selectedPO.items.map((item) => {
       const product = productMap.get(item.inventoryItemId)
       const orderedQty = Number(item.quantity) || 0
 
@@ -113,6 +110,8 @@ export function ScheduleIncomingDeliveryModal({
         .reduce((sum, dItem) => sum + Number(dItem.receivedQuantity || 0), 0)
 
       const remainingQty = Math.max(0, orderedQty - alreadyReceivedQty)
+      const override = customQuantities[item.id]
+      const receivedQty = override !== undefined ? override : remainingQty
 
       return {
         purchaseOrderItemId: item.id,
@@ -122,34 +121,27 @@ export function ScheduleIncomingDeliveryModal({
         orderedQty,
         alreadyReceivedQty,
         remainingQty,
-        // Auto-default to the actual remaining receivable quantity
-        receivedQty: remainingQty,
+        receivedQty,
       }
     })
-
-    setLines(initialLines)
-    setErrorMessage('')
-  }, [selectedPO, allIncomingDeliveries, productMap])
+  }, [selectedPO, allIncomingDeliveries, productMap, customQuantities])
 
   const handlePOChange = (newPOId: string) => {
     setSelectedPOId(newPOId)
+    setCustomQuantities({})
     setErrorMessage('')
   }
 
   const handleQtyChange = (purchaseOrderItemId: number, qty: number) => {
-    setLines((cur) =>
-      cur.map((line) => {
-        if (line.purchaseOrderItemId !== purchaseOrderItemId) return line
-        // Clamp between 0 and remaining quantity
-        const safeQty = Math.max(0, Math.min(line.remainingQty, qty))
-        return { ...line, receivedQty: safeQty }
-      }),
-    )
+    const target = lines.find((l) => l.purchaseOrderItemId === purchaseOrderItemId)
+    const max = target ? target.remainingQty : 0
+    const safeQty = Math.max(0, Math.min(max, qty))
+    setCustomQuantities((prev) => ({ ...prev, [purchaseOrderItemId]: safeQty }))
     setErrorMessage('')
   }
 
   const handleResetToRemaining = () => {
-    setLines((cur) => cur.map((line) => ({ ...line, receivedQty: line.remainingQty })))
+    setCustomQuantities({})
     setErrorMessage('')
   }
 
