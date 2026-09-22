@@ -54,7 +54,17 @@ import {
 
 export type OrderTabFilter = 'Active' | 'Completed' | 'Cancelled'
 
-export function OrdersView() {
+export type OrdersViewProps = {
+  onNavigateToPurchases?: () => void
+  onNavigateToDeliveries?: () => void
+  onNavigateToInventory?: () => void
+}
+
+export function OrdersView({
+  onNavigateToPurchases,
+  onNavigateToDeliveries,
+  onNavigateToInventory,
+}: OrdersViewProps = {}) {
   const queryClient = useQueryClient()
   const [searchTerm, setSearchTerm] = useState('')
   const [activeStatus, setActiveStatus] = useState<OrderTabFilter>('Active')
@@ -585,6 +595,9 @@ export function OrdersView() {
           warehouses={warehouses}
           stockItems={stockItems}
           cashier={cashier}
+          onNavigateToPurchases={onNavigateToPurchases}
+          onNavigateToDeliveries={onNavigateToDeliveries}
+          onNavigateToInventory={onNavigateToInventory}
         />
       )}
 
