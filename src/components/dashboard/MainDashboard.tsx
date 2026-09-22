@@ -18,7 +18,7 @@ import { ClientList } from '../crm/ClientList'
 import { EmployeeList } from '../staffing/EmployeeList'
 import { JobList } from '../staffing/JobList'
 import { OrdersView } from '../orders/OrdersView'
-import { DeliveriesHub } from '../deliveries/DeliveriesHub'
+import { DeliveriesHub, type DeliverySubTab } from '../deliveries/DeliveriesHub'
 import { PurchasesView } from '../purchases/PurchasesView'
 import { RoleGroupingView } from '../staffing/RoleGroupingView'
 import { UserRolesList } from '../staffing/UserRolesList'
@@ -32,6 +32,7 @@ import { useAuth } from '@/features/auth/AuthContext'
 
 export function MainDashboard() {
   const [currentTab, setCurrentTab] = useState<NavItemKey>('inventory')
+  const [deliverySubTab, setDeliverySubTab] = useState<DeliverySubTab>('schedule')
   const { isStaff } = useAuth()
 
   const { data: warehouses = [] } = useWarehouses()
@@ -262,14 +263,24 @@ export function MainDashboard() {
             {effectiveTab === 'inventory' && <InventoryHub />}
             {effectiveTab === 'warehouses' && <WarehouseList />}
             {effectiveTab === 'fleet' && <VehicleList />}
-            {effectiveTab === 'deliveries' && <DeliveriesHub />}
+            {effectiveTab === 'deliveries' && (
+              <DeliveriesHub key={deliverySubTab} initialTab={deliverySubTab} />
+            )}
             {effectiveTab === 'purchases' && (
-              <PurchasesView onNavigateToDeliveries={() => setCurrentTab('deliveries')} />
+              <PurchasesView
+                onNavigateToDeliveries={() => {
+                  setDeliverySubTab('incoming')
+                  setCurrentTab('deliveries')
+                }}
+              />
             )}
             {effectiveTab === 'orders' && (
               <OrdersView
                 onNavigateToPurchases={() => setCurrentTab('purchases')}
-                onNavigateToDeliveries={() => setCurrentTab('deliveries')}
+                onNavigateToDeliveries={(tab) => {
+                  setDeliverySubTab(tab || 'completed')
+                  setCurrentTab('deliveries')
+                }}
                 onNavigateToInventory={() => setCurrentTab('inventory')}
               />
             )}

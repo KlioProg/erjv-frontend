@@ -56,7 +56,7 @@ export type OrderTabFilter = 'Active' | 'Completed' | 'Cancelled'
 
 export type OrdersViewProps = {
   onNavigateToPurchases?: () => void
-  onNavigateToDeliveries?: () => void
+  onNavigateToDeliveries?: (tab?: 'schedule' | 'status' | 'completed' | 'incoming' | 'history') => void
   onNavigateToInventory?: () => void
 }
 
@@ -532,18 +532,23 @@ export function OrdersView({
                             </Button>
                           )}
 
-                        {/* Status Action 3: Dispatched -> Confirm Arrival */}
+                        {/* Status Action 3: Dispatched -> Confirm Arrivals (leads to Deliveries Hub) */}
                         {activeDelivery?.status === 'DISPATCHED' && (
                           <Button
                             size="sm"
-                            onClick={(e) =>
-                              handleConfirmArrival(activeDelivery.id, order.orderNumber, e)
-                            }
-                            className="h-7 px-2 text-xs font-semibold gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
-                            title="Confirm shipment reached customer and deduct stock"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              if (onNavigateToDeliveries) {
+                                onNavigateToDeliveries('completed')
+                              } else {
+                                handleConfirmArrival(activeDelivery.id, order.orderNumber, e)
+                              }
+                            }}
+                            className="h-7 px-2.5 text-xs font-semibold gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer shadow-xs"
+                            title="Go to Deliveries Hub to confirm arrival and record receipt"
                           >
                             <CheckCircle2 className="size-3 shrink-0" />
-                            <span>Arrival</span>
+                            <span>Confirm Arrivals</span>
                           </Button>
                         )}
 

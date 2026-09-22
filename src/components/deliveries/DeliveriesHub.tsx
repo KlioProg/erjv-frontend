@@ -18,7 +18,7 @@ import { RecordCompletedDeliveryView } from './RecordCompletedDeliveryView'
 import { VehicleDeliveryHistoryView } from './VehicleDeliveryHistoryView'
 import { IncomingDeliveriesView } from './IncomingDeliveriesView'
 
-type DeliverySubTab = 'schedule' | 'status' | 'completed' | 'incoming' | 'history'
+export type DeliverySubTab = 'schedule' | 'status' | 'completed' | 'incoming' | 'history'
 
 interface TabConfig {
   key: DeliverySubTab
@@ -36,8 +36,12 @@ const TAB_DESCRIPTIONS: Record<DeliverySubTab, string> = {
   history: 'Audit fleet vehicle trip histories, delivery success rates, and manage vehicle readiness.',
 }
 
-export function DeliveriesHub() {
-  const [activeTab, setActiveTab] = useState<DeliverySubTab>('schedule')
+export interface DeliveriesHubProps {
+  initialTab?: DeliverySubTab
+}
+
+export function DeliveriesHub({ initialTab = 'schedule' }: DeliveriesHubProps = {}) {
+  const [activeTab, setActiveTab] = useState<DeliverySubTab>(initialTab)
 
   const { data: deliveries = [] } = useOutgoingDeliveries()
   const { data: incomingDeliveries = [] } = useIncomingDeliveries()
