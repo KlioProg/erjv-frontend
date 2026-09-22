@@ -333,20 +333,61 @@ export function PurchaseModal({
           {/* Purchased Items Builder */}
           <section className="overflow-hidden rounded-xl border border-border/80 bg-muted/10">
             <div className="border-b border-border/70 p-3.5 bg-muted/20">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
                 <div>
                   <p className="text-xs font-bold uppercase tracking-[0.08em] text-muted-foreground">
                     Purchased Goods & Materials
                   </p>
                   <p className="mt-0.5 text-[11px] text-muted-foreground">
-                    Type any purchased item. New items are automatically provisioned in your inventory.
+                    Type any purchased item, or auto-fill from existing inventory.
                   </p>
                 </div>
+
+                {products.length > 0 && (
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <Package className="size-3.5 text-primary shrink-0" />
+                    <span className="text-[11px] text-muted-foreground font-medium hidden sm:inline shrink-0">
+                      Restock:
+                    </span>
+                    <Select
+                      value={selectedCatalogProductId}
+                      onValueChange={(val) => {
+                        if (val === 'none') return
+                        setSelectedCatalogProductId(val)
+                        const p = products.find((prod) => String(prod.id) === val)
+                        if (p) {
+                          setItemName(p.name)
+                          setItemVariety(p.variety || '')
+                          setItemUnit(p.unit || 'kg')
+                          setItemCost(String(p.unitPrice || ''))
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="h-8 w-44 sm:w-60 text-xs bg-background/90 [&>span]:truncate [&>span]:block">
+                        <SelectValue placeholder="Quick fill from catalog..." />
+                      </SelectTrigger>
+                      <SelectContent className="max-w-[280px] sm:max-w-[340px]">
+                        <SelectItem value="none">
+                          <span className="text-muted-foreground text-xs">-- Select catalog item --</span>
+                        </SelectItem>
+                        {products
+                          .filter((p) => p.isActive)
+                          .map((p) => (
+                            <SelectItem key={p.id} value={String(p.id)}>
+                              <span className="truncate block font-medium">
+                                {p.name} {p.variety ? `(${p.variety})` : ''} • ₱{p.unitPrice}/{p.unit}
+                              </span>
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
               </div>
 
               {/* Input Form */}
               <div className="mt-3 rounded-lg border border-border/80 bg-background/90 p-3 flex flex-col gap-2.5">
-                <div className="grid grid-cols-1 sm:grid-cols-12 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
                   <div className="sm:col-span-6 flex flex-col gap-1">
                     <Label className="text-[11px] font-semibold">
                       Item Name <span className="text-primary">*</span>
@@ -385,7 +426,7 @@ export function PurchaseModal({
                   <div className="sm:col-span-3 flex flex-col gap-1">
                     <Label className="text-[11px] font-semibold">Unit</Label>
                     <Select value={itemUnit} onValueChange={setItemUnit}>
-                      <SelectTrigger className="h-8 text-xs">
+                      <SelectTrigger className="h-8 text-xs [&>span]:truncate [&>span]:block">
                         <SelectValue placeholder="Unit" />
                       </SelectTrigger>
                       <SelectContent>
@@ -402,53 +443,8 @@ export function PurchaseModal({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-end">
-                  <div className="sm:col-span-5 flex flex-col gap-1">
-                    <Label className="text-[11px] text-muted-foreground flex items-center gap-1">
-                      <Package className="size-3" />
-                      Or pick from existing catalog:
-                    </Label>
-                    <Select
-                      value={selectedCatalogProductId}
-                      onValueChange={(val) => {
-                        setSelectedCatalogProductId(val)
-                        const p = products.find((prod) => String(prod.id) === val)
-                        if (p) {
-                          setItemName(p.name)
-                          setItemVariety(p.variety || '')
-                          setItemUnit(p.unit || 'kg')
-                          setItemCost(String(p.unitPrice || ''))
-                        }
-                      }}
-                    >
-                      <SelectTrigger className="h-8 text-xs bg-muted/20">
-                        <SelectValue placeholder="Select to quick fill..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">Select to quick fill...</SelectItem>
-                        {products
-                          .filter((p) => p.isActive)
-                          .map((p) => (
-                            <SelectItem key={p.id} value={String(p.id)}>
-                              <span className="flex items-center gap-1.5">
-                                <Package className="size-3 text-primary" />
-                                <span>{p.name}</span>
-                                {p.variety && (
-                                  <span className="text-muted-foreground font-normal">
-                                    ({p.variety})
-                                  </span>
-                                )}
-                                <span className="text-[10px] text-muted-foreground font-mono ml-auto">
-                                  ₱{p.unitPrice}/{p.unit}
-                                </span>
-                              </span>
-                            </SelectItem>
-                          ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="sm:col-span-3 flex flex-col gap-1">
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-end">
+                  <div className="sm:col-span-4 flex flex-col gap-1">
                     <Label className="text-[11px] font-semibold">Cost per Unit (₱) *</Label>
                     <Input
                       type="number"
@@ -461,7 +457,7 @@ export function PurchaseModal({
                     />
                   </div>
 
-                  <div className="sm:col-span-2 flex flex-col gap-1">
+                  <div className="sm:col-span-3 flex flex-col gap-1">
                     <Label className="text-[11px] font-semibold">Quantity *</Label>
                     <Input
                       type="number"
@@ -472,7 +468,7 @@ export function PurchaseModal({
                     />
                   </div>
 
-                  <div className="sm:col-span-2">
+                  <div className="sm:col-span-5">
                     <Button
                       type="button"
                       size="sm"
@@ -480,7 +476,7 @@ export function PurchaseModal({
                       disabled={!itemName.trim()}
                       className="h-8 w-full gap-1 text-xs font-semibold"
                     >
-                      <Plus className="size-3.5" /> Add
+                      <Plus className="size-3.5" /> Add Item to Order
                     </Button>
                   </div>
                 </div>
