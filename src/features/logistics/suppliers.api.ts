@@ -1,9 +1,5 @@
 import { apiClient, extractArray, type FetchParams } from '@/lib/api-client'
-import type {
-  CreateSupplierPayload,
-  Supplier,
-  UpdateSupplierPayload,
-} from './suppliers.types'
+import type { CreateSupplierPayload, Supplier, UpdateSupplierPayload } from './suppliers.types'
 
 export async function fetchSuppliersApi(params?: FetchParams): Promise<Supplier[]> {
   const response = await apiClient.get('/suppliers', { params })
@@ -17,7 +13,9 @@ export async function fetchSupplierByIdApi(id: number): Promise<Supplier> {
 
 export async function fetchSupplierByCodeApi(code: string): Promise<Supplier | null> {
   try {
-    const { data } = await apiClient.get<Supplier>(`/suppliers/code/${encodeURIComponent(code.trim())}`)
+    const { data } = await apiClient.get<Supplier>(
+      `/suppliers/code/${encodeURIComponent(code.trim())}`,
+    )
     return data
   } catch {
     return null

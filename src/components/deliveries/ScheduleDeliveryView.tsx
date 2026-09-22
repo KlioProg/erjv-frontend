@@ -1,5 +1,14 @@
 import { useState } from 'react'
-import { Plus, Calendar, Warehouse as WarehouseIcon, Clock, CheckCircle, Package, MapPin, CheckCircle2 } from 'lucide-react'
+import {
+  Plus,
+  Calendar,
+  Warehouse as WarehouseIcon,
+  Clock,
+  CheckCircle,
+  Package,
+  MapPin,
+  CheckCircle2,
+} from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
@@ -119,7 +128,8 @@ export function ScheduleDeliveryView() {
                 All confirmed orders have been scheduled!
               </span>
               <p className="text-[11px] text-muted-foreground mt-0.5 max-w-sm">
-                When new sales orders are confirmed in Customer Relations, they will appear here ready for delivery scheduling.
+                When new sales orders are confirmed in Customer Relations, they will appear here
+                ready for delivery scheduling.
               </p>
             </div>
           </Card>
@@ -160,14 +170,18 @@ export function ScheduleDeliveryView() {
                       <TableCell className="py-3.5 text-xs text-muted-foreground">
                         <div className="flex items-center gap-1.5">
                           <MapPin className="size-3.5 text-rose-500 shrink-0" />
-                          <span className="truncate max-w-[220px] font-medium text-foreground/90" title={order.deliveryAddress}>
+                          <span
+                            className="truncate max-w-[220px] font-medium text-foreground/90"
+                            title={order.deliveryAddress}
+                          >
                             {order.deliveryAddress}
                           </span>
                         </div>
                       </TableCell>
 
                       <TableCell className="py-3.5 text-xs font-mono text-foreground">
-                        <span className="font-semibold">{(order.items || []).length}</span> {(order.items || []).length === 1 ? 'item line' : 'item lines'}
+                        <span className="font-semibold">{(order.items || []).length}</span>{' '}
+                        {(order.items || []).length === 1 ? 'item line' : 'item lines'}
                       </TableCell>
 
                       <TableCell className="py-3.5 text-right">
@@ -234,9 +248,12 @@ export function ScheduleDeliveryView() {
           <Card className="flex min-h-[160px] items-center justify-center border-dashed bg-muted/20 shadow-xs rounded-xl">
             <div className="flex flex-col items-center justify-center text-center p-6">
               <Calendar className="size-7 text-muted-foreground/40 mb-2" />
-              <span className="text-xs font-semibold text-foreground">No scheduled shipments found</span>
+              <span className="text-xs font-semibold text-foreground">
+                No scheduled shipments found
+              </span>
               <p className="text-[11px] text-muted-foreground mt-0.5 max-w-sm">
-                Pick a confirmed order from above or click &quot;Schedule New Delivery&quot; to plan a shipment.
+                Pick a confirmed order from above or click &quot;Schedule New Delivery&quot; to plan
+                a shipment.
               </p>
             </div>
           </Card>
@@ -271,7 +288,8 @@ export function ScheduleDeliveryView() {
                           {delivery.deliveryNumber}
                         </button>
                         <span className="text-[10px] text-muted-foreground block font-sans font-normal mt-0.5">
-                          {delivery.items.length} item {delivery.items.length === 1 ? 'line' : 'lines'}
+                          {delivery.items.length} item{' '}
+                          {delivery.items.length === 1 ? 'line' : 'lines'}
                         </span>
                       </TableCell>
 
@@ -289,15 +307,21 @@ export function ScheduleDeliveryView() {
                       <TableCell className="py-3.5 text-xs text-muted-foreground">
                         <div className="flex items-center gap-1.5">
                           <WarehouseIcon className="size-3.5 text-muted-foreground shrink-0" />
-                          <span className="text-foreground/90">{warehouse?.name || `Warehouse #${delivery.warehouseId}`}</span>
+                          <span className="text-foreground/90">
+                            {warehouse?.name || `Warehouse #${delivery.warehouseId}`}
+                          </span>
                         </div>
                       </TableCell>
 
                       <TableCell className="py-3.5 text-xs font-mono">
                         {vehicle ? (
-                          <span className="font-semibold text-foreground">{vehicle.plateNumber}</span>
+                          <span className="font-semibold text-foreground">
+                            {vehicle.plateNumber}
+                          </span>
                         ) : (
-                          <span className="text-muted-foreground italic font-sans text-[11px]">Unassigned</span>
+                          <span className="text-muted-foreground italic font-sans text-[11px]">
+                            Unassigned
+                          </span>
                         )}
                       </TableCell>
 

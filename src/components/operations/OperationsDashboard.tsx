@@ -42,7 +42,8 @@ export function OperationsDashboard({ onSwitchToStaffing }: OperationsDashboardP
   const availableVehiclesCount = vehicles.filter((v) => v.status === 'AVAILABLE').length
   const displayName = user?.fullName?.trim() || user?.email || 'User Account'
   const userInitial = displayName.charAt(0).toUpperCase()
-  const roleConfig = ROLE_DETAILS[user?.role || USER_ROLES.UNKNOWN] || ROLE_DETAILS[USER_ROLES.UNKNOWN]
+  const roleConfig =
+    ROLE_DETAILS[user?.role || USER_ROLES.UNKNOWN] || ROLE_DETAILS[USER_ROLES.UNKNOWN]
 
   return (
     <div className="min-h-svh bg-background text-foreground flex flex-col antialiased">
@@ -81,7 +82,10 @@ export function OperationsDashboard({ onSwitchToStaffing }: OperationsDashboardP
                 </AvatarFallback>
               </Avatar>
               <div className="hidden sm:flex flex-col text-left">
-                <span className="text-xs font-bold leading-none text-foreground truncate max-w-[140px]" title={displayName}>
+                <span
+                  className="text-xs font-bold leading-none text-foreground truncate max-w-[140px]"
+                  title={displayName}
+                >
                   {displayName}
                 </span>
                 <span className="text-[10px] text-muted-foreground font-medium mt-0.5 flex items-center gap-1">

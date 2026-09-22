@@ -194,7 +194,10 @@ export function OrderModal({
     if (!selectedProduct) return null
     const matching = stockItems.filter((s) => s.inventoryItemId === selectedProduct.id)
     const totalPhysical = matching.reduce((sum, s) => sum + parseFloat(s.quantity || '0'), 0)
-    const totalReserved = matching.reduce((sum, s) => sum + parseFloat(s.reservedQuantity || '0'), 0)
+    const totalReserved = matching.reduce(
+      (sum, s) => sum + parseFloat(s.reservedQuantity || '0'),
+      0,
+    )
     const totalAvailable = Math.max(0, totalPhysical - totalReserved)
 
     const warehouseBreakdown = matching.map((s) => {
@@ -424,7 +427,9 @@ export function OrderModal({
         clientName: cleanCustomerName,
         deliveryAddress,
         itemSummary: lines
-          .map((line) => `${line.name}${line.variety ? ` - ${line.variety}` : ''} x${line.quantity}`)
+          .map(
+            (line) => `${line.name}${line.variety ? ` - ${line.variety}` : ''} x${line.quantity}`,
+          )
           .join(', '),
         lines,
         discountType,
@@ -437,7 +442,9 @@ export function OrderModal({
       onClose()
     } catch (err) {
       setIsSubmitting(false)
-      setErrorMessage(getErrorMessage(err) || 'Failed to create sales order. Please verify items and try again.')
+      setErrorMessage(
+        getErrorMessage(err) || 'Failed to create sales order. Please verify items and try again.',
+      )
     }
   }
 
@@ -468,7 +475,11 @@ export function OrderModal({
             >
               <Info className="size-3 text-primary" />
               <span>How Stock Works</span>
-              {showLifecycleGuide ? <ChevronUp className="size-3" /> : <ChevronDown className="size-3" />}
+              {showLifecycleGuide ? (
+                <ChevronUp className="size-3" />
+              ) : (
+                <ChevronDown className="size-3" />
+              )}
             </button>
           </div>
 
@@ -481,15 +492,20 @@ export function OrderModal({
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px] text-muted-foreground">
                 <div className="rounded-lg bg-background/80 p-2 border border-border/60">
                   <strong className="text-foreground block text-[11px]">1. Purchases</strong>
-                  Order items from suppliers. Status is <em>Ordered</em> (truck is on the way; not yet in warehouse).
+                  Order items from suppliers. Status is <em>Ordered</em> (truck is on the way; not
+                  yet in warehouse).
                 </div>
                 <div className="rounded-lg bg-background/80 p-2 border border-border/60">
-                  <strong className="text-foreground block text-[11px]">2. Inbound Receiving</strong>
-                  Confirm arrival in <strong>Deliveries Hub</strong> &rarr; Stock is physically added to warehouse inventory.
+                  <strong className="text-foreground block text-[11px]">
+                    2. Inbound Receiving
+                  </strong>
+                  Confirm arrival in <strong>Deliveries Hub</strong> &rarr; Stock is physically
+                  added to warehouse inventory.
                 </div>
                 <div className="rounded-lg bg-background/80 p-2 border border-border/60">
                   <strong className="text-foreground block text-[11px]">3. Sales Orders</strong>
-                  Deducts & reserves from <strong>Available Warehouse Stock</strong> to sell to clients.
+                  Deducts & reserves from <strong>Available Warehouse Stock</strong> to sell to
+                  clients.
                 </div>
               </div>
             </div>
@@ -506,7 +522,10 @@ export function OrderModal({
           {/* Customer 3-Column Compact Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 shrink-0 bg-muted/20 p-2.5 rounded-xl border border-border/70">
             <div className="flex flex-col gap-1">
-              <Label htmlFor="order-customer-type" className="text-[11px] font-semibold text-foreground/90">
+              <Label
+                htmlFor="order-customer-type"
+                className="text-[11px] font-semibold text-foreground/90"
+              >
                 Client / Customer <span className="text-primary">*</span>
               </Label>
               <Select value={customerType} onValueChange={handleCustomerChange}>
@@ -521,13 +540,18 @@ export function OrderModal({
                         {client.name}
                       </SelectItem>
                     ))}
-                  <SelectItem value="walk-in" className="text-xs">Walk-in customer</SelectItem>
+                  <SelectItem value="walk-in" className="text-xs">
+                    Walk-in customer
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             <div className="flex flex-col gap-1">
-              <Label htmlFor="order-customer-name" className="text-[11px] font-semibold text-foreground/90">
+              <Label
+                htmlFor="order-customer-name"
+                className="text-[11px] font-semibold text-foreground/90"
+              >
                 Customer Name <span className="text-primary">*</span>
               </Label>
               <div className="relative">
@@ -536,7 +560,9 @@ export function OrderModal({
                   id="order-customer-name"
                   value={customerName}
                   onChange={(event) => setCustomerName(event.target.value)}
-                  placeholder={customerType === 'walk-in' ? 'e.g. Walk-in Customer' : 'Select client'}
+                  placeholder={
+                    customerType === 'walk-in' ? 'e.g. Walk-in Customer' : 'Select client'
+                  }
                   className="h-8 pl-8 text-xs bg-background"
                   disabled={!customerType || customerType.startsWith('client:')}
                   required
@@ -545,7 +571,10 @@ export function OrderModal({
             </div>
 
             <div className="flex flex-col gap-1">
-              <Label htmlFor="order-cashier" className="text-[11px] font-semibold text-foreground/90">
+              <Label
+                htmlFor="order-cashier"
+                className="text-[11px] font-semibold text-foreground/90"
+              >
                 Processed By
               </Label>
               <Input
@@ -570,10 +599,18 @@ export function OrderModal({
                     {selectedProductStats.totalAvailable > 0 ? (
                       <span className="text-muted-foreground inline-flex items-center gap-1">
                         <CheckCircle2 className="size-3 text-emerald-600 inline shrink-0" />
-                        <span>(<strong className="text-emerald-600 font-semibold">{selectedProductStats.totalAvailable} {selectedProduct.unit || 'units'}</strong> available &bull; on-hand: {selectedProductStats.totalPhysical})</span>
+                        <span>
+                          (
+                          <strong className="text-emerald-600 font-semibold">
+                            {selectedProductStats.totalAvailable} {selectedProduct.unit || 'units'}
+                          </strong>{' '}
+                          available &bull; on-hand: {selectedProductStats.totalPhysical})
+                        </span>
                       </span>
                     ) : (
-                      <span className="text-rose-600 font-semibold">Out of stock (0 available)</span>
+                      <span className="text-rose-600 font-semibold">
+                        Out of stock (0 available)
+                      </span>
                     )}
                   </span>
                 )}
@@ -591,7 +628,9 @@ export function OrderModal({
                     <SelectValue placeholder="Choose inventory item" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none" className="text-xs">Choose inventory item</SelectItem>
+                    <SelectItem value="none" className="text-xs">
+                      Choose inventory item
+                    </SelectItem>
                     {products
                       .filter((product) => product.isActive)
                       .map((product) => {
@@ -607,9 +646,7 @@ export function OrderModal({
                               <span className="flex items-center gap-1.5 truncate">
                                 <span>{product.name}</span>
                                 {product.variety && (
-                                  <span className="text-muted-foreground">
-                                    ({product.variety})
-                                  </span>
+                                  <span className="text-muted-foreground">({product.variety})</span>
                                 )}
                               </span>
                               {isOut ? (
@@ -644,127 +681,142 @@ export function OrderModal({
                   {selectedProductId !== 'none' && selectedProductTotalAvailable <= 0
                     ? 'Out of Stock'
                     : isSelectedProductFullyAdded
-                    ? 'All Added'
-                    : '+ Add'}
+                      ? 'All Added'
+                      : '+ Add'}
                 </Button>
               </div>
             </div>
 
             {/* If an Out-of-Stock Product is Selected: Show Stock Diagnostics & Action Card */}
-            {selectedProduct && selectedProductStats && selectedProductStats.totalAvailable <= 0 && (
-              <div className="m-2.5 p-3 rounded-xl border border-amber-500/40 bg-amber-500/10 text-xs flex flex-col gap-2.5 animate-in fade-in-50 duration-200 shrink-0">
-                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
-                  <div className="flex items-start gap-2">
-                    <div className="p-1 rounded-lg bg-amber-500/20 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5">
-                      <AlertCircle className="size-4" />
-                    </div>
-                    <div>
-                      <div className="font-bold text-foreground flex items-center gap-1.5 flex-wrap">
-                        <span>{selectedProduct.name}</span>
-                        {selectedProduct.variety && (
-                          <span className="text-muted-foreground font-normal">({selectedProduct.variety})</span>
-                        )}
-                        <span className="text-rose-600 text-[10px] bg-rose-500/10 px-1.5 py-0.2 rounded border border-rose-500/20 font-semibold">
-                          Unavailable to Sell
-                        </span>
+            {selectedProduct &&
+              selectedProductStats &&
+              selectedProductStats.totalAvailable <= 0 && (
+                <div className="m-2.5 p-3 rounded-xl border border-amber-500/40 bg-amber-500/10 text-xs flex flex-col gap-2.5 animate-in fade-in-50 duration-200 shrink-0">
+                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
+                    <div className="flex items-start gap-2">
+                      <div className="p-1 rounded-lg bg-amber-500/20 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5">
+                        <AlertCircle className="size-4" />
                       </div>
-                      <p className="text-[11px] text-muted-foreground mt-0.5">
-                        {selectedProductStats.matchingCount === 0
-                          ? 'This product exists in the catalog, but has never been assigned to any warehouse location.'
-                          : selectedProductStats.totalPhysical === 0
-                          ? 'Warehouse physical on-hand inventory is 0. No stock has been received yet.'
-                          : `Physical stock exists (${selectedProductStats.totalPhysical} ${selectedProduct.unit || 'units'}), but all of it is already reserved for other active orders.`}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Stock Metrics Pill */}
-                  <div className="flex items-center gap-2 text-[11px] font-mono shrink-0 bg-background/90 px-2.5 py-1 rounded-lg border border-border self-start">
-                    <span title="Physical quantity stored in warehouse">On-Hand: <strong>{selectedProductStats.totalPhysical}</strong></span>
-                    <span className="text-muted-foreground">|</span>
-                    <span title="Allocated to pending sales orders" className="text-amber-600">Reserved: <strong>{selectedProductStats.totalReserved}</strong></span>
-                    <span className="text-muted-foreground">|</span>
-                    <span title="Ready to sell to clients" className="text-rose-600 font-bold">Avail: 0</span>
-                  </div>
-                </div>
-
-                {/* Warehouse breakdown if records exist */}
-                {selectedProductStats.warehouseBreakdown.length > 0 && (
-                  <div className="text-[11px] bg-background/60 rounded-lg p-2 border border-border/60 flex flex-col gap-1">
-                    <span className="font-semibold text-muted-foreground uppercase text-[10px] tracking-wider">
-                      Warehouse Stock Status:
-                    </span>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                      {selectedProductStats.warehouseBreakdown.map((wh) => (
-                        <div key={wh.stockId} className="flex items-center justify-between px-2 py-1 rounded bg-background border border-border/60">
-                          <span className="truncate font-medium">{wh.warehouseName}</span>
-                          <span className="font-mono text-[10px] text-muted-foreground">
-                            {wh.physical} on-hand ({wh.reserved} reserved) &rarr; <strong className="text-rose-600">0 avail</strong>
+                      <div>
+                        <div className="font-bold text-foreground flex items-center gap-1.5 flex-wrap">
+                          <span>{selectedProduct.name}</span>
+                          {selectedProduct.variety && (
+                            <span className="text-muted-foreground font-normal">
+                              ({selectedProduct.variety})
+                            </span>
+                          )}
+                          <span className="text-rose-600 text-[10px] bg-rose-500/10 px-1.5 py-0.2 rounded border border-rose-500/20 font-semibold">
+                            Unavailable to Sell
                           </span>
                         </div>
-                      ))}
+                        <p className="text-[11px] text-muted-foreground mt-0.5">
+                          {selectedProductStats.matchingCount === 0
+                            ? 'This product exists in the catalog, but has never been assigned to any warehouse location.'
+                            : selectedProductStats.totalPhysical === 0
+                              ? 'Warehouse physical on-hand inventory is 0. No stock has been received yet.'
+                              : `Physical stock exists (${selectedProductStats.totalPhysical} ${selectedProduct.unit || 'units'}), but all of it is already reserved for other active orders.`}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Stock Metrics Pill */}
+                    <div className="flex items-center gap-2 text-[11px] font-mono shrink-0 bg-background/90 px-2.5 py-1 rounded-lg border border-border self-start">
+                      <span title="Physical quantity stored in warehouse">
+                        On-Hand: <strong>{selectedProductStats.totalPhysical}</strong>
+                      </span>
+                      <span className="text-muted-foreground">|</span>
+                      <span title="Allocated to pending sales orders" className="text-amber-600">
+                        Reserved: <strong>{selectedProductStats.totalReserved}</strong>
+                      </span>
+                      <span className="text-muted-foreground">|</span>
+                      <span title="Ready to sell to clients" className="text-rose-600 font-bold">
+                        Avail: 0
+                      </span>
                     </div>
                   </div>
-                )}
 
-                {/* Guided resolution actions */}
-                <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-amber-500/20">
-                  <span className="text-[11px] text-muted-foreground font-medium">
-                    💡 <strong>Next steps:</strong> If you already ordered this from a supplier, mark it as Received in Deliveries Hub.
-                  </span>
-                  <div className="flex items-center gap-2">
-                    {onNavigateToDeliveries && (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          onClose()
-                          onNavigateToDeliveries()
-                        }}
-                        className="h-7 text-[11px] gap-1.5 bg-background hover:bg-muted font-semibold"
-                        title="Go to Inbound Receiving to receive incoming shipments"
-                      >
-                        <Truck className="size-3 text-primary" />
-                        Inbound Receiving
-                      </Button>
-                    )}
-                    {onNavigateToPurchases && (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="default"
-                        onClick={() => {
-                          onClose()
-                          onNavigateToPurchases()
-                        }}
-                        className="h-7 text-[11px] gap-1.5 font-semibold"
-                        title="Order new stock from suppliers"
-                      >
-                        <Plus className="size-3" />
-                        New Purchase Order
-                      </Button>
-                    )}
-                    {onNavigateToInventory && (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => {
-                          onClose()
-                          onNavigateToInventory()
-                        }}
-                        className="h-7 text-[11px] gap-1.5 text-muted-foreground hover:text-foreground"
-                        title="View inventory hub to inspect stock items"
-                      >
-                        <WarehouseIcon className="size-3 text-muted-foreground" />
-                        Inventory Hub
-                      </Button>
-                    )}
+                  {/* Warehouse breakdown if records exist */}
+                  {selectedProductStats.warehouseBreakdown.length > 0 && (
+                    <div className="text-[11px] bg-background/60 rounded-lg p-2 border border-border/60 flex flex-col gap-1">
+                      <span className="font-semibold text-muted-foreground uppercase text-[10px] tracking-wider">
+                        Warehouse Stock Status:
+                      </span>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                        {selectedProductStats.warehouseBreakdown.map((wh) => (
+                          <div
+                            key={wh.stockId}
+                            className="flex items-center justify-between px-2 py-1 rounded bg-background border border-border/60"
+                          >
+                            <span className="truncate font-medium">{wh.warehouseName}</span>
+                            <span className="font-mono text-[10px] text-muted-foreground">
+                              {wh.physical} on-hand ({wh.reserved} reserved) &rarr;{' '}
+                              <strong className="text-rose-600">0 avail</strong>
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Guided resolution actions */}
+                  <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-amber-500/20">
+                    <span className="text-[11px] text-muted-foreground font-medium">
+                      💡 <strong>Next steps:</strong> If you already ordered this from a supplier,
+                      mark it as Received in Deliveries Hub.
+                    </span>
+                    <div className="flex items-center gap-2">
+                      {onNavigateToDeliveries && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            onClose()
+                            onNavigateToDeliveries()
+                          }}
+                          className="h-7 text-[11px] gap-1.5 bg-background hover:bg-muted font-semibold"
+                          title="Go to Inbound Receiving to receive incoming shipments"
+                        >
+                          <Truck className="size-3 text-primary" />
+                          Inbound Receiving
+                        </Button>
+                      )}
+                      {onNavigateToPurchases && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="default"
+                          onClick={() => {
+                            onClose()
+                            onNavigateToPurchases()
+                          }}
+                          className="h-7 text-[11px] gap-1.5 font-semibold"
+                          title="Order new stock from suppliers"
+                        >
+                          <Plus className="size-3" />
+                          New Purchase Order
+                        </Button>
+                      )}
+                      {onNavigateToInventory && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => {
+                            onClose()
+                            onNavigateToInventory()
+                          }}
+                          className="h-7 text-[11px] gap-1.5 text-muted-foreground hover:text-foreground"
+                          title="View inventory hub to inspect stock items"
+                        >
+                          <WarehouseIcon className="size-3 text-muted-foreground" />
+                          Inventory Hub
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+              )}
 
             {/* Items Table container */}
             <div className="min-h-0 flex-1 overflow-y-auto">
@@ -828,8 +880,8 @@ export function OrderModal({
                                 >
                                   {availableWarehouses.map(({ stock, avail, warehouse }) => (
                                     <option key={stock.id} value={stock.id}>
-                                      {warehouse?.name || `Warehouse #${stock.warehouseId}`} ({avail}{' '}
-                                      {line.unit || 'units'} avail)
+                                      {warehouse?.name || `Warehouse #${stock.warehouseId}`} (
+                                      {avail} {line.unit || 'units'} avail)
                                     </option>
                                   ))}
                                 </select>
@@ -957,8 +1009,12 @@ export function OrderModal({
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="peso" className="text-xs">₱</SelectItem>
-                        <SelectItem value="percentage" className="text-xs">%</SelectItem>
+                        <SelectItem value="peso" className="text-xs">
+                          ₱
+                        </SelectItem>
+                        <SelectItem value="percentage" className="text-xs">
+                          %
+                        </SelectItem>
                       </SelectContent>
                     </Select>
                     <Input
@@ -978,10 +1034,14 @@ export function OrderModal({
 
                 <div className="ml-auto flex items-center gap-4 text-xs">
                   <span className="text-muted-foreground text-[11px]">
-                    Subtotal: <strong className="font-semibold text-foreground">{formatCurrency(subtotal)}</strong>
+                    Subtotal:{' '}
+                    <strong className="font-semibold text-foreground">
+                      {formatCurrency(subtotal)}
+                    </strong>
                   </span>
                   <span className="text-muted-foreground text-[11px]">
-                    VAT: <strong className="font-semibold text-foreground">{formatCurrency(vat)}</strong>
+                    VAT:{' '}
+                    <strong className="font-semibold text-foreground">{formatCurrency(vat)}</strong>
                   </span>
                   <span className="text-xs font-extrabold text-primary bg-primary/10 px-2.5 py-1 rounded-md border border-primary/20">
                     Total: {formatCurrency(totalAfterDiscount)}
@@ -993,10 +1053,22 @@ export function OrderModal({
 
           {/* Dialog Footer */}
           <DialogFooter className="pt-1 shrink-0 flex items-center justify-end gap-2 border-t border-border/50">
-            <Button type="button" variant="outline" size="sm" onClick={onClose} disabled={isSubmitting} className="h-8 text-xs">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={onClose}
+              disabled={isSubmitting}
+              className="h-8 text-xs"
+            >
               Cancel
             </Button>
-            <Button type="submit" size="sm" disabled={isSubmitting} className="h-8 text-xs font-semibold gap-1.5 shadow-xs">
+            <Button
+              type="submit"
+              size="sm"
+              disabled={isSubmitting}
+              className="h-8 text-xs font-semibold gap-1.5 shadow-xs"
+            >
               {isSubmitting ? (
                 <>
                   <Loader2 className="size-3.5 animate-spin" />

@@ -89,9 +89,7 @@ function StockAdjustContent({
   const effectiveStock = stockItem || pairStockItem || null
   const isExistingStock = !!effectiveStock
 
-  const [mode, setMode] = useState<'increase' | 'decrease' | 'set'>(
-    stockItem ? initialMode : 'set',
-  )
+  const [mode, setMode] = useState<'increase' | 'decrease' | 'set'>(stockItem ? initialMode : 'set')
   const effectiveMode = isExistingStock ? mode : 'set'
 
   const [amount, setAmount] = useState<string>('20')
@@ -119,9 +117,7 @@ function StockAdjustContent({
 
   const itemName = stockItem?.inventoryItem?.name || inventoryItem?.name || 'Product Item'
   const whName =
-    stockItem?.warehouse?.name ||
-    warehouses.find((w) => w.id === activeWhId)?.name ||
-    'Warehouse'
+    stockItem?.warehouse?.name || warehouses.find((w) => w.id === activeWhId)?.name || 'Warehouse'
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
@@ -398,7 +394,9 @@ function StockAdjustContent({
                       : 'text-foreground'
                 }`}
               >
-                {calculatedNewQty < 0 ? 'Invalid (< 0)' : `${calculatedNewQty.toLocaleString()} units`}
+                {calculatedNewQty < 0
+                  ? 'Invalid (< 0)'
+                  : `${calculatedNewQty.toLocaleString()} units`}
               </span>
             </div>
           </div>

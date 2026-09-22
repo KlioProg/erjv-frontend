@@ -31,7 +31,10 @@ import {
   scheduleOutgoingDeliveryApi,
   dispatchOutgoingDeliveryApi,
 } from '@/features/logistics/outgoing-deliveries.api'
-import { DELIVERIES_QUERY_KEY, SALES_ORDERS_QUERY_KEY } from '@/features/logistics/outgoing-deliveries.hooks'
+import {
+  DELIVERIES_QUERY_KEY,
+  SALES_ORDERS_QUERY_KEY,
+} from '@/features/logistics/outgoing-deliveries.hooks'
 import { VEHICLES_QUERY_KEY } from '@/features/logistics/delivery-vehicles.hooks'
 import { getErrorMessage } from '@/lib/api-client'
 
@@ -75,8 +78,8 @@ export function QuickDispatchModal({
 
   // Derive warehouse from the first allocated stock item
   const fulfillmentWarehouseId = useMemo(() => {
-    for (const item of (order?.items || [])) {
-      for (const alloc of (item?.allocations || [])) {
+    for (const item of order?.items || []) {
+      for (const alloc of item?.allocations || []) {
         const stock = stockMap.get(alloc.stockItemId)
         if (stock?.warehouseId) return stock.warehouseId
       }
@@ -92,10 +95,7 @@ export function QuickDispatchModal({
     [vehicles],
   )
 
-  const activeEmployees = useMemo(
-    () => (employees || []).filter((e) => e.isActive),
-    [employees],
-  )
+  const activeEmployees = useMemo(() => (employees || []).filter((e) => e.isActive), [employees])
 
   // Collect all allocations for this order to dispatch
   const allocationsToDeliver = useMemo(() => {
@@ -245,7 +245,9 @@ export function QuickDispatchModal({
                     <SelectItem key={vehicle.id} value={String(vehicle.id)}>
                       <span className="font-medium text-foreground">{vehicle.plateNumber}</span> -{' '}
                       {vehicle.model || vehicle.vehicleType}{' '}
-                      <span className="text-[10px] text-emerald-600 font-semibold">(Available)</span>
+                      <span className="text-[10px] text-emerald-600 font-semibold">
+                        (Available)
+                      </span>
                     </SelectItem>
                   ))
                 )}
@@ -328,7 +330,13 @@ export function QuickDispatchModal({
           </div>
 
           <DialogFooter className="pt-2 gap-2">
-            <Button type="button" variant="outline" size="sm" onClick={onClose} disabled={isSubmitting}>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={onClose}
+              disabled={isSubmitting}
+            >
               Cancel
             </Button>
             <Button

@@ -36,14 +36,20 @@ export async function createPurchaseOrderApi(
   const cleanPayload = {
     supplierId: payload.supplierId,
     ...(payload.expectedAt ? { expectedAt: new Date(payload.expectedAt).toISOString() } : {}),
-    ...(payload.externalReference?.trim() ? { externalReference: payload.externalReference.trim() } : {}),
+    ...(payload.externalReference?.trim()
+      ? { externalReference: payload.externalReference.trim() }
+      : {}),
     ...(payload.notes?.trim() ? { notes: payload.notes.trim() } : {}),
     items: payload.items.map((item) => ({
       inventoryItemId: item.inventoryItemId,
       quantity: String(item.quantity),
       unitPrice: String(item.unitPrice),
-      ...(item.discountRate !== undefined && item.discountRate !== '' ? { discountRate: String(item.discountRate) } : {}),
-      ...(item.taxRate !== undefined && item.taxRate !== '' ? { taxRate: String(item.taxRate) } : {}),
+      ...(item.discountRate !== undefined && item.discountRate !== ''
+        ? { discountRate: String(item.discountRate) }
+        : {}),
+      ...(item.taxRate !== undefined && item.taxRate !== ''
+        ? { taxRate: String(item.taxRate) }
+        : {}),
       ...(item.notes?.trim() ? { notes: item.notes.trim() } : {}),
     })),
   }

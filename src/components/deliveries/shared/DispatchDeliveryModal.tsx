@@ -19,7 +19,10 @@ import {
 } from '@/components/ui/select'
 import { Truck, User, Send, MapPin } from 'lucide-react'
 import type { OutgoingDeliveryRecord } from '@/features/logistics/outgoing-deliveries.types'
-import { useDispatchOutgoingDelivery, useOutgoingDeliveries } from '@/features/logistics/outgoing-deliveries.hooks'
+import {
+  useDispatchOutgoingDelivery,
+  useOutgoingDeliveries,
+} from '@/features/logistics/outgoing-deliveries.hooks'
 import { useDeliveryVehicles } from '@/features/logistics/delivery-vehicles.hooks'
 import { useEmployees } from '@/features/staffing/staffing.hooks'
 import { useSalesOrders } from '@/features/crm/sales-orders.hooks'
@@ -33,11 +36,7 @@ interface DispatchDeliveryModalProps {
   onClose: () => void
 }
 
-export function DispatchDeliveryModal({
-  delivery,
-  open,
-  onClose,
-}: DispatchDeliveryModalProps) {
+export function DispatchDeliveryModal({ delivery, open, onClose }: DispatchDeliveryModalProps) {
   const { data: vehicles = [] } = useDeliveryVehicles()
   const { data: deliveries = [] } = useOutgoingDeliveries()
   const { data: employees = [] } = useEmployees({ includeInactive: 'false' })
@@ -112,10 +111,7 @@ export function DispatchDeliveryModal({
           </DialogTitle>
           <DialogDescription className="text-xs">
             Assign the fleet vehicle and driver for delivery shipment{' '}
-            <span className="font-mono font-bold text-foreground">
-              {delivery?.deliveryNumber}
-            </span>
-            .
+            <span className="font-mono font-bold text-foreground">{delivery?.deliveryNumber}</span>.
           </DialogDescription>
         </DialogHeader>
 
@@ -141,7 +137,8 @@ export function DispatchDeliveryModal({
                 {order?.deliveryAddress || 'Client Destination Address'}
               </span>
               <span className="text-[11px] text-muted-foreground mt-1">
-                Origin: {warehouse?.name || `Warehouse #${delivery.warehouseId}`} • {delivery.items.length} items to transport
+                Origin: {warehouse?.name || `Warehouse #${delivery.warehouseId}`} •{' '}
+                {delivery.items.length} items to transport
               </span>
             </div>
           </div>
@@ -169,16 +166,27 @@ export function DispatchDeliveryModal({
                         key={v.id}
                         value={String(v.id)}
                         disabled={!avail.isAvailable}
-                        className={!avail.isAvailable ? 'opacity-50 cursor-not-allowed bg-muted/20' : ''}
+                        className={
+                          !avail.isAvailable ? 'opacity-50 cursor-not-allowed bg-muted/20' : ''
+                        }
                       >
                         <div className="flex items-center justify-between w-full gap-3">
                           <span className="flex items-center gap-2 font-mono">
-                            <Truck className={`size-3.5 ${avail.isAvailable ? 'text-blue-600' : 'text-muted-foreground'}`} />
-                            <span className={avail.isAvailable ? 'font-bold text-foreground' : 'text-muted-foreground'}>
+                            <Truck
+                              className={`size-3.5 ${avail.isAvailable ? 'text-blue-600' : 'text-muted-foreground'}`}
+                            />
+                            <span
+                              className={
+                                avail.isAvailable
+                                  ? 'font-bold text-foreground'
+                                  : 'text-muted-foreground'
+                              }
+                            >
                               {v.plateNumber}
                             </span>
                             <span className="text-muted-foreground font-sans text-[11px]">
-                              ({v.vehicleType}{v.model ? ` • ${v.model}` : ''})
+                              ({v.vehicleType}
+                              {v.model ? ` • ${v.model}` : ''})
                             </span>
                           </span>
                           {avail.isAvailable ? (
@@ -199,7 +207,8 @@ export function DispatchDeliveryModal({
               </SelectContent>
             </Select>
             <p className="text-[10px] text-muted-foreground">
-              Dispatching will set this vehicle's status to <span className="font-semibold text-amber-600">IN_DELIVERY</span>.
+              Dispatching will set this vehicle's status to{' '}
+              <span className="font-semibold text-amber-600">IN_DELIVERY</span>.
             </p>
           </div>
 
@@ -219,12 +228,22 @@ export function DispatchDeliveryModal({
                       key={e.id}
                       value={String(e.id)}
                       disabled={!avail.isAvailable}
-                      className={!avail.isAvailable ? 'opacity-50 cursor-not-allowed bg-muted/20' : ''}
+                      className={
+                        !avail.isAvailable ? 'opacity-50 cursor-not-allowed bg-muted/20' : ''
+                      }
                     >
                       <div className="flex items-center justify-between w-full gap-3">
                         <span className="flex items-center gap-2">
-                          <User className={`size-3.5 ${avail.isAvailable ? 'text-purple-600' : 'text-muted-foreground'}`} />
-                          <span className={avail.isAvailable ? 'font-semibold text-foreground' : 'text-muted-foreground'}>
+                          <User
+                            className={`size-3.5 ${avail.isAvailable ? 'text-purple-600' : 'text-muted-foreground'}`}
+                          />
+                          <span
+                            className={
+                              avail.isAvailable
+                                ? 'font-semibold text-foreground'
+                                : 'text-muted-foreground'
+                            }
+                          >
                             {e.firstName} {e.lastName}
                           </span>
                           {e.phone && (
@@ -250,7 +269,12 @@ export function DispatchDeliveryModal({
           </div>
 
           <DialogFooter className="mt-2 gap-2 sm:gap-2">
-            <Button type="button" variant="outline" onClick={onClose} disabled={dispatchMutation.isPending}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onClose}
+              disabled={dispatchMutation.isPending}
+            >
               Cancel
             </Button>
             <Button

@@ -248,7 +248,8 @@ export function InventoryStockList({ onNavigateToLowStock }: InventoryStockListP
             >
               <AlertTriangle className="size-3.5 text-amber-600 dark:text-[#ffb627] shrink-0" />
               <span>
-                {contextualLowStock.length} {contextualLowStock.length === 1 ? 'item low' : 'items low'}
+                {contextualLowStock.length}{' '}
+                {contextualLowStock.length === 1 ? 'item low' : 'items low'}
               </span>
               <ChevronRight className="size-3 text-amber-600 dark:text-[#ffb627] transition-transform group-hover:translate-x-0.5" />
             </button>

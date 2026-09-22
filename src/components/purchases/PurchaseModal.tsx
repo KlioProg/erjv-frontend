@@ -1,13 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import {
-  CalendarDays,
-  ClipboardList,
-  Minus,
-  Package,
-  Plus,
-  Sparkles,
-  Trash2,
-} from 'lucide-react'
+import { CalendarDays, ClipboardList, Minus, Package, Plus, Sparkles, Trash2 } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -162,18 +154,14 @@ export function PurchaseModal({
   const changeQuantity = (lineId: string, delta: number) => {
     setLines((current) =>
       current
-        .map((l) =>
-          l.id === lineId ? { ...l, quantity: Math.max(0, l.quantity + delta) } : l,
-        )
+        .map((l) => (l.id === lineId ? { ...l, quantity: Math.max(0, l.quantity + delta) } : l))
         .filter((l) => l.quantity > 0),
     )
   }
 
   const updateCost = (lineId: string, cost: number) => {
     setLines((current) =>
-      current.map((l) =>
-        l.id === lineId ? { ...l, unitCost: Math.max(0, cost) } : l,
-      ),
+      current.map((l) => (l.id === lineId ? { ...l, unitCost: Math.max(0, cost) } : l)),
     )
   }
 
@@ -200,7 +188,8 @@ export function PurchaseModal({
 
       // Resolve each line to an inventoryItemId
       // If the line is a new item not yet in the inventory, provision it in the catalog first
-      const resolvedItems: Array<{ inventoryItemId: number; quantity: number; unitPrice: number }> = []
+      const resolvedItems: Array<{ inventoryItemId: number; quantity: number; unitPrice: number }> =
+        []
 
       for (const line of lines) {
         let itemId = line.inventoryItemId
@@ -261,7 +250,8 @@ export function PurchaseModal({
             Create Purchase Order
           </DialogTitle>
           <DialogDescription className="text-xs leading-relaxed">
-            Record supplier orders for raw materials, produce, or merchandise. Enter any items purchased—new items will be automatically placed into your inventory catalog.
+            Record supplier orders for raw materials, produce, or merchandise. Enter any items
+            purchased—new items will be automatically placed into your inventory catalog.
           </DialogDescription>
         </DialogHeader>
 
@@ -368,14 +358,17 @@ export function PurchaseModal({
                       </SelectTrigger>
                       <SelectContent className="max-w-[280px] sm:max-w-[340px]">
                         <SelectItem value="none">
-                          <span className="text-muted-foreground text-xs">-- Select catalog item --</span>
+                          <span className="text-muted-foreground text-xs">
+                            -- Select catalog item --
+                          </span>
                         </SelectItem>
                         {products
                           .filter((p) => p.isActive)
                           .map((p) => (
                             <SelectItem key={p.id} value={String(p.id)}>
                               <span className="truncate block font-medium">
-                                {p.name} {p.variety ? `(${p.variety})` : ''} • ₱{p.unitPrice}/{p.unit}
+                                {p.name} {p.variety ? `(${p.variety})` : ''} • ₱{p.unitPrice}/
+                                {p.unit}
                               </span>
                             </SelectItem>
                           ))}
@@ -539,9 +532,7 @@ export function PurchaseModal({
                             min="0"
                             step="0.01"
                             value={line.unitCost}
-                            onChange={(e) =>
-                              updateCost(line.id, parseFloat(e.target.value) || 0)
-                            }
+                            onChange={(e) => updateCost(line.id, parseFloat(e.target.value) || 0)}
                             className="h-7 w-20 text-right text-xs ml-auto font-mono"
                           />
                         </td>
@@ -589,9 +580,7 @@ export function PurchaseModal({
             <div className="border-t border-border/70 bg-background/60 px-4 py-2.5 flex items-center justify-between">
               <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
                 <Sparkles className="size-3.5 text-emerald-600" />
-                <span>
-                  New items entered will be added to the inventory catalog automatically.
-                </span>
+                <span>New items entered will be added to the inventory catalog automatically.</span>
               </div>
               <div className="flex items-center gap-2 text-sm font-extrabold text-foreground">
                 <span>Estimated Total:</span>

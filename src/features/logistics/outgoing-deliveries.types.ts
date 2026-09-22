@@ -1,9 +1,5 @@
 export type OutgoingDeliveryStatus =
-  | 'DRAFT'
-  | 'SCHEDULED'
-  | 'DISPATCHED'
-  | 'DELIVERED'
-  | 'CANCELLED'
+  'DRAFT' | 'SCHEDULED' | 'DISPATCHED' | 'DELIVERED' | 'CANCELLED'
 
 export interface OutgoingDeliveryAllocationSummary {
   stockItemId: number

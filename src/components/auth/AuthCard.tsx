@@ -81,7 +81,6 @@ export function AuthCard({ mode, onModeChange }: AuthCardProps) {
             }}
             className="w-full"
           >
-
             <TabsContent
               value="login"
               className="mt-4 focus-visible:outline-none animate-auth-roll-down"

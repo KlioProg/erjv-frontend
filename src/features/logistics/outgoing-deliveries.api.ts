@@ -15,9 +15,7 @@ export async function fetchOutgoingDeliveriesApi(
   return extractArray<OutgoingDeliveryRecord>(response.data)
 }
 
-export async function fetchOutgoingDeliveryByIdApi(
-  id: number,
-): Promise<OutgoingDeliveryRecord> {
+export async function fetchOutgoingDeliveryByIdApi(id: number): Promise<OutgoingDeliveryRecord> {
   const { data } = await apiClient.get<OutgoingDeliveryRecord>(`/outgoing-deliveries/${id}`)
   return data
 }
@@ -58,9 +56,7 @@ export async function createOutgoingDeliveryApi(
   return data
 }
 
-export async function scheduleOutgoingDeliveryApi(
-  id: number,
-): Promise<OutgoingDeliveryRecord> {
+export async function scheduleOutgoingDeliveryApi(id: number): Promise<OutgoingDeliveryRecord> {
   const { data } = await apiClient.patch<OutgoingDeliveryRecord>(
     `/outgoing-deliveries/${id}/schedule`,
   )
@@ -81,18 +77,14 @@ export async function dispatchOutgoingDeliveryApi(
   return data
 }
 
-export async function completeOutgoingDeliveryApi(
-  id: number,
-): Promise<OutgoingDeliveryRecord> {
+export async function completeOutgoingDeliveryApi(id: number): Promise<OutgoingDeliveryRecord> {
   const { data } = await apiClient.patch<OutgoingDeliveryRecord>(
     `/outgoing-deliveries/${id}/complete`,
   )
   return data
 }
 
-export async function cancelOutgoingDeliveryApi(
-  id: number,
-): Promise<OutgoingDeliveryRecord> {
+export async function cancelOutgoingDeliveryApi(id: number): Promise<OutgoingDeliveryRecord> {
   const { data } = await apiClient.patch<OutgoingDeliveryRecord>(
     `/outgoing-deliveries/${id}/cancel`,
   )

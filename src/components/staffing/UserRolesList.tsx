@@ -237,11 +237,10 @@ export function UserRolesList() {
             <div className="size-12 rounded-2xl bg-destructive/10 border border-destructive/20 flex items-center justify-center text-destructive mb-3 shadow-2xs">
               <AlertCircle className="size-6" />
             </div>
-            <h3 className="text-sm font-semibold text-foreground">
-              Unable to load user accounts
-            </h3>
+            <h3 className="text-sm font-semibold text-foreground">Unable to load user accounts</h3>
             <p className="text-xs text-muted-foreground mt-1 max-w-sm">
-              We encountered an issue connecting to the service. Please check your network connection and try again.
+              We encountered an issue connecting to the service. Please check your network
+              connection and try again.
             </p>
             <Button
               variant="outline"
@@ -416,7 +415,9 @@ export function UserRolesList() {
                               <DropdownMenuSeparator className="my-1" />
                               <DropdownMenuGroup>
                                 <DropdownMenuItem
-                                  onClick={() => handleRoleChange(u.id, USER_ROLES.ADMIN, displayName)}
+                                  onClick={() =>
+                                    handleRoleChange(u.id, USER_ROLES.ADMIN, displayName)
+                                  }
                                   className="flex items-center justify-between gap-2 px-2 py-1.5 text-xs cursor-pointer rounded-md"
                                 >
                                   <span className="flex items-center gap-2 font-bold text-primary">
@@ -428,7 +429,9 @@ export function UserRolesList() {
                                   )}
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
-                                  onClick={() => handleRoleChange(u.id, USER_ROLES.MANAGER, displayName)}
+                                  onClick={() =>
+                                    handleRoleChange(u.id, USER_ROLES.MANAGER, displayName)
+                                  }
                                   className="flex items-center justify-between gap-2 px-2 py-1.5 text-xs cursor-pointer rounded-md"
                                 >
                                   <span className="flex items-center gap-2 font-semibold text-foreground">
@@ -440,7 +443,9 @@ export function UserRolesList() {
                                   )}
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
-                                  onClick={() => handleRoleChange(u.id, USER_ROLES.STAFF, displayName)}
+                                  onClick={() =>
+                                    handleRoleChange(u.id, USER_ROLES.STAFF, displayName)
+                                  }
                                   className="flex items-center justify-between gap-2 px-2 py-1.5 text-xs cursor-pointer rounded-md"
                                 >
                                   <span className="flex items-center gap-2 text-muted-foreground">
@@ -588,10 +593,7 @@ export function UserRolesList() {
       />
 
       {/* Register User Modal (Admin Only) */}
-      <RegisterUserModal
-        open={isRegisterModalOpen}
-        onClose={() => setIsRegisterModalOpen(false)}
-      />
+      <RegisterUserModal open={isRegisterModalOpen} onClose={() => setIsRegisterModalOpen(false)} />
     </div>
   )
 }

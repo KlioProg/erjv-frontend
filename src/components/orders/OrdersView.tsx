@@ -57,7 +57,9 @@ export type OrderTabFilter = 'Active' | 'Completed' | 'Cancelled'
 
 export type OrdersViewProps = {
   onNavigateToPurchases?: () => void
-  onNavigateToDeliveries?: (tab?: 'schedule' | 'status' | 'completed' | 'incoming' | 'history') => void
+  onNavigateToDeliveries?: (
+    tab?: 'schedule' | 'status' | 'completed' | 'incoming' | 'history',
+  ) => void
   onNavigateToInventory?: () => void
 }
 
@@ -382,12 +384,24 @@ export function OrdersView({
           <Table className="w-full">
             <TableHeader className="bg-muted/40">
               <TableRow>
-                <TableHead className="text-xs font-semibold whitespace-nowrap w-[130px] px-3.5">Order #</TableHead>
-                <TableHead className="text-xs font-semibold whitespace-nowrap min-w-[170px] px-3.5">Client / Destination</TableHead>
-                <TableHead className="text-xs font-semibold whitespace-nowrap min-w-[200px] px-3.5">Items & Fulfillment</TableHead>
-                <TableHead className="text-xs font-semibold whitespace-nowrap text-right w-[110px] px-3.5">Amount (₱)</TableHead>
-                <TableHead className="text-xs font-semibold whitespace-nowrap text-center w-[125px] px-3.5">Status</TableHead>
-                <TableHead className="text-xs font-semibold whitespace-nowrap text-right w-[160px] px-3.5">Actions</TableHead>
+                <TableHead className="text-xs font-semibold whitespace-nowrap w-[130px] px-3.5">
+                  Order #
+                </TableHead>
+                <TableHead className="text-xs font-semibold whitespace-nowrap min-w-[170px] px-3.5">
+                  Client / Destination
+                </TableHead>
+                <TableHead className="text-xs font-semibold whitespace-nowrap min-w-[200px] px-3.5">
+                  Items & Fulfillment
+                </TableHead>
+                <TableHead className="text-xs font-semibold whitespace-nowrap text-right w-[110px] px-3.5">
+                  Amount (₱)
+                </TableHead>
+                <TableHead className="text-xs font-semibold whitespace-nowrap text-center w-[125px] px-3.5">
+                  Status
+                </TableHead>
+                <TableHead className="text-xs font-semibold whitespace-nowrap text-right w-[160px] px-3.5">
+                  Actions
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -405,7 +419,9 @@ export function OrdersView({
                   .join(', ')
 
                 const firstItem = items[0]
-                const firstItemProduct = firstItem ? productMap.get(firstItem.inventoryItemId) : null
+                const firstItemProduct = firstItem
+                  ? productMap.get(firstItem.inventoryItemId)
+                  : null
                 const firstItemName = firstItemProduct
                   ? firstItemProduct.name
                   : firstItem
@@ -468,7 +484,9 @@ export function OrdersView({
                     <TableCell className="py-3 px-3.5 font-mono text-xs font-bold text-foreground whitespace-nowrap">
                       <div className="flex items-center gap-1.5">
                         <Receipt className="size-3.5 text-rose-600 shrink-0" />
-                        <span className="hover:underline text-primary whitespace-nowrap">{order.orderNumber}</span>
+                        <span className="hover:underline text-primary whitespace-nowrap">
+                          {order.orderNumber}
+                        </span>
                       </div>
                       <span className="text-[11px] text-muted-foreground font-sans block pl-5 mt-0.5 whitespace-nowrap">
                         {orderDate}
@@ -488,7 +506,9 @@ export function OrdersView({
                         title={order.deliveryAddress}
                       >
                         <MapPin className="size-3 text-muted-foreground/70 shrink-0" />
-                        <span className="truncate">{order.deliveryAddress || 'No address specified'}</span>
+                        <span className="truncate">
+                          {order.deliveryAddress || 'No address specified'}
+                        </span>
                       </div>
                     </TableCell>
 
@@ -500,7 +520,10 @@ export function OrdersView({
                             <Package className="size-2.5 mr-1" />
                             {items.length} {items.length === 1 ? 'item' : 'items'}
                           </span>
-                          <span className="text-xs font-medium text-foreground truncate" title={itemSummary}>
+                          <span
+                            className="text-xs font-medium text-foreground truncate"
+                            title={itemSummary}
+                          >
                             {primaryItemText}
                           </span>
                         </div>
@@ -510,7 +533,9 @@ export function OrdersView({
                         >
                           <WarehouseIcon className="size-3 text-muted-foreground/70 shrink-0" />
                           <span className="truncate">
-                            {sourceWarehouseName !== '—' ? sourceWarehouseName : 'No warehouse assigned'}
+                            {sourceWarehouseName !== '—'
+                              ? sourceWarehouseName
+                              : 'No warehouse assigned'}
                           </span>
                         </div>
                       </div>
@@ -548,8 +573,7 @@ export function OrdersView({
                         )}
 
                         {/* Status Action 2: Confirmed / Partial -> Dispatch */}
-                        {(order.status === 'CONFIRMED' ||
-                          order.status === 'PARTIALLY_DELIVERED') &&
+                        {(order.status === 'CONFIRMED' || order.status === 'PARTIALLY_DELIVERED') &&
                           activeDelivery?.status !== 'DISPATCHED' && (
                             <Button
                               size="sm"

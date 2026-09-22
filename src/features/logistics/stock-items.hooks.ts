@@ -141,7 +141,10 @@ export function useDeleteStockItem() {
       const msg = getErrorMessage(err)
       if (
         msg.toLowerCase().includes('internal server error') ||
-        (typeof err === 'object' && err !== null && 'response' in err && (err as { response?: { status?: number } }).response?.status === 500)
+        (typeof err === 'object' &&
+          err !== null &&
+          'response' in err &&
+          (err as { response?: { status?: number } }).response?.status === 500)
       ) {
         toast.error(
           'Cannot remove allocation: this product has delivery or movement history in this warehouse. In ERP systems, items with audit history must remain as Out of Stock (0 units).',

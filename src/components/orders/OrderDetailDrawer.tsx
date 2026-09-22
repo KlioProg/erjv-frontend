@@ -81,7 +81,10 @@ export function OrderDetailDrawer({
   )
 
   const productMap = useMemo(() => new Map((products || []).map((p) => [p.id, p])), [products])
-  const warehouseMap = useMemo(() => new Map((warehouses || []).map((w) => [w.id, w])), [warehouses])
+  const warehouseMap = useMemo(
+    () => new Map((warehouses || []).map((w) => [w.id, w])),
+    [warehouses],
+  )
   const vehicleMap = useMemo(() => new Map((vehicles || []).map((v) => [v.id, v])), [vehicles])
   const employeeMap = useMemo(() => new Map((employees || []).map((e) => [e.id, e])), [employees])
   const stockMap = useMemo(() => new Map((stockItems || []).map((s) => [s.id, s])), [stockItems])
@@ -114,10 +117,7 @@ export function OrderDetailDrawer({
   if (!order) return null
 
   const items = order.items || []
-  const grossTotal = items.reduce(
-    (sum, item) => sum + parseFloat(item?.totalAmount || '0'),
-    0,
-  )
+  const grossTotal = items.reduce((sum, item) => sum + parseFloat(item?.totalAmount || '0'), 0)
 
   const isCancelled = order.status === 'CANCELLED'
 
@@ -244,214 +244,215 @@ export function OrderDetailDrawer({
 
           <div className="flex flex-col gap-3.5 min-h-0 flex-1 overflow-y-auto pr-1">
             {/* Lifecycle Stepper */}
-          <div className="rounded-2xl border border-border/70 bg-muted/20 p-3.5">
-            <div className="grid grid-cols-4 gap-2 text-center text-xs">
-              {/* Step 1: Draft */}
-              <div className="flex flex-col items-center">
-                <div
-                  className={`size-7 rounded-full flex items-center justify-center text-xs font-bold transition-all ${isCancelled
-                      ? 'bg-muted text-muted-foreground'
-                      : currentStep >= 1
-                        ? 'bg-primary text-primary-foreground'
-                        : 'bg-muted text-muted-foreground'
+            <div className="rounded-2xl border border-border/70 bg-muted/20 p-3.5">
+              <div className="grid grid-cols-4 gap-2 text-center text-xs">
+                {/* Step 1: Draft */}
+                <div className="flex flex-col items-center">
+                  <div
+                    className={`size-7 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
+                      isCancelled
+                        ? 'bg-muted text-muted-foreground'
+                        : currentStep >= 1
+                          ? 'bg-primary text-primary-foreground'
+                          : 'bg-muted text-muted-foreground'
                     }`}
-                >
-                  {currentStep > 1 && !isCancelled ? (
-                    <Check className="size-3.5" />
-                  ) : (
-                    '1'
-                  )}
+                  >
+                    {currentStep > 1 && !isCancelled ? <Check className="size-3.5" /> : '1'}
+                  </div>
+                  <span className="font-semibold text-foreground mt-1.5 text-[11px]">Draft</span>
+                  <span className="text-[10px] text-muted-foreground">Order Planned</span>
                 </div>
-                <span className="font-semibold text-foreground mt-1.5 text-[11px]">Draft</span>
-                <span className="text-[10px] text-muted-foreground">Order Planned</span>
-              </div>
 
-              {/* Step 2: Confirmed */}
-              <div className="flex flex-col items-center">
-                <div
-                  className={`size-7 rounded-full flex items-center justify-center text-xs font-bold transition-all ${isCancelled
-                      ? 'bg-muted text-muted-foreground'
-                      : currentStep >= 2
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-muted text-muted-foreground'
+                {/* Step 2: Confirmed */}
+                <div className="flex flex-col items-center">
+                  <div
+                    className={`size-7 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
+                      isCancelled
+                        ? 'bg-muted text-muted-foreground'
+                        : currentStep >= 2
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-muted text-muted-foreground'
                     }`}
-                >
-                  {currentStep > 2 && !isCancelled ? (
-                    <Check className="size-3.5" />
-                  ) : (
-                    '2'
-                  )}
-                </div>
-                <span className="font-semibold text-foreground mt-1.5 text-[11px]">Confirmed</span>
-                <span className="text-[10px] text-muted-foreground">Stock Reserved</span>
-              </div>
-
-              {/* Step 3: In Transit */}
-              <div className="flex flex-col items-center">
-                <div
-                  className={`size-7 rounded-full flex items-center justify-center text-xs font-bold transition-all ${isCancelled
-                      ? 'bg-muted text-muted-foreground'
-                      : currentStep >= 3
-                        ? 'bg-indigo-600 text-white'
-                        : 'bg-muted text-muted-foreground'
-                    }`}
-                >
-                  {currentStep > 3 && !isCancelled ? (
-                    <Check className="size-3.5" />
-                  ) : (
-                    '3'
-                  )}
-                </div>
-                <span className="font-semibold text-foreground mt-1.5 text-[11px]">In Transit</span>
-                <span className="text-[10px] text-muted-foreground">Fleet Dispatched</span>
-              </div>
-
-              {/* Step 4: Delivered */}
-              <div className="flex flex-col items-center">
-                <div
-                  className={`size-7 rounded-full flex items-center justify-center text-xs font-bold transition-all ${isCancelled
-                      ? 'bg-rose-500/20 text-rose-600'
-                      : currentStep === 4
-                        ? 'bg-emerald-600 text-white'
-                        : 'bg-muted text-muted-foreground'
-                    }`}
-                >
-                  {currentStep === 4 ? (
-                    <Check className="size-3.5" />
-                  ) : isCancelled ? (
-                    <X className="size-3.5" />
-                  ) : (
-                    '4'
-                  )}
-                </div>
-                <span className="font-semibold text-foreground mt-1.5 text-[11px]">Delivered</span>
-                <span className="text-[10px] text-muted-foreground">Customer Received</span>
-              </div>
-            </div>
-          </div>
-
-          {/* THE 3 CORE QUESTIONS GUIDANCE BANNER */}
-          {order.status === 'DRAFT' && (
-            <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 flex flex-col gap-3">
-              <div className="flex items-start gap-3">
-                <div className="size-9 rounded-xl bg-amber-500/20 text-amber-600 flex items-center justify-center shrink-0 mt-0.5">
-                  <Clock className="size-4" />
-                </div>
-                <div className="flex-1 text-xs">
-                  <p className="font-bold text-amber-950 dark:text-amber-200">
-                    What just happened?
-                  </p>
-                  <p className="text-muted-foreground">
-                    Order <span className="font-semibold text-foreground">{order.orderNumber}</span>{' '}
-                    was recorded as a Draft.
-                  </p>
-                  <p className="font-bold text-amber-950 dark:text-amber-200 mt-2">
-                    What is its current state?
-                  </p>
-                  <p className="text-muted-foreground">
-                    <span className="font-semibold text-amber-600">Draft (Unconfirmed)</span> —
-                    Inventory has been planned, but physical stock is not locked yet.
-                  </p>
-                  <p className="font-bold text-amber-950 dark:text-amber-200 mt-2">
-                    What should you do next?
-                  </p>
-                  <p className="text-muted-foreground">
-                    Confirm the order to atomically reserve the items in the warehouse and prepare
-                    for shipment.
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-end gap-2 border-t border-amber-500/20 pt-3">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleCancelOrder}
-                  disabled={cancelMutation.isPending}
-                  className="text-xs text-rose-600 hover:bg-rose-500/10 border-rose-500/30"
-                >
-                  <X className="size-3 mr-1" />
-                  Cancel Order
-                </Button>
-                <Button
-                  size="sm"
-                  onClick={handleConfirmOrder}
-                  disabled={confirmMutation.isPending}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs shadow-xs"
-                >
-                  {confirmMutation.isPending ? (
-                    'Confirming...'
-                  ) : (
-                    <span className="flex items-center gap-1.5">
-                      <ShieldCheck className="size-3.5" />
-                      Confirm Order & Reserve Stock
-                    </span>
-                  )}
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {order.status === 'CONFIRMED' && (
-            <div className="rounded-2xl border border-blue-500/30 bg-blue-500/10 p-4 flex flex-col gap-3">
-              <div className="flex items-start gap-3">
-                <div className="size-9 rounded-xl bg-blue-500/20 text-blue-600 flex items-center justify-center shrink-0 mt-0.5">
-                  <ShieldCheck className="size-4" />
-                </div>
-                <div className="flex-1 text-xs">
-                  <p className="font-bold text-blue-950 dark:text-blue-200">What just happened?</p>
-                  <p className="text-muted-foreground">
-                    Order confirmed! Inventory stock is now{' '}
-                    <span className="font-semibold text-blue-600">securely reserved</span> in the
-                    warehouse.
-                  </p>
-                  <p className="font-bold text-blue-950 dark:text-blue-200 mt-2">
-                    What is its current state?
-                  </p>
-                  <p className="text-muted-foreground">
-                    <span className="font-semibold text-blue-600">Confirmed & Ready</span> — Awaiting
-                    fleet vehicle and driver dispatch.
-                  </p>
-                  <p className="font-bold text-blue-950 dark:text-blue-200 mt-2">
-                    What should you do next?
-                  </p>
-                  <p className="text-muted-foreground">
-                    Dispatch the shipment to customer{' '}
-                    <span className="font-semibold text-foreground">
-                      {client?.name || 'Customer'}
-                    </span>
-                    .
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-end gap-2 border-t border-blue-500/20 pt-3">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleCancelOrder}
-                  disabled={cancelMutation.isPending}
-                  className="text-xs text-rose-600 hover:bg-rose-500/10 border-rose-500/30"
-                >
-                  <X className="size-3 mr-1" />
-                  Cancel Order
-                </Button>
-                <Button
-                  size="sm"
-                  onClick={() => setIsDispatchModalOpen(true)}
-                  className="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs shadow-xs"
-                >
-                  <span className="flex items-center gap-1.5">
-                    <Truck className="size-3.5" />
-                    Dispatch / Schedule Delivery
+                  >
+                    {currentStep > 2 && !isCancelled ? <Check className="size-3.5" /> : '2'}
+                  </div>
+                  <span className="font-semibold text-foreground mt-1.5 text-[11px]">
+                    Confirmed
                   </span>
-                </Button>
+                  <span className="text-[10px] text-muted-foreground">Stock Reserved</span>
+                </div>
+
+                {/* Step 3: In Transit */}
+                <div className="flex flex-col items-center">
+                  <div
+                    className={`size-7 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
+                      isCancelled
+                        ? 'bg-muted text-muted-foreground'
+                        : currentStep >= 3
+                          ? 'bg-indigo-600 text-white'
+                          : 'bg-muted text-muted-foreground'
+                    }`}
+                  >
+                    {currentStep > 3 && !isCancelled ? <Check className="size-3.5" /> : '3'}
+                  </div>
+                  <span className="font-semibold text-foreground mt-1.5 text-[11px]">
+                    In Transit
+                  </span>
+                  <span className="text-[10px] text-muted-foreground">Fleet Dispatched</span>
+                </div>
+
+                {/* Step 4: Delivered */}
+                <div className="flex flex-col items-center">
+                  <div
+                    className={`size-7 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
+                      isCancelled
+                        ? 'bg-rose-500/20 text-rose-600'
+                        : currentStep === 4
+                          ? 'bg-emerald-600 text-white'
+                          : 'bg-muted text-muted-foreground'
+                    }`}
+                  >
+                    {currentStep === 4 ? (
+                      <Check className="size-3.5" />
+                    ) : isCancelled ? (
+                      <X className="size-3.5" />
+                    ) : (
+                      '4'
+                    )}
+                  </div>
+                  <span className="font-semibold text-foreground mt-1.5 text-[11px]">
+                    Delivered
+                  </span>
+                  <span className="text-[10px] text-muted-foreground">Customer Received</span>
+                </div>
               </div>
             </div>
-          )}
 
-          {(order.status === 'PARTIALLY_DELIVERED' ||
-            activeDelivery?.status === 'DISPATCHED') && (
+            {/* THE 3 CORE QUESTIONS GUIDANCE BANNER */}
+            {order.status === 'DRAFT' && (
+              <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 flex flex-col gap-3">
+                <div className="flex items-start gap-3">
+                  <div className="size-9 rounded-xl bg-amber-500/20 text-amber-600 flex items-center justify-center shrink-0 mt-0.5">
+                    <Clock className="size-4" />
+                  </div>
+                  <div className="flex-1 text-xs">
+                    <p className="font-bold text-amber-950 dark:text-amber-200">
+                      What just happened?
+                    </p>
+                    <p className="text-muted-foreground">
+                      Order{' '}
+                      <span className="font-semibold text-foreground">{order.orderNumber}</span> was
+                      recorded as a Draft.
+                    </p>
+                    <p className="font-bold text-amber-950 dark:text-amber-200 mt-2">
+                      What is its current state?
+                    </p>
+                    <p className="text-muted-foreground">
+                      <span className="font-semibold text-amber-600">Draft (Unconfirmed)</span> —
+                      Inventory has been planned, but physical stock is not locked yet.
+                    </p>
+                    <p className="font-bold text-amber-950 dark:text-amber-200 mt-2">
+                      What should you do next?
+                    </p>
+                    <p className="text-muted-foreground">
+                      Confirm the order to atomically reserve the items in the warehouse and prepare
+                      for shipment.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end gap-2 border-t border-amber-500/20 pt-3">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleCancelOrder}
+                    disabled={cancelMutation.isPending}
+                    className="text-xs text-rose-600 hover:bg-rose-500/10 border-rose-500/30"
+                  >
+                    <X className="size-3 mr-1" />
+                    Cancel Order
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={handleConfirmOrder}
+                    disabled={confirmMutation.isPending}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs shadow-xs"
+                  >
+                    {confirmMutation.isPending ? (
+                      'Confirming...'
+                    ) : (
+                      <span className="flex items-center gap-1.5">
+                        <ShieldCheck className="size-3.5" />
+                        Confirm Order & Reserve Stock
+                      </span>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {order.status === 'CONFIRMED' && (
+              <div className="rounded-2xl border border-blue-500/30 bg-blue-500/10 p-4 flex flex-col gap-3">
+                <div className="flex items-start gap-3">
+                  <div className="size-9 rounded-xl bg-blue-500/20 text-blue-600 flex items-center justify-center shrink-0 mt-0.5">
+                    <ShieldCheck className="size-4" />
+                  </div>
+                  <div className="flex-1 text-xs">
+                    <p className="font-bold text-blue-950 dark:text-blue-200">
+                      What just happened?
+                    </p>
+                    <p className="text-muted-foreground">
+                      Order confirmed! Inventory stock is now{' '}
+                      <span className="font-semibold text-blue-600">securely reserved</span> in the
+                      warehouse.
+                    </p>
+                    <p className="font-bold text-blue-950 dark:text-blue-200 mt-2">
+                      What is its current state?
+                    </p>
+                    <p className="text-muted-foreground">
+                      <span className="font-semibold text-blue-600">Confirmed & Ready</span> —
+                      Awaiting fleet vehicle and driver dispatch.
+                    </p>
+                    <p className="font-bold text-blue-950 dark:text-blue-200 mt-2">
+                      What should you do next?
+                    </p>
+                    <p className="text-muted-foreground">
+                      Dispatch the shipment to customer{' '}
+                      <span className="font-semibold text-foreground">
+                        {client?.name || 'Customer'}
+                      </span>
+                      .
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end gap-2 border-t border-blue-500/20 pt-3">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleCancelOrder}
+                    disabled={cancelMutation.isPending}
+                    className="text-xs text-rose-600 hover:bg-rose-500/10 border-rose-500/30"
+                  >
+                    <X className="size-3 mr-1" />
+                    Cancel Order
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => setIsDispatchModalOpen(true)}
+                    className="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs shadow-xs"
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <Truck className="size-3.5" />
+                      Dispatch / Schedule Delivery
+                    </span>
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {(order.status === 'PARTIALLY_DELIVERED' ||
+              activeDelivery?.status === 'DISPATCHED') && (
               <div className="rounded-2xl border border-indigo-500/30 bg-indigo-500/10 p-4 flex flex-col gap-3">
                 <div className="flex items-start gap-3">
                   <div className="size-9 rounded-xl bg-indigo-500/20 text-indigo-600 flex items-center justify-center shrink-0 mt-0.5">
@@ -505,157 +506,171 @@ export function OrderDetailDrawer({
               </div>
             )}
 
-          {order.status === 'DELIVERED' && (
-            <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 flex items-center gap-3">
-              <div className="size-9 rounded-xl bg-emerald-500/20 text-emerald-600 flex items-center justify-center shrink-0">
-                <CheckCircle2 className="size-5" />
-              </div>
-              <div className="text-xs">
-                <p className="font-bold text-emerald-950 dark:text-emerald-200">
-                  Order Successfully Completed
-                </p>
-                <p className="text-muted-foreground mt-0.5">
-                  Goods have been delivered to customer and inventory stock was deducted. No further
-                  action required.
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* Customer & Destination Card */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-            <div className="rounded-xl border border-border/80 bg-card p-3.5 space-y-1.5">
-              <div className="flex items-center gap-1.5 text-muted-foreground font-semibold">
-                <Building2 className="size-3.5 text-primary" />
-                Customer / Client
-              </div>
-              <div className="font-bold text-foreground text-sm">
-                {client?.name || `Client #${order.clientId}`}
-              </div>
-              <div className="text-muted-foreground">{client?.phone || 'No phone recorded'}</div>
-              <div className="text-muted-foreground">{client?.email || ''}</div>
-            </div>
-
-            <div className="rounded-xl border border-border/80 bg-card p-3.5 space-y-1.5">
-              <div className="flex items-center gap-1.5 text-muted-foreground font-semibold">
-                <MapPin className="size-3.5 text-primary" />
-                Destination Address
-              </div>
-              <div className="font-medium text-foreground">
-                {order.deliveryAddress || 'Store Counter / Direct Pick-up'}
-              </div>
-              {order.notes && (
-                <div className="text-[11px] text-muted-foreground pt-1 border-t border-border/60">
-                  Note: {order.notes}
+            {order.status === 'DELIVERED' && (
+              <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 flex items-center gap-3">
+                <div className="size-9 rounded-xl bg-emerald-500/20 text-emerald-600 flex items-center justify-center shrink-0">
+                  <CheckCircle2 className="size-5" />
                 </div>
-              )}
-            </div>
-          </div>
-
-          {/* Active Fleet / Delivery Trip Tracker */}
-          {activeDelivery && (
-            <div className="rounded-xl border border-border/80 bg-muted/10 p-3.5 text-xs flex flex-col gap-2">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 font-semibold text-foreground">
-                  <Truck className="size-4 text-primary" />
-                  Shipment Trip: {activeDelivery.deliveryNumber}
+                <div className="text-xs">
+                  <p className="font-bold text-emerald-950 dark:text-emerald-200">
+                    Order Successfully Completed
+                  </p>
+                  <p className="text-muted-foreground mt-0.5">
+                    Goods have been delivered to customer and inventory stock was deducted. No
+                    further action required.
+                  </p>
                 </div>
-                <Badge
-                  variant="outline"
-                  className={`text-[10px] ${activeDelivery.status === 'DELIVERED'
-                      ? 'bg-emerald-500/10 text-emerald-600'
-                      : 'bg-blue-500/10 text-blue-600'
+              </div>
+            )}
+
+            {/* Customer & Destination Card */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+              <div className="rounded-xl border border-border/80 bg-card p-3.5 space-y-1.5">
+                <div className="flex items-center gap-1.5 text-muted-foreground font-semibold">
+                  <Building2 className="size-3.5 text-primary" />
+                  Customer / Client
+                </div>
+                <div className="font-bold text-foreground text-sm">
+                  {client?.name || `Client #${order.clientId}`}
+                </div>
+                <div className="text-muted-foreground">{client?.phone || 'No phone recorded'}</div>
+                <div className="text-muted-foreground">{client?.email || ''}</div>
+              </div>
+
+              <div className="rounded-xl border border-border/80 bg-card p-3.5 space-y-1.5">
+                <div className="flex items-center gap-1.5 text-muted-foreground font-semibold">
+                  <MapPin className="size-3.5 text-primary" />
+                  Destination Address
+                </div>
+                <div className="font-medium text-foreground">
+                  {order.deliveryAddress || 'Store Counter / Direct Pick-up'}
+                </div>
+                {order.notes && (
+                  <div className="text-[11px] text-muted-foreground pt-1 border-t border-border/60">
+                    Note: {order.notes}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Active Fleet / Delivery Trip Tracker */}
+            {activeDelivery && (
+              <div className="rounded-xl border border-border/80 bg-muted/10 p-3.5 text-xs flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 font-semibold text-foreground">
+                    <Truck className="size-4 text-primary" />
+                    Shipment Trip: {activeDelivery.deliveryNumber}
+                  </div>
+                  <Badge
+                    variant="outline"
+                    className={`text-[10px] ${
+                      activeDelivery.status === 'DELIVERED'
+                        ? 'bg-emerald-500/10 text-emerald-600'
+                        : 'bg-blue-500/10 text-blue-600'
                     }`}
-                >
-                  {activeDelivery.status}
-                </Badge>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2 text-muted-foreground pt-1 border-t border-border/60">
-                <div>
-                  Vehicle:{' '}
-                  <span className="font-medium text-foreground">
-                    {activeDelivery.deliveryVehicleId
-                      ? vehicleMap.get(activeDelivery.deliveryVehicleId)?.plateNumber ||
-                      `Vehicle #${activeDelivery.deliveryVehicleId}`
-                      : 'Not assigned'}
-                  </span>
+                  >
+                    {activeDelivery.status}
+                  </Badge>
                 </div>
-                <div>
-                  Driver:{' '}
-                  <span className="font-medium text-foreground">
-                    {activeDelivery.driverEmployeeId && employeeMap.get(activeDelivery.driverEmployeeId)
-                      ? `${employeeMap.get(activeDelivery.driverEmployeeId)?.firstName || ''} ${employeeMap.get(activeDelivery.driverEmployeeId)?.lastName || ''}`.trim()
-                      : activeDelivery.driverEmployeeId
-                        ? `Driver #${activeDelivery.driverEmployeeId}`
+
+                <div className="grid grid-cols-2 gap-2 text-muted-foreground pt-1 border-t border-border/60">
+                  <div>
+                    Vehicle:{' '}
+                    <span className="font-medium text-foreground">
+                      {activeDelivery.deliveryVehicleId
+                        ? vehicleMap.get(activeDelivery.deliveryVehicleId)?.plateNumber ||
+                          `Vehicle #${activeDelivery.deliveryVehicleId}`
                         : 'Not assigned'}
-                  </span>
+                    </span>
+                  </div>
+                  <div>
+                    Driver:{' '}
+                    <span className="font-medium text-foreground">
+                      {activeDelivery.driverEmployeeId &&
+                      employeeMap.get(activeDelivery.driverEmployeeId)
+                        ? `${employeeMap.get(activeDelivery.driverEmployeeId)?.firstName || ''} ${employeeMap.get(activeDelivery.driverEmployeeId)?.lastName || ''}`.trim()
+                        : activeDelivery.driverEmployeeId
+                          ? `Driver #${activeDelivery.driverEmployeeId}`
+                          : 'Not assigned'}
+                    </span>
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* Items Breakdown Table */}
-          <div className="rounded-xl border border-border/80 overflow-hidden">
-            <div className="bg-muted/40 px-3.5 py-2 text-xs font-bold text-foreground border-b border-border/70 flex items-center justify-between">
-              <span>Order Cargo Items ({(order.items || []).length})</span>
-              <span>Total: ₱{grossTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
-            </div>
-            <div className="divide-y divide-border/60 text-xs">
-              {(order.items || []).length === 0 ? (
-                <div className="p-4 text-center text-muted-foreground italic text-xs">
-                  No line items recorded for this order.
-                </div>
-              ) : (
-                (order.items || []).map((item, idx) => {
-                  const product = item?.inventoryItemId ? productMap.get(item.inventoryItemId) : null
-                  const allocations = item?.allocations || []
-                  const allocation = allocations[0]
-                  const stock = allocation?.stockItemId ? stockMap.get(allocation.stockItemId) : null
-                  const warehouse = stock?.warehouseId ? warehouseMap.get(stock.warehouseId) : null
+            {/* Items Breakdown Table */}
+            <div className="rounded-xl border border-border/80 overflow-hidden">
+              <div className="bg-muted/40 px-3.5 py-2 text-xs font-bold text-foreground border-b border-border/70 flex items-center justify-between">
+                <span>Order Cargo Items ({(order.items || []).length})</span>
+                <span>
+                  Total: ₱{grossTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                </span>
+              </div>
+              <div className="divide-y divide-border/60 text-xs">
+                {(order.items || []).length === 0 ? (
+                  <div className="p-4 text-center text-muted-foreground italic text-xs">
+                    No line items recorded for this order.
+                  </div>
+                ) : (
+                  (order.items || []).map((item, idx) => {
+                    const product = item?.inventoryItemId
+                      ? productMap.get(item.inventoryItemId)
+                      : null
+                    const allocations = item?.allocations || []
+                    const allocation = allocations[0]
+                    const stock = allocation?.stockItemId
+                      ? stockMap.get(allocation.stockItemId)
+                      : null
+                    const warehouse = stock?.warehouseId
+                      ? warehouseMap.get(stock.warehouseId)
+                      : null
 
-                  return (
-                    <div key={item.id ?? item.lineNumber ?? idx} className="p-3 flex items-center justify-between">
-                      <div>
-                        <div className="font-semibold text-foreground">
-                          {product ? product.name : `Product #${item.inventoryItemId}`}
-                          {product?.variety && (
-                            <span className="ml-1 text-muted-foreground font-normal">
-                              ({product.variety})
+                    return (
+                      <div
+                        key={item.id ?? item.lineNumber ?? idx}
+                        className="p-3 flex items-center justify-between"
+                      >
+                        <div>
+                          <div className="font-semibold text-foreground">
+                            {product ? product.name : `Product #${item.inventoryItemId}`}
+                            {product?.variety && (
+                              <span className="ml-1 text-muted-foreground font-normal">
+                                ({product.variety})
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[11px] text-muted-foreground flex items-center gap-1.5 mt-0.5">
+                            <span>
+                              Qty:{' '}
+                              <span className="font-bold text-foreground">{item.quantity}</span> @ ₱
+                              {parseFloat(item.unitPrice || '0').toFixed(2)}
                             </span>
-                          )}
+                            {warehouse ? (
+                              <span className="text-muted-foreground/70">
+                                • Fulfilling from {warehouse.name}
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground/60 italic">
+                                • Direct fulfillment / Unassigned warehouse
+                              </span>
+                            )}
+                          </div>
                         </div>
-                        <div className="text-[11px] text-muted-foreground flex items-center gap-1.5 mt-0.5">
-                          <span>
-                            Qty: <span className="font-bold text-foreground">{item.quantity}</span> @ ₱
-                            {parseFloat(item.unitPrice || '0').toFixed(2)}
-                          </span>
-                          {warehouse ? (
-                            <span className="text-muted-foreground/70">
-                              • Fulfilling from {warehouse.name}
-                            </span>
-                          ) : (
-                            <span className="text-muted-foreground/60 italic">
-                              • Direct fulfillment / Unassigned warehouse
-                            </span>
-                          )}
+                        <div className="font-bold text-foreground text-sm">
+                          ₱
+                          {parseFloat(item.totalAmount || '0').toLocaleString('en-US', {
+                            minimumFractionDigits: 2,
+                          })}
                         </div>
                       </div>
-                      <div className="font-bold text-foreground text-sm">
-                        ₱
-                        {parseFloat(item.totalAmount || '0').toLocaleString('en-US', {
-                          minimumFractionDigits: 2,
-                        })}
-                      </div>
-                    </div>
-                  )
-                })
-              )}
+                    )
+                  })
+                )}
+              </div>
             </div>
           </div>
-        </div>
-      </DialogContent>
-    </Dialog>
+        </DialogContent>
+      </Dialog>
 
       {/* Quick Dispatch Modal */}
       {isDispatchModalOpen && order && (

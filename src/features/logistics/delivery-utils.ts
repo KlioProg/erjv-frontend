@@ -158,7 +158,12 @@ export class DeliveryUtils {
 
   public static getVehicleAvailability(
     vehicle: { id: number; status: VehicleStatus; isActive: boolean },
-    deliveries: { id: number; deliveryNumber: string; deliveryVehicleId: number | null; status: OutgoingDeliveryStatus }[],
+    deliveries: {
+      id: number
+      deliveryNumber: string
+      deliveryVehicleId: number | null
+      status: OutgoingDeliveryStatus
+    }[],
     currentDeliveryId?: number,
   ): { isAvailable: boolean; reason?: string } {
     if (!vehicle.isActive) {
@@ -200,7 +205,12 @@ export class DeliveryUtils {
 
   public static getDriverAvailability(
     driver: { id: number; isActive: boolean },
-    deliveries: { id: number; deliveryNumber: string; driverEmployeeId: number | null; status: OutgoingDeliveryStatus }[],
+    deliveries: {
+      id: number
+      deliveryNumber: string
+      driverEmployeeId: number | null
+      status: OutgoingDeliveryStatus
+    }[],
     currentDeliveryId?: number,
   ): { isAvailable: boolean; reason?: string } {
     if (!driver.isActive) {

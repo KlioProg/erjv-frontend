@@ -22,7 +22,8 @@ type StaffingDashboardProps = {
 
 export function StaffingDashboard({ onSwitchToOperations }: StaffingDashboardProps = {}) {
   const { user, logout } = useAuth()
-  const roleConfig = ROLE_DETAILS[user?.role || USER_ROLES.UNKNOWN] || ROLE_DETAILS[USER_ROLES.UNKNOWN]
+  const roleConfig =
+    ROLE_DETAILS[user?.role || USER_ROLES.UNKNOWN] || ROLE_DETAILS[USER_ROLES.UNKNOWN]
   const displayName = user?.fullName?.trim() || user?.email || 'User Account'
   const userInitial = displayName.charAt(0).toUpperCase()
   const { data: employees = [] } = useEmployees()
@@ -89,7 +90,10 @@ export function StaffingDashboard({ onSwitchToOperations }: StaffingDashboardPro
                 </AvatarFallback>
               </Avatar>
               <div className="hidden sm:flex flex-col text-left">
-                <span className="text-xs font-semibold text-foreground truncate max-w-[140px]" title={displayName}>
+                <span
+                  className="text-xs font-semibold text-foreground truncate max-w-[140px]"
+                  title={displayName}
+                >
                   {displayName}
                 </span>
                 <div className="flex items-center gap-1">

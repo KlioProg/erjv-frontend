@@ -17,7 +17,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Truck, Warehouse as WarehouseIcon, User, Package, Plus, Minus, MapPin, Info } from 'lucide-react'
+import {
+  Truck,
+  Warehouse as WarehouseIcon,
+  User,
+  Package,
+  Plus,
+  Minus,
+  MapPin,
+  Info,
+} from 'lucide-react'
 import {
   useCreateOutgoingDelivery,
   useScheduleOutgoingDelivery,
@@ -86,10 +95,7 @@ export function ScheduleDeliveryModal({
 
   // Deliverable orders: CONFIRMED or PARTIALLY_DELIVERED
   const deliverableOrders = useMemo(
-    () =>
-      salesOrders.filter(
-        (o) => o.status === 'CONFIRMED' || o.status === 'PARTIALLY_DELIVERED',
-      ),
+    () => salesOrders.filter((o) => o.status === 'CONFIRMED' || o.status === 'PARTIALLY_DELIVERED'),
     [salesOrders],
   )
 
@@ -148,9 +154,9 @@ export function ScheduleDeliveryModal({
     if (!selectedOrder) return []
 
     const rows: AllocationRow[] = []
-    for (const item of (selectedOrder.items || [])) {
+    for (const item of selectedOrder.items || []) {
       const prod = products.find((p) => p.id === item.inventoryItemId)
-      for (const alloc of (item.allocations || [])) {
+      for (const alloc of item.allocations || []) {
         const stock = stockItems.find((s) => s.id === alloc.stockItemId)
         const wh = warehouses.find((w) => w.id === stock?.warehouseId)
 
@@ -264,7 +270,9 @@ export function ScheduleDeliveryModal({
       }))
 
     if (itemsToDeliver.length === 0) {
-      setErrorMessage('Please enter a delivery quantity greater than 0 for at least one allocation.')
+      setErrorMessage(
+        'Please enter a delivery quantity greater than 0 for at least one allocation.',
+      )
       return
     }
 
@@ -305,7 +313,8 @@ export function ScheduleDeliveryModal({
                 Schedule Outgoing Delivery
               </DialogTitle>
               <DialogDescription className="text-[11px] text-muted-foreground">
-                Assign warehouse stock, fleet vehicle, and driver to dispatch a confirmed customer order.
+                Assign warehouse stock, fleet vehicle, and driver to dispatch a confirmed customer
+                order.
               </DialogDescription>
             </div>
           </div>
@@ -321,12 +330,16 @@ export function ScheduleDeliveryModal({
           <Alert className="py-1.5 px-3 text-xs shrink-0 border-blue-500/30 bg-blue-500/10 text-blue-900 dark:text-blue-200 flex items-center gap-2">
             <Info className="size-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
             <AlertDescription>
-              All confirmed customer orders have already been scheduled. Confirm a new order in Customer Relations to create another delivery.
+              All confirmed customer orders have already been scheduled. Confirm a new order in
+              Customer Relations to create another delivery.
             </AlertDescription>
           </Alert>
         )}
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-3 min-h-0 flex-1 overflow-y-auto pr-1">
+        <form
+          onSubmit={handleSubmit}
+          className="flex flex-col gap-3 min-h-0 flex-1 overflow-y-auto pr-1"
+        >
           {/* Order and Warehouse Row (2-Column Grid) */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 shrink-0">
             {/* Order Selection */}
@@ -350,8 +363,12 @@ export function ScheduleDeliveryModal({
                         <SelectItem key={order.id} value={String(order.id)}>
                           <span className="flex items-center gap-2">
                             <span className="font-bold font-mono">{order.orderNumber}</span>
-                            <span className="text-muted-foreground">• {client?.name || `Client #${order.clientId}`}</span>
-                            <span className="text-[10px] text-primary">({(order.items || []).length} items)</span>
+                            <span className="text-muted-foreground">
+                              • {client?.name || `Client #${order.clientId}`}
+                            </span>
+                            <span className="text-[10px] text-primary">
+                              ({(order.items || []).length} items)
+                            </span>
                           </span>
                         </SelectItem>
                       )
@@ -371,15 +388,19 @@ export function ScheduleDeliveryModal({
                   <SelectValue placeholder="Select fulfillment warehouse" />
                 </SelectTrigger>
                 <SelectContent>
-                  {warehouses.filter((w) => w.isActive).map((warehouse) => (
-                    <SelectItem key={warehouse.id} value={String(warehouse.id)}>
-                      <span className="flex items-center gap-2">
-                        <WarehouseIcon className="size-3.5 text-primary" />
-                        <span>{warehouse.name}</span>
-                        <span className="text-muted-foreground text-[10px]">({warehouse.address})</span>
-                      </span>
-                    </SelectItem>
-                  ))}
+                  {warehouses
+                    .filter((w) => w.isActive)
+                    .map((warehouse) => (
+                      <SelectItem key={warehouse.id} value={String(warehouse.id)}>
+                        <span className="flex items-center gap-2">
+                          <WarehouseIcon className="size-3.5 text-primary" />
+                          <span>{warehouse.name}</span>
+                          <span className="text-muted-foreground text-[10px]">
+                            ({warehouse.address})
+                          </span>
+                        </span>
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
@@ -391,7 +412,8 @@ export function ScheduleDeliveryModal({
               <div className="flex items-center gap-2 truncate">
                 <MapPin className="size-3.5 text-rose-500 shrink-0" />
                 <span className="font-semibold text-foreground truncate">
-                  {clients.find((c) => c.id === selectedOrder.clientId)?.name || `Client #${selectedOrder.clientId}`}
+                  {clients.find((c) => c.id === selectedOrder.clientId)?.name ||
+                    `Client #${selectedOrder.clientId}`}
                 </span>
                 <span className="text-[10px] font-mono text-muted-foreground shrink-0">
                   (Order #{selectedOrder.orderNumber})
@@ -411,7 +433,8 @@ export function ScheduleDeliveryModal({
             <div className="bg-muted/30 px-3 py-1.5 border-b border-border/70 flex items-center justify-between">
               <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
                 <Package className="size-3.5 text-primary" />
-                Cargo Allocations to Deliver {selectedOrder ? `(${filteredAllocations.length})` : ''}
+                Cargo Allocations to Deliver{' '}
+                {selectedOrder ? `(${filteredAllocations.length})` : ''}
               </span>
               {selectedOrder && isOrderFullyScheduled && (
                 <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400">
@@ -424,7 +447,9 @@ export function ScheduleDeliveryModal({
               <div className="p-6 text-center text-xs text-muted-foreground flex flex-col items-center justify-center gap-1.5 bg-muted/5">
                 <Package className="size-7 text-muted-foreground/35 mb-0.5" />
                 <span className="font-semibold text-foreground text-xs">
-                  {deliverableOrders.length === 0 ? 'No Deliverable Orders Available' : 'No Sales Order Selected'}
+                  {deliverableOrders.length === 0
+                    ? 'No Deliverable Orders Available'
+                    : 'No Sales Order Selected'}
                 </span>
                 <p className="text-[11px] text-muted-foreground max-w-sm">
                   {deliverableOrders.length === 0
@@ -434,7 +459,9 @@ export function ScheduleDeliveryModal({
               </div>
             ) : isOrderFullyScheduled ? (
               <div className="p-3 m-2 rounded border border-amber-500/30 bg-amber-500/10 text-amber-900 dark:text-amber-200 text-xs">
-                All cargo allocations for this order have already been scheduled in active shipments. You can view or dispatch these under <strong>Dispatch Operations</strong>.
+                All cargo allocations for this order have already been scheduled in active
+                shipments. You can view or dispatch these under <strong>Dispatch Operations</strong>
+                .
               </div>
             ) : filteredAllocations.length === 0 ? (
               <div className="p-4 text-center text-xs text-muted-foreground">
@@ -443,174 +470,207 @@ export function ScheduleDeliveryModal({
             ) : (
               <div className="max-h-[190px] overflow-y-auto overflow-x-hidden rounded-md border border-border/60">
                 <table className="w-full table-fixed text-xs">
-                    <thead className="bg-muted/30 text-left text-[10px] font-bold uppercase tracking-wider text-muted-foreground border-b border-border/70 sticky top-0 bg-muted/95 backdrop-blur-xs z-10">
-                      <tr>
-                        <th className="px-3 py-2 w-[32%]">Product Item</th>
-                        <th className="px-2 py-2 text-right w-[14%]">Total Ordered</th>
-                        <th className="px-2 py-2 text-right w-[18%]">Already Sched.</th>
-                        <th className="px-2 py-2 text-right font-semibold text-foreground w-[14%]">Remaining</th>
-                        <th className="px-3 py-2 text-right w-[22%]">Qty to Ship</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border/60">
-                      {filteredAllocations.map((alloc) => {
-                        const isDepleted = alloc.remainingQuantity <= 0
-                        const totalOrderedNum = parseFloat(alloc.allocatedQuantity) || 0
-                        const pctFulfilled =
-                          totalOrderedNum > 0
-                            ? Math.min(100, Math.round((alloc.alreadyScheduledQuantity / totalOrderedNum) * 100))
-                            : 0
-                        const currentQty = parseInt(alloc.deliverQuantity, 10) || 0
-                        const maxQty = Math.floor(alloc.remainingQuantity)
+                  <thead className="bg-muted/30 text-left text-[10px] font-bold uppercase tracking-wider text-muted-foreground border-b border-border/70 sticky top-0 bg-muted/95 backdrop-blur-xs z-10">
+                    <tr>
+                      <th className="px-3 py-2 w-[32%]">Product Item</th>
+                      <th className="px-2 py-2 text-right w-[14%]">Total Ordered</th>
+                      <th className="px-2 py-2 text-right w-[18%]">Already Sched.</th>
+                      <th className="px-2 py-2 text-right font-semibold text-foreground w-[14%]">
+                        Remaining
+                      </th>
+                      <th className="px-3 py-2 text-right w-[22%]">Qty to Ship</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/60">
+                    {filteredAllocations.map((alloc) => {
+                      const isDepleted = alloc.remainingQuantity <= 0
+                      const totalOrderedNum = parseFloat(alloc.allocatedQuantity) || 0
+                      const pctFulfilled =
+                        totalOrderedNum > 0
+                          ? Math.min(
+                              100,
+                              Math.round((alloc.alreadyScheduledQuantity / totalOrderedNum) * 100),
+                            )
+                          : 0
+                      const currentQty = parseInt(alloc.deliverQuantity, 10) || 0
+                      const maxQty = Math.floor(alloc.remainingQuantity)
 
-                        return (
-                          <tr key={alloc.allocationId} className={isDepleted ? 'bg-muted/20 opacity-75' : 'hover:bg-muted/15'}>
-                            <td className="px-3 py-2.5">
-                              <div className="flex items-center gap-2 min-w-0">
-                                <div className="flex flex-col min-w-0">
-                                  <span className="font-semibold text-foreground text-xs truncate flex items-center gap-1">
-                                    {alloc.productName}
-                                    {alloc.variety && (
-                                      <span className="text-[9px] font-normal px-1 py-0.2 rounded bg-muted text-muted-foreground shrink-0">
-                                        {alloc.variety}
-                                      </span>
-                                    )}
-                                  </span>
-                                  <span className="text-[10px] text-muted-foreground truncate">
-                                    {alloc.warehouseName} • <span className="font-mono">{formatCount(alloc.warehouseOnHand)} {alloc.unit} in stock</span>
-                                  </span>
-                                </div>
-                              </div>
-                            </td>
-
-                            <td className="px-2 py-2.5 text-right font-mono">
-                              <span className="font-bold text-foreground">{formatCount(alloc.allocatedQuantity)}</span>{' '}
-                              <span className="text-[10px] text-muted-foreground font-sans">{alloc.unit}</span>
-                            </td>
-
-                            <td className="px-2 py-2.5 text-right font-mono">
-                              <div className="flex flex-col items-end justify-center py-0.5">
-                                <div className="leading-tight">
-                                  <span className="text-muted-foreground font-semibold">
-                                    {alloc.alreadyScheduledQuantity > 0 ? formatCount(alloc.alreadyScheduledQuantity) : '0'}
-                                  </span>{' '}
-                                  <span className="text-[10px] font-sans text-muted-foreground">{alloc.unit}</span>
-                                </div>
-                                {totalOrderedNum > 0 && (
-                                  <div className="flex items-center gap-1.5 mt-1 justify-end">
-                                    <div className="w-12 h-1.5 bg-muted rounded-full overflow-hidden">
-                                      <div
-                                        className={`h-full ${
-                                          pctFulfilled >= 100
-                                            ? 'bg-emerald-500'
-                                            : pctFulfilled > 0
-                                              ? 'bg-blue-500'
-                                              : 'bg-transparent'
-                                        }`}
-                                        style={{ width: `${pctFulfilled}%` }}
-                                      />
-                                    </div>
-                                    <span className="text-[9px] font-sans text-muted-foreground">{pctFulfilled}%</span>
-                                  </div>
-                                )}
-                              </div>
-                            </td>
-
-                            <td className="px-2 py-2.5 text-right">
-                              {isDepleted ? (
-                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-muted text-muted-foreground border border-border/80">
-                                  0
+                      return (
+                        <tr
+                          key={alloc.allocationId}
+                          className={isDepleted ? 'bg-muted/20 opacity-75' : 'hover:bg-muted/15'}
+                        >
+                          <td className="px-3 py-2.5">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <div className="flex flex-col min-w-0">
+                                <span className="font-semibold text-foreground text-xs truncate flex items-center gap-1">
+                                  {alloc.productName}
+                                  {alloc.variety && (
+                                    <span className="text-[9px] font-normal px-1 py-0.2 rounded bg-muted text-muted-foreground shrink-0">
+                                      {alloc.variety}
+                                    </span>
+                                  )}
                                 </span>
-                              ) : (
-                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/25">
-                                  {formatCount(alloc.remainingQuantity)}
+                                <span className="text-[10px] text-muted-foreground truncate">
+                                  {alloc.warehouseName} •{' '}
+                                  <span className="font-mono">
+                                    {formatCount(alloc.warehouseOnHand)} {alloc.unit} in stock
+                                  </span>
                                 </span>
-                              )}
-                            </td>
+                              </div>
+                            </div>
+                          </td>
 
-                            <td className="px-3 py-2.5 text-right">
-                              {isDepleted ? (
-                                <span className="text-[10px] text-muted-foreground italic pr-2">Scheduled</span>
-                              ) : (
-                                <div className="inline-flex items-center gap-1 justify-end">
-                                  {/* Tactile Integer Stepper */}
-                                  <div className="inline-flex items-center rounded border border-input shadow-2xs overflow-hidden bg-background h-6.5">
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        if (currentQty > 0) {
-                                          handleQuantityChange(alloc.allocationId, String(currentQty - 1))
-                                        }
-                                      }}
-                                      disabled={currentQty <= 0}
-                                      className="size-6 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/50 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-colors"
-                                      title="Decrease quantity by 1"
-                                    >
-                                      <Minus className="size-2.5" />
-                                    </button>
+                          <td className="px-2 py-2.5 text-right font-mono">
+                            <span className="font-bold text-foreground">
+                              {formatCount(alloc.allocatedQuantity)}
+                            </span>{' '}
+                            <span className="text-[10px] text-muted-foreground font-sans">
+                              {alloc.unit}
+                            </span>
+                          </td>
 
-                                    <Input
-                                      type="number"
-                                      step="1"
-                                      min="0"
-                                      max={maxQty}
-                                      value={alloc.deliverQuantity}
-                                      onChange={(e) =>
-                                        handleQuantityChange(alloc.allocationId, e.target.value)
-                                      }
-                                      className="w-8 h-6.5 text-xs text-center font-mono border-0 rounded-none shadow-none focus-visible:ring-0 p-0"
+                          <td className="px-2 py-2.5 text-right font-mono">
+                            <div className="flex flex-col items-end justify-center py-0.5">
+                              <div className="leading-tight">
+                                <span className="text-muted-foreground font-semibold">
+                                  {alloc.alreadyScheduledQuantity > 0
+                                    ? formatCount(alloc.alreadyScheduledQuantity)
+                                    : '0'}
+                                </span>{' '}
+                                <span className="text-[10px] font-sans text-muted-foreground">
+                                  {alloc.unit}
+                                </span>
+                              </div>
+                              {totalOrderedNum > 0 && (
+                                <div className="flex items-center gap-1.5 mt-1 justify-end">
+                                  <div className="w-12 h-1.5 bg-muted rounded-full overflow-hidden">
+                                    <div
+                                      className={`h-full ${
+                                        pctFulfilled >= 100
+                                          ? 'bg-emerald-500'
+                                          : pctFulfilled > 0
+                                            ? 'bg-blue-500'
+                                            : 'bg-transparent'
+                                      }`}
+                                      style={{ width: `${pctFulfilled}%` }}
                                     />
-
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        if (currentQty < maxQty) {
-                                          handleQuantityChange(alloc.allocationId, String(currentQty + 1))
-                                        }
-                                      }}
-                                      disabled={currentQty >= maxQty}
-                                      className="size-6 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/50 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-colors"
-                                      title="Increase quantity by 1"
-                                    >
-                                      <Plus className="size-2.5" />
-                                    </button>
                                   </div>
+                                  <span className="text-[9px] font-sans text-muted-foreground">
+                                    {pctFulfilled}%
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          </td>
+
+                          <td className="px-2 py-2.5 text-right">
+                            {isDepleted ? (
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-muted text-muted-foreground border border-border/80">
+                                0
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/25">
+                                {formatCount(alloc.remainingQuantity)}
+                              </span>
+                            )}
+                          </td>
+
+                          <td className="px-3 py-2.5 text-right">
+                            {isDepleted ? (
+                              <span className="text-[10px] text-muted-foreground italic pr-2">
+                                Scheduled
+                              </span>
+                            ) : (
+                              <div className="inline-flex items-center gap-1 justify-end">
+                                {/* Tactile Integer Stepper */}
+                                <div className="inline-flex items-center rounded border border-input shadow-2xs overflow-hidden bg-background h-6.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (currentQty > 0) {
+                                        handleQuantityChange(
+                                          alloc.allocationId,
+                                          String(currentQty - 1),
+                                        )
+                                      }
+                                    }}
+                                    disabled={currentQty <= 0}
+                                    className="size-6 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/50 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                                    title="Decrease quantity by 1"
+                                  >
+                                    <Minus className="size-2.5" />
+                                  </button>
+
+                                  <Input
+                                    type="number"
+                                    step="1"
+                                    min="0"
+                                    max={maxQty}
+                                    value={alloc.deliverQuantity}
+                                    onChange={(e) =>
+                                      handleQuantityChange(alloc.allocationId, e.target.value)
+                                    }
+                                    className="w-8 h-6.5 text-xs text-center font-mono border-0 rounded-none shadow-none focus-visible:ring-0 p-0"
+                                  />
 
                                   <button
                                     type="button"
-                                    onClick={() =>
-                                      handleQuantityChange(alloc.allocationId, String(maxQty))
-                                    }
-                                    className="h-6.5 px-1.5 rounded border border-border/80 bg-muted/40 hover:bg-muted text-[10px] font-semibold text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
-                                    title="Ship remaining allocation"
+                                    onClick={() => {
+                                      if (currentQty < maxQty) {
+                                        handleQuantityChange(
+                                          alloc.allocationId,
+                                          String(currentQty + 1),
+                                        )
+                                      }
+                                    }}
+                                    disabled={currentQty >= maxQty}
+                                    className="size-6 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/50 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                                    title="Increase quantity by 1"
                                   >
-                                    Max
+                                    <Plus className="size-2.5" />
                                   </button>
                                 </div>
-                              )}
-                            </td>
-                          </tr>
-                        )
-                      })}
-                    </tbody>
-                  </table>
 
-                  {/* Summary Bar */}
-                  <div className="bg-muted/15 px-3 py-1 border-t border-border/60 flex items-center justify-between text-[10px] text-muted-foreground">
-                    <span>
-                      Allocations: <strong className="text-foreground">{filteredAllocations.length}</strong>
-                    </span>
-                    <span>
-                      Total to Dispatch:{' '}
-                      <strong className="font-mono text-foreground font-bold">
-                        {filteredAllocations.reduce((sum, a) => sum + (parseInt(a.deliverQuantity, 10) || 0), 0)}{' '}
-                        units
-                      </strong>
-                    </span>
-                  </div>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleQuantityChange(alloc.allocationId, String(maxQty))
+                                  }
+                                  className="h-6.5 px-1.5 rounded border border-border/80 bg-muted/40 hover:bg-muted text-[10px] font-semibold text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
+                                  title="Ship remaining allocation"
+                                >
+                                  Max
+                                </button>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+
+                {/* Summary Bar */}
+                <div className="bg-muted/15 px-3 py-1 border-t border-border/60 flex items-center justify-between text-[10px] text-muted-foreground">
+                  <span>
+                    Allocations:{' '}
+                    <strong className="text-foreground">{filteredAllocations.length}</strong>
+                  </span>
+                  <span>
+                    Total to Dispatch:{' '}
+                    <strong className="font-mono text-foreground font-bold">
+                      {filteredAllocations.reduce(
+                        (sum, a) => sum + (parseInt(a.deliverQuantity, 10) || 0),
+                        0,
+                      )}{' '}
+                      units
+                    </strong>
+                  </span>
                 </div>
-              )}
-            </div>
+              </div>
+            )}
+          </div>
 
           {/* Vehicle and Driver Assignment Grid (2-Column Grid) */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 shrink-0">
@@ -631,16 +691,27 @@ export function ScheduleDeliveryModal({
                         key={v.id}
                         value={String(v.id)}
                         disabled={!avail.isAvailable}
-                        className={!avail.isAvailable ? 'opacity-50 cursor-not-allowed bg-muted/20' : ''}
+                        className={
+                          !avail.isAvailable ? 'opacity-50 cursor-not-allowed bg-muted/20' : ''
+                        }
                       >
                         <div className="flex items-center justify-between w-full gap-3">
                           <span className="flex items-center gap-2 font-mono">
-                            <Truck className={`size-3.5 ${avail.isAvailable ? 'text-blue-600' : 'text-muted-foreground'}`} />
-                            <span className={avail.isAvailable ? 'font-bold text-foreground' : 'text-muted-foreground'}>
+                            <Truck
+                              className={`size-3.5 ${avail.isAvailable ? 'text-blue-600' : 'text-muted-foreground'}`}
+                            />
+                            <span
+                              className={
+                                avail.isAvailable
+                                  ? 'font-bold text-foreground'
+                                  : 'text-muted-foreground'
+                              }
+                            >
                               {v.plateNumber}
                             </span>
                             <span className="text-muted-foreground font-sans text-[11px]">
-                              ({v.vehicleType}{v.model ? ` • ${v.model}` : ''})
+                              ({v.vehicleType}
+                              {v.model ? ` • ${v.model}` : ''})
                             </span>
                           </span>
                           {avail.isAvailable ? (
@@ -678,12 +749,22 @@ export function ScheduleDeliveryModal({
                         key={e.id}
                         value={String(e.id)}
                         disabled={!avail.isAvailable}
-                        className={!avail.isAvailable ? 'opacity-50 cursor-not-allowed bg-muted/20' : ''}
+                        className={
+                          !avail.isAvailable ? 'opacity-50 cursor-not-allowed bg-muted/20' : ''
+                        }
                       >
                         <div className="flex items-center justify-between w-full gap-3">
                           <span className="flex items-center gap-2">
-                            <User className={`size-3.5 ${avail.isAvailable ? 'text-purple-600' : 'text-muted-foreground'}`} />
-                            <span className={avail.isAvailable ? 'font-semibold text-foreground' : 'text-muted-foreground'}>
+                            <User
+                              className={`size-3.5 ${avail.isAvailable ? 'text-purple-600' : 'text-muted-foreground'}`}
+                            />
+                            <span
+                              className={
+                                avail.isAvailable
+                                  ? 'font-semibold text-foreground'
+                                  : 'text-muted-foreground'
+                              }
+                            >
                               {e.firstName} {e.lastName}
                             </span>
                             {e.phone && (
@@ -748,13 +829,23 @@ export function ScheduleDeliveryModal({
                 onChange={(e) => setAutoSchedule(e.target.checked)}
                 className="size-3.5 rounded accent-primary cursor-pointer"
               />
-              <Label htmlFor="auto-schedule-checkbox" className="text-[11px] font-medium cursor-pointer">
+              <Label
+                htmlFor="auto-schedule-checkbox"
+                className="text-[11px] font-medium cursor-pointer"
+              >
                 Automatically confirm schedule on creation (status: SCHEDULED)
               </Label>
             </div>
 
             <div className="flex items-center justify-end gap-2 shrink-0">
-              <Button type="button" variant="outline" size="sm" onClick={onClose} disabled={createDelivery.isPending} className="h-7.5 text-xs px-3">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={onClose}
+                disabled={createDelivery.isPending}
+                className="h-7.5 text-xs px-3"
+              >
                 Cancel
               </Button>
               <Button

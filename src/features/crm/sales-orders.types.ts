@@ -1,9 +1,5 @@
 export type SalesOrderStatus =
-  | 'DRAFT'
-  | 'CONFIRMED'
-  | 'PARTIALLY_DELIVERED'
-  | 'DELIVERED'
-  | 'CANCELLED'
+  'DRAFT' | 'CONFIRMED' | 'PARTIALLY_DELIVERED' | 'DELIVERED' | 'CANCELLED'
 
 export interface SalesOrderAllocationRecord {
   id: number

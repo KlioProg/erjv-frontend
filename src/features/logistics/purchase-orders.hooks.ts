@@ -8,10 +8,7 @@ import {
   fetchPurchaseOrderByNumberApi,
   fetchPurchaseOrdersApi,
 } from './purchase-orders.api'
-import type {
-  CreatePurchaseOrderPayload,
-  PurchaseOrderFilter,
-} from './purchase-orders.types'
+import type { CreatePurchaseOrderPayload, PurchaseOrderFilter } from './purchase-orders.types'
 import { getErrorMessage } from '@/lib/api-client'
 
 export const PURCHASE_ORDERS_QUERY_KEY = ['purchase-orders'] as const
@@ -35,7 +32,9 @@ export function usePurchaseOrderByNumber(orderNumber?: string) {
   return useQuery({
     queryKey: [...PURCHASE_ORDERS_QUERY_KEY, 'number', orderNumber?.trim() || ''],
     queryFn: () =>
-      orderNumber?.trim() ? fetchPurchaseOrderByNumberApi(orderNumber.trim()) : Promise.resolve(null),
+      orderNumber?.trim()
+        ? fetchPurchaseOrderByNumberApi(orderNumber.trim())
+        : Promise.resolve(null),
     enabled: Boolean(orderNumber && orderNumber.trim().length > 0),
   })
 }

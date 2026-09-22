@@ -1,5 +1,14 @@
 import { useState } from 'react'
-import { Users, Briefcase, UserX, UserPlus, Shield, CheckCircle2, Crown, HelpCircle } from 'lucide-react'
+import {
+  Users,
+  Briefcase,
+  UserX,
+  UserPlus,
+  Shield,
+  CheckCircle2,
+  Crown,
+  HelpCircle,
+} from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -481,11 +490,13 @@ export function RoleGroupingView() {
                             variant="outline"
                             className="text-[10px] font-bold bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/30"
                           >
-                            {unknownUsers.length} {unknownUsers.length === 1 ? 'account' : 'accounts'}
+                            {unknownUsers.length}{' '}
+                            {unknownUsers.length === 1 ? 'account' : 'accounts'}
                           </Badge>
                         </div>
                         <p className="text-xs text-muted-foreground mt-0.5">
-                          Accounts with unrecognized or unverified roles placed in defensive quarantine with zero system privileges.
+                          Accounts with unrecognized or unverified roles placed in defensive
+                          quarantine with zero system privileges.
                         </p>
                       </div>
                     </div>

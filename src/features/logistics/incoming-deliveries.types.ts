@@ -1,8 +1,4 @@
-export type IncomingDeliveryStatus =
-  | 'DRAFT'
-  | 'SCHEDULED'
-  | 'COMPLETED'
-  | 'CANCELLED'
+export type IncomingDeliveryStatus = 'DRAFT' | 'SCHEDULED' | 'COMPLETED' | 'CANCELLED'
 
 export interface IncomingDeliveryItemRecord {
   id: number

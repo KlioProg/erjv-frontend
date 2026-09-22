@@ -8,10 +8,7 @@ import {
   fetchSalesOrderByNumberApi,
   fetchSalesOrdersApi,
 } from './sales-orders.api'
-import type {
-  CreateSalesOrderPayload,
-  SalesOrderFilter,
-} from './sales-orders.types'
+import type { CreateSalesOrderPayload, SalesOrderFilter } from './sales-orders.types'
 import { STOCK_ITEMS_QUERY_KEY } from '../logistics/stock-items.hooks'
 import { getErrorMessage } from '@/lib/api-client'
 

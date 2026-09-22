@@ -1,5 +1,13 @@
 import { useState, useMemo, type FormEvent } from 'react'
-import { ArrowDownToLine, Calendar, CheckCircle2, Info, Package, RotateCcw, Warehouse as WarehouseIcon } from 'lucide-react'
+import {
+  ArrowDownToLine,
+  Calendar,
+  CheckCircle2,
+  Info,
+  Package,
+  RotateCcw,
+  Warehouse as WarehouseIcon,
+} from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -62,9 +70,7 @@ export function ScheduleIncomingDeliveryModal({
 
   // Eligible POs: Confirmed or Partially Received
   const eligiblePOs = useMemo(() => {
-    return purchaseOrders.filter((po) =>
-      ['CONFIRMED', 'PARTIALLY_RECEIVED'].includes(po.status),
-    )
+    return purchaseOrders.filter((po) => ['CONFIRMED', 'PARTIALLY_RECEIVED'].includes(po.status))
   }, [purchaseOrders])
 
   const [selectedPOId, setSelectedPOId] = useState<string>(
@@ -180,9 +186,7 @@ export function ScheduleIncomingDeliveryModal({
       }))
 
     if (itemsToReceive.length === 0) {
-      setErrorMessage(
-        'At least one item must have a quantity to receive greater than 0.',
-      )
+      setErrorMessage('At least one item must have a quantity to receive greater than 0.')
       return
     }
 
@@ -220,7 +224,8 @@ export function ScheduleIncomingDeliveryModal({
             Schedule Inbound Shipment Intake
           </DialogTitle>
           <DialogDescription className="text-xs leading-relaxed">
-            Record incoming supplier deliveries, verify material quantities against remaining order balances, and assign intake docks.
+            Record incoming supplier deliveries, verify material quantities against remaining order
+            balances, and assign intake docks.
           </DialogDescription>
         </DialogHeader>
 
@@ -257,9 +262,7 @@ export function ScheduleIncomingDeliveryModal({
                             {po.orderNumber} — {sup ? sup.name : `Supplier #${po.supplierId}`}
                           </span>
                           <span className="text-[10px] font-mono text-muted-foreground">
-                            {poRemaining > 0
-                              ? `${poRemaining} remaining`
-                              : 'Fully Received'}
+                            {poRemaining > 0 ? `${poRemaining} remaining` : 'Fully Received'}
                           </span>
                         </span>
                       </SelectItem>
@@ -332,7 +335,8 @@ export function ScheduleIncomingDeliveryModal({
                   Expected Cargo & Balances
                 </p>
                 <p className="text-[11px] text-muted-foreground mt-0.5">
-                  Supplier: <span className="font-semibold text-foreground">{selectedSupplierName}</span>
+                  Supplier:{' '}
+                  <span className="font-semibold text-foreground">{selectedSupplierName}</span>
                 </p>
               </div>
 
@@ -381,7 +385,10 @@ export function ScheduleIncomingDeliveryModal({
                       const isComplete = line.remainingQty === 0
 
                       return (
-                        <tr key={line.purchaseOrderItemId} className={isComplete ? 'bg-muted/30 opacity-60' : ''}>
+                        <tr
+                          key={line.purchaseOrderItemId}
+                          className={isComplete ? 'bg-muted/30 opacity-60' : ''}
+                        >
                           <td className="px-4 py-3 font-semibold text-foreground">
                             <div className="flex items-center gap-2">
                               <Package className="size-3.5 text-primary shrink-0" />
@@ -459,7 +466,8 @@ export function ScheduleIncomingDeliveryModal({
                   <span>Quantities are capped at the remaining receivable order balance.</span>
                 </div>
                 <div className="font-semibold text-foreground">
-                  Receiving Now: <span className="font-mono text-primary">{totalReceivingNow}</span> units
+                  Receiving Now: <span className="font-mono text-primary">{totalReceivingNow}</span>{' '}
+                  units
                 </div>
               </div>
             )}

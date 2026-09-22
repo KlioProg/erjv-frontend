@@ -5,9 +5,7 @@ import type {
   SalesOrderRecord,
 } from './sales-orders.types'
 
-export async function fetchSalesOrdersApi(
-  filter?: SalesOrderFilter,
-): Promise<SalesOrderRecord[]> {
+export async function fetchSalesOrdersApi(filter?: SalesOrderFilter): Promise<SalesOrderRecord[]> {
   const response = await apiClient.get('/sales-orders', { params: filter })
   return extractArray<SalesOrderRecord>(response.data)
 }
@@ -37,7 +35,9 @@ export async function createSalesOrderApi(
     clientId: payload.clientId,
     deliveryAddress: payload.deliveryAddress.trim(),
     ...(payload.expectedAt ? { expectedAt: new Date(payload.expectedAt).toISOString() } : {}),
-    ...(payload.externalReference?.trim() ? { externalReference: payload.externalReference.trim() } : {}),
+    ...(payload.externalReference?.trim()
+      ? { externalReference: payload.externalReference.trim() }
+      : {}),
     ...(payload.notes?.trim() ? { notes: payload.notes.trim() } : {}),
     items: payload.items.map((item) => ({
       inventoryItemId: item.inventoryItemId,

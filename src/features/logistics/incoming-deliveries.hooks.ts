@@ -53,8 +53,7 @@ export function useIncomingDeliveryByNumber(deliveryNumber?: string) {
 export function useCreateIncomingDelivery() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (payload: CreateIncomingDeliveryPayload) =>
-      createIncomingDeliveryApi(payload),
+    mutationFn: (payload: CreateIncomingDeliveryPayload) => createIncomingDeliveryApi(payload),
     onSuccess: (delivery) => {
       void queryClient.invalidateQueries({ queryKey: INCOMING_DELIVERIES_QUERY_KEY })
       void queryClient.invalidateQueries({ queryKey: PURCHASE_ORDERS_QUERY_KEY })

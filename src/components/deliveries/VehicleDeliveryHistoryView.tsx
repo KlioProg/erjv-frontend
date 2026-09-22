@@ -1,10 +1,5 @@
 import { useState, useMemo, useEffect } from 'react'
-import {
-  Truck,
-  History,
-  Eye,
-  SlidersHorizontal,
-} from 'lucide-react'
+import { Truck, History, Eye, SlidersHorizontal } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -204,19 +199,25 @@ export function VehicleDeliveryHistoryView() {
                   <div className="text-base font-bold text-foreground font-mono">{totalTrips}</div>
                 </div>
                 <div className="px-3.5 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
-                  <div className="text-[11px] text-emerald-700 dark:text-emerald-400 font-medium">Delivered</div>
+                  <div className="text-[11px] text-emerald-700 dark:text-emerald-400 font-medium">
+                    Delivered
+                  </div>
                   <div className="text-base font-bold text-emerald-700 dark:text-emerald-400 font-mono">
                     {completedTrips}
                   </div>
                 </div>
                 <div className="px-3.5 py-2 rounded-xl bg-amber-500/10 border border-amber-500/20">
-                  <div className="text-[11px] text-amber-700 dark:text-amber-400 font-medium">In Transit</div>
+                  <div className="text-[11px] text-amber-700 dark:text-amber-400 font-medium">
+                    In Transit
+                  </div>
                   <div className="text-base font-bold text-amber-700 dark:text-amber-400 font-mono">
                     {inTransitTrips}
                   </div>
                 </div>
                 <div className="px-3.5 py-2 rounded-xl bg-rose-500/10 border border-rose-500/20">
-                  <div className="text-[11px] text-rose-700 dark:text-rose-400 font-medium">Cancelled</div>
+                  <div className="text-[11px] text-rose-700 dark:text-rose-400 font-medium">
+                    Cancelled
+                  </div>
                   <div className="text-base font-bold text-rose-700 dark:text-rose-400 font-mono">
                     {cancelledTrips}
                   </div>
@@ -257,8 +258,12 @@ export function VehicleDeliveryHistoryView() {
               <Card className="flex min-h-[160px] items-center justify-center border-dashed bg-muted/20 shadow-xs rounded-xl">
                 <div className="flex flex-col items-center justify-center text-center p-6 text-xs text-muted-foreground">
                   <SlidersHorizontal className="size-6 text-muted-foreground/40 mb-1.5" />
-                  <span className="font-semibold text-foreground">No trip records found for this filter</span>
-                  <p className="mt-0.5">This vehicle has no recorded delivery shipments matching the filter.</p>
+                  <span className="font-semibold text-foreground">
+                    No trip records found for this filter
+                  </span>
+                  <p className="mt-0.5">
+                    This vehicle has no recorded delivery shipments matching the filter.
+                  </p>
                 </div>
               </Card>
             ) : (
@@ -267,7 +272,9 @@ export function VehicleDeliveryHistoryView() {
                   <TableHeader className="bg-muted/40">
                     <TableRow>
                       <TableHead className="text-xs font-semibold">Delivery #</TableHead>
-                      <TableHead className="text-xs font-semibold">Customer & Destination</TableHead>
+                      <TableHead className="text-xs font-semibold">
+                        Customer & Destination
+                      </TableHead>
                       <TableHead className="text-xs font-semibold">Dispatched At</TableHead>
                       <TableHead className="text-xs font-semibold">Delivered At</TableHead>
                       <TableHead className="text-xs font-semibold text-center">Status</TableHead>

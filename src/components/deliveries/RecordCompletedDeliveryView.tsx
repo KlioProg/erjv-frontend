@@ -12,7 +12,10 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { useOutgoingDeliveries, useCompleteOutgoingDelivery } from '@/features/logistics/outgoing-deliveries.hooks'
+import {
+  useOutgoingDeliveries,
+  useCompleteOutgoingDelivery,
+} from '@/features/logistics/outgoing-deliveries.hooks'
 import { useWarehouses } from '@/features/logistics/warehouses.hooks'
 import { useDeliveryVehicles } from '@/features/logistics/delivery-vehicles.hooks'
 import { useEmployees } from '@/features/staffing/staffing.hooks'
@@ -92,11 +95,17 @@ export function RecordCompletedDeliveryView() {
         </div>
 
         <div className="flex items-center gap-2">
-          <Badge variant="outline" className="text-xs font-semibold px-2.5 py-1 bg-amber-500/10 text-amber-600 border-amber-500/20">
+          <Badge
+            variant="outline"
+            className="text-xs font-semibold px-2.5 py-1 bg-amber-500/10 text-amber-600 border-amber-500/20"
+          >
             <span className="size-1.5 rounded-full bg-amber-500 animate-pulse mr-1.5" />
             {inTransitDeliveries.length} In Transit
           </Badge>
-          <Badge variant="outline" className="text-xs font-semibold px-2.5 py-1 bg-emerald-500/10 text-emerald-600 border-emerald-500/20">
+          <Badge
+            variant="outline"
+            className="text-xs font-semibold px-2.5 py-1 bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
+          >
             <CheckCircle2 className="size-3 mr-1 text-emerald-600" />
             {completedDeliveries.length} Delivered
           </Badge>
@@ -122,7 +131,9 @@ export function RecordCompletedDeliveryView() {
           <Card className="flex min-h-[160px] items-center justify-center border-dashed bg-muted/20 shadow-xs rounded-xl">
             <div className="flex flex-col items-center justify-center text-center p-6">
               <CheckCircle2 className="size-7 text-emerald-600 mb-2" />
-              <span className="text-xs font-semibold text-foreground">All shipments have arrived and are accounted for!</span>
+              <span className="text-xs font-semibold text-foreground">
+                All shipments have arrived and are accounted for!
+              </span>
               <p className="text-[11px] text-muted-foreground mt-0.5">
                 No fleet vehicles are currently pending delivery completion.
               </p>
@@ -164,11 +175,15 @@ export function RecordCompletedDeliveryView() {
                         <span className="font-bold text-foreground text-sm truncate">
                           {client?.name || 'Customer Destination'}
                         </span>
-                        <span className="font-medium text-foreground/80 truncate text-xs mt-0.5" title={order?.deliveryAddress}>
+                        <span
+                          className="font-medium text-foreground/80 truncate text-xs mt-0.5"
+                          title={order?.deliveryAddress}
+                        >
                           {order?.deliveryAddress || 'Client Delivery Address'}
                         </span>
                         <span className="text-[11px] text-muted-foreground mt-0.5">
-                          Order #{delivery.salesOrderId} • Origin: {warehouse?.name || `Warehouse #${delivery.warehouseId}`}
+                          Order #{delivery.salesOrderId} • Origin:{' '}
+                          {warehouse?.name || `Warehouse #${delivery.warehouseId}`}
                         </span>
                       </div>
                     </div>
@@ -179,7 +194,9 @@ export function RecordCompletedDeliveryView() {
                         <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted/40 border border-border/50 text-[11px] font-mono">
                           <Truck className="size-3 text-blue-600 shrink-0" />
                           <span className="font-bold text-foreground">{vehicle.plateNumber}</span>
-                          <span className="text-muted-foreground font-sans">({vehicle.vehicleType})</span>
+                          <span className="text-muted-foreground font-sans">
+                            ({vehicle.vehicleType})
+                          </span>
                         </div>
                       )}
 
@@ -255,7 +272,9 @@ export function RecordCompletedDeliveryView() {
 
         {completedDeliveries.length === 0 ? (
           <Card className="flex min-h-[120px] items-center justify-center border-dashed bg-muted/20 shadow-xs rounded-xl">
-            <span className="text-xs text-muted-foreground">No completed delivery receipts recorded yet.</span>
+            <span className="text-xs text-muted-foreground">
+              No completed delivery receipts recorded yet.
+            </span>
           </Card>
         ) : (
           <Card className="overflow-hidden border-border/80 shadow-xs rounded-xl">

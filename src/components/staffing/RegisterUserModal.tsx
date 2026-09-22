@@ -1,15 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import {
-  UserPlus,
-  Mail,
-  Lock,
-  Eye,
-  EyeOff,
-  Shield,
-  Sparkles,
-  User,
-  UserCheck,
-} from 'lucide-react'
+import { UserPlus, Mail, Lock, Eye, EyeOff, Shield, Sparkles, User, UserCheck } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -87,9 +77,7 @@ export function RegisterUserModal({ open, onClose }: RegisterUserModalProps) {
     }
 
     // Client-side pre-validation: check for duplicate email
-    const duplicateUser = existingUsers.find(
-      (u) => u.email.toLowerCase() === cleanEmail,
-    )
+    const duplicateUser = existingUsers.find((u) => u.email.toLowerCase() === cleanEmail)
     if (duplicateUser) {
       setErrorMsg(
         duplicateUser.isActive
@@ -119,8 +107,7 @@ export function RegisterUserModal({ open, onClose }: RegisterUserModalProps) {
         email: cleanEmail,
         password,
         role,
-        employeeId:
-          selectedEmployeeId !== 'none' ? Number(selectedEmployeeId) : undefined,
+        employeeId: selectedEmployeeId !== 'none' ? Number(selectedEmployeeId) : undefined,
       })
 
       handleClose()
@@ -138,9 +125,7 @@ export function RegisterUserModal({ open, onClose }: RegisterUserModalProps) {
               <UserPlus className="size-4" />
             </div>
             <div>
-              <DialogTitle className="text-base font-semibold">
-                Register User Account
-              </DialogTitle>
+              <DialogTitle className="text-base font-semibold">Register User Account</DialogTitle>
               <DialogDescription className="text-xs text-muted-foreground">
                 Provision a new user account and set initial access permissions.
               </DialogDescription>
@@ -195,7 +180,10 @@ export function RegisterUserModal({ open, onClose }: RegisterUserModalProps) {
                 <SelectValue placeholder="Select role" />
               </SelectTrigger>
               <SelectContent className="p-1">
-                <SelectItem value={USER_ROLES.STAFF} className="text-xs cursor-pointer py-2.5 px-3 rounded-lg">
+                <SelectItem
+                  value={USER_ROLES.STAFF}
+                  className="text-xs cursor-pointer py-2.5 px-3 rounded-lg"
+                >
                   <div className="flex items-center gap-3 py-0.5">
                     <div className="size-8 rounded-lg bg-muted flex items-center justify-center shrink-0">
                       <User className="size-4 text-muted-foreground" />
@@ -210,7 +198,10 @@ export function RegisterUserModal({ open, onClose }: RegisterUserModalProps) {
                     </div>
                   </div>
                 </SelectItem>
-                <SelectItem value={USER_ROLES.MANAGER} className="text-xs cursor-pointer py-2.5 px-3 rounded-lg">
+                <SelectItem
+                  value={USER_ROLES.MANAGER}
+                  className="text-xs cursor-pointer py-2.5 px-3 rounded-lg"
+                >
                   <div className="flex items-center gap-3 py-0.5">
                     <div className="size-8 rounded-lg bg-blue-500/10 flex items-center justify-center shrink-0">
                       <Shield className="size-4 text-blue-600 dark:text-blue-400" />
@@ -225,7 +216,10 @@ export function RegisterUserModal({ open, onClose }: RegisterUserModalProps) {
                     </div>
                   </div>
                 </SelectItem>
-                <SelectItem value={USER_ROLES.ADMIN} className="text-xs cursor-pointer py-2.5 px-3 rounded-lg">
+                <SelectItem
+                  value={USER_ROLES.ADMIN}
+                  className="text-xs cursor-pointer py-2.5 px-3 rounded-lg"
+                >
                   <div className="flex items-center gap-3 py-0.5">
                     <div className="size-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
                       <Sparkles className="size-4 text-primary" />
@@ -252,7 +246,8 @@ export function RegisterUserModal({ open, onClose }: RegisterUserModalProps) {
                   Link to Staff Profile (Optional)
                 </Label>
                 <span className="text-[10px] text-muted-foreground">
-                  {unlinkedEmployees.length} unlinked profile{unlinkedEmployees.length === 1 ? '' : 's'}
+                  {unlinkedEmployees.length} unlinked profile
+                  {unlinkedEmployees.length === 1 ? '' : 's'}
                 </span>
               </div>
               <Select
@@ -268,15 +263,17 @@ export function RegisterUserModal({ open, onClose }: RegisterUserModalProps) {
                     <span className="text-muted-foreground italic">None (Standalone Account)</span>
                   </SelectItem>
                   {unlinkedEmployees.map((emp) => (
-                    <SelectItem key={emp.id} value={String(emp.id)} className="text-xs cursor-pointer py-2">
+                    <SelectItem
+                      key={emp.id}
+                      value={String(emp.id)}
+                      className="text-xs cursor-pointer py-2"
+                    >
                       <div className="flex items-center gap-2">
                         <UserCheck className="size-3.5 text-emerald-600 shrink-0" />
                         <span>
                           {emp.firstName} {emp.lastName}
                         </span>
-                        <span className="text-[10px] text-muted-foreground">
-                          (Staff #{emp.id})
-                        </span>
+                        <span className="text-[10px] text-muted-foreground">(Staff #{emp.id})</span>
                       </div>
                     </SelectItem>
                   ))}
@@ -344,7 +341,11 @@ export function RegisterUserModal({ open, onClose }: RegisterUserModalProps) {
                 tabIndex={-1}
                 aria-label={showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
               >
-                {showConfirmPassword ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+                {showConfirmPassword ? (
+                  <EyeOff className="size-3.5" />
+                ) : (
+                  <Eye className="size-3.5" />
+                )}
               </button>
             </div>
           </div>
@@ -354,7 +355,8 @@ export function RegisterUserModal({ open, onClose }: RegisterUserModalProps) {
             <Sparkles className="size-4 text-primary shrink-0 mt-0.5" />
             <div>
               <span className="font-semibold text-foreground">Admin Provisioning: </span>
-              This account will be created immediately. The user can sign in right away using these credentials. You can modify their role or archive the account anytime.
+              This account will be created immediately. The user can sign in right away using these
+              credentials. You can modify their role or archive the account anytime.
             </div>
           </div>
 

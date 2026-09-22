@@ -250,7 +250,10 @@ export function PurchasesView({ onNavigateToDeliveries }: PurchasesViewProps = {
                 {purchaseOrders.length}
               </span>
             </TabsTrigger>
-            <TabsTrigger value="suppliers" className="gap-2 text-xs font-semibold px-4 cursor-pointer">
+            <TabsTrigger
+              value="suppliers"
+              className="gap-2 text-xs font-semibold px-4 cursor-pointer"
+            >
               <Building2 className="size-3.5" />
               <span>Supplier Directory</span>
               <span className="ml-1 rounded-full bg-muted text-muted-foreground px-2 py-0.5 text-[10px] font-mono font-bold">
@@ -295,7 +298,10 @@ export function PurchasesView({ onNavigateToDeliveries }: PurchasesViewProps = {
                 <Info className="size-4 text-primary shrink-0" />
                 <span>
                   Delivered shipments are scheduled and received in{' '}
-                  <strong className="text-foreground font-semibold">Deliveries Hub → Inbound Receiving</strong>.
+                  <strong className="text-foreground font-semibold">
+                    Deliveries Hub → Inbound Receiving
+                  </strong>
+                  .
                 </span>
               </div>
               {onNavigateToDeliveries && (
@@ -380,9 +386,7 @@ export function PurchasesView({ onNavigateToDeliveries }: PurchasesViewProps = {
                     const total = (po.items || []).reduce(
                       (sum, item) =>
                         sum +
-                        Number(
-                          item.totalAmount || Number(item.quantity) * Number(item.unitPrice),
-                        ),
+                        Number(item.totalAmount || Number(item.quantity) * Number(item.unitPrice)),
                       0,
                     )
 
@@ -402,10 +406,10 @@ export function PurchasesView({ onNavigateToDeliveries }: PurchasesViewProps = {
 
                     const expectedDate = po.expectedAt
                       ? new Date(po.expectedAt).toLocaleDateString('en-US', {
-                        year: 'numeric',
-                        month: 'short',
-                        day: 'numeric',
-                      })
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric',
+                        })
                       : 'Not set'
 
                     return (
@@ -547,7 +551,10 @@ export function PurchasesView({ onNavigateToDeliveries }: PurchasesViewProps = {
         </TabsContent>
 
         {/* Suppliers Directory Section */}
-        <TabsContent value="suppliers" className="mt-0 focus-visible:outline-none flex flex-col gap-5">
+        <TabsContent
+          value="suppliers"
+          className="mt-0 focus-visible:outline-none flex flex-col gap-5"
+        >
           <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
             <div className="relative w-full sm:w-80">
               <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -628,17 +635,21 @@ export function PurchasesView({ onNavigateToDeliveries }: PurchasesViewProps = {
                         )}
                       </TableCell>
 
-                      <TableCell className="text-xs text-muted-foreground max-w-[200px] truncate" title={supplier.address || ''}>
+                      <TableCell
+                        className="text-xs text-muted-foreground max-w-[200px] truncate"
+                        title={supplier.address || ''}
+                      >
                         {supplier.address || '—'}
                       </TableCell>
 
                       <TableCell className="text-center">
                         <Badge
                           variant="outline"
-                          className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${supplier.isActive
+                          className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                            supplier.isActive
                               ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20'
                               : 'bg-muted text-muted-foreground border-border'
-                            }`}
+                          }`}
                         >
                           {supplier.isActive ? 'Active' : 'Inactive'}
                         </Badge>

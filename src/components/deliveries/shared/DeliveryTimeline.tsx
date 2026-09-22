@@ -97,7 +97,11 @@ export function DeliveryTimeline({ delivery }: DeliveryTimelineProps) {
             </div>
             <span
               className={`text-xs font-bold leading-tight ${
-                step.active ? 'text-primary' : step.completed ? 'text-foreground' : 'text-muted-foreground'
+                step.active
+                  ? 'text-primary'
+                  : step.completed
+                    ? 'text-foreground'
+                    : 'text-muted-foreground'
               }`}
             >
               {step.title}

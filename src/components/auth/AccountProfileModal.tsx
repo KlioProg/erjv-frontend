@@ -47,7 +47,8 @@ const AVATAR_PRESETS = [
 function AccountProfileForm({ onClose }: { onClose: () => void }) {
   const { user, updateProfile, isAdmin } = useAuth()
   const queryClient = useQueryClient()
-  const roleConfig = ROLE_DETAILS[user?.role || USER_ROLES.UNKNOWN] || ROLE_DETAILS[USER_ROLES.UNKNOWN]
+  const roleConfig =
+    ROLE_DETAILS[user?.role || USER_ROLES.UNKNOWN] || ROLE_DETAILS[USER_ROLES.UNKNOWN]
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   const [fullName, setFullName] = useState(user?.fullName || '')
@@ -153,10 +154,7 @@ function AccountProfileForm({ onClose }: { onClose: () => void }) {
           <div className="flex flex-col gap-1 text-center sm:text-left flex-1 min-w-0">
             <div className="flex items-center justify-center sm:justify-start gap-2">
               <span className="text-xs font-bold text-foreground">Profile Picture</span>
-              <Badge
-                variant="outline"
-                className={`text-[10px] ${roleConfig.badgeClass}`}
-              >
+              <Badge variant="outline" className={`text-[10px] ${roleConfig.badgeClass}`}>
                 {roleConfig.label}
               </Badge>
             </div>

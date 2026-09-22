@@ -21,7 +21,12 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { useOutgoingDeliveries, useScheduleOutgoingDelivery, useCompleteOutgoingDelivery, useCancelOutgoingDelivery } from '@/features/logistics/outgoing-deliveries.hooks'
+import {
+  useOutgoingDeliveries,
+  useScheduleOutgoingDelivery,
+  useCompleteOutgoingDelivery,
+  useCancelOutgoingDelivery,
+} from '@/features/logistics/outgoing-deliveries.hooks'
 import { useSalesOrders } from '@/features/crm/sales-orders.hooks'
 import { useClients } from '@/features/crm/clients.hooks'
 import { useWarehouses } from '@/features/logistics/warehouses.hooks'
@@ -134,7 +139,9 @@ export function DeliveryStatusControlView() {
               <span>{tab.label}</span>
               <span
                 className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full ${
-                  isActive ? 'bg-primary-foreground/20 text-primary-foreground' : 'bg-muted text-muted-foreground'
+                  isActive
+                    ? 'bg-primary-foreground/20 text-primary-foreground'
+                    : 'bg-muted text-muted-foreground'
                 }`}
               >
                 {count}
@@ -154,7 +161,9 @@ export function DeliveryStatusControlView() {
           <div className="flex flex-col items-center justify-center text-center p-6">
             <SlidersHorizontal className="size-8 text-muted-foreground/40 mb-2" />
             <span className="text-sm font-semibold text-foreground">
-              {searchTerm.trim() ? `No shipments match "${searchTerm.trim()}"` : 'No deliveries found'}
+              {searchTerm.trim()
+                ? `No shipments match "${searchTerm.trim()}"`
+                : 'No deliveries found'}
             </span>
             <p className="text-xs text-muted-foreground mt-1 max-w-sm">
               Try selecting a different status filter tab or search term.
@@ -211,7 +220,8 @@ export function DeliveryStatusControlView() {
                           </span>
                         </div>
                         <span className="text-[10px] font-mono text-muted-foreground mt-0.5">
-                          Order #{delivery.salesOrderId} • {delivery.items.length} {delivery.items.length === 1 ? 'item' : 'items'}
+                          Order #{delivery.salesOrderId} • {delivery.items.length}{' '}
+                          {delivery.items.length === 1 ? 'item' : 'items'}
                         </span>
                       </div>
                     </TableCell>
@@ -227,10 +237,14 @@ export function DeliveryStatusControlView() {
                           <div className="flex items-center gap-1.5 font-mono text-[11px] mt-0.5">
                             <Truck className="size-3 text-blue-600 shrink-0" />
                             <span className="font-bold text-foreground">{vehicle.plateNumber}</span>
-                            <span className="text-[10px] text-muted-foreground font-sans">({vehicle.vehicleType})</span>
+                            <span className="text-[10px] text-muted-foreground font-sans">
+                              ({vehicle.vehicleType})
+                            </span>
                           </div>
                         ) : (
-                          <span className="text-muted-foreground text-[11px] italic mt-0.5">Vehicle Unassigned</span>
+                          <span className="text-muted-foreground text-[11px] italic mt-0.5">
+                            Vehicle Unassigned
+                          </span>
                         )}
 
                         {driver && (
@@ -307,7 +321,11 @@ export function DeliveryStatusControlView() {
                             size="sm"
                             variant="ghost"
                             onClick={() => {
-                              if (window.confirm(`Are you sure you want to cancel delivery shipment ${delivery.deliveryNumber}?`)) {
+                              if (
+                                window.confirm(
+                                  `Are you sure you want to cancel delivery shipment ${delivery.deliveryNumber}?`,
+                                )
+                              ) {
                                 cancelMutation.mutate(delivery.id)
                               }
                             }}

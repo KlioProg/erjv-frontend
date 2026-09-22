@@ -317,9 +317,7 @@ export function IncomingDeliveriesView() {
                       {cargoSummary || 'No cargo listed'}
                     </TableCell>
 
-                    <TableCell className="text-xs text-muted-foreground">
-                      {arrivalDate}
-                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{arrivalDate}</TableCell>
 
                     <TableCell className="text-center">
                       {renderStatusBadge(delivery.status)}

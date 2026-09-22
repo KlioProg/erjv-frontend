@@ -104,8 +104,12 @@ export function DeliveryDetailModal({ deliveryId, open, onClose }: DeliveryDetai
                   <span className="text-[10px] uppercase font-bold text-muted-foreground">
                     Fulfillment Warehouse
                   </span>
-                  <span className="font-bold text-foreground">{warehouse?.name || `Warehouse #${delivery.warehouseId}`}</span>
-                  <span className="text-[11px] text-muted-foreground truncate">{warehouse?.address || 'No location specified'}</span>
+                  <span className="font-bold text-foreground">
+                    {warehouse?.name || `Warehouse #${delivery.warehouseId}`}
+                  </span>
+                  <span className="text-[11px] text-muted-foreground truncate">
+                    {warehouse?.address || 'No location specified'}
+                  </span>
                 </div>
               </div>
 
@@ -119,7 +123,8 @@ export function DeliveryDetailModal({ deliveryId, open, onClose }: DeliveryDetai
                     {vehicle ? `${vehicle.plateNumber} (${vehicle.vehicleType})` : 'Unassigned'}
                   </span>
                   <span className="text-[11px] text-muted-foreground">
-                    {vehicle?.model ? `${vehicle.model} • ` : ''}Capacity: {vehicle?.capacity || 'Standard'}
+                    {vehicle?.model ? `${vehicle.model} • ` : ''}Capacity:{' '}
+                    {vehicle?.capacity || 'Standard'}
                   </span>
                 </div>
               </div>
@@ -133,7 +138,9 @@ export function DeliveryDetailModal({ deliveryId, open, onClose }: DeliveryDetai
                   <span className="font-bold text-foreground">
                     {driver ? `${driver.firstName} ${driver.lastName}` : 'Unassigned'}
                   </span>
-                  <span className="text-[11px] text-muted-foreground">{driver?.phone || driver?.email || 'No contact listed'}</span>
+                  <span className="text-[11px] text-muted-foreground">
+                    {driver?.phone || driver?.email || 'No contact listed'}
+                  </span>
                 </div>
               </div>
 
@@ -172,11 +179,14 @@ export function DeliveryDetailModal({ deliveryId, open, onClose }: DeliveryDetai
                   </thead>
                   <tbody className="divide-y divide-border/60">
                     {delivery.items.map((item, index) => {
-                      const orderItem = order?.items.find((oi) =>
-                        oi.allocations.some((a) => a.id === item.salesOrderAllocationId) ||
-                        oi.id === item.salesOrderAllocation?.salesOrderItemId
+                      const orderItem = order?.items.find(
+                        (oi) =>
+                          oi.allocations.some((a) => a.id === item.salesOrderAllocationId) ||
+                          oi.id === item.salesOrderAllocation?.salesOrderItemId,
                       )
-                      const product = orderItem ? products.find((p) => p.id === orderItem.inventoryItemId) : null
+                      const product = orderItem
+                        ? products.find((p) => p.id === orderItem.inventoryItemId)
+                        : null
 
                       return (
                         <tr key={item.id} className="hover:bg-muted/10">

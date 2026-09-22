@@ -83,7 +83,9 @@ function EmployeeJobBadges({ employeeId }: { employeeId: number }) {
 export function EmployeeList() {
   const [activeTab, setActiveTab] = useState<'ACTIVE' | 'ARCHIVED'>('ACTIVE')
   const { data: allEmployees = [], isLoading, error, refetch } = useAllEmployees()
-  const deactivateMutation = useDeactivateEmployee({ onViewArchive: () => setActiveTab('ARCHIVED') })
+  const deactivateMutation = useDeactivateEmployee({
+    onViewArchive: () => setActiveTab('ARCHIVED'),
+  })
   const reactivateMutation = useReactivateEmployee()
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null)
@@ -184,11 +186,10 @@ export function EmployeeList() {
             <div className="size-12 rounded-2xl bg-destructive/10 border border-destructive/20 flex items-center justify-center text-destructive mb-3 shadow-2xs">
               <AlertCircle className="size-6" />
             </div>
-            <h3 className="text-sm font-semibold text-foreground">
-              Unable to load employees
-            </h3>
+            <h3 className="text-sm font-semibold text-foreground">Unable to load employees</h3>
             <p className="text-xs text-muted-foreground mt-1 max-w-sm">
-              We encountered an issue connecting to the service. Please check your network connection and try again.
+              We encountered an issue connecting to the service. Please check your network
+              connection and try again.
             </p>
             <Button
               variant="outline"
@@ -360,7 +361,9 @@ export function EmployeeList() {
                               ) : (
                                 <RotateCcw className="size-3.5 text-emerald-600 dark:text-emerald-600 transition-transform duration-200 group-hover:-rotate-45" />
                               )}
-                              <span>{isReactivatingThis ? 'Reactivating...' : 'Reactivate Profile'}</span>
+                              <span>
+                                {isReactivatingThis ? 'Reactivating...' : 'Reactivate Profile'}
+                              </span>
                             </Button>
                           )
                         })()

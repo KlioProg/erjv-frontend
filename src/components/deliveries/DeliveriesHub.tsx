@@ -29,11 +29,16 @@ interface TabConfig {
 }
 
 const TAB_DESCRIPTIONS: Record<DeliverySubTab, string> = {
-  schedule: 'Match confirmed customer sales orders to warehouse stock allocations and plan shipments.',
-  status: 'Assign available fleet vehicles and drivers, manage shipment schedules, and dispatch trucks.',
-  completed: 'Welcome arriving trucks at customer destinations and record verified delivery receipts.',
-  incoming: 'Receive and inspect incoming supplier shipments from purchase orders into destination warehouses.',
-  history: 'Audit fleet vehicle trip histories, delivery success rates, and manage vehicle readiness.',
+  schedule:
+    'Match confirmed customer sales orders to warehouse stock allocations and plan shipments.',
+  status:
+    'Assign available fleet vehicles and drivers, manage shipment schedules, and dispatch trucks.',
+  completed:
+    'Welcome arriving trucks at customer destinations and record verified delivery receipts.',
+  incoming:
+    'Receive and inspect incoming supplier shipments from purchase orders into destination warehouses.',
+  history:
+    'Audit fleet vehicle trip histories, delivery success rates, and manage vehicle readiness.',
 }
 
 export interface DeliveriesHubProps {
@@ -50,9 +55,8 @@ export function DeliveriesHub({ initialTab = 'schedule' }: DeliveriesHubProps = 
 
   const readyOrdersCount = useMemo(
     () =>
-      salesOrders.filter(
-        (o) => o.status === 'CONFIRMED' || o.status === 'PARTIALLY_DELIVERED',
-      ).length,
+      salesOrders.filter((o) => o.status === 'CONFIRMED' || o.status === 'PARTIALLY_DELIVERED')
+        .length,
     [salesOrders],
   )
 
@@ -112,9 +116,12 @@ export function DeliveriesHub({ initialTab = 'schedule' }: DeliveriesHubProps = 
       {/* Refined Minimalist Header Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-border/60">
         <div>
-          <h1 className="text-xl font-bold tracking-tight text-foreground">Deliveries & Logistics</h1>
+          <h1 className="text-xl font-bold tracking-tight text-foreground">
+            Deliveries & Logistics
+          </h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Coordinate warehouse dispatches, monitor active transit routes, and verify delivered goods.
+            Coordinate warehouse dispatches, monitor active transit routes, and verify delivered
+            goods.
           </p>
         </div>
 
@@ -139,11 +146,23 @@ export function DeliveriesHub({ initialTab = 'schedule' }: DeliveriesHubProps = 
           let badgeColor = 'bg-muted text-muted-foreground'
           if (isActive) {
             badgeColor = 'bg-primary/10 text-primary font-bold border border-primary/20'
-          } else if (tab.badgeVariant === 'amber' && typeof tab.badgeCount === 'number' && tab.badgeCount > 0) {
+          } else if (
+            tab.badgeVariant === 'amber' &&
+            typeof tab.badgeCount === 'number' &&
+            tab.badgeCount > 0
+          ) {
             badgeColor = 'bg-amber-500/15 text-amber-600 dark:text-amber-400 font-bold'
-          } else if (tab.badgeVariant === 'blue' && typeof tab.badgeCount === 'number' && tab.badgeCount > 0) {
+          } else if (
+            tab.badgeVariant === 'blue' &&
+            typeof tab.badgeCount === 'number' &&
+            tab.badgeCount > 0
+          ) {
             badgeColor = 'bg-blue-500/15 text-blue-600 dark:text-blue-400 font-bold'
-          } else if (tab.badgeVariant === 'emerald' && typeof tab.badgeCount === 'number' && tab.badgeCount > 0) {
+          } else if (
+            tab.badgeVariant === 'emerald' &&
+            typeof tab.badgeCount === 'number' &&
+            tab.badgeCount > 0
+          ) {
             badgeColor = 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-bold'
           }
 
@@ -157,7 +176,9 @@ export function DeliveriesHub({ initialTab = 'schedule' }: DeliveriesHubProps = 
                     : 'text-muted-foreground hover:text-foreground hover:bg-background/60'
                 }`}
               >
-                <Icon className={`size-3.5 shrink-0 ${isActive ? 'text-primary' : 'text-muted-foreground'}`} />
+                <Icon
+                  className={`size-3.5 shrink-0 ${isActive ? 'text-primary' : 'text-muted-foreground'}`}
+                />
                 <span>{tab.label}</span>
                 {typeof tab.badgeCount === 'number' && tab.badgeCount > 0 && (
                   <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full ${badgeColor}`}>

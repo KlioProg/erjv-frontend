@@ -43,18 +43,18 @@ export function ArchiveTabNav({
           <button
             type="button"
             onClick={() => onTabChange('ACTIVE')}
-            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-150 active:scale-95 cursor-pointer select-none ${!isArchiveSelected
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-150 active:scale-95 cursor-pointer select-none ${
+              !isArchiveSelected
                 ? 'bg-background text-foreground shadow-2xs border border-border/60'
                 : 'text-muted-foreground hover:text-foreground hover:bg-background/40'
-              }`}
+            }`}
           >
             {activeIcon}
             <span>{activeLabel}</span>
             <span
-              className={`ml-0.5 px-2 py-0.5 rounded-full text-[11px] font-extrabold transition-colors ${!isArchiveSelected
-                  ? 'bg-primary/10 text-primary'
-                  : 'bg-muted text-muted-foreground'
-                }`}
+              className={`ml-0.5 px-2 py-0.5 rounded-full text-[11px] font-extrabold transition-colors ${
+                !isArchiveSelected ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'
+              }`}
             >
               {activeCount}
             </span>
@@ -84,9 +84,7 @@ export function ArchiveTabNav({
             <span>{archivedLabel}</span>
             <span
               className={`ml-0.5 px-2 py-0.5 rounded-full text-[11px] font-extrabold transition-colors ${
-                isArchiveSelected
-                  ? 'bg-primary/10 text-primary'
-                  : 'bg-muted text-muted-foreground'
+                isArchiveSelected ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'
               }`}
             >
               {archivedCount}

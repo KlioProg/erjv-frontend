@@ -116,13 +116,13 @@ export function LowStockList() {
       const prodName = item.enrichedProduct?.name?.toLowerCase() || ''
       const prodVariety = item.enrichedProduct?.variety?.toLowerCase() || ''
       const matchesSearch =
-        prodName.includes(searchTerm.toLowerCase()) || prodVariety.includes(searchTerm.toLowerCase())
+        prodName.includes(searchTerm.toLowerCase()) ||
+        prodVariety.includes(searchTerm.toLowerCase())
 
       const matchesWarehouse =
         selectedWarehouseId === 'ALL' || String(item.warehouseId) === selectedWarehouseId
 
-      const matchesSeverity =
-        severityFilter === 'ALL' || item.severity === severityFilter
+      const matchesSeverity = severityFilter === 'ALL' || item.severity === severityFilter
 
       return matchesSearch && matchesWarehouse && matchesSeverity
     })
@@ -149,9 +149,7 @@ export function LowStockList() {
           }`}
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-foreground">
-              Out of Stock
-            </span>
+            <span className="text-xs font-bold text-foreground">Out of Stock</span>
             <div className="size-8 rounded-full bg-rose-500/15 border border-rose-500/30 text-rose-600 dark:text-rose-400 flex items-center justify-center shadow-2xs">
               <Flame className="size-4" />
             </div>
@@ -173,9 +171,7 @@ export function LowStockList() {
           }`}
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-foreground">
-              Critical Level (≤10)
-            </span>
+            <span className="text-xs font-bold text-foreground">Critical Level (≤10)</span>
             <div className="size-8 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-600 dark:text-[#ffb627] flex items-center justify-center shadow-2xs">
               <AlertTriangle className="size-4" />
             </div>
@@ -197,16 +193,16 @@ export function LowStockList() {
           }`}
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-foreground">
-              Low Buffer (≤{threshold})
-            </span>
+            <span className="text-xs font-bold text-foreground">Low Buffer (≤{threshold})</span>
             <div className="size-8 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-600 dark:text-[#ffb627] flex items-center justify-center shadow-2xs">
               <Boxes className="size-4" />
             </div>
           </div>
           <div className="mt-3">
             <div className="text-2xl font-extrabold text-foreground">{kpis.lowCount}</div>
-            <p className="text-[11px] text-muted-foreground mt-0.5">Below replenishment threshold</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              Below replenishment threshold
+            </p>
           </div>
         </Card>
 
@@ -299,10 +295,7 @@ export function LowStockList() {
           <span className="text-[11px] font-semibold text-muted-foreground whitespace-nowrap">
             Alert Threshold:
           </span>
-          <Select
-            value={String(threshold)}
-            onValueChange={(val) => setThreshold(Number(val))}
-          >
+          <Select value={String(threshold)} onValueChange={(val) => setThreshold(Number(val))}>
             <SelectTrigger className="h-8 text-xs w-24 rounded-lg">
               <SelectValue placeholder="Threshold" />
             </SelectTrigger>

@@ -1,6 +1,6 @@
-import type { UserRole, BackendUserRole, RoleConfig } from './roles'
-export { USER_ROLES, BACKEND_ROLE_MAP, ROLE_DETAILS } from './roles'
-export type { UserRole, BackendUserRole, RoleConfig }
+import type { UserRole, RoleConfig } from './roles'
+export { USER_ROLES, ROLE_DETAILS } from './roles'
+export type { UserRole, RoleConfig }
 
 export type AuthMode = 'login' | 'signup' | 'forgot-password'
 

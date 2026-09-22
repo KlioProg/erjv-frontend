@@ -288,7 +288,9 @@ export function InventoryItemCatalog() {
                         <Boxes className="size-3.5 text-primary" />
                         <span
                           className={
-                            stockData.total === 0 ? 'text-rose-600 font-extrabold' : 'text-foreground'
+                            stockData.total === 0
+                              ? 'text-rose-600 font-extrabold'
+                              : 'text-foreground'
                           }
                         >
                           {stockData.total.toLocaleString()}

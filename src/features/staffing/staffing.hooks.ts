@@ -483,11 +483,7 @@ export function useDeactivateUser(options?: { onViewArchive?: () => void }) {
       })
     },
     onSuccess: ({ res, inputUser }) => {
-      const name =
-        res?.fullName ??
-        inputUser?.fullName ??
-        inputUser?.email ??
-        'User'
+      const name = res?.fullName ?? inputUser?.fullName ?? inputUser?.email ?? 'User'
 
       toast.success(`User account "${name}" archived`, {
         description: 'Account moved to the Archived Accounts tab.',
@@ -541,11 +537,7 @@ export function useReactivateUser() {
       })
     },
     onSuccess: ({ res, inputUser }) => {
-      const name =
-        res?.fullName ??
-        inputUser?.fullName ??
-        inputUser?.email ??
-        'User'
+      const name = res?.fullName ?? inputUser?.fullName ?? inputUser?.email ?? 'User'
 
       toast.success(`User "${name}" reactivated`)
     },

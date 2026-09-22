@@ -1,9 +1,5 @@
 export type PurchaseOrderStatus =
-  | 'DRAFT'
-  | 'CONFIRMED'
-  | 'PARTIALLY_RECEIVED'
-  | 'RECEIVED'
-  | 'CANCELLED'
+  'DRAFT' | 'CONFIRMED' | 'PARTIALLY_RECEIVED' | 'RECEIVED' | 'CANCELLED'
 
 export interface PurchaseOrderItemRecord {
   id: number

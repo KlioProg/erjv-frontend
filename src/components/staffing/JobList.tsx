@@ -1,5 +1,14 @@
 import { useState } from 'react'
-import { Plus, Briefcase, Edit2, Archive, RotateCcw, CheckCircle2, Search, AlertCircle } from 'lucide-react'
+import {
+  Plus,
+  Briefcase,
+  Edit2,
+  Archive,
+  RotateCcw,
+  CheckCircle2,
+  Search,
+  AlertCircle,
+} from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -134,11 +143,10 @@ export function JobList() {
           <div className="size-12 rounded-2xl bg-destructive/10 border border-destructive/20 flex items-center justify-center text-destructive mb-3 shadow-2xs">
             <AlertCircle className="size-6" />
           </div>
-          <h3 className="text-sm font-semibold text-foreground">
-            Unable to load job positions
-          </h3>
+          <h3 className="text-sm font-semibold text-foreground">Unable to load job positions</h3>
           <p className="text-xs text-muted-foreground mt-1 max-w-sm">
-            We encountered an issue connecting to the service. Please check your network connection and try again.
+            We encountered an issue connecting to the service. Please check your network connection
+            and try again.
           </p>
           <Button
             variant="outline"
@@ -261,7 +269,9 @@ export function JobList() {
                             ) : (
                               <RotateCcw className="size-3.5 text-emerald-600 dark:text-emerald-600 transition-transform duration-200 group-hover:-rotate-45" />
                             )}
-                            <span>{isReactivatingThis ? 'Reactivating...' : 'Reactivate Position'}</span>
+                            <span>
+                              {isReactivatingThis ? 'Reactivating...' : 'Reactivate Position'}
+                            </span>
                           </Button>
                         )
                       })()

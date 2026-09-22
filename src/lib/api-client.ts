@@ -83,12 +83,23 @@ export function humanizeErrorMessage(raw: string, status?: number): string {
   }
 
   // 3. Permission / Forbidden (403)
-  if (status === 403 || lower.includes('forbidden') || lower.includes('403') || lower.includes('access denied')) {
+  if (
+    status === 403 ||
+    lower.includes('forbidden') ||
+    lower.includes('403') ||
+    lower.includes('access denied')
+  ) {
     return 'Access denied. Your account does not have permission to perform this action.'
   }
 
   // 4. Authentication / Unauthorized (401)
-  if (status === 401 || lower.includes('unauthorized') || lower.includes('401') || lower.includes('jwt') || lower.includes('token')) {
+  if (
+    status === 401 ||
+    lower.includes('unauthorized') ||
+    lower.includes('401') ||
+    lower.includes('jwt') ||
+    lower.includes('token')
+  ) {
     return 'Your session has expired or authentication failed. Please sign in again to continue.'
   }
 
@@ -116,7 +127,10 @@ export function humanizeErrorMessage(raw: string, status?: number): string {
   if (lower.includes('delivery quantity exceeds remaining allocation')) {
     return 'Delivery quantity exceeds the remaining unfulfilled allocation for this sales order.'
   }
-  if (lower.includes('insufficient available stock') || lower.includes('insufficient physical or reserved stock')) {
+  if (
+    lower.includes('insufficient available stock') ||
+    lower.includes('insufficient physical or reserved stock')
+  ) {
     return 'Insufficient warehouse stock available to fulfill this allocation.'
   }
   if (lower.includes('sales order is not deliverable')) {
@@ -310,7 +324,11 @@ export function getErrorMessage(error: unknown): string {
     }
 
     // 7. Clean validation or domain message if available from server
-    if (serverMessage && !lower.includes('internal server error') && !lower.includes('status code')) {
+    if (
+      serverMessage &&
+      !lower.includes('internal server error') &&
+      !lower.includes('status code')
+    ) {
       return humanizeErrorMessage(serverMessage, status)
     }
 

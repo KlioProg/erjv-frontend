@@ -33,7 +33,12 @@ export function normalizeUserRole(rawRole: unknown): UserRole {
   const str = String(rawRole).trim().toUpperCase()
 
   // 1. Top Tier: ADMIN (also maps legacy OWNER so OWNER is never shown in frontend)
-  if (str === USER_ROLES.ADMIN || str === 'OWNER' || str === 'SUPER_ADMIN' || str === 'SUPERADMIN') {
+  if (
+    str === USER_ROLES.ADMIN ||
+    str === 'OWNER' ||
+    str === 'SUPER_ADMIN' ||
+    str === 'SUPERADMIN'
+  ) {
     return USER_ROLES.ADMIN
   }
 

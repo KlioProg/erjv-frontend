@@ -1,7 +1,14 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react'
 import { AlertTriangle, RefreshCw, Home } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
 
 interface Props {
   children: ReactNode
@@ -79,12 +86,7 @@ export class ErrorBoundary extends Component<Props, State> {
             </CardContent>
 
             <CardFooter className="flex items-center justify-end gap-2 pt-2 border-t border-border/60">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={this.handleReset}
-                className="text-xs"
-              >
+              <Button variant="outline" size="sm" onClick={this.handleReset} className="text-xs">
                 <Home className="size-3.5 mr-1.5" />
                 Try Again
               </Button>

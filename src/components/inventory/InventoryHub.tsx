@@ -1,9 +1,5 @@
 import { useState, useMemo } from 'react'
-import {
-  Warehouse as WarehouseIcon,
-  Package,
-  AlertTriangle,
-} from 'lucide-react'
+import { Warehouse as WarehouseIcon, Package, AlertTriangle } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { useStockItems } from '@/features/logistics/stock-items.hooks'
 import { InventoryStockList } from '@/components/operations/InventoryStockList'

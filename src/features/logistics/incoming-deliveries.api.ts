@@ -12,9 +12,7 @@ export async function fetchIncomingDeliveriesApi(
   return extractArray<IncomingDeliveryRecord>(response.data)
 }
 
-export async function fetchIncomingDeliveryByIdApi(
-  id: number,
-): Promise<IncomingDeliveryRecord> {
+export async function fetchIncomingDeliveryByIdApi(id: number): Promise<IncomingDeliveryRecord> {
   const { data } = await apiClient.get<IncomingDeliveryRecord>(`/incoming-deliveries/${id}`)
   return data
 }
@@ -39,7 +37,9 @@ export async function createIncomingDeliveryApi(
     purchaseOrderId: payload.purchaseOrderId,
     warehouseId: payload.warehouseId,
     ...(payload.scheduledAt ? { scheduledAt: new Date(payload.scheduledAt).toISOString() } : {}),
-    ...(payload.supplierReference?.trim() ? { supplierReference: payload.supplierReference.trim() } : {}),
+    ...(payload.supplierReference?.trim()
+      ? { supplierReference: payload.supplierReference.trim() }
+      : {}),
     ...(payload.notes?.trim() ? { notes: payload.notes.trim() } : {}),
     items: payload.items.map((item) => ({
       purchaseOrderItemId: item.purchaseOrderItemId,
@@ -47,31 +47,28 @@ export async function createIncomingDeliveryApi(
     })),
   }
 
-  const { data } = await apiClient.post<IncomingDeliveryRecord>('/incoming-deliveries', cleanPayload)
+  const { data } = await apiClient.post<IncomingDeliveryRecord>(
+    '/incoming-deliveries',
+    cleanPayload,
+  )
   return data
 }
 
-export async function scheduleIncomingDeliveryApi(
-  id: number,
-): Promise<IncomingDeliveryRecord> {
+export async function scheduleIncomingDeliveryApi(id: number): Promise<IncomingDeliveryRecord> {
   const { data } = await apiClient.patch<IncomingDeliveryRecord>(
     `/incoming-deliveries/${id}/schedule`,
   )
   return data
 }
 
-export async function completeIncomingDeliveryApi(
-  id: number,
-): Promise<IncomingDeliveryRecord> {
+export async function completeIncomingDeliveryApi(id: number): Promise<IncomingDeliveryRecord> {
   const { data } = await apiClient.patch<IncomingDeliveryRecord>(
     `/incoming-deliveries/${id}/complete`,
   )
   return data
 }
 
-export async function cancelIncomingDeliveryApi(
-  id: number,
-): Promise<IncomingDeliveryRecord> {
+export async function cancelIncomingDeliveryApi(id: number): Promise<IncomingDeliveryRecord> {
   const { data } = await apiClient.patch<IncomingDeliveryRecord>(
     `/incoming-deliveries/${id}/cancel`,
   )

@@ -169,9 +169,7 @@ export function useReactivateProduct() {
       void queryClient.invalidateQueries({ queryKey: ['stock-items'] })
     },
     onSuccess: ({ res }) => {
-      toast.success(
-        `Product "${res.name || 'Product'}" reactivated and restored to active catalog`,
-      )
+      toast.success(`Product "${res.name || 'Product'}" reactivated and restored to active catalog`)
     },
   })
 }

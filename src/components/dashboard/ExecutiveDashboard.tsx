@@ -147,7 +147,9 @@ export function ExecutiveDashboard() {
                       {tx.initials}
                     </div>
                     <div>
-                      <h5 className="text-xs font-bold text-foreground leading-tight">{tx.title}</h5>
+                      <h5 className="text-xs font-bold text-foreground leading-tight">
+                        {tx.title}
+                      </h5>
                       <p className="text-[11px] text-muted-foreground mt-0.5">
                         {tx.price}{' '}
                         <span className="font-mono text-muted-foreground/80">{tx.orderNumber}</span>
@@ -209,7 +211,9 @@ export function ExecutiveDashboard() {
                   </div>
 
                   <div className="text-right">
-                    <span className="text-[11px] font-bold text-rose-600 block">{p.stockStatus}</span>
+                    <span className="text-[11px] font-bold text-rose-600 block">
+                      {p.stockStatus}
+                    </span>
                     <span className="text-xs font-extrabold text-foreground">{p.price}</span>
                   </div>
                 </div>
