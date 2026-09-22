@@ -666,7 +666,7 @@ export function InventoryStockList({ onNavigateToLowStock }: InventoryStockListP
         onClose={() => setStockToDelete(null)}
         onConfirm={confirmRemoveStock}
         title="Remove Stock Allocation from Warehouse"
-        description={`Are you sure you want to remove the inventory allocation of this product from ${stockToDelete?.whName}? The product will no longer be tracked at this facility until re-allocated.`}
+        description={`Are you sure you want to remove the inventory allocation of this product from ${stockToDelete?.whName}? Note: Items that already have delivery receipts or stock movement history cannot be deleted to preserve audit integrity and should stay at 0 units (Out of Stock).`}
         itemName={stockToDelete?.prodName}
         itemDetails={
           stockToDelete

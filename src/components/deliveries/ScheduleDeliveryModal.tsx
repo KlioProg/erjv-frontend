@@ -1,4 +1,4 @@
-import { useState, useMemo, type FormEvent } from 'react'
+import { useState, useMemo, useEffect, type FormEvent } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -17,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Calendar, Truck, Warehouse as WarehouseIcon, User, Package, Plus, Minus, MapPin } from 'lucide-react'
+import { Truck, Warehouse as WarehouseIcon, User, Package, Plus, Minus, MapPin, Info } from 'lucide-react'
 import {
   useCreateOutgoingDelivery,
   useScheduleOutgoingDelivery,
@@ -104,6 +104,33 @@ export function ScheduleDeliveryModal({
   const [errorMessage, setErrorMessage] = useState<string>('')
   const [autoSchedule, setAutoSchedule] = useState<boolean>(true)
 
+  // Helper to switch order and auto-populate fulfillment warehouse
+  const selectOrderAndDefaultWarehouse = (orderIdStr: string) => {
+    setSelectedOrderId(orderIdStr)
+    setErrorMessage('')
+
+    const order = salesOrders.find((o) => String(o.id) === orderIdStr)
+    if (order && (order.items || []).length > 0) {
+      // Find first warehouse associated with this order's stock allocations
+      const firstAlloc = (order.items || []).flatMap((i) => i.allocations || [])[0]
+      if (firstAlloc) {
+        const stock = stockItems.find((s) => s.id === firstAlloc.stockItemId)
+        if (stock) {
+          setSelectedWarehouseId(String(stock.warehouseId))
+        }
+      }
+    }
+  }
+
+  // Auto-select initial order if preselectedOrderId is provided or default to the first available deliverable order
+  useEffect(() => {
+    if (preselectedOrderId) {
+      selectOrderAndDefaultWarehouse(String(preselectedOrderId))
+    } else if (!selectedOrderId && deliverableOrders.length > 0) {
+      selectOrderAndDefaultWarehouse(String(deliverableOrders[0].id))
+    }
+  }, [preselectedOrderId, deliverableOrders, selectedOrderId])
+
   // Map allocations for selected sales order
   const selectedOrder = useMemo(
     () => salesOrders.find((o) => String(o.id) === selectedOrderId),
@@ -117,9 +144,9 @@ export function ScheduleDeliveryModal({
     if (!selectedOrder) return []
 
     const rows: AllocationRow[] = []
-    for (const item of selectedOrder.items) {
+    for (const item of (selectedOrder.items || [])) {
       const prod = products.find((p) => p.id === item.inventoryItemId)
-      for (const alloc of item.allocations) {
+      for (const alloc of (item.allocations || [])) {
         const stock = stockItems.find((s) => s.id === alloc.stockItemId)
         const wh = warehouses.find((w) => w.id === stock?.warehouseId)
 
@@ -172,28 +199,20 @@ export function ScheduleDeliveryModal({
     return availableAllocations.every((a) => a.remainingQuantity <= 0)
   }, [selectedOrder, availableAllocations])
 
-  const handleOrderChange = (orderIdStr: string) => {
-    setSelectedOrderId(orderIdStr)
-    setErrorMessage('')
-
-    const order = salesOrders.find((o) => String(o.id) === orderIdStr)
-    if (order && order.items.length > 0) {
-      // Find first warehouse associated with this order's stock allocations
-      const firstAlloc = order.items.flatMap((i) => i.allocations)[0]
-      if (firstAlloc) {
-        const stock = stockItems.find((s) => s.id === firstAlloc.stockItemId)
-        if (stock) {
-          setSelectedWarehouseId(String(stock.warehouseId))
-        }
-      }
-    }
-  }
+  const handleOrderChange = selectOrderAndDefaultWarehouse
 
   const handleQuantityChange = (allocationId: number, qty: string) => {
     const cleanQty = qty === '' ? '' : qty.replace(/[^0-9]/g, '')
+    const alloc = availableAllocations.find((a) => a.allocationId === allocationId)
+    const maxQty = alloc ? Math.floor(alloc.remainingQuantity) : 999999
+    const num = parseInt(cleanQty, 10)
+    let finalQty = cleanQty
+    if (!isNaN(num) && num > maxQty) {
+      finalQty = String(maxQty)
+    }
     setAllocationQuantities((prev) => ({
       ...prev,
-      [allocationId]: cleanQty,
+      [allocationId]: finalQty,
     }))
   }
 
@@ -273,7 +292,7 @@ export function ScheduleDeliveryModal({
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-      <DialogContent className="w-[94vw] max-w-3xl sm:max-w-4xl max-h-[92vh] flex flex-col p-4 sm:p-5 gap-3 overflow-hidden">
+      <DialogContent className="w-[94vw] max-w-3xl sm:max-w-4xl max-h-[92vh] min-h-[460px] flex flex-col p-4 sm:p-5 gap-3 overflow-hidden shadow-2xl">
         <DialogHeader className="pb-0 shrink-0">
           <div className="flex items-center gap-2">
             <div className="flex size-6.5 items-center justify-center rounded-lg bg-primary/10 text-primary shrink-0">
@@ -293,6 +312,15 @@ export function ScheduleDeliveryModal({
         {errorMessage && (
           <Alert variant="destructive" className="py-1.5 px-3 text-xs shrink-0">
             <AlertDescription>{errorMessage}</AlertDescription>
+          </Alert>
+        )}
+
+        {deliverableOrders.length === 0 && (
+          <Alert className="py-1.5 px-3 text-xs shrink-0 border-blue-500/30 bg-blue-500/10 text-blue-900 dark:text-blue-200 flex items-center gap-2">
+            <Info className="size-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
+            <AlertDescription>
+              All confirmed customer orders have already been scheduled. Confirm a new order in Customer Relations to create another delivery.
+            </AlertDescription>
           </Alert>
         )}
 
@@ -321,7 +349,7 @@ export function ScheduleDeliveryModal({
                           <span className="flex items-center gap-2">
                             <span className="font-bold font-mono">{order.orderNumber}</span>
                             <span className="text-muted-foreground">• {client?.name || `Client #${order.clientId}`}</span>
-                            <span className="text-[10px] text-primary">({order.items.length} items)</span>
+                            <span className="text-[10px] text-primary">({(order.items || []).length} items)</span>
                           </span>
                         </SelectItem>
                       )
@@ -371,45 +399,54 @@ export function ScheduleDeliveryModal({
                 </span>
               </div>
               <span className="text-[10px] font-mono text-muted-foreground shrink-0 pl-2">
-                {selectedOrder.items.length} items
+                {(selectedOrder.items || []).length} items
               </span>
             </div>
           )}
 
           {/* Allocation Items Breakdown */}
-          {selectedOrder && (
-            <div className="flex flex-col rounded-lg border border-border/80 overflow-hidden bg-background/50 shrink-0">
-              <div className="bg-muted/30 px-3 py-1 border-b border-border/70 flex items-center justify-between">
-                <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                  <Package className="size-3.5 text-primary" />
-                  Cargo Allocations to Deliver ({filteredAllocations.length})
+          <div className="flex flex-col rounded-lg border border-border/80 overflow-hidden bg-background/50 shrink-0">
+            <div className="bg-muted/30 px-3 py-1.5 border-b border-border/70 flex items-center justify-between">
+              <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                <Package className="size-3.5 text-primary" />
+                Cargo Allocations to Deliver {selectedOrder ? `(${filteredAllocations.length})` : ''}
+              </span>
+              {selectedOrder && isOrderFullyScheduled && (
+                <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400">
+                  Fully Scheduled
                 </span>
-                {isOrderFullyScheduled && (
-                  <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400">
-                    Fully Scheduled
-                  </span>
-                )}
-              </div>
-
-              {isOrderFullyScheduled && (
-                <div className="p-2 mx-2.5 my-1.5 rounded border border-amber-500/30 bg-amber-500/10 text-amber-900 dark:text-amber-200 text-xs">
-                  All cargo allocations for this order have already been scheduled in active shipments. You can view or dispatch these under <strong>Dispatch Operations</strong>.
-                </div>
               )}
+            </div>
 
-              {filteredAllocations.length === 0 ? (
-                <div className="p-3 text-center text-xs text-muted-foreground">
-                  No allocations found for this order matching the selected warehouse.
-                </div>
-              ) : (
-                <div className="max-h-[190px] overflow-y-auto overflow-x-hidden rounded-md border border-border/60">
-                  <table className="w-full table-fixed text-xs">
+            {!selectedOrder ? (
+              <div className="p-6 text-center text-xs text-muted-foreground flex flex-col items-center justify-center gap-1.5 bg-muted/5">
+                <Package className="size-7 text-muted-foreground/35 mb-0.5" />
+                <span className="font-semibold text-foreground text-xs">
+                  {deliverableOrders.length === 0 ? 'No Deliverable Orders Available' : 'No Sales Order Selected'}
+                </span>
+                <p className="text-[11px] text-muted-foreground max-w-sm">
+                  {deliverableOrders.length === 0
+                    ? 'All confirmed customer orders have already been scheduled. Confirm a new order in Customer Relations to create a delivery.'
+                    : 'Choose a confirmed sales order from the dropdown above to review cargo items, warehouse stock, and assign dispatch quantities.'}
+                </p>
+              </div>
+            ) : isOrderFullyScheduled ? (
+              <div className="p-3 m-2 rounded border border-amber-500/30 bg-amber-500/10 text-amber-900 dark:text-amber-200 text-xs">
+                All cargo allocations for this order have already been scheduled in active shipments. You can view or dispatch these under <strong>Dispatch Operations</strong>.
+              </div>
+            ) : filteredAllocations.length === 0 ? (
+              <div className="p-4 text-center text-xs text-muted-foreground">
+                No allocations found for this order matching the selected warehouse.
+              </div>
+            ) : (
+              <div className="max-h-[190px] overflow-y-auto overflow-x-hidden rounded-md border border-border/60">
+                <table className="w-full table-fixed text-xs">
                     <thead className="bg-muted/30 text-left text-[10px] font-bold uppercase tracking-wider text-muted-foreground border-b border-border/70 sticky top-0 bg-muted/95 backdrop-blur-xs z-10">
                       <tr>
                         <th className="px-3 py-2 w-[32%]">Product Item</th>
                         <th className="px-2 py-2 text-right w-[14%]">Total Ordered</th>
                         <th className="px-2 py-2 text-right w-[18%]">Already Sched.</th>
-                        <th className="px-2 py-2 text-right font-semibold text-foreground w-[14%]">Available</th>
+                        <th className="px-2 py-2 text-right font-semibold text-foreground w-[14%]">Remaining</th>
                         <th className="px-3 py-2 text-right w-[22%]">Qty to Ship</th>
                       </tr>
                     </thead>
@@ -480,11 +517,11 @@ export function ScheduleDeliveryModal({
                             <td className="px-2 py-2.5 text-right">
                               {isDepleted ? (
                                 <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-muted text-muted-foreground border border-border/80">
-                                  0 {alloc.unit}
+                                  0
                                 </span>
                               ) : (
                                 <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/25">
-                                  {formatCount(alloc.remainingQuantity)} {alloc.unit}
+                                  {formatCount(alloc.remainingQuantity)}
                                 </span>
                               )}
                             </td>
@@ -572,7 +609,6 @@ export function ScheduleDeliveryModal({
                 </div>
               )}
             </div>
-          )}
 
           {/* Vehicle and Driver Assignment Grid (2-Column Grid) */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 shrink-0">
@@ -722,7 +758,14 @@ export function ScheduleDeliveryModal({
               <Button
                 type="submit"
                 size="sm"
-                disabled={createDelivery.isPending || scheduleDelivery.isPending || isOrderFullyScheduled}
+                disabled={
+                  !selectedOrderId ||
+                  !selectedWarehouseId ||
+                  filteredAllocations.length === 0 ||
+                  isOrderFullyScheduled ||
+                  createDelivery.isPending ||
+                  scheduleDelivery.isPending
+                }
                 className="h-7.5 text-xs font-semibold gap-1.5 px-3"
               >
                 <Plus className="size-3" />

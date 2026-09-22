@@ -6,6 +6,7 @@ import { Toaster } from './components/ui/sonner'
 import { Spinner } from './components/ui/spinner'
 import { AuthProvider, useAuth } from './features/auth/AuthContext'
 import type { AuthMode } from './features/auth/auth.types'
+import { ErrorBoundary } from './components/common/ErrorBoundary'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -60,12 +61,14 @@ function AppContent() {
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <AppContent />
-        <Toaster position="top-right" richColors />
-      </AuthProvider>
-    </QueryClientProvider>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <AppContent />
+          <Toaster position="top-right" richColors />
+        </AuthProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   )
 }
 

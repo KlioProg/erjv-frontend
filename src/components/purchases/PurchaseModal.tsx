@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { CalendarDays, ClipboardList, Minus, Plus, Trash2 } from 'lucide-react'
+import { CalendarDays, ClipboardList, Minus, Package, Plus, Trash2 } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -19,159 +19,151 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-
-export type PurchaseStatus = 'Active' | 'Completed' | 'Cancelled'
-export type PaymentStatus = 'Unpaid' | 'Partially Paid' | 'Paid'
+import type { Supplier } from '@/features/logistics/suppliers.types'
+import type { InventoryItemResponse } from '@/features/products/products.types'
+import type { CreatePurchaseOrderPayload } from '@/features/logistics/purchase-orders.types'
 
 export type PurchaseLine = {
-  productId: number
+  inventoryItemId: number
   name: string
   variety?: string | null
   unit?: string
-  unitCost?: number
+  unitCost: number
   quantity: number
-}
-
-export type PurchaseFormValues = {
-  supplierName: string
-  referenceNo: string
-  purchaseDate: string
-  expectedDeliveryDate: string
-  lines: PurchaseLine[]
-  total: number
-  status: PurchaseStatus
-  paymentStatus: PaymentStatus
-  processedBy: string
 }
 
 type PurchaseModalProps = {
   open: boolean
   onClose: () => void
-  onSubmit: (values: PurchaseFormValues) => void
+  onSubmit: (payload: CreatePurchaseOrderPayload) => Promise<void>
+  suppliers: Supplier[]
+  products: InventoryItemResponse[]
   processedBy: string
-  purchase?: PurchaseFormValues & { id: number }
 }
 
 function formatCurrency(value: number) {
   return `₱${value.toLocaleString('en-US', { minimumFractionDigits: 2 })}`
 }
 
-function today() {
-  return new Date().toISOString().slice(0, 10)
-}
-
 export function PurchaseModal({
   open,
   onClose,
   onSubmit,
+  suppliers,
+  products,
   processedBy,
-  purchase,
 }: PurchaseModalProps) {
-  const [supplierName, setSupplierName] = useState(purchase?.supplierName || '')
-  const [referenceNo, setReferenceNo] = useState(purchase?.referenceNo || '')
-  const [purchaseDate, setPurchaseDate] = useState(purchase?.purchaseDate || today())
-  const [expectedDeliveryDate, setExpectedDeliveryDate] = useState(
-    purchase?.expectedDeliveryDate || '',
+  const [selectedSupplierId, setSelectedSupplierId] = useState<string>(
+    suppliers[0] ? String(suppliers[0].id) : '',
   )
-  const [lines, setLines] = useState<PurchaseLine[]>(purchase?.lines || [])
-  const [status, setStatus] = useState<PurchaseStatus>(purchase?.status || 'Active')
-  const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>(
-    purchase?.paymentStatus || 'Unpaid',
-  )
+  const [referenceNo, setReferenceNo] = useState('')
+  const [expectedAt, setExpectedAt] = useState('')
+  const [notes, setNotes] = useState('')
+  const [selectedProductId, setSelectedProductId] = useState('none')
+  const [lines, setLines] = useState<PurchaseLine[]>([])
   const [errorMessage, setErrorMessage] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const total = lines.reduce((sum, line) => sum + (line.unitCost || 0) * line.quantity, 0)
+  const total = lines.reduce((sum, line) => sum + line.unitCost * line.quantity, 0)
 
   const handleAddProduct = () => {
-    setLines((currentLines) => [
-      ...currentLines,
-      {
-        productId: -(Date.now() + currentLines.length),
-        name: '',
-        variety: '',
-        unit: '',
-        unitCost: undefined,
-        quantity: 1,
-      },
-    ])
+    const product = products.find((p) => String(p.id) === selectedProductId)
+    if (!product) return
+
+    setLines((current) => {
+      const existing = current.find((l) => l.inventoryItemId === product.id)
+      if (existing) {
+        return current.map((l) =>
+          l.inventoryItemId === product.id ? { ...l, quantity: l.quantity + 1 } : l,
+        )
+      }
+      return [
+        ...current,
+        {
+          inventoryItemId: product.id,
+          name: product.name,
+          variety: product.variety,
+          unit: product.unit,
+          unitCost: product.unitPrice || 0,
+          quantity: 1,
+        },
+      ]
+    })
+    setSelectedProductId('none')
     setErrorMessage('')
   }
 
-  const updateLine = <K extends keyof PurchaseLine>(
-    productId: number,
-    field: K,
-    value: PurchaseLine[K],
-  ) => {
-    setLines((currentLines) =>
-      currentLines.map((line) => (line.productId === productId ? { ...line, [field]: value } : line)),
-    )
-  }
-
-  const changeQuantity = (productId: number, change: number) => {
-    setLines((currentLines) =>
-      currentLines
-        .map((line) =>
-          line.productId === productId
-            ? { ...line, quantity: Math.max(0, line.quantity + change) }
-            : line,
+  const changeQuantity = (inventoryItemId: number, delta: number) => {
+    setLines((current) =>
+      current
+        .map((l) =>
+          l.inventoryItemId === inventoryItemId
+            ? { ...l, quantity: Math.max(0, l.quantity + delta) }
+            : l,
         )
-        .filter((line) => line.quantity > 0),
+        .filter((l) => l.quantity > 0),
     )
   }
 
-  const changeCost = (productId: number, value: string) => {
-    const unitCost = Number(value)
-    if (!Number.isFinite(unitCost) || unitCost < 0) return
-    setLines((currentLines) =>
-      currentLines.map((line) => (line.productId === productId ? { ...line, unitCost } : line)),
+  const updateCost = (inventoryItemId: number, cost: number) => {
+    setLines((current) =>
+      current.map((l) =>
+        l.inventoryItemId === inventoryItemId ? { ...l, unitCost: Math.max(0, cost) } : l,
+      ),
     )
   }
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    const cleanSupplierName = supplierName.trim()
-
-    if (!cleanSupplierName || !purchaseDate) {
-      setErrorMessage('Complete the supplier and purchase date fields.')
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    const supplierId = Number(selectedSupplierId)
+    if (!supplierId || supplierId <= 0) {
+      setErrorMessage('Please select a supplier.')
       return
     }
 
     if (lines.length === 0) {
-      setErrorMessage('Add at least one product to the purchase.')
+      setErrorMessage('Please add at least one material/inventory item.')
       return
     }
 
-    if (lines.some((line) => !line.name.trim() || line.quantity <= 0 || (line.unitCost !== undefined && line.unitCost < 0))) {
-      setErrorMessage('Complete each product name, quantity, and unit cost.')
-      return
+    try {
+      setIsSubmitting(true)
+      setErrorMessage('')
+      await onSubmit({
+        supplierId,
+        expectedAt: expectedAt ? new Date(expectedAt).toISOString() : null,
+        externalReference: referenceNo.trim() || undefined,
+        notes: notes.trim() || undefined,
+        items: lines.map((l) => ({
+          inventoryItemId: l.inventoryItemId,
+          quantity: l.quantity,
+          unitPrice: l.unitCost,
+        })),
+      })
+      onClose()
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setErrorMessage(err.message)
+      } else {
+        setErrorMessage('Failed to create purchase order.')
+      }
+    } finally {
+      setIsSubmitting(false)
     }
-
-    onSubmit({
-      supplierName: cleanSupplierName,
-      referenceNo: referenceNo.trim(),
-      purchaseDate,
-      expectedDeliveryDate,
-      lines,
-      total,
-      status,
-      paymentStatus,
-      processedBy,
-    })
-    onClose()
   }
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-      <DialogContent className="max-h-[min(860px,calc(100vh-2rem))] overflow-y-auto gap-5 p-6 sm:max-w-3xl">
+      <DialogContent className="max-h-[min(860px,calc(100vh-2rem))] overflow-y-auto sm:max-w-2xl gap-5 p-6">
         <DialogHeader className="pb-1">
           <div className="mb-2 flex size-11 items-center justify-center rounded-2xl bg-primary/10 text-primary shadow-2xs">
             <ClipboardList className="size-5" />
           </div>
           <DialogTitle className="text-xl font-bold tracking-tight">
-            {purchase ? 'Edit Purchase' : 'Create Purchase'}
+            Create Purchase Order
           </DialogTitle>
           <DialogDescription className="text-xs leading-relaxed">
-            Record incoming products, supplier costs, delivery timing, and payment status.
+            Order materials, raw goods, or merchandise from accredited suppliers.
           </DialogDescription>
         </DialogHeader>
 
@@ -182,170 +174,179 @@ export function PurchaseModal({
         )}
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="purchase-supplier" className="text-xs font-semibold">
-                Supplier <span className="text-primary">*</span>
+              <Label className="text-xs font-semibold">
+                Supplier Vendor <span className="text-primary">*</span>
               </Label>
-              <Input
-                id="purchase-supplier"
-                value={supplierName}
-                onChange={(event) => setSupplierName(event.target.value)}
-                placeholder="Supplier or vendor name"
-                className="h-10 text-sm"
-              />
+              <Select value={selectedSupplierId} onValueChange={setSelectedSupplierId}>
+                <SelectTrigger className="h-9 text-xs">
+                  <SelectValue placeholder="Select supplier..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {suppliers
+                    .filter((s) => s.isActive)
+                    .map((s) => (
+                      <SelectItem key={s.id} value={String(s.id)}>
+                        {s.name} ({s.code})
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
             </div>
+
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="purchase-reference" className="text-xs font-semibold">
-                PO / Reference No.
+              <Label htmlFor="po-ref" className="text-xs font-semibold">
+                Supplier Invoice / External Ref
               </Label>
               <Input
-                id="purchase-reference"
+                id="po-ref"
                 value={referenceNo}
-                onChange={(event) => setReferenceNo(event.target.value)}
-                placeholder="Optional purchase reference"
-                className="h-10 text-sm"
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="purchase-date" className="text-xs font-semibold">
-                Purchase Date <span className="text-primary">*</span>
-              </Label>
-              <div className="relative">
-                <CalendarDays className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  id="purchase-date"
-                  type="date"
-                  value={purchaseDate}
-                  onChange={(event) => setPurchaseDate(event.target.value)}
-                  className="h-10 pl-9 text-sm"
-                />
-              </div>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="purchase-delivery-date" className="text-xs font-semibold">
-                Expected Delivery Date
-              </Label>
-              <Input
-                id="purchase-delivery-date"
-                type="date"
-                value={expectedDeliveryDate}
-                onChange={(event) => setExpectedDeliveryDate(event.target.value)}
-                className="h-10 text-sm"
+                onChange={(e) => setReferenceNo(e.target.value)}
+                placeholder="e.g. INV-9872"
+                className="h-9 text-xs"
               />
             </div>
           </div>
 
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="po-expected" className="text-xs font-semibold">
+                Expected Delivery Date
+              </Label>
+              <div className="relative">
+                <CalendarDays className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  id="po-expected"
+                  type="date"
+                  value={expectedAt}
+                  onChange={(e) => setExpectedAt(e.target.value)}
+                  className="h-9 pl-9 text-xs"
+                />
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <Label className="text-xs font-semibold">Processed By</Label>
+              <Input value={processedBy} readOnly className="h-9 bg-muted/40 text-xs" />
+            </div>
+          </div>
+
+          {/* Item Selection */}
           <section className="overflow-hidden rounded-xl border border-border/80 bg-muted/10">
             <div className="flex flex-col gap-3 border-b border-border/70 p-4 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <p className="text-xs font-bold uppercase tracking-[0.08em] text-muted-foreground">
-                  Purchased products
+                  Order Items
                 </p>
-                <p className="mt-1 text-[11px] text-muted-foreground">
-                  Costs default from the product catalog and can be adjusted per purchase.
+                <p className="mt-0.5 text-[11px] text-muted-foreground">
+                  Add inventory products and specify purchase cost.
                 </p>
               </div>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={handleAddProduct}
-                className="h-9 shrink-0 gap-1.5 text-xs"
-              >
-                <Plus className="size-3.5" /> Add Product
-              </Button>
+              <div className="flex flex-wrap w-full gap-2 sm:w-auto">
+                <Select value={selectedProductId} onValueChange={setSelectedProductId}>
+                  <SelectTrigger className="h-9 min-w-0 flex-1 text-xs sm:w-64 sm:flex-none">
+                    <SelectValue placeholder="Choose inventory item" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Choose inventory item</SelectItem>
+                    {products
+                      .filter((p) => p.isActive)
+                      .map((product) => (
+                        <SelectItem key={product.id} value={String(product.id)}>
+                          <span className="flex items-center gap-2">
+                            <Package className="size-3.5 text-primary" />
+                            {product.name} {product.variety ? `- ${product.variety}` : ''}
+                          </span>
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={handleAddProduct}
+                  disabled={selectedProductId === 'none'}
+                  className="h-9 shrink-0 gap-1.5 text-xs"
+                >
+                  <Plus className="size-3.5" /> Add
+                </Button>
+              </div>
             </div>
 
             {lines.length === 0 ? (
-              <div className="flex min-h-28 items-center justify-center px-4 text-center text-xs text-muted-foreground">
-                Add a product to start the purchase.
+              <div className="flex min-h-24 items-center justify-center px-4 text-center text-xs text-muted-foreground">
+                No items added yet. Select a product above to add.
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[600px] text-xs">
+                <table className="w-full min-w-[500px] text-xs">
                   <thead className="bg-muted/40 text-left text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
                     <tr>
                       <th className="px-4 py-2.5">Product</th>
-                      <th className="px-3 py-2.5">Unit</th>
-                      <th className="px-3 py-2.5 text-right">Unit cost</th>
+                      <th className="px-3 py-2.5 text-right">Unit Cost (₱)</th>
                       <th className="px-3 py-2.5 text-center">Quantity</th>
-                      <th className="px-4 py-2.5 text-right">Amount</th>
+                      <th className="px-4 py-2.5 text-right">Subtotal</th>
                       <th className="w-10 px-2 py-2.5" />
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/60">
                     {lines.map((line) => (
-                      <tr key={line.productId}>
+                      <tr key={line.inventoryItemId}>
                         <td className="px-4 py-3 font-semibold text-foreground">
-                          <div className="flex flex-col gap-1.5">
-                            <Input
-                              aria-label="Purchased product name"
-                              value={line.name}
-                              onChange={(event) => updateLine(line.productId, 'name', event.target.value)}
-                              placeholder="Product name"
-                              className="h-8 w-44 text-xs"
-                            />
-                            <Input
-                              aria-label="Purchased product variety"
-                              value={line.variety || ''}
-                              onChange={(event) => updateLine(line.productId, 'variety', event.target.value)}
-                              placeholder="Variety / grade (optional)"
-                              className="h-8 w-44 text-xs"
-                            />
-                          </div>
-                        </td>
-                        <td className="px-3 py-3">
-                          <Input
-                            aria-label={`${line.name || ''} `}
-                            value={line.unit || ''}
-                            onChange={(event) => updateLine(line.productId, 'unit', event.target.value)}
-                            placeholder="unit"
-                            className="h-8 w-20 text-xs"
-                          />
+                          {line.name}
+                          {line.variety && (
+                            <span className="ml-1 font-normal text-muted-foreground">
+                              {line.variety}
+                            </span>
+                          )}
                         </td>
                         <td className="px-3 py-3 text-right">
                           <Input
-                            aria-label={`${line.name} unit cost`}
                             type="number"
                             min="0"
                             step="0.01"
                             value={line.unitCost}
-                            onChange={(event) => changeCost(line.productId, event.target.value)}
-                            placeholder="0.00"
-                            className="ml-auto h-8 w-24 text-right text-xs [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                            onChange={(e) =>
+                              updateCost(line.inventoryItemId, parseFloat(e.target.value) || 0)
+                            }
+                            className="h-7 w-24 text-right text-xs ml-auto"
                           />
                         </td>
                         <td className="px-3 py-3">
                           <div className="mx-auto flex w-fit items-center rounded-lg border border-border bg-background">
                             <button
                               type="button"
-                              aria-label={`Decrease ${line.name} quantity`}
-                              onClick={() => changeQuantity(line.productId, -1)}
-                              className="flex size-7 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
+                              onClick={() => changeQuantity(line.inventoryItemId, -1)}
+                              className="flex size-7 items-center justify-center text-muted-foreground hover:text-foreground"
                             >
                               <Minus className="size-3.5" />
                             </button>
-                            <span className="w-7 text-center text-xs font-bold">{line.quantity}</span>
+                            <span className="w-8 text-center text-xs font-bold">
+                              {line.quantity}
+                            </span>
                             <button
                               type="button"
-                              aria-label={`Increase ${line.name} quantity`}
-                              onClick={() => changeQuantity(line.productId, 1)}
-                              className="flex size-7 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
+                              onClick={() => changeQuantity(line.inventoryItemId, 1)}
+                              className="flex size-7 items-center justify-center text-muted-foreground hover:text-foreground"
                             >
                               <Plus className="size-3.5" />
                             </button>
                           </div>
                         </td>
                         <td className="px-4 py-3 text-right font-bold text-foreground">
-                          {formatCurrency(line.unitCost || 0 * line.quantity)}
+                          {formatCurrency(line.unitCost * line.quantity)}
                         </td>
                         <td className="px-2 py-3 text-center">
                           <button
                             type="button"
-                            aria-label={`Remove ${line.name}`}
-                            onClick={() => setLines((current) => current.filter((item) => item.productId !== line.productId))}
-                            className="text-muted-foreground transition-colors hover:text-destructive"
+                            onClick={() =>
+                              setLines((cur) =>
+                                cur.filter((l) => l.inventoryItemId !== line.inventoryItemId),
+                              )
+                            }
+                            className="text-muted-foreground hover:text-destructive"
                           >
                             <Trash2 className="size-3.5" />
                           </button>
@@ -357,46 +358,34 @@ export function PurchaseModal({
               </div>
             )}
 
-            <div className="flex items-center justify-between border-t border-border/70 bg-background/60 px-4 py-3 text-sm font-extrabold">
-              <span>Total Purchase Cost</span>
-              <span>{formatCurrency(total)}</span>
+            <div className="border-t border-border/70 bg-background/60 px-4 py-3">
+              <div className="ml-auto flex max-w-xs justify-between items-center text-sm font-extrabold text-foreground">
+                <span>Estimated Total:</span>
+                <span>{formatCurrency(total)}</span>
+              </div>
             </div>
           </section>
 
-          <div className="grid gap-3 sm:grid-cols-3">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="purchase-status" className="text-xs font-semibold">Purchase Status</Label>
-              <Select value={status} onValueChange={(value) => setStatus(value as PurchaseStatus)}>
-                <SelectTrigger id="purchase-status"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Active">Active</SelectItem>
-                  <SelectItem value="Completed">Completed</SelectItem>
-                  <SelectItem value="Cancelled">Cancelled</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="purchase-payment-status" className="text-xs font-semibold">Payment Status</Label>
-              <Select value={paymentStatus} onValueChange={(value) => setPaymentStatus(value as PaymentStatus)}>
-                <SelectTrigger id="purchase-payment-status"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Unpaid">Unpaid</SelectItem>
-                  <SelectItem value="Partially Paid">Partially Paid</SelectItem>
-                  <SelectItem value="Paid">Paid</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="purchase-processed-by" className="text-xs font-semibold">Processed By</Label>
-              <Input id="purchase-processed-by" value={processedBy} readOnly className="h-10 bg-muted/40 text-sm" />
-            </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="po-notes" className="text-xs font-semibold">
+              Special Instructions / Notes
+            </Label>
+            <Input
+              id="po-notes"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="e.g. Delivery terms, payment terms, or remarks"
+              className="h-9 text-xs"
+            />
           </div>
 
-          <DialogFooter className="mt-2 gap-2 sm:gap-2">
-            <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
-            <Button type="submit" className="font-semibold">
-              <ClipboardList className="size-4" />
-              {purchase ? 'Save Changes' : 'Record Purchase'}
+          <DialogFooter className="mt-2 gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button type="submit" size="sm" disabled={isSubmitting} className="font-semibold">
+              <ClipboardList className="size-4 mr-1" />
+              {isSubmitting ? 'Submitting...' : 'Post Purchase Order'}
             </Button>
           </DialogFooter>
         </form>

@@ -132,9 +132,8 @@ export function DashboardLayout({ currentTab, onSelectTab, children }: Dashboard
 
       {/* Sidebar Navigation */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex w-72 flex-col justify-between border-r border-border/80 bg-card/95 backdrop-blur-md transition-transform duration-300 lg:sticky lg:top-0 lg:h-screen lg:shrink-0 ${
-          isMobileOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full lg:translate-x-0'
-        }`}
+        className={`fixed inset-y-0 left-0 z-50 flex w-72 flex-col justify-between border-r border-border/80 bg-card/95 backdrop-blur-md transition-transform duration-300 lg:sticky lg:top-0 lg:h-screen lg:shrink-0 ${isMobileOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full lg:translate-x-0'
+          }`}
       >
         {/* Sidebar Header & Nav list */}
         <div className="flex flex-col min-h-0 flex-1">
@@ -169,19 +168,17 @@ export function DashboardLayout({ currentTab, onSelectTab, children }: Dashboard
                           handleSelectTab(item.key)
                           setIsMobileOpen(false)
                         }}
-                        className={`group relative flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-xs font-semibold transition-all duration-150 cursor-pointer select-none active:scale-[0.98] ${
-                          isActive
-                            ? 'bg-primary text-primary-foreground shadow-sm shadow-primary/25'
-                            : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
-                        }`}
+                        className={`group relative flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-xs font-semibold transition-all duration-150 cursor-pointer select-none active:scale-[0.98] ${isActive
+                          ? 'bg-primary text-primary-foreground shadow-sm shadow-primary/25'
+                          : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
+                          }`}
                       >
                         <div className="flex items-center gap-3">
                           <Icon
-                            className={`size-4 shrink-0 transition-transform group-hover:scale-110 ${
-                              isActive
-                                ? 'text-primary-foreground'
-                                : 'text-muted-foreground group-hover:text-foreground'
-                            }`}
+                            className={`size-4 shrink-0 transition-transform group-hover:scale-110 ${isActive
+                              ? 'text-primary-foreground'
+                              : 'text-muted-foreground group-hover:text-foreground'
+                              }`}
                           />
                           <span>{item.label}</span>
                         </div>
@@ -225,15 +222,14 @@ export function DashboardLayout({ currentTab, onSelectTab, children }: Dashboard
                     </span>
                     <div className="flex items-center gap-1.5 mt-0.5">
                       <span
-                        className={`inline-block size-1.5 rounded-full shrink-0 ${
-                          roleConfig.role === USER_ROLES.ADMIN
-                            ? 'bg-emerald-500'
-                            : roleConfig.role === USER_ROLES.MANAGER
-                              ? 'bg-blue-500'
-                              : roleConfig.role === USER_ROLES.STAFF
-                                ? 'bg-muted-foreground'
-                                : 'bg-rose-500'
-                        }`}
+                        className={`inline-block size-1.5 rounded-full shrink-0 ${roleConfig.role === USER_ROLES.ADMIN
+                          ? 'bg-emerald-500'
+                          : roleConfig.role === USER_ROLES.MANAGER
+                            ? 'bg-blue-500'
+                            : roleConfig.role === USER_ROLES.STAFF
+                              ? 'bg-muted-foreground'
+                              : 'bg-rose-500'
+                          }`}
                       />
                       <span className="text-[10px] font-extrabold tracking-tight uppercase text-muted-foreground">
                         {roleConfig.label}
@@ -312,26 +308,24 @@ export function DashboardLayout({ currentTab, onSelectTab, children }: Dashboard
 
             <Badge
               variant="outline"
-              className={`hidden sm:flex text-[11px] font-medium gap-1.5 ${
-                roleConfig.role === USER_ROLES.ADMIN
-                  ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20'
-                  : roleConfig.role === USER_ROLES.MANAGER
-                    ? 'bg-blue-500/10 text-blue-600 border-blue-500/20'
-                    : roleConfig.role === USER_ROLES.STAFF
-                      ? 'bg-muted/80 text-muted-foreground border-border'
-                      : 'bg-rose-500/10 text-rose-600 border-rose-500/20'
-              }`}
+              className={`hidden sm:flex text-[11px] font-medium gap-1.5 ${roleConfig.role === USER_ROLES.ADMIN
+                ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20'
+                : roleConfig.role === USER_ROLES.MANAGER
+                  ? 'bg-blue-500/10 text-blue-600 border-blue-500/20'
+                  : roleConfig.role === USER_ROLES.STAFF
+                    ? 'bg-muted/80 text-muted-foreground border-border'
+                    : 'bg-rose-500/10 text-rose-600 border-rose-500/20'
+                }`}
             >
               <span
-                className={`size-1.5 rounded-full ${
-                  roleConfig.role === USER_ROLES.ADMIN
-                    ? 'bg-emerald-500'
-                    : roleConfig.role === USER_ROLES.MANAGER
-                      ? 'bg-blue-500'
-                      : roleConfig.role === USER_ROLES.STAFF
-                        ? 'bg-muted-foreground'
-                        : 'bg-rose-500'
-                } animate-pulse`}
+                className={`size-1.5 rounded-full ${roleConfig.role === USER_ROLES.ADMIN
+                  ? 'bg-emerald-500'
+                  : roleConfig.role === USER_ROLES.MANAGER
+                    ? 'bg-blue-500'
+                    : roleConfig.role === USER_ROLES.STAFF
+                      ? 'bg-muted-foreground'
+                      : 'bg-rose-500'
+                  } animate-pulse`}
               />
               {roleConfig.label} Mode
             </Badge>

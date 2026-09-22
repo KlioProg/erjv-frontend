@@ -175,6 +175,20 @@ export async function fetchEmployeeJobsByJobApi(jobId: number): Promise<Employee
   return extractArray<EmployeeJobWithEmployee>(data)
 }
 
+export async function fetchEmployeeJobApi(
+  employeeId: number,
+  jobId: number,
+): Promise<EmployeeJobResponseDto | null> {
+  try {
+    const { data } = await apiClient.get<EmployeeJobResponseDto>(
+      `/employee-jobs/employees/${employeeId}/jobs/${jobId}`,
+    )
+    return data
+  } catch {
+    return null
+  }
+}
+
 export async function unassignEmployeeJobApi(
   employeeId: number,
   jobId: number,
@@ -217,6 +231,50 @@ export async function deactivateUserApi(id: number): Promise<UserAccount> {
 export async function reactivateUserApi(id: number): Promise<UserAccount> {
   const { data } = await apiClient.patch<UserAccount>(`/users/${id}/reactivate`)
   return data
+}
+
+export async function fetchUserByEmailApi(email: string): Promise<UserAccount | null> {
+  try {
+    const { data } = await apiClient.get<UserAccount>(
+      `/users/email/${encodeURIComponent(email.trim())}`,
+    )
+    if (!data || typeof data !== 'object' || !('id' in data)) return null
+    return {
+      ...data,
+      role: BACKEND_ROLE_MAP.fromBackend(data.role),
+    }
+  } catch {
+    return null
+  }
+}
+
+export async function fetchUserByIdApi(id: number): Promise<UserAccount | null> {
+  try {
+    const { data } = await apiClient.get<UserAccount>(`/users/${id}`)
+    if (!data || typeof data !== 'object' || !('id' in data)) return null
+    return {
+      ...data,
+      role: BACKEND_ROLE_MAP.fromBackend(data.role),
+    }
+  } catch {
+    return null
+  }
+}
+
+export async function updateUserEmailApi(id: number, email: string): Promise<UserAccount> {
+  const { data } = await apiClient.patch<UserAccount>(`/users/${id}/email`, { email: email.trim() })
+  return {
+    ...data,
+    role: BACKEND_ROLE_MAP.fromBackend(data.role),
+  }
+}
+
+export async function updateUserPasswordApi(id: number, password: string): Promise<UserAccount> {
+  const { data } = await apiClient.patch<UserAccount>(`/users/${id}/password`, { password })
+  return {
+    ...data,
+    role: BACKEND_ROLE_MAP.fromBackend(data.role),
+  }
 }
 
 // Hook alias exports

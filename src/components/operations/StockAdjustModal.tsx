@@ -1,4 +1,4 @@
-import { useState, useMemo, type FormEvent } from 'react'
+import { useState, useMemo, useEffect, type FormEvent } from 'react'
 import {
   Boxes,
   PlusCircle,
@@ -34,6 +34,7 @@ import {
   useDecreaseStock,
   useIncreaseStock,
   useSetStockQuantity,
+  useStockItemByPair,
   useStockItems,
 } from '@/features/logistics/stock-items.hooks'
 import { useWarehouses } from '@/features/logistics/warehouses.hooks'
@@ -67,41 +68,56 @@ function StockAdjustContent({
   const increaseMutation = useIncreaseStock()
   const decreaseMutation = useDecreaseStock()
 
-  const isExistingStock = !!stockItem
-  const existingAllocatedWhIds =
-    !stockItem && inventoryItem
-      ? allStock.filter((s) => s.inventoryItemId === inventoryItem.id).map((s) => s.warehouseId)
-      : []
-  const availableWarehouses = warehouses.filter(
-    (w) => w.isActive !== false && !existingAllocatedWhIds.includes(w.id),
+  const activeWarehouses = useMemo(
+    () => warehouses.filter((w) => w.isActive !== false),
+    [warehouses],
   )
 
-  const [mode, setMode] = useState<'increase' | 'decrease' | 'set'>(
-    isExistingStock ? initialMode : 'set',
-  )
   const [selectedWarehouseId, setSelectedWarehouseId] = useState<string>(() =>
     stockItem
       ? String(stockItem.warehouseId)
-      : availableWarehouses[0]?.id
-        ? String(availableWarehouses[0].id)
+      : activeWarehouses[0]?.id
+        ? String(activeWarehouses[0].id)
         : '',
   )
+
+  useEffect(() => {
+    if (!selectedWarehouseId && activeWarehouses.length > 0) {
+      setSelectedWarehouseId(String(activeWarehouses[0].id))
+    }
+  }, [activeWarehouses, selectedWarehouseId])
+
+  const activeWhId = stockItem ? stockItem.warehouseId : Number(selectedWarehouseId)
+  const { data: pairStockItem, isLoading: isLoadingPair } = useStockItemByPair(
+    inventoryItem?.id,
+    !stockItem && activeWhId > 0 ? activeWhId : undefined,
+  )
+
+  const effectiveStock = stockItem || pairStockItem || null
+  const isExistingStock = !!effectiveStock
+
+  const [mode, setMode] = useState<'increase' | 'decrease' | 'set'>(
+    stockItem ? initialMode : 'set',
+  )
+  const effectiveMode = isExistingStock ? mode : 'set'
+
   const [amount, setAmount] = useState<string>('20')
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
-  const currentQty = stockItem ? parseFloat(stockItem.quantity) : 0
+  const currentQty = effectiveStock ? parseFloat(effectiveStock.quantity) : 0
   const parsedVal = parseFloat(amount) || 0
 
   // Live balance calculation
   const calculatedNewQty = useMemo(() => {
     if (!isExistingStock) return parsedVal
     if (isNaN(parsedVal)) return currentQty
-    if (mode === 'increase') return currentQty + parsedVal
-    if (mode === 'decrease') return currentQty - parsedVal
-    return parsedVal // mode === 'set'
-  }, [isExistingStock, currentQty, parsedVal, mode])
+    if (effectiveMode === 'increase') return currentQty + parsedVal
+    if (effectiveMode === 'decrease') return currentQty - parsedVal
+    return parsedVal // effectiveMode === 'set'
+  }, [isExistingStock, currentQty, parsedVal, effectiveMode])
 
-  const isDecreaseExceeding = isExistingStock && mode === 'decrease' && parsedVal > currentQty
+  const isDecreaseExceeding =
+    isExistingStock && effectiveMode === 'decrease' && parsedVal > currentQty
   const isPending =
     createStockMutation.isPending ||
     setQuantityMutation.isPending ||
@@ -111,7 +127,7 @@ function StockAdjustContent({
   const itemName = stockItem?.inventoryItem?.name || inventoryItem?.name || 'Product Item'
   const whName =
     stockItem?.warehouse?.name ||
-    warehouses.find((w) => w.id === Number(selectedWarehouseId))?.name ||
+    warehouses.find((w) => w.id === activeWhId)?.name ||
     'Warehouse'
 
   const handleSubmit = async (e: FormEvent) => {
@@ -131,20 +147,20 @@ function StockAdjustContent({
     }
 
     try {
-      if (isExistingStock && stockItem) {
-        if (mode === 'increase') {
+      if (effectiveStock) {
+        if (effectiveMode === 'increase') {
           await increaseMutation.mutateAsync({
-            id: stockItem.id,
+            id: effectiveStock.id,
             payload: { amount: parsedVal.toFixed(2) },
           })
-        } else if (mode === 'decrease') {
+        } else if (effectiveMode === 'decrease') {
           await decreaseMutation.mutateAsync({
-            id: stockItem.id,
+            id: effectiveStock.id,
             payload: { amount: parsedVal.toFixed(2) },
           })
         } else {
           await setQuantityMutation.mutateAsync({
-            id: stockItem.id,
+            id: effectiveStock.id,
             payload: { quantity: parsedVal.toFixed(2) },
           })
         }
@@ -204,6 +220,66 @@ function StockAdjustContent({
       )}
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-4 py-1">
+        {/* Target Warehouse Facility Selector (shown when adjusting an item across facilities) */}
+        {!stockItem && (
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs font-semibold text-foreground">
+                Target Warehouse Facility <span className="text-primary">*</span>
+              </Label>
+              {isLoadingPair && (
+                <span className="flex items-center gap-1 text-[11px] text-muted-foreground font-medium">
+                  <Spinner className="size-3" /> Checking stock...
+                </span>
+              )}
+            </div>
+            {activeWarehouses.length === 0 ? (
+              <Alert className="border-amber-500/30 bg-amber-500/10 text-foreground">
+                <AlertDescription className="text-xs">
+                  No active warehouse facilities available.
+                </AlertDescription>
+              </Alert>
+            ) : (
+              <Select
+                value={selectedWarehouseId}
+                onValueChange={(val) => {
+                  setSelectedWarehouseId(val)
+                  setErrorMsg(null)
+                }}
+              >
+                <SelectTrigger className="h-10 text-xs rounded-xl">
+                  <SelectValue placeholder="Select warehouse facility" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    {activeWarehouses.map((wh) => {
+                      const stockRecord = allStock.find(
+                        (s) => s.inventoryItemId === inventoryItem?.id && s.warehouseId === wh.id,
+                      )
+                      return (
+                        <SelectItem key={wh.id} value={String(wh.id)} className="text-xs">
+                          <div className="flex items-center justify-between w-full gap-3">
+                            <span className="font-semibold">{wh.name}</span>
+                            {stockRecord ? (
+                              <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
+                                ({parseFloat(stockRecord.quantity).toLocaleString()} in stock)
+                              </span>
+                            ) : (
+                              <span className="text-[11px] text-muted-foreground">
+                                (New allocation)
+                              </span>
+                            )}
+                          </div>
+                        </SelectItem>
+                      )
+                    })}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            )}
+          </div>
+        )}
+
         {/* Adjustment Type Selector */}
         {isExistingStock && (
           <div className="flex flex-col gap-1.5">
@@ -213,7 +289,7 @@ function StockAdjustContent({
                 type="button"
                 onClick={() => setMode('increase')}
                 className={`flex flex-col items-center justify-center p-2.5 rounded-xl border text-center transition-all cursor-pointer ${
-                  mode === 'increase'
+                  effectiveMode === 'increase'
                     ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 font-bold shadow-xs'
                     : 'border-border/70 bg-card hover:bg-muted/50 text-muted-foreground font-semibold'
                 }`}
@@ -226,7 +302,7 @@ function StockAdjustContent({
                 type="button"
                 onClick={() => setMode('decrease')}
                 className={`flex flex-col items-center justify-center p-2.5 rounded-xl border text-center transition-all cursor-pointer ${
-                  mode === 'decrease'
+                  effectiveMode === 'decrease'
                     ? 'border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400 font-bold shadow-xs'
                     : 'border-border/70 bg-card hover:bg-muted/50 text-muted-foreground font-semibold'
                 }`}
@@ -239,7 +315,7 @@ function StockAdjustContent({
                 type="button"
                 onClick={() => setMode('set')}
                 className={`flex flex-col items-center justify-center p-2.5 rounded-xl border text-center transition-all cursor-pointer ${
-                  mode === 'set'
+                  effectiveMode === 'set'
                     ? 'border-primary/40 bg-primary/10 text-primary font-bold shadow-xs'
                     : 'border-border/70 bg-card hover:bg-muted/50 text-muted-foreground font-semibold'
                 }`}
@@ -251,44 +327,13 @@ function StockAdjustContent({
           </div>
         )}
 
-        {/* Warehouse Selector when creating new allocation */}
-        {!isExistingStock && (
-          <div className="flex flex-col gap-1.5">
-            <Label className="text-xs font-semibold text-foreground">
-              Target Warehouse Facility <span className="text-primary">*</span>
-            </Label>
-            {availableWarehouses.length === 0 ? (
-              <Alert className="border-amber-500/30 bg-amber-500/10 text-foreground">
-                <AlertDescription className="text-xs">
-                  All active warehouse facilities already have an allocation for this product.
-                </AlertDescription>
-              </Alert>
-            ) : (
-              <Select value={selectedWarehouseId} onValueChange={setSelectedWarehouseId}>
-                <SelectTrigger className="h-10 text-xs rounded-xl">
-                  <SelectValue placeholder="Select warehouse facility" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    {availableWarehouses.map((wh) => (
-                      <SelectItem key={wh.id} value={String(wh.id)} className="text-xs">
-                        {wh.name} {wh.address ? `• ${wh.address}` : ''}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            )}
-          </div>
-        )}
-
         {/* Amount Input */}
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="stock-amount" className="text-xs font-semibold text-foreground">
             {isExistingStock
-              ? mode === 'increase'
+              ? effectiveMode === 'increase'
                 ? 'Units to Receive / Add (+)'
-                : mode === 'decrease'
+                : effectiveMode === 'decrease'
                   ? 'Units to Dispatch / Deduct (-)'
                   : 'Exact Total Physical Count (=)'
               : 'Initial Stock Quantity'}
@@ -338,9 +383,9 @@ function StockAdjustContent({
 
             <div className="flex items-center gap-1 text-xs text-muted-foreground">
               <span>
-                {mode === 'increase'
+                {effectiveMode === 'increase'
                   ? `+ ${parsedVal.toLocaleString()}`
-                  : mode === 'decrease'
+                  : effectiveMode === 'decrease'
                     ? `- ${parsedVal.toLocaleString()}`
                     : `→`}
               </span>
@@ -355,7 +400,7 @@ function StockAdjustContent({
                 className={`text-sm font-extrabold ${
                   calculatedNewQty < 0
                     ? 'text-destructive'
-                    : mode === 'increase'
+                    : effectiveMode === 'increase'
                       ? 'text-emerald-600 dark:text-emerald-400'
                       : 'text-foreground'
                 }`}
@@ -380,15 +425,16 @@ function StockAdjustContent({
             type="submit"
             disabled={
               isPending ||
-              (!isExistingStock && availableWarehouses.length === 0) ||
+              isLoadingPair ||
+              (!stockItem && activeWarehouses.length === 0) ||
               isDecreaseExceeding ||
               isNaN(parsedVal) ||
               parsedVal < 0
             }
             className={`text-xs font-bold h-9 rounded-xl cursor-pointer shadow-xs ${
-              isExistingStock && mode === 'increase'
+              isExistingStock && effectiveMode === 'increase'
                 ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                : isExistingStock && mode === 'decrease'
+                : isExistingStock && effectiveMode === 'decrease'
                   ? 'bg-amber-600 hover:bg-amber-700 text-white'
                   : ''
             }`}
@@ -396,9 +442,9 @@ function StockAdjustContent({
             {isPending && <Spinner className="size-3.5 mr-1" />}
             {!isExistingStock
               ? 'Allocate Stock'
-              : mode === 'increase'
+              : effectiveMode === 'increase'
                 ? 'Confirm Inward Stock'
-                : mode === 'decrease'
+                : effectiveMode === 'decrease'
                   ? 'Confirm Dispatch'
                   : 'Save Stock Balance'}
           </Button>

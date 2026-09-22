@@ -24,7 +24,10 @@ import {
   unlinkEmployeeUserApi,
   updateEmployeeProfileApi,
   updateJobDetailsApi,
+  updateUserEmailApi,
+  updateUserPasswordApi,
   updateUserRoleApi,
+  fetchUserByEmailApi,
 } from './staffing.api'
 import type {
   CreateEmployeePayload,
@@ -549,3 +552,37 @@ export function useReactivateUser() {
   })
 }
 
+export function useUserByEmail(email?: string) {
+  return useQuery({
+    queryKey: [...staffingKeys.all, 'user-email', email],
+    queryFn: () => (email ? fetchUserByEmailApi(email) : Promise.resolve(null)),
+    enabled: Boolean(email && email.trim().length > 0),
+  })
+}
+
+export function useUpdateUserEmail() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, email }: { id: number; email: string }) => updateUserEmailApi(id, email),
+    onSuccess: (updated) => {
+      queryClient.invalidateQueries({ queryKey: staffingKeys.all })
+      toast.success(`Email updated for ${updated.fullName || updated.email}`)
+    },
+    onError: (err) => {
+      toast.error(getErrorMessage(err))
+    },
+  })
+}
+
+export function useUpdateUserPassword() {
+  return useMutation({
+    mutationFn: ({ id, password }: { id: number; password: string }) =>
+      updateUserPasswordApi(id, password),
+    onSuccess: () => {
+      toast.success('Password updated successfully')
+    },
+    onError: (err) => {
+      toast.error(getErrorMessage(err))
+    },
+  })
+}

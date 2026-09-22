@@ -6,16 +6,19 @@ import {
   History,
   Truck,
   ChevronRight,
+  ArrowDownToLine,
 } from 'lucide-react'
 import { useOutgoingDeliveries } from '@/features/logistics/outgoing-deliveries.hooks'
+import { useIncomingDeliveries } from '@/features/logistics/incoming-deliveries.hooks'
 import { useDeliveryVehicles } from '@/features/logistics/delivery-vehicles.hooks'
 import { useSalesOrders } from '@/features/crm/sales-orders.hooks'
 import { ScheduleDeliveryView } from './ScheduleDeliveryView'
 import { DeliveryStatusControlView } from './DeliveryStatusControlView'
 import { RecordCompletedDeliveryView } from './RecordCompletedDeliveryView'
 import { VehicleDeliveryHistoryView } from './VehicleDeliveryHistoryView'
+import { IncomingDeliveriesView } from './IncomingDeliveriesView'
 
-type DeliverySubTab = 'schedule' | 'status' | 'completed' | 'history'
+type DeliverySubTab = 'schedule' | 'status' | 'completed' | 'incoming' | 'history'
 
 interface TabConfig {
   key: DeliverySubTab
@@ -29,6 +32,7 @@ const TAB_DESCRIPTIONS: Record<DeliverySubTab, string> = {
   schedule: 'Match confirmed customer sales orders to warehouse stock allocations and plan shipments.',
   status: 'Assign available fleet vehicles and drivers, manage shipment schedules, and dispatch trucks.',
   completed: 'Welcome arriving trucks at customer destinations and record verified delivery receipts.',
+  incoming: 'Receive and inspect incoming supplier shipments from purchase orders into destination warehouses.',
   history: 'Audit fleet vehicle trip histories, delivery success rates, and manage vehicle readiness.',
 }
 
@@ -36,6 +40,7 @@ export function DeliveriesHub() {
   const [activeTab, setActiveTab] = useState<DeliverySubTab>('schedule')
 
   const { data: deliveries = [] } = useOutgoingDeliveries()
+  const { data: incomingDeliveries = [] } = useIncomingDeliveries()
   const { data: vehicles = [] } = useDeliveryVehicles()
   const { data: salesOrders = [] } = useSalesOrders()
 
@@ -45,6 +50,11 @@ export function DeliveriesHub() {
         (o) => o.status === 'CONFIRMED' || o.status === 'PARTIALLY_DELIVERED',
       ).length,
     [salesOrders],
+  )
+
+  const incomingPendingCount = useMemo(
+    () => incomingDeliveries.filter((d) => ['DRAFT', 'SCHEDULED'].includes(d.status)).length,
+    [incomingDeliveries],
   )
 
   const metrics = useMemo(() => {
@@ -78,6 +88,13 @@ export function DeliveriesHub() {
       icon: CheckCircle2,
       badgeCount: metrics.dispatched,
       badgeVariant: 'amber',
+    },
+    {
+      key: 'incoming',
+      label: 'Inbound Receiving',
+      icon: ArrowDownToLine,
+      badgeCount: incomingPendingCount,
+      badgeVariant: incomingPendingCount > 0 ? 'emerald' : 'default',
     },
     {
       key: 'history',
@@ -122,6 +139,8 @@ export function DeliveriesHub() {
             badgeColor = 'bg-amber-500/15 text-amber-600 dark:text-amber-400 font-bold'
           } else if (tab.badgeVariant === 'blue' && typeof tab.badgeCount === 'number' && tab.badgeCount > 0) {
             badgeColor = 'bg-blue-500/15 text-blue-600 dark:text-blue-400 font-bold'
+          } else if (tab.badgeVariant === 'emerald' && typeof tab.badgeCount === 'number' && tab.badgeCount > 0) {
+            badgeColor = 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-bold'
           }
 
           return (
@@ -143,13 +162,13 @@ export function DeliveriesHub() {
                 )}
               </button>
 
-              {/* Directional pipeline flow indicator between lifecycle stages */}
+              {/* Directional pipeline flow indicator between outbound dispatch stages */}
               {idx < 2 && (
                 <ChevronRight className="size-3.5 text-muted-foreground/40 shrink-0 hidden sm:block" />
               )}
 
-              {/* Distinct separator for Fleet & Vehicle Logs */}
-              {idx === 2 && (
+              {/* Distinct separator between Outbound Deliveries, Inbound Receiving, and Fleet Logs */}
+              {(idx === 2 || idx === 3) && (
                 <div className="h-4 w-px bg-border/80 mx-1 shrink-0 hidden sm:block" />
               )}
             </div>
@@ -166,6 +185,7 @@ export function DeliveriesHub() {
         {activeTab === 'schedule' && <ScheduleDeliveryView />}
         {activeTab === 'status' && <DeliveryStatusControlView />}
         {activeTab === 'completed' && <RecordCompletedDeliveryView />}
+        {activeTab === 'incoming' && <IncomingDeliveriesView />}
         {activeTab === 'history' && <VehicleDeliveryHistoryView />}
       </div>
     </div>

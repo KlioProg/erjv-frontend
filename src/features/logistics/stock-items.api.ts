@@ -30,6 +30,35 @@ export async function fetchStockByItemApi(
   return extractArray<StockItemWithRelations>(data)
 }
 
+export async function fetchStockItemByPairApi(
+  inventoryItemId: number,
+  warehouseId: number,
+): Promise<StockItem | null> {
+  try {
+    const { data } = await apiClient.get<StockItem>(
+      `/stock-items/pair/${inventoryItemId}/${warehouseId}`,
+    )
+    if (!data || typeof data !== 'object' || !('id' in data)) {
+      return null
+    }
+    return data
+  } catch {
+    return null
+  }
+}
+
+export async function fetchStockItemByIdApi(id: number): Promise<StockItem | null> {
+  try {
+    const { data } = await apiClient.get<StockItem>(`/stock-items/${id}`)
+    if (!data || typeof data !== 'object' || !('id' in data)) {
+      return null
+    }
+    return data
+  } catch {
+    return null
+  }
+}
+
 export async function createStockItemApi(
   payload: CreateStockItemPayload,
 ): Promise<StockItemWithRelations> {

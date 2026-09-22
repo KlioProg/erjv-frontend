@@ -43,7 +43,7 @@ export function ScheduleDeliveryView() {
   const deliverableOrders = salesOrders
     .filter((o) => o.status === 'CONFIRMED' || o.status === 'PARTIALLY_DELIVERED')
     .filter((order) => {
-      const allAllocations = order.items.flatMap((i) => i.allocations)
+      const allAllocations = (order.items || []).flatMap((i) => i.allocations || [])
       if (allAllocations.length === 0) return true
 
       const totalAllocated = allAllocations.reduce(
@@ -167,7 +167,7 @@ export function ScheduleDeliveryView() {
                       </TableCell>
 
                       <TableCell className="py-3.5 text-xs font-mono text-foreground">
-                        <span className="font-semibold">{order.items.length}</span> {order.items.length === 1 ? 'item line' : 'item lines'}
+                        <span className="font-semibold">{(order.items || []).length}</span> {(order.items || []).length === 1 ? 'item line' : 'item lines'}
                       </TableCell>
 
                       <TableCell className="py-3.5 text-right">

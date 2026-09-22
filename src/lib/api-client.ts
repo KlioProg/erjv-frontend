@@ -344,3 +344,12 @@ export function getErrorMessage(error: unknown): string {
 
   return 'An unexpected error occurred. Please try again.'
 }
+
+export async function checkServerHealthApi(): Promise<{ status: string }> {
+  try {
+    const { data } = await apiClient.get<string>('/')
+    return { status: typeof data === 'string' ? data : 'OK' }
+  } catch {
+    return { status: 'UNAVAILABLE' }
+  }
+}

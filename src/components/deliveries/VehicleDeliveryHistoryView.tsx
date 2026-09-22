@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import {
   Truck,
   History,
@@ -21,10 +21,11 @@ import {
   useDeliveryVehicles,
   useUpdateVehicleStatus,
 } from '@/features/logistics/delivery-vehicles.hooks'
+import { fetchVehicleByPlateNumberApi } from '@/features/logistics/delivery-vehicles.api'
 import { useOutgoingDeliveries } from '@/features/logistics/outgoing-deliveries.hooks'
 import { useSalesOrders } from '@/features/crm/sales-orders.hooks'
 import { useClients } from '@/features/crm/clients.hooks'
-import type { VehicleStatus } from '@/features/logistics/delivery-vehicles.types'
+import type { DeliveryVehicle, VehicleStatus } from '@/features/logistics/delivery-vehicles.types'
 import { VehicleStatusBadge } from './shared/VehicleStatusBadge'
 import { DeliveryStatusBadge } from './shared/DeliveryStatusBadge'
 import { DeliveryDetailModal } from './shared/DeliveryDetailModal'
@@ -43,6 +44,28 @@ export function VehicleDeliveryHistoryView() {
   const [plateSearchTerm, setPlateSearchTerm] = useState<string>('')
   const [tripStatusFilter, setTripStatusFilter] = useState<string>('ALL')
   const [inspectDeliveryId, setInspectDeliveryId] = useState<number | null>(null)
+  const [remoteVehicle, setRemoteVehicle] = useState<DeliveryVehicle | null>(null)
+
+  useEffect(() => {
+    const term = plateSearchTerm.trim().toUpperCase()
+    if (!term) {
+      setRemoteVehicle(null)
+      return
+    }
+    const localMatch = vehicles.find((v) => v.plateNumber.toUpperCase().includes(term))
+    if (!localMatch && term.length >= 3) {
+      let active = true
+      fetchVehicleByPlateNumberApi(term).then((res) => {
+        if (active && res) {
+          setRemoteVehicle(res)
+          setSelectedVehicleId(res.id)
+        }
+      })
+      return () => {
+        active = false
+      }
+    }
+  }, [plateSearchTerm, vehicles])
 
   const getClientName = (clientId?: number) => {
     if (!clientId) return '—'
@@ -57,12 +80,16 @@ export function VehicleDeliveryHistoryView() {
         v.plateNumber.toLowerCase().includes(plateSearchTerm.trim().toLowerCase()),
       )
       if (match) return match
+      if (remoteVehicle) return remoteVehicle
     }
     if (selectedVehicleId) {
-      return vehicles.find((v) => v.id === selectedVehicleId) || vehicles[0]
+      return (
+        vehicles.find((v) => v.id === selectedVehicleId) ||
+        (remoteVehicle?.id === selectedVehicleId ? remoteVehicle : vehicles[0])
+      )
     }
     return vehicles[0] || null
-  }, [vehicles, selectedVehicleId, plateSearchTerm])
+  }, [vehicles, selectedVehicleId, plateSearchTerm, remoteVehicle])
 
   // Deliveries executed by this specific vehicle
   const vehicleDeliveries = useMemo(() => {

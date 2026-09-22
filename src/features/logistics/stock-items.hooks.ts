@@ -6,6 +6,7 @@ import {
   deleteStockItemApi,
   fetchStockByItemApi,
   fetchStockByWarehouseApi,
+  fetchStockItemByPairApi,
   fetchStockItemsApi,
   increaseStockQuantityApi,
   setStockQuantityApi,
@@ -39,6 +40,17 @@ export function useItemStock(inventoryItemId?: number) {
     queryKey: [...STOCK_ITEMS_QUERY_KEY, 'item', inventoryItemId],
     queryFn: () => (inventoryItemId ? fetchStockByItemApi(inventoryItemId) : fetchStockItemsApi()),
     enabled: inventoryItemId !== undefined,
+  })
+}
+
+export function useStockItemByPair(inventoryItemId?: number, warehouseId?: number) {
+  return useQuery({
+    queryKey: [...STOCK_ITEMS_QUERY_KEY, 'pair', inventoryItemId, warehouseId],
+    queryFn: () =>
+      inventoryItemId && warehouseId
+        ? fetchStockItemByPairApi(inventoryItemId, warehouseId)
+        : Promise.resolve(null),
+    enabled: Boolean(inventoryItemId && warehouseId && inventoryItemId > 0 && warehouseId > 0),
   })
 }
 
@@ -125,8 +137,19 @@ export function useDeleteStockItem() {
       void queryClient.invalidateQueries({ queryKey: ['warehouses'] })
       toast.success('Warehouse stock allocation removed')
     },
-    onError: (err) => {
-      toast.error(getErrorMessage(err))
+    onError: (err: unknown) => {
+      const msg = getErrorMessage(err)
+      if (
+        msg.toLowerCase().includes('internal server error') ||
+        (typeof err === 'object' && err !== null && 'response' in err && (err as { response?: { status?: number } }).response?.status === 500)
+      ) {
+        toast.error(
+          'Cannot remove allocation: this product has delivery or movement history in this warehouse. In ERP systems, items with audit history must remain as Out of Stock (0 units).',
+          { duration: 6000 },
+        )
+      } else {
+        toast.error(msg)
+      }
     },
   })
 }

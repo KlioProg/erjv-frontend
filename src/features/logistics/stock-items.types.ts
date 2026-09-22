@@ -15,6 +15,7 @@ export type WarehouseSummary = {
 export type StockItem = {
   id: number
   quantity: string
+  reservedQuantity?: string
   inventoryItemId: number
   warehouseId: number
   createdAt: string
