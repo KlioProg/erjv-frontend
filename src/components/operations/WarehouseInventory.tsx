@@ -3,10 +3,8 @@ import {
   ArrowLeft,
   Boxes,
   ChevronRight,
-  LockKeyhole,
   MapPin,
   Package,
-  PackageCheck,
   Phone,
   Search,
   Warehouse as WarehouseIcon,
@@ -23,7 +21,6 @@ import { getErrorMessage } from '@/lib/api-client'
 type StockRow = {
   stock: StockItemWithInventoryItem
   quantity: number
-  reserved: number
 }
 
 export function WarehouseInventory({
@@ -40,7 +37,6 @@ export function WarehouseInventory({
       (stockQuery.data ?? []).map((stock) => ({
         stock,
         quantity: Number(stock.quantity),
-        reserved: Number(stock.reservedQuantity ?? 0),
       })),
     [stockQuery.data],
   )
@@ -51,15 +47,8 @@ export function WarehouseInventory({
       : rows
   }, [rows, search])
   const totalUnits = rows.reduce((sum, row) => sum + row.quantity, 0)
-  const availableUnits = rows.reduce(
-    (sum, row) => sum + Math.max(0, row.quantity - row.reserved),
-    0,
-  )
-  const reservedUnits = rows.reduce((sum, row) => sum + row.reserved, 0)
   const summaryMetrics = [
     { label: 'Total stock', value: totalUnits, unit: 'units', icon: Boxes },
-    { label: 'Available', value: availableUnits, unit: 'units', icon: PackageCheck },
-    { label: 'Reserved', value: reservedUnits, unit: 'units', icon: LockKeyhole },
     { label: 'Products', value: rows.length, unit: 'products', icon: Package },
   ]
 
@@ -92,18 +81,6 @@ export function WarehouseInventory({
         sortable: true,
         sortKey: 'quantity',
         cell: ({ row }) => <span className="text-xs font-bold">{row.quantity.toLocaleString()}</span>,
-      },
-      {
-        id: 'available',
-        header: 'Available',
-        align: 'right',
-        sortable: true,
-        sortKey: (row) => Math.max(0, row.quantity - row.reserved),
-        cell: ({ row }) => (
-          <span className="text-xs">
-            {Math.max(0, row.quantity - row.reserved).toLocaleString()}
-          </span>
-        ),
       },
       {
         id: 'status',
