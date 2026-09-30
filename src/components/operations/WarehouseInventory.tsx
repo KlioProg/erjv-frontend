@@ -3,8 +3,11 @@ import {
   ArrowLeft,
   Boxes,
   ChevronRight,
+  LockKeyhole,
   MapPin,
   Package,
+  PackageCheck,
+  Phone,
   Search,
   Warehouse as WarehouseIcon,
 } from 'lucide-react'
@@ -48,6 +51,17 @@ export function WarehouseInventory({
       : rows
   }, [rows, search])
   const totalUnits = rows.reduce((sum, row) => sum + row.quantity, 0)
+  const availableUnits = rows.reduce(
+    (sum, row) => sum + Math.max(0, row.quantity - row.reserved),
+    0,
+  )
+  const reservedUnits = rows.reduce((sum, row) => sum + row.reserved, 0)
+  const summaryMetrics = [
+    { label: 'Total stock', value: totalUnits, unit: 'units', icon: Boxes },
+    { label: 'Available', value: availableUnits, unit: 'units', icon: PackageCheck },
+    { label: 'Reserved', value: reservedUnits, unit: 'units', icon: LockKeyhole },
+    { label: 'Products', value: rows.length, unit: 'products', icon: Package },
+  ]
 
   const columns = useMemo<ColumnDef<StockRow>[]>(
     () => [
@@ -118,43 +132,58 @@ export function WarehouseInventory({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="min-w-0">
-        <div className="mb-2 flex items-center gap-1 text-xs text-muted-foreground">
-          <Button variant="ghost" size="sm" onClick={onBack} className="-ml-2 h-7 gap-1 px-2 text-xs">
-            <ArrowLeft className="size-4" />
-            Warehouses
-          </Button>
-          <ChevronRight className="size-3.5" />
-          <span className="truncate font-semibold text-foreground">{warehouse.name}</span>
+      <div className="grid gap-4 lg:grid-cols-2 lg:items-stretch lg:gap-6">
+        <div className="min-w-0">
+          <div className="mb-2 flex items-center gap-1 text-xs text-muted-foreground">
+            <Button variant="ghost" size="sm" onClick={onBack} className="-ml-2 h-7 gap-1 px-2 text-xs">
+              <ArrowLeft className="size-4" />
+              Warehouses
+            </Button>
+            <ChevronRight className="size-3.5" />
+            <span className="truncate font-semibold text-foreground">{warehouse.name}</span>
+          </div>
+          <h2 className="flex items-center gap-2 text-lg font-bold">
+            <WarehouseIcon className="size-5 shrink-0 text-primary" />
+            {warehouse.name}
+          </h2>
+          <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+            <MapPin className="size-3.5 shrink-0" />
+            {warehouse.address}
+          </p>
+          {warehouse.contactNumber && (
+            <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Phone className="size-3.5 shrink-0" />
+              {warehouse.contactNumber}
+            </p>
+          )}
+          <Badge
+            variant="outline"
+            className={`mt-3 ${warehouse.isActive === false
+              ? 'border-amber-500/30 text-amber-600'
+              : 'border-emerald-500/30 text-emerald-600'}`}
+          >
+            {warehouse.isActive === false ? 'Archived · View only' : 'Active'}
+          </Badge>
         </div>
-        <h2 className="flex items-center gap-2 text-lg font-bold">
-          <WarehouseIcon className="size-5 text-primary" />
-          {warehouse.name}
-        </h2>
-        <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
-          <MapPin className="size-3.5 shrink-0" />
-          {warehouse.address}
-        </p>
-      </div>
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="flex items-center gap-2 rounded-xl border border-border/80 bg-muted/25 px-3 py-2 text-xs">
-          <Boxes className="size-4 text-primary" />
-          <span className="font-bold">{stockQuery.isLoading || stockQuery.isError ? '—' : totalUnits.toLocaleString()}</span>
-          <span className="text-muted-foreground">units</span>
-        </div>
-        <div className="flex items-center gap-2 rounded-xl border border-border/80 bg-muted/25 px-3 py-2 text-xs">
-          <Package className="size-4 text-primary" />
-          <span className="font-bold">{stockQuery.isLoading || stockQuery.isError ? '—' : rows.length}</span>
-          <span className="text-muted-foreground">products</span>
-        </div>
-        <Badge
-          variant="outline"
-          className={warehouse.isActive === false
-            ? 'border-amber-500/30 text-amber-600'
-            : 'border-emerald-500/30 text-emerald-600'}
-        >
-          {warehouse.isActive === false ? 'Archived · View only' : 'Active'}
-        </Badge>
+        <section aria-label="Warehouse stock overview" className="rounded-xl border border-border/80 bg-muted/20 p-4">
+          <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Stock overview
+          </h3>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+            {summaryMetrics.map(({ label, value, unit, icon: Icon }) => (
+              <div key={label} className="min-w-0">
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <Icon className="size-3.5 shrink-0 text-primary" />
+                  <span>{label}</span>
+                </div>
+                <p className="mt-1 text-lg font-bold tabular-nums leading-none">
+                  {stockQuery.isLoading || stockQuery.isError ? '—' : value.toLocaleString()}
+                  <span className="ml-1 text-[11px] font-normal text-muted-foreground">{unit}</span>
+                </p>
+              </div>
+            ))}
+          </div>
+        </section>
       </div>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h3 className="text-sm font-bold">Inventory in {warehouse.name}</h3>
