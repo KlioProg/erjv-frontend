@@ -68,7 +68,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     title: 'Operations & Logistics',
     items: [
-      { key: 'inventory', label: 'Inventory & Stock', icon: Boxes },
+      { key: 'inventory', label: 'Inventory', icon: Boxes },
       { key: 'warehouses', label: 'Warehouses', icon: WarehouseIcon },
       { key: 'fleet', label: 'Delivery Fleet', icon: Truck },
       { key: 'deliveries', label: 'Deliveries Hub', icon: MapPinned },

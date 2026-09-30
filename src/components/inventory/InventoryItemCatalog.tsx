@@ -12,19 +12,9 @@ import {
   Layers,
 } from 'lucide-react'
 import { ArchiveTabNav } from '@/components/ui/ArchiveTabNav'
-import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { Spinner } from '@/components/ui/spinner'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -32,6 +22,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { DataTable, type ColumnDef } from '@/components/ui/data-table'
 import {
   useAllProducts,
   useDeactivateProduct,
@@ -44,12 +35,25 @@ import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal'
 import { InventoryItemModal } from '@/components/operations/InventoryItemModal'
 import { StockAdjustModal } from '@/components/operations/StockAdjustModal'
 
-export function InventoryItemCatalog() {
+export interface InventoryItemCatalogProps {
+  activeTab?: 'ACTIVE' | 'ARCHIVED'
+  onArchiveTabChange?: (tab: 'ACTIVE' | 'ARCHIVED') => void
+  hideArchiveNav?: boolean
+}
+
+export function InventoryItemCatalog({
+  activeTab: controlledActiveTab,
+  onArchiveTabChange,
+  hideArchiveNav = false,
+}: InventoryItemCatalogProps = {}) {
   const { data: allProducts = [], isLoading: isLoadingProducts } = useAllProducts()
   const { data: stockItems = [], isLoading: isLoadingStock } = useStockItems()
   const { isAdmin, isManager } = useAuth()
 
-  const [activeTab, setActiveTab] = useState<'ACTIVE' | 'ARCHIVED'>('ACTIVE')
+  const [internalActiveTab, setInternalActiveTab] = useState<'ACTIVE' | 'ARCHIVED'>('ACTIVE')
+  const activeTab = controlledActiveTab ?? internalActiveTab
+  const handleTabChange = onArchiveTabChange ?? setInternalActiveTab
+
   const [searchTerm, setSearchTerm] = useState('')
 
   // Modals state
@@ -61,7 +65,7 @@ export function InventoryItemCatalog() {
   const [isAllocateModalOpen, setIsAllocateModalOpen] = useState(false)
 
   const deactivateProductMutation = useDeactivateProduct({
-    onViewArchive: () => setActiveTab('ARCHIVED'),
+    onViewArchive: () => handleTabChange('ARCHIVED'),
   })
   const reactivateProductMutation = useReactivateProduct()
 
@@ -71,26 +75,27 @@ export function InventoryItemCatalog() {
     stockItems.forEach((s) => {
       const entry = map.get(s.inventoryItemId) || { total: 0, warehouseCount: 0 }
       entry.total += parseFloat(s.quantity || '0')
-      if (parseFloat(s.quantity || '0') > 0) {
-        entry.warehouseCount += 1
-      }
+      entry.warehouseCount += 1
       map.set(s.inventoryItemId, entry)
     })
     return map
   }, [stockItems])
 
-  const activeProducts = allProducts.filter((p) => p.isActive !== false)
-  const archivedProducts = allProducts.filter((p) => p.isActive === false)
+  const activeProducts = useMemo(() => allProducts.filter((p) => p.isActive !== false), [allProducts])
+  const archivedProducts = useMemo(() => allProducts.filter((p) => p.isActive === false), [allProducts])
   const currentList = activeTab === 'ACTIVE' ? activeProducts : archivedProducts
 
-  const filteredProducts = currentList.filter((p) => {
-    const term = searchTerm.toLowerCase()
-    return (
-      p.name.toLowerCase().includes(term) ||
-      (p.variety && p.variety.toLowerCase().includes(term)) ||
-      (p.description && p.description.toLowerCase().includes(term))
-    )
-  })
+  const filteredProducts = useMemo(() => {
+    const term = searchTerm.toLowerCase().trim()
+    if (!term) return currentList
+    return currentList.filter((p) => {
+      return (
+        p.name.toLowerCase().includes(term) ||
+        (p.variety && p.variety.toLowerCase().includes(term)) ||
+        (p.description && p.description.toLowerCase().includes(term))
+      )
+    })
+  }, [currentList, searchTerm])
 
   const handleCreateProduct = () => {
     setSelectedProductForEdit(null)
@@ -121,26 +126,221 @@ export function InventoryItemCatalog() {
 
   const isLoading = isLoadingProducts || isLoadingStock
 
+  // Column definitions for the reusable DataTable component
+  const columns: ColumnDef<InventoryItemResponse>[] = [
+      {
+        id: 'name',
+        header: 'Product',
+        sortable: true,
+        sortKey: 'name',
+        cell: ({ row }) => {
+          const isArchived = row.isActive === false
+          return (
+            <div className="flex items-start gap-3 py-0.5">
+              <div
+                className={`p-2 rounded-xl shrink-0 mt-0.5 ${
+                  isArchived ? 'bg-muted text-muted-foreground' : 'bg-primary/10 text-primary'
+                }`}
+              >
+                <Package className="size-4" />
+              </div>
+              <div className="flex flex-col min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs font-bold text-foreground truncate">{row.name}</span>
+                  {row.variety && (
+                    <Badge
+                      variant="outline"
+                      className="text-[10px] px-1.5 py-0 bg-muted/60 text-muted-foreground font-semibold"
+                    >
+                      <Tag className="size-2.5 mr-1 text-primary" />
+                      {row.variety}
+                    </Badge>
+                  )}
+                </div>
+                {row.description ? (
+                  <span className="text-[11px] text-muted-foreground line-clamp-1 mt-0.5">
+                    {row.description}
+                  </span>
+                ) : (
+                  <span className="text-[10px] text-muted-foreground/60 italic mt-0.5">
+                    No description provided
+                  </span>
+                )}
+              </div>
+            </div>
+          )
+        },
+      },
+      {
+        id: 'unitPrice',
+        header: 'Wholesale Price',
+        align: 'right',
+        sortable: true,
+        sortKey: 'unitPrice',
+        cell: ({ row }) => (
+          <div className="text-right">
+            <span className="text-xs font-extrabold text-foreground">
+              ₱
+              {Number(row.unitPrice).toLocaleString('en-US', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}
+            </span>
+            <span className="text-[10px] text-muted-foreground block font-medium">per unit</span>
+          </div>
+        ),
+      },
+      {
+        id: 'totalStock',
+        header: 'Total Stock',
+        align: 'center',
+        sortable: true,
+        sortKey: (row) => productStockMap.get(row.id)?.total ?? 0,
+        cell: ({ row }) => {
+          const stockData = productStockMap.get(row.id) || { total: 0, warehouseCount: 0 }
+          return (
+            <div className="inline-flex items-center justify-center gap-1.5 font-bold text-xs">
+              <Boxes className="size-3.5 text-primary" />
+              <span
+                className={
+                  stockData.total === 0 ? 'text-rose-600 font-extrabold' : 'text-foreground'
+                }
+              >
+                {stockData.total.toLocaleString()}
+              </span>
+              <span className="text-[10px] font-normal text-muted-foreground">units</span>
+            </div>
+          )
+        },
+      },
+      {
+        id: 'locations',
+        header: 'Locations',
+        align: 'center',
+        sortable: true,
+        sortKey: (row) => productStockMap.get(row.id)?.warehouseCount ?? 0,
+        cell: ({ row }) => {
+          const stockData = productStockMap.get(row.id) || { total: 0, warehouseCount: 0 }
+          return (
+            <Badge variant="secondary" className="text-[11px] font-semibold px-2 py-0.5 rounded-lg">
+              <Layers className="size-3 mr-1 text-muted-foreground" />
+              {stockData.warehouseCount} hubs
+            </Badge>
+          )
+        },
+      },
+      {
+        id: 'status',
+        header: 'Status',
+        align: 'center',
+        cell: ({ row }) => {
+          const isArchived = row.isActive === false
+          const totalStock = productStockMap.get(row.id)?.total || 0
+          const status = isArchived ? 'Archived' : totalStock <= 0 ? 'Out of Stock' : totalStock <= 20 ? 'Low Stock' : 'In Stock'
+          return (
+            <Badge
+              variant="outline"
+              className={`text-[10px] font-bold ${
+                isArchived ? 'bg-muted text-muted-foreground border-border'
+                  : totalStock <= 0 ? 'bg-rose-500/10 text-rose-600 border-rose-500/20'
+                    : totalStock <= 20 ? 'bg-amber-500/10 text-amber-600 border-amber-500/20'
+                      : 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20'
+              }`}
+            >
+              {status}
+            </Badge>
+          )
+        },
+      },
+      ...(isAdmin || isManager
+        ? [
+            {
+              id: 'actions',
+              header: 'Actions',
+              align: 'right' as const,
+              width: 80,
+              cell: ({ row }: { row: InventoryItemResponse }) => {
+                const isArchived = row.isActive === false
+                return (
+                  <div className="text-right">
+                    {isArchived ? (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => handleReactivate(row)}
+                        className="h-7.5 px-2.5 text-xs font-bold text-emerald-600 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 rounded-xl cursor-pointer"
+                      >
+                        <RotateCcw className="size-3 mr-1" />
+                        Restore
+                      </Button>
+                    ) : (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="size-8 text-muted-foreground hover:text-foreground cursor-pointer rounded-lg hover:bg-muted"
+                          >
+                            <MoreVertical className="size-4" />
+                            <span className="sr-only">Actions</span>
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="p-1">
+                          <DropdownMenuItem
+                            onClick={() => handleEditProduct(row)}
+                            className="gap-2 text-xs cursor-pointer px-2 py-1.5 rounded-md"
+                          >
+                            <Edit2 className="size-3.5" />
+                            Edit Details & Price
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => handleAllocateProduct(row)}
+                            className="gap-2 text-xs font-semibold text-primary cursor-pointer px-2 py-1.5 rounded-md"
+                          >
+                            <Plus className="size-3.5" />
+                            Allocate to Warehouse
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator className="my-1" />
+                          <DropdownMenuItem
+                            onClick={() => setProductToArchive(row)}
+                            className="gap-2 text-xs text-destructive focus:text-destructive cursor-pointer px-2 py-1.5 rounded-md"
+                          >
+                            <Archive className="size-3.5" />
+                            Archive Item
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )}
+                  </div>
+                )
+              },
+            },
+          ]
+        : []),
+  ]
+
   return (
-    <div className="flex flex-col gap-5">
-      {/* Archive / Active Tabs */}
-      <ArchiveTabNav
-        activeTab={activeTab}
-        onTabChange={setActiveTab}
-        activeLabel="Active Catalog Items"
-        activeCount={activeProducts.length}
-        archivedLabel="Archived Items"
-        archivedCount={archivedProducts.length}
-        activeIcon={<Package className="size-3.5" />}
-        bannerDescription="Showing deactivated catalog items. Pricing history and warehouse stock linkages are preserved and can be reactivated anytime."
-      />
+    <div className="flex flex-col gap-4">
+      {/* Archive / Active Tabs (Only shown if not hidden by parent UnifiedNavbar) */}
+      {!hideArchiveNav && (
+        <ArchiveTabNav
+          activeTab={activeTab}
+          onTabChange={handleTabChange}
+          activeLabel="Active Catalog Items"
+          activeCount={activeProducts.length}
+          archivedLabel="Archived Items"
+          archivedCount={archivedProducts.length}
+          activeIcon={<Package className="size-3.5" />}
+          bannerDescription="Showing deactivated catalog items. Pricing history and warehouse stock linkages are preserved and can be reactivated anytime."
+        />
+      )}
 
       {/* Header controls and Search */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div className="relative flex-1 w-full sm:max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
           <Input
-            placeholder="Search catalog by name, variety, or description..."
+            placeholder="Search product, variety, or description..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-9 h-9 text-xs rounded-xl"
@@ -159,231 +359,16 @@ export function InventoryItemCatalog() {
         )}
       </div>
 
-      {/* Main Table View */}
-      {isLoading ? (
-        <div className="flex items-center justify-center py-16 text-muted-foreground">
-          <Spinner className="mr-2 size-5" /> Loading inventory catalog items...
-        </div>
-      ) : filteredProducts.length === 0 ? (
-        <Card className="border-dashed bg-muted/20">
-          <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-            <Package className="size-10 text-muted-foreground/50 mb-3" />
-            <h3 className="text-sm font-semibold text-foreground">
-              {activeTab === 'ACTIVE' ? 'No catalog items found' : 'No archived items found'}
-            </h3>
-            <p className="text-xs text-muted-foreground mt-1 max-w-xs">
-              {searchTerm
-                ? 'No items match your search filter.'
-                : activeTab === 'ACTIVE'
-                  ? 'Get started by registering your inventory products.'
-                  : 'Archived catalog items will appear here and can be restored at any time.'}
-            </p>
-            {(isAdmin || isManager) && activeTab === 'ACTIVE' && !searchTerm && (
-              <Button
-                onClick={handleCreateProduct}
-                size="sm"
-                variant="outline"
-                className="mt-4 gap-1.5 cursor-pointer"
-              >
-                <Plus className="size-3.5" />
-                Register First Product
-              </Button>
-            )}
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="rounded-2xl border border-border/80 overflow-hidden shadow-xs bg-card">
-          <Table>
-            <TableHeader className="bg-muted/40">
-              <TableRow>
-                <TableHead className="text-xs font-bold text-foreground">Item & Variety</TableHead>
-                <TableHead className="text-xs font-bold text-foreground text-right">
-                  Wholesale Price
-                </TableHead>
-                <TableHead className="text-xs font-bold text-foreground text-center">
-                  Total Allocated Units
-                </TableHead>
-                <TableHead className="text-xs font-bold text-foreground text-center">
-                  Locations
-                </TableHead>
-                <TableHead className="text-xs font-bold text-foreground text-center">
-                  Status
-                </TableHead>
-                {(isAdmin || isManager) && (
-                  <TableHead className="text-xs font-bold text-foreground text-right w-20">
-                    Actions
-                  </TableHead>
-                )}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredProducts.map((prod) => {
-                const stockData = productStockMap.get(prod.id) || { total: 0, warehouseCount: 0 }
-                const isArchived = prod.isActive === false
-
-                return (
-                  <TableRow
-                    key={prod.id}
-                    className={`hover:bg-muted/20 transition-colors ${
-                      isArchived ? 'opacity-70 bg-muted/10' : ''
-                    }`}
-                  >
-                    {/* Item & Description */}
-                    <TableCell>
-                      <div className="flex items-start gap-3">
-                        <div
-                          className={`p-2 rounded-xl shrink-0 mt-0.5 ${
-                            isArchived
-                              ? 'bg-muted text-muted-foreground'
-                              : 'bg-primary/10 text-primary'
-                          }`}
-                        >
-                          <Package className="size-4" />
-                        </div>
-                        <div className="flex flex-col min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-xs font-bold text-foreground truncate">
-                              {prod.name}
-                            </span>
-                            {prod.variety && (
-                              <Badge
-                                variant="outline"
-                                className="text-[10px] px-1.5 py-0 bg-muted/60 text-muted-foreground font-semibold"
-                              >
-                                <Tag className="size-2.5 mr-1 text-primary" />
-                                {prod.variety}
-                              </Badge>
-                            )}
-                          </div>
-                          {prod.description ? (
-                            <span className="text-[11px] text-muted-foreground line-clamp-1 mt-0.5">
-                              {prod.description}
-                            </span>
-                          ) : (
-                            <span className="text-[10px] text-muted-foreground/60 italic mt-0.5">
-                              No description provided
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </TableCell>
-
-                    {/* Wholesale Price */}
-                    <TableCell className="text-right">
-                      <span className="text-xs font-extrabold text-foreground">
-                        ₱
-                        {Number(prod.unitPrice).toLocaleString('en-US', {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        })}
-                      </span>
-                      <span className="text-[10px] text-muted-foreground block font-medium">
-                        per unit
-                      </span>
-                    </TableCell>
-
-                    {/* Total Stock */}
-                    <TableCell className="text-center">
-                      <div className="inline-flex items-center gap-1.5 font-bold text-xs">
-                        <Boxes className="size-3.5 text-primary" />
-                        <span
-                          className={
-                            stockData.total === 0
-                              ? 'text-rose-600 font-extrabold'
-                              : 'text-foreground'
-                          }
-                        >
-                          {stockData.total.toLocaleString()}
-                        </span>
-                        <span className="text-[10px] font-normal text-muted-foreground">units</span>
-                      </div>
-                    </TableCell>
-
-                    {/* Locations Count */}
-                    <TableCell className="text-center">
-                      <Badge
-                        variant="secondary"
-                        className="text-[11px] font-semibold px-2 py-0.5 rounded-lg"
-                      >
-                        <Layers className="size-3 mr-1 text-muted-foreground" />
-                        {stockData.warehouseCount} hubs
-                      </Badge>
-                    </TableCell>
-
-                    {/* Status */}
-                    <TableCell className="text-center">
-                      <Badge
-                        variant="outline"
-                        className={`text-[10px] font-bold ${
-                          isArchived
-                            ? 'bg-muted text-muted-foreground border-border'
-                            : 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20'
-                        }`}
-                      >
-                        {isArchived ? 'Archived' : 'Active'}
-                      </Badge>
-                    </TableCell>
-
-                    {/* Actions */}
-                    {(isAdmin || isManager) && (
-                      <TableCell className="text-right">
-                        {isArchived ? (
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            onClick={() => handleReactivate(prod)}
-                            className="h-8 px-2.5 text-xs font-bold text-emerald-600 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 rounded-xl cursor-pointer"
-                          >
-                            <RotateCcw className="size-3 mr-1" />
-                            Restore
-                          </Button>
-                        ) : (
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="size-8 text-muted-foreground hover:text-foreground cursor-pointer rounded-lg hover:bg-muted"
-                              >
-                                <MoreVertical className="size-4" />
-                                <span className="sr-only">Actions</span>
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="p-1">
-                              <DropdownMenuItem
-                                onClick={() => handleEditProduct(prod)}
-                                className="gap-2 text-xs cursor-pointer px-2 py-1.5 rounded-md"
-                              >
-                                <Edit2 className="size-3.5" />
-                                Edit Details & Price
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onClick={() => handleAllocateProduct(prod)}
-                                className="gap-2 text-xs font-semibold text-primary cursor-pointer px-2 py-1.5 rounded-md"
-                              >
-                                <Plus className="size-3.5" />
-                                Allocate to Warehouse
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator className="my-1" />
-                              <DropdownMenuItem
-                                onClick={() => setProductToArchive(prod)}
-                                className="gap-2 text-xs text-destructive focus:text-destructive cursor-pointer px-2 py-1.5 rounded-md"
-                              >
-                                <Archive className="size-3.5" />
-                                Archive Item
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        )}
-                      </TableCell>
-                    )}
-                  </TableRow>
-                )
-              })}
-            </TableBody>
-          </Table>
-        </div>
-      )}
+      {/* Reusable DataTable Component */}
+      <DataTable
+        data={filteredProducts}
+        columns={columns}
+        isLoading={isLoading}
+        loadingMessage="Loading inventory catalog items..."
+        pagination={true}
+        pageSizeOptions={[10, 25, 50, 100]}
+        rowClassName={(row) => (row.isActive === false ? 'opacity-75 bg-muted/10' : '')}
+      />
 
       {/* Edit / Create Item Modal */}
       <InventoryItemModal

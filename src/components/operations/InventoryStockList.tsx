@@ -14,13 +14,14 @@ import {
   RotateCcw,
   AlertTriangle,
   ChevronRight,
+  Table as TableIcon,
+  LayoutGrid,
 } from 'lucide-react'
 import { ArchiveTabNav } from '@/components/ui/ArchiveTabNav'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { Spinner } from '@/components/ui/spinner'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,6 +29,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { DataTable, type ColumnDef } from '@/components/ui/data-table'
 import {
   useAllProducts,
   useDeactivateProduct,
@@ -39,20 +41,47 @@ import { useAuth } from '@/features/auth/AuthContext'
 import { InventoryItemModal } from './InventoryItemModal'
 import { StockAdjustModal } from './StockAdjustModal'
 import type { InventoryItemResponse } from '@/features/products/products.types'
-import type { StockItemWithRelations } from '@/features/logistics/stock-items.types'
+import type { StockItemWithRelations, WarehouseSummary } from '@/features/logistics/stock-items.types'
 import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal'
 
 export interface InventoryStockListProps {
   onNavigateToLowStock?: () => void
+  activeTab?: 'ACTIVE' | 'ARCHIVED'
+  onArchiveTabChange?: (tab: 'ACTIVE' | 'ARCHIVED') => void
+  hideArchiveNav?: boolean
 }
 
-export function InventoryStockList({ onNavigateToLowStock }: InventoryStockListProps = {}) {
+interface FlatWarehouseStockItem {
+  id: number
+  stock: StockItemWithRelations
+  product?: InventoryItemResponse
+  warehouse?: WarehouseSummary
+  availableUnits: number
+  allocatedUnits: number
+  totalUnits: number
+  reorderLevel: number
+  status: 'IN_STOCK' | 'LOW_STOCK' | 'OUT_OF_STOCK'
+  updatedAt: string
+}
+
+export function InventoryStockList({
+  onNavigateToLowStock,
+  activeTab: controlledActiveTab,
+  onArchiveTabChange,
+  hideArchiveNav = false,
+}: InventoryStockListProps = {}) {
   const { data: allProducts = [], isLoading: isLoadingProducts } = useAllProducts()
   const { data: stockItems = [], isLoading: isLoadingStock } = useStockItems()
   const { data: warehouses = [] } = useWarehouses()
-  const [activeTab, setActiveTab] = useState<'ACTIVE' | 'ARCHIVED'>('ACTIVE')
+
+  const [internalActiveTab, setInternalActiveTab] = useState<'ACTIVE' | 'ARCHIVED'>('ACTIVE')
+  const activeTab = controlledActiveTab ?? internalActiveTab
+  const handleTabChange = onArchiveTabChange ?? setInternalActiveTab
+
+  const [viewMode, setViewMode] = useState<'table' | 'cards'>('table')
+
   const deactivateProductMutation = useDeactivateProduct({
-    onViewArchive: () => setActiveTab('ARCHIVED'),
+    onViewArchive: () => handleTabChange('ARCHIVED'),
   })
   const reactivateProductMutation = useReactivateProduct()
   const deleteStockMutation = useDeleteStockItem()
@@ -107,31 +136,89 @@ export function InventoryStockList({ onNavigateToLowStock }: InventoryStockListP
   } | null>(null)
 
   // Map total units per product across all warehouses
-  const productStockMap = new Map<number, number>()
-  stockItems.forEach((s) => {
-    const current = productStockMap.get(s.inventoryItemId) || 0
-    productStockMap.set(s.inventoryItemId, current + parseFloat(s.quantity))
-  })
+  const productStockMap = useMemo(() => {
+    const map = new Map<number, number>()
+    stockItems.forEach((s) => {
+      const current = map.get(s.inventoryItemId) || 0
+      map.set(s.inventoryItemId, current + parseFloat(s.quantity))
+    })
+    return map
+  }, [stockItems])
 
-  const activeProducts = allProducts.filter((p) => p.isActive !== false)
-  const archivedProducts = allProducts.filter((p) => p.isActive === false)
+  const activeProducts = useMemo(() => allProducts.filter((p) => p.isActive !== false), [allProducts])
+  const archivedProducts = useMemo(() => allProducts.filter((p) => p.isActive === false), [allProducts])
   const currentProductList = activeTab === 'ACTIVE' ? activeProducts : archivedProducts
+  const currentProductIdSet = useMemo(
+    () => new Set(currentProductList.map((p) => p.id)),
+    [currentProductList],
+  )
 
-  // Filter products
-  const filteredProducts = currentProductList.filter((p) => {
-    const matchesSearch =
-      p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (p.variety && p.variety.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (p.description && p.description.toLowerCase().includes(searchTerm.toLowerCase()))
+  // Filter products for Card View
+  const filteredProducts = useMemo(() => {
+    const term = searchTerm.toLowerCase().trim()
+    return currentProductList.filter((p) => {
+      const matchesSearch =
+        !term ||
+        p.name.toLowerCase().includes(term) ||
+        (p.variety && p.variety.toLowerCase().includes(term)) ||
+        (p.description && p.description.toLowerCase().includes(term))
 
-    if (selectedWarehouseFilter === 'ALL') return matchesSearch
+      if (selectedWarehouseFilter === 'ALL') return matchesSearch
 
-    const whId = parseInt(selectedWarehouseFilter, 10)
-    const hasStockInWh = stockItems.some(
-      (s) => s.inventoryItemId === p.id && s.warehouseId === whId && parseFloat(s.quantity) > 0,
-    )
-    return matchesSearch && hasStockInWh
-  })
+      const whId = parseInt(selectedWarehouseFilter, 10)
+      const hasStockInWh = stockItems.some(
+        (s) => s.inventoryItemId === p.id && s.warehouseId === whId && parseFloat(s.quantity) > 0,
+      )
+      return matchesSearch && hasStockInWh
+    })
+  }, [currentProductList, searchTerm, selectedWarehouseFilter, stockItems])
+
+  // Flattened stock items for the Table View
+  const flatStockItems = useMemo<FlatWarehouseStockItem[]>(() => {
+    const term = searchTerm.toLowerCase().trim()
+
+    return stockItems
+      .filter((s) => currentProductIdSet.has(s.inventoryItemId))
+      .filter((s) => {
+        if (selectedWarehouseFilter === 'ALL') return true
+        return s.warehouseId === parseInt(selectedWarehouseFilter, 10)
+      })
+      .map((s) => {
+        const product = allProducts.find((p) => p.id === s.inventoryItemId)
+        const warehouse = warehouses.find((w) => w.id === s.warehouseId) || s.warehouse
+        const total = parseFloat(s.quantity || '0')
+        const allocated = parseFloat(s.reservedQuantity || '0')
+        const available = Math.max(0, total - allocated)
+        const reorderLevel = 20
+
+        let status: 'IN_STOCK' | 'LOW_STOCK' | 'OUT_OF_STOCK' = 'IN_STOCK'
+        if (total <= 0) {
+          status = 'OUT_OF_STOCK'
+        } else if (total <= reorderLevel) {
+          status = 'LOW_STOCK'
+        }
+
+        return {
+          id: s.id,
+          stock: s,
+          product,
+          warehouse,
+          availableUnits: available,
+          allocatedUnits: allocated,
+          totalUnits: total,
+          reorderLevel,
+          status,
+          updatedAt: s.updatedAt || s.createdAt || '',
+        }
+      })
+      .filter((item) => {
+        if (!term) return true
+        const prodName = item.product?.name?.toLowerCase() || ''
+        const prodVariety = item.product?.variety?.toLowerCase() || ''
+        const whName = item.warehouse?.name?.toLowerCase() || ''
+        return prodName.includes(term) || prodVariety.includes(term) || whName.includes(term)
+      })
+  }, [stockItems, currentProductIdSet, selectedWarehouseFilter, allProducts, warehouses, searchTerm])
 
   const handleCreateProduct = () => {
     setSelectedProductForEdit(null)
@@ -189,21 +276,223 @@ export function InventoryStockList({ onNavigateToLowStock }: InventoryStockListP
 
   const isLoading = isLoadingProducts || isLoadingStock
 
-  return (
-    <div className="flex flex-col gap-5">
-      {/* Catalog Archive / Active Tabs */}
-      <ArchiveTabNav
-        activeTab={activeTab}
-        onTabChange={setActiveTab}
-        activeLabel="Active Products"
-        activeCount={activeProducts.length}
-        archivedLabel="Archived Products"
-        archivedCount={archivedProducts.length}
-        activeIcon={<Package className="size-3.5" />}
-        bannerDescription="Showing deactivated products catalog. Historical stock records and pricing specifications are safely preserved and can be reactivated anytime."
-      />
+  // Column definitions for Warehouse Stock DataTable
+  const tableColumns = useMemo<ColumnDef<FlatWarehouseStockItem>[]>(() => {
+    return [
+      {
+        id: 'product',
+        header: 'Item & Variety',
+        sortable: true,
+        sortKey: (row) => row.product?.name || '',
+        cell: ({ row }) => (
+          <div className="flex items-start gap-3 py-0.5">
+            <div className="p-2 rounded-xl shrink-0 mt-0.5 bg-primary/10 text-primary">
+              <Package className="size-4" />
+            </div>
+            <div className="flex flex-col min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs font-bold text-foreground truncate">
+                  {row.product?.name || `Item #${row.stock.inventoryItemId}`}
+                </span>
+                {row.product?.variety && (
+                  <Badge
+                    variant="outline"
+                    className="text-[10px] px-1.5 py-0 bg-muted/60 text-muted-foreground font-semibold"
+                  >
+                    <Tag className="size-2.5 mr-1 text-primary" />
+                    {row.product.variety}
+                  </Badge>
+                )}
+              </div>
+              {row.product?.unitPrice && (
+                <span className="text-[11px] text-muted-foreground mt-0.5">
+                  ₱{Number(row.product.unitPrice).toFixed(2)} / unit
+                </span>
+              )}
+            </div>
+          </div>
+        ),
+      },
+      {
+        id: 'warehouse',
+        header: 'Warehouse / Location',
+        sortable: true,
+        sortKey: (row) => row.warehouse?.name || '',
+        cell: ({ row }) => (
+          <div>
+            <div className="flex items-center gap-1.5">
+              <WarehouseIcon className="size-3.5 text-muted-foreground shrink-0" />
+              <span className="text-xs font-semibold text-foreground">
+                {row.warehouse?.name || `Warehouse #${row.stock.warehouseId}`}
+              </span>
+            </div>
+            {row.warehouse?.address && (
+              <span className="text-[10px] text-muted-foreground block truncate max-w-xs mt-0.5">
+                {row.warehouse.address}
+              </span>
+            )}
+          </div>
+        ),
+      },
+      {
+        id: 'availableUnits',
+        header: 'Available Units',
+        align: 'right',
+        sortable: true,
+        sortKey: 'availableUnits',
+        cell: ({ row }) => (
+          <div className="text-right">
+            <span
+              className={`text-xs font-bold ${
+                row.availableUnits === 0 ? 'text-rose-600' : 'text-foreground'
+              }`}
+            >
+              {row.availableUnits.toLocaleString()}
+            </span>
+            <span className="text-[10px] text-muted-foreground block">units</span>
+          </div>
+        ),
+      },
+      {
+        id: 'allocatedUnits',
+        header: 'Allocated Units',
+        align: 'right',
+        sortable: true,
+        sortKey: 'allocatedUnits',
+        cell: ({ row }) => (
+          <div className="text-right">
+            <span className="text-xs font-semibold text-muted-foreground">
+              {row.allocatedUnits.toLocaleString()}
+            </span>
+            <span className="text-[10px] text-muted-foreground/70 block">units</span>
+          </div>
+        ),
+      },
+      {
+        id: 'totalUnits',
+        header: 'Total Units',
+        align: 'right',
+        sortable: true,
+        sortKey: 'totalUnits',
+        cell: ({ row }) => (
+          <div className="text-right">
+            <div className="inline-flex items-center gap-1 font-extrabold text-xs">
+              <Boxes className="size-3 text-primary" />
+              <span
+                className={
+                  row.totalUnits === 0
+                    ? 'text-rose-600'
+                    : row.totalUnits <= row.reorderLevel
+                      ? 'text-amber-600 dark:text-[#ffb627]'
+                      : 'text-foreground'
+                }
+              >
+                {row.totalUnits.toLocaleString()}
+              </span>
+            </div>
+            <span className="text-[10px] text-muted-foreground block">units</span>
+          </div>
+        ),
+      },
+      {
+        id: 'reorderLevel',
+        header: 'Reorder Level',
+        align: 'center',
+        cell: ({ row }) => (
+          <Badge variant="secondary" className="text-[10px] px-2 py-0.5 rounded-lg">
+            {row.reorderLevel} units
+          </Badge>
+        ),
+      },
+      {
+        id: 'status',
+        header: 'Stock Status',
+        align: 'center',
+        sortable: true,
+        sortKey: 'status',
+        cell: ({ row }) => {
+          if (row.status === 'OUT_OF_STOCK') {
+            return (
+              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/25">
+                <span className="size-1.5 rounded-full bg-rose-600 dark:bg-rose-400 shrink-0" />
+                Out of Stock
+              </span>
+            )
+          }
+          if (row.status === 'LOW_STOCK') {
+            return (
+              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-600 dark:text-[#ffb627] border border-amber-500/25">
+                <span className="size-1.5 rounded-full bg-amber-600 dark:bg-[#ffb627] shrink-0" />
+                Low Stock
+              </span>
+            )
+          }
+          return (
+            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-500 border border-emerald-500/25">
+              <span className="size-1.5 rounded-full bg-emerald-600 dark:bg-emerald-500 shrink-0" />
+              In Stock
+            </span>
+          )
+        },
+      },
+      ...(isAdmin || isManager
+        ? [
+            {
+              id: 'actions',
+              header: 'Actions',
+              align: 'right' as const,
+              width: 130,
+              cell: ({ row }: { row: FlatWarehouseStockItem }) => (
+                <div className="flex items-center justify-end gap-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleAdjustStock(row.stock)}
+                    className="h-7 px-2 text-[11px] font-bold rounded-lg gap-1 cursor-pointer bg-background hover:bg-muted/70 text-foreground border-border/80 shadow-2xs"
+                  >
+                    <ArrowUpDown className="size-3 text-muted-foreground" />
+                    Adjust
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() =>
+                      handleRemoveStockAllocation(
+                        row.stock,
+                        row.product?.name || `Item #${row.stock.inventoryItemId}`,
+                        row.warehouse?.name || `WH #${row.stock.warehouseId}`,
+                      )
+                    }
+                    className="size-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg cursor-pointer"
+                    title="Remove allocation"
+                  >
+                    <Trash2 className="size-3.5" />
+                  </Button>
+                </div>
+              ),
+            },
+          ]
+        : []),
+    ]
+  }, [isAdmin, isManager])
 
-      {/* Header controls and Search */}
+  return (
+    <div className="flex flex-col gap-4">
+      {/* Catalog Archive / Active Tabs (Only shown if not hidden by parent UnifiedNavbar) */}
+      {!hideArchiveNav && (
+        <ArchiveTabNav
+          activeTab={activeTab}
+          onTabChange={handleTabChange}
+          activeLabel="Active Products"
+          activeCount={activeProducts.length}
+          archivedLabel="Archived Products"
+          archivedCount={archivedProducts.length}
+          activeIcon={<Package className="size-3.5" />}
+          bannerDescription="Showing deactivated products catalog. Historical stock records and pricing specifications are safely preserved and can be reactivated anytime."
+        />
+      )}
+
+      {/* Header controls, Search & View Switcher */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div className="flex flex-1 flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full sm:w-auto">
           <div className="relative flex-1 sm:max-w-xs">
@@ -212,7 +501,7 @@ export function InventoryStockList({ onNavigateToLowStock }: InventoryStockListP
               placeholder="Search product name or variety..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-9 h-9 text-xs"
+              className="pl-9 h-9 text-xs rounded-xl"
             />
           </div>
 
@@ -221,7 +510,7 @@ export function InventoryStockList({ onNavigateToLowStock }: InventoryStockListP
               variant={selectedWarehouseFilter === 'ALL' ? 'secondary' : 'ghost'}
               size="sm"
               onClick={() => setSelectedWarehouseFilter('ALL')}
-              className="h-8 text-xs font-semibold cursor-pointer"
+              className="h-8 text-xs font-semibold cursor-pointer rounded-xl"
             >
               All Warehouses
             </Button>
@@ -231,7 +520,7 @@ export function InventoryStockList({ onNavigateToLowStock }: InventoryStockListP
                 variant={selectedWarehouseFilter === String(wh.id) ? 'secondary' : 'ghost'}
                 size="sm"
                 onClick={() => setSelectedWarehouseFilter(String(wh.id))}
-                className="h-8 text-xs whitespace-nowrap cursor-pointer"
+                className="h-8 text-xs whitespace-nowrap cursor-pointer rounded-xl"
               >
                 {wh.name.split(' ')[0]}
               </Button>
@@ -256,372 +545,374 @@ export function InventoryStockList({ onNavigateToLowStock }: InventoryStockListP
           )}
         </div>
 
-        {(isAdmin || isManager) && activeTab === 'ACTIVE' && (
-          <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 self-end sm:self-center">
+          {/* View Mode Switcher: Table vs Cards */}
+          <div className="flex items-center p-0.5 rounded-xl bg-muted/60 border border-border/70 shadow-2xs">
+            <Button
+              variant={viewMode === 'table' ? 'secondary' : 'ghost'}
+              size="sm"
+              onClick={() => setViewMode('table')}
+              className={`h-7 px-2.5 text-xs font-bold gap-1.5 cursor-pointer rounded-lg transition-all ${
+                viewMode === 'table' ? 'bg-background shadow-2xs' : 'text-muted-foreground'
+              }`}
+              title="Table View"
+            >
+              <TableIcon className="size-3.5 text-primary" />
+              <span className="hidden sm:inline">Table</span>
+            </Button>
+            <Button
+              variant={viewMode === 'cards' ? 'secondary' : 'ghost'}
+              size="sm"
+              onClick={() => setViewMode('cards')}
+              className={`h-7 px-2.5 text-xs font-bold gap-1.5 cursor-pointer rounded-lg transition-all ${
+                viewMode === 'cards' ? 'bg-background shadow-2xs' : 'text-muted-foreground'
+              }`}
+              title="Card View"
+            >
+              <LayoutGrid className="size-3.5 text-primary" />
+              <span className="hidden sm:inline">Cards</span>
+            </Button>
+          </div>
+
+          {(isAdmin || isManager) && activeTab === 'ACTIVE' && (
             <Button
               onClick={handleCreateProduct}
               size="sm"
-              className="gap-1.5 shadow-xs font-semibold cursor-pointer"
+              className="gap-1.5 shadow-xs font-semibold cursor-pointer shrink-0"
             >
               <Plus className="size-4" />
               Register Product
             </Button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
-      {/* Main Product Cards & Stock Breakdowns */}
-      {isLoading ? (
-        <div className="flex items-center justify-center py-16 text-muted-foreground">
-          <Spinner className="mr-2 size-5" /> Loading catalog and stock balances...
-        </div>
-      ) : filteredProducts.length === 0 ? (
-        <Card className="border-dashed bg-muted/20">
-          <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-            <Package className="size-10 text-muted-foreground/50 mb-3" />
-            <h3 className="text-sm font-semibold text-foreground">
-              {activeTab === 'ACTIVE' ? 'No catalog items found' : 'No deactivated products found'}
-            </h3>
-            <p className="text-xs text-muted-foreground mt-1 max-w-xs">
-              {searchTerm || selectedWarehouseFilter !== 'ALL'
-                ? 'No products match your search filter or selected warehouse.'
-                : activeTab === 'ACTIVE'
-                  ? archivedProducts.length > 0
-                    ? `All catalog items are currently archived (${archivedProducts.length} total).`
-                    : 'Get started by creating your wholesale and retail inventory products.'
-                  : 'Archived inventory items will appear here and can be reactivated at any time.'}
-            </p>
-            {!searchTerm &&
-              selectedWarehouseFilter === 'ALL' &&
-              activeTab === 'ACTIVE' &&
-              archivedProducts.length > 0 && (
-                <Button
-                  onClick={() => setActiveTab('ARCHIVED')}
-                  size="sm"
-                  variant="outline"
-                  className="mt-3 gap-1.5 cursor-pointer text-xs"
-                >
-                  <Archive className="size-3.5 text-amber-600" />
-                  View Archived Products ({archivedProducts.length})
-                </Button>
-              )}
-            {(isAdmin || isManager) &&
-              !searchTerm &&
-              selectedWarehouseFilter === 'ALL' &&
-              activeTab === 'ACTIVE' &&
-              archivedProducts.length === 0 && (
-                <Button
-                  onClick={handleCreateProduct}
-                  size="sm"
-                  variant="outline"
-                  className="mt-4 gap-1.5 cursor-pointer"
-                >
-                  <Plus className="size-3.5" />
-                  Register First Product
-                </Button>
-              )}
-          </CardContent>
-        </Card>
+      {/* Main View: Table Mode or Card Mode */}
+      {viewMode === 'table' ? (
+        <DataTable
+          data={flatStockItems}
+          columns={tableColumns}
+          isLoading={isLoading}
+          loadingMessage="Loading warehouse stock inventory records..."
+          pagination={true}
+          pageSizeOptions={[10, 25, 50, 100]}
+          emptyContent={
+            <Card className="border-dashed bg-muted/20">
+              <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+                <WarehouseIcon className="size-10 text-muted-foreground/50 mb-3" />
+                <h3 className="text-sm font-semibold text-foreground">
+                  No warehouse stock records found
+                </h3>
+                <p className="text-xs text-muted-foreground mt-1 max-w-xs">
+                  {searchTerm || selectedWarehouseFilter !== 'ALL'
+                    ? 'No stock allocations match your search filter or selected warehouse.'
+                    : 'Allocate products to warehouse facilities to track real-time stock balances.'}
+                </p>
+              </CardContent>
+            </Card>
+          }
+        />
       ) : (
+        /* Card Mode */
         <div className="flex flex-col gap-4">
-          {filteredProducts.map((prod) => {
-            const isArchived = prod.isActive === false
-            const stockInHubs = stockItems.filter((s) => s.inventoryItemId === prod.id)
-            const totalStockUnits = productStockMap.get(prod.id) || 0
+          {filteredProducts.length === 0 ? (
+            <Card className="border-dashed bg-muted/20">
+              <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+                <Package className="size-10 text-muted-foreground/50 mb-3" />
+                <h3 className="text-sm font-semibold text-foreground">
+                  {activeTab === 'ACTIVE'
+                    ? 'No catalog items found'
+                    : 'No deactivated products found'}
+                </h3>
+                <p className="text-xs text-muted-foreground mt-1 max-w-xs">
+                  {searchTerm || selectedWarehouseFilter !== 'ALL'
+                    ? 'No products match your search filter or selected warehouse.'
+                    : activeTab === 'ACTIVE'
+                      ? 'Get started by creating your wholesale and retail inventory products.'
+                      : 'Archived inventory items will appear here and can be reactivated at any time.'}
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            filteredProducts.map((prod) => {
+              const isArchived = prod.isActive === false
+              const stockInHubs = stockItems.filter((s) => s.inventoryItemId === prod.id)
+              const totalStockUnits = productStockMap.get(prod.id) || 0
 
-            return (
-              <Card
-                key={prod.id}
-                className={`group overflow-hidden border-border/80 shadow-xs hover:border-primary/40 transition-all rounded-2xl ${
-                  isArchived ? 'opacity-75 bg-muted/20 border-dashed' : ''
-                }`}
-              >
-                <div className="p-5">
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                    {/* Product Basic Info */}
-                    <div className="flex items-start gap-3.5 min-w-0 flex-1">
-                      <div
-                        className={`flex size-11 shrink-0 items-center justify-center rounded-2xl shadow-2xs ${
-                          isArchived
-                            ? 'bg-muted text-muted-foreground'
-                            : 'bg-primary/10 text-primary'
-                        }`}
-                      >
-                        <Package className="size-5" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <h4 className="text-sm font-bold text-foreground truncate">
-                            {prod.name}
-                          </h4>
-                          {prod.variety && (
-                            <Badge
-                              variant="outline"
-                              className="text-[10px] px-2 py-0.5 bg-muted/50 border-border text-foreground font-semibold"
-                            >
-                              <Tag className="size-2.5 mr-1 text-primary" />
-                              {prod.variety}
-                            </Badge>
+              return (
+                <Card
+                  key={prod.id}
+                  className={`group overflow-hidden border-border/80 shadow-xs hover:border-primary/40 transition-all rounded-2xl ${
+                    isArchived ? 'opacity-75 bg-muted/20 border-dashed' : ''
+                  }`}
+                >
+                  <div className="p-5">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                      {/* Product Basic Info */}
+                      <div className="flex items-start gap-3.5 min-w-0 flex-1">
+                        <div
+                          className={`flex size-11 shrink-0 items-center justify-center rounded-2xl shadow-2xs ${
+                            isArchived
+                              ? 'bg-muted text-muted-foreground'
+                              : 'bg-primary/10 text-primary'
+                          }`}
+                        >
+                          <Package className="size-5" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h4 className="text-sm font-bold text-foreground truncate">
+                              {prod.name}
+                            </h4>
+                            {prod.variety && (
+                              <Badge
+                                variant="outline"
+                                className="text-[10px] px-2 py-0.5 bg-muted/50 border-border text-foreground font-semibold"
+                              >
+                                <Tag className="size-2.5 mr-1 text-primary" />
+                                {prod.variety}
+                              </Badge>
+                            )}
+                          </div>
+                          {prod.description && (
+                            <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
+                              {prod.description}
+                            </p>
                           )}
                         </div>
-                        {prod.description && (
-                          <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
-                            {prod.description}
-                          </p>
+                      </div>
+
+                      {/* Stock Overview & Price */}
+                      <div className="flex items-center gap-6 self-end sm:self-center">
+                        <div className="text-right">
+                          <span className="text-[10px] text-muted-foreground uppercase font-semibold block">
+                            Total Stock (All Hubs)
+                          </span>
+                          <div className="flex items-center justify-end gap-1.5 font-extrabold text-foreground text-sm">
+                            <Boxes
+                              className={`size-3.5 ${
+                                totalStockUnits === 0
+                                  ? 'text-rose-600 dark:text-rose-400'
+                                  : totalStockUnits <= 20
+                                    ? 'text-amber-600 dark:text-[#ffb627]'
+                                    : 'text-primary'
+                              }`}
+                            />
+                            <span
+                              className={
+                                totalStockUnits === 0
+                                  ? 'text-rose-600 dark:text-rose-400'
+                                  : totalStockUnits <= 20
+                                    ? 'text-amber-600 dark:text-[#ffb627]'
+                                    : 'text-foreground'
+                              }
+                            >
+                              {totalStockUnits.toLocaleString()}{' '}
+                              <span className="text-xs font-normal text-muted-foreground">units</span>
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="text-right pl-4 border-l border-border/60">
+                          <span className="text-[10px] text-muted-foreground uppercase font-semibold block">
+                            Wholesale Price
+                          </span>
+                          <span className="text-sm font-bold text-foreground block">
+                            ₱
+                            {prod.unitPrice.toLocaleString('en-US', {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            })}
+                          </span>
+                        </div>
+
+                        {(isAdmin || isManager) && (
+                          <div className="flex items-center gap-1.5">
+                            {isArchived ? (
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                onClick={() => handleReactivateProduct(prod)}
+                                className="group h-8 px-3 gap-1.5 text-xs font-bold text-emerald-600 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 rounded-xl cursor-pointer"
+                              >
+                                <RotateCcw className="size-3.5 text-emerald-600" />
+                                <span>Reactivate</span>
+                              </Button>
+                            ) : (
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="size-8 text-muted-foreground hover:text-foreground cursor-pointer rounded-lg hover:bg-muted"
+                                  >
+                                    <MoreVertical className="size-4" />
+                                    <span className="sr-only">Product options</span>
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="p-1">
+                                  <DropdownMenuItem
+                                    onClick={() => handleEditProduct(prod)}
+                                    className="gap-2 text-xs cursor-pointer px-2 py-1.5 rounded-md"
+                                  >
+                                    <Edit2 className="size-3.5" />
+                                    Edit Product & Pricing
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    onClick={() => handleAllocateStock(prod)}
+                                    className="gap-2 text-xs font-semibold text-primary cursor-pointer px-2 py-1.5 rounded-md"
+                                  >
+                                    <Plus className="size-3.5" />
+                                    Allocate Stock to Warehouse
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator className="my-1" />
+                                  <DropdownMenuItem
+                                    onClick={() => handleDeleteProduct(prod)}
+                                    className="gap-2 text-xs text-destructive focus:text-destructive cursor-pointer px-2 py-1.5 rounded-md"
+                                  >
+                                    <Archive className="size-3.5" />
+                                    Archive Product
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            )}
+                          </div>
                         )}
                       </div>
                     </div>
-
-                    {/* Stock Overview & Price */}
-                    <div className="flex items-center gap-6 self-end sm:self-center">
-                      <div className="text-right">
-                        <span className="text-[10px] text-muted-foreground uppercase font-semibold block">
-                          Total Stock (All Hubs)
-                        </span>
-                        <div className="flex items-center justify-end gap-1.5 font-extrabold text-foreground text-sm">
-                          <Boxes
-                            className={`size-3.5 ${
-                              totalStockUnits === 0
-                                ? 'text-rose-600 dark:text-rose-400'
-                                : totalStockUnits <= 20
-                                  ? 'text-amber-600 dark:text-[#ffb627]'
-                                  : 'text-primary'
-                            }`}
-                          />
-                          <span
-                            className={
-                              totalStockUnits === 0
-                                ? 'text-rose-600 dark:text-rose-400'
-                                : totalStockUnits <= 20
-                                  ? 'text-amber-600 dark:text-[#ffb627]'
-                                  : 'text-foreground'
-                            }
-                          >
-                            {totalStockUnits.toLocaleString()}{' '}
-                            <span className="text-xs font-normal text-muted-foreground">units</span>
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="text-right pl-4 border-l border-border/60">
-                        <span className="text-[10px] text-muted-foreground uppercase font-semibold block">
-                          Wholesale Price
-                        </span>
-                        <span className="text-sm font-bold text-foreground block">
-                          ₱
-                          {prod.unitPrice.toLocaleString('en-US', {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2,
-                          })}
-                        </span>
-                      </div>
-
-                      {(isAdmin || isManager) && (
-                        <div className="flex items-center gap-1.5">
-                          {isArchived ? (
-                            (() => {
-                              const isReactivatingThis =
-                                reactivateProductMutation.isPending &&
-                                (typeof reactivateProductMutation.variables === 'number'
-                                  ? reactivateProductMutation.variables === prod.id
-                                  : (
-                                      reactivateProductMutation.variables as
-                                        InventoryItemResponse | undefined
-                                    )?.id === prod.id)
-
-                              return (
-                                <Button
-                                  variant="secondary"
-                                  size="sm"
-                                  onClick={() => handleReactivateProduct(prod)}
-                                  disabled={isReactivatingThis}
-                                  className="group h-9 px-4 gap-2 text-xs font-bold text-emerald-600 dark:text-emerald-600 bg-emerald-500/15 hover:bg-emerald-500/25 active:scale-95 border border-emerald-500/30 rounded-xl shadow-2xs cursor-pointer transition-all duration-150"
-                                >
-                                  {isReactivatingThis ? (
-                                    <Spinner className="size-3.5 text-emerald-600 dark:text-emerald-600 animate-spin" />
-                                  ) : (
-                                    <RotateCcw className="size-3.5 text-emerald-600 dark:text-emerald-600 transition-transform duration-200 group-hover:-rotate-45" />
-                                  )}
-                                  <span>
-                                    {isReactivatingThis ? 'Reactivating...' : 'Reactivate Product'}
-                                  </span>
-                                </Button>
-                              )
-                            })()
-                          ) : (
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="size-8 text-muted-foreground hover:text-foreground cursor-pointer rounded-lg hover:bg-muted active:scale-90 transition-all duration-150"
-                                >
-                                  <MoreVertical className="size-4" />
-                                  <span className="sr-only">Product options</span>
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end" className="p-1">
-                                <DropdownMenuItem
-                                  onClick={() => handleEditProduct(prod)}
-                                  className="gap-2 text-xs cursor-pointer px-2 py-1.5 rounded-md active:scale-95 transition-transform"
-                                >
-                                  <Edit2 className="size-3.5" />
-                                  Edit Product & Pricing
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  onClick={() => handleAllocateStock(prod)}
-                                  className="gap-2 text-xs font-semibold text-primary cursor-pointer px-2 py-1.5 rounded-md active:scale-95 transition-transform"
-                                >
-                                  <Plus className="size-3.5" />
-                                  Allocate Stock to Warehouse
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator className="my-1" />
-                                <DropdownMenuItem
-                                  onClick={() => handleDeleteProduct(prod)}
-                                  className="gap-2 text-xs text-destructive focus:text-destructive cursor-pointer px-2 py-1.5 rounded-md active:scale-95 transition-transform"
-                                >
-                                  <Archive className="size-3.5" />
-                                  Archive Product
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Warehouse Breakdown Sub-Panel */}
-                <div className="bg-muted/30 border-t border-border/60 px-5 py-3.5">
-                  <div className="flex items-center justify-between mb-2.5">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground/90 flex items-center gap-1.5">
-                      <WarehouseIcon className="size-3.5 text-primary" />
-                      Warehouse Stock Allocation & Adjustments
-                    </span>
-
-                    {(isAdmin || isManager) && stockInHubs.length > 0 && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleAllocateStock(prod)}
-                        className="h-6.5 px-2.5 text-[11px] font-bold text-primary hover:text-primary/90 hover:bg-primary/10 rounded-lg gap-1 cursor-pointer"
-                      >
-                        <Plus className="size-3 text-primary" />
-                        Allocate to Warehouse
-                      </Button>
-                    )}
                   </div>
 
-                  {stockInHubs.length === 0 ? (
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3.5 rounded-xl bg-card border border-dashed border-border/80 text-xs">
-                      <span className="text-muted-foreground font-medium">
-                        No stock units allocated to any warehouse facility yet.
+                  {/* Warehouse Breakdown Sub-Panel */}
+                  <div className="bg-muted/30 border-t border-border/60 px-5 py-3.5">
+                    <div className="flex items-center justify-between mb-2.5">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground/90 flex items-center gap-1.5">
+                        <WarehouseIcon className="size-3.5 text-primary" />
+                        Warehouse Stock Allocation & Adjustments
                       </span>
-                      {(isAdmin || isManager) && (
+
+                      {(isAdmin || isManager) && stockInHubs.length > 0 && (
                         <Button
-                          variant="secondary"
+                          variant="ghost"
                           size="sm"
                           onClick={() => handleAllocateStock(prod)}
-                          className="h-7 text-xs font-bold gap-1 cursor-pointer"
+                          className="h-6.5 px-2.5 text-[11px] font-bold text-primary hover:text-primary/90 hover:bg-primary/10 rounded-lg gap-1 cursor-pointer"
                         >
-                          <Plus className="size-3.5 text-primary" />
-                          Allocate Stock to Warehouse
+                          <Plus className="size-3 text-primary" />
+                          Allocate to Warehouse
                         </Button>
                       )}
                     </div>
-                  ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                      {stockInHubs.map((stock) => {
-                        const wh =
-                          stock.warehouse || warehouses.find((w) => w.id === stock.warehouseId)
-                        const whDisplayName = wh?.name || `Warehouse #${stock.warehouseId}`
-                        const qtyNum = parseFloat(stock.quantity || '0')
-                        const isOut = qtyNum <= 0
-                        const isLow = qtyNum > 0 && qtyNum <= 20
 
-                        return (
-                          <div
-                            key={stock.id}
-                            className={`flex items-center justify-between p-3.5 rounded-2xl border bg-card shadow-2xs transition-all gap-3 ${
-                              isOut
-                                ? 'border-rose-400 dark:border-rose-600 ring-1 ring-rose-400/30'
-                                : isLow
-                                  ? 'border-amber-400 dark:border-amber-600 ring-1 ring-amber-400/30'
-                                  : 'border-border/80 hover:border-primary/40'
-                            }`}
+                    {stockInHubs.length === 0 ? (
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3.5 rounded-xl bg-card border border-dashed border-border/80 text-xs">
+                        <span className="text-muted-foreground font-medium">
+                          No stock units allocated to any warehouse facility yet.
+                        </span>
+                        {(isAdmin || isManager) && (
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => handleAllocateStock(prod)}
+                            className="h-7 text-xs font-bold gap-1 cursor-pointer"
                           >
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span
-                                  className="text-xs font-bold text-foreground truncate leading-tight"
-                                  title={whDisplayName}
-                                >
-                                  {whDisplayName}
-                                </span>
-                                {isOut ? (
-                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/25">
-                                    <span className="size-1.5 rounded-full bg-rose-600 dark:bg-rose-400 shrink-0" />
-                                    Out of Stock
-                                  </span>
-                                ) : isLow ? (
-                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-600 dark:text-[#ffb627] border border-amber-500/25">
-                                    <span className="size-1.5 rounded-full bg-amber-600 dark:bg-[#ffb627] shrink-0" />
-                                    Low Stock
-                                  </span>
-                                ) : null}
-                              </div>
-                              <div className="flex items-baseline gap-1.5 mt-1.5">
-                                <span
-                                  className={`text-base font-extrabold tracking-tight ${
-                                    isOut
-                                      ? 'text-rose-600 dark:text-rose-400'
-                                      : isLow
-                                        ? 'text-amber-600 dark:text-[#ffb627]'
-                                        : 'text-foreground'
-                                  }`}
-                                >
-                                  {qtyNum.toLocaleString()}
-                                </span>
-                                <span className="text-[11px] font-medium text-muted-foreground">
-                                  units
-                                </span>
-                              </div>
-                            </div>
+                            <Plus className="size-3.5 text-primary" />
+                            Allocate Stock to Warehouse
+                          </Button>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                        {stockInHubs.map((stock) => {
+                          const wh =
+                            stock.warehouse || warehouses.find((w) => w.id === stock.warehouseId)
+                          const whDisplayName = wh?.name || `Warehouse #${stock.warehouseId}`
+                          const qtyNum = parseFloat(stock.quantity || '0')
+                          const isOut = qtyNum <= 0
+                          const isLow = qtyNum > 0 && qtyNum <= 20
 
-                            {(isAdmin || isManager) && (
-                              <div className="flex items-center gap-1 shrink-0">
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => handleAdjustStock(stock)}
-                                  className="h-7.5 px-2.5 text-[11px] font-bold rounded-xl gap-1.5 cursor-pointer bg-background hover:bg-muted/70 text-foreground border-border/80 shadow-2xs"
-                                >
-                                  <ArrowUpDown className="size-3 text-muted-foreground" />
-                                  Adjust
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() =>
-                                    handleRemoveStockAllocation(stock, prod.name, whDisplayName)
-                                  }
-                                  className="size-7.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-xl cursor-pointer"
-                                  title={`Remove allocation from ${whDisplayName}`}
-                                >
-                                  <Trash2 className="size-3.5" />
-                                </Button>
+                          return (
+                            <div
+                              key={stock.id}
+                              className={`flex items-center justify-between p-3.5 rounded-2xl border bg-card shadow-2xs transition-all gap-3 ${
+                                isOut
+                                  ? 'border-rose-400 dark:border-rose-600 ring-1 ring-rose-400/30'
+                                  : isLow
+                                    ? 'border-amber-400 dark:border-amber-600 ring-1 ring-amber-400/30'
+                                    : 'border-border/80 hover:border-primary/40'
+                              }`}
+                            >
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span
+                                    className="text-xs font-bold text-foreground truncate leading-tight"
+                                    title={whDisplayName}
+                                  >
+                                    {whDisplayName}
+                                  </span>
+                                  {isOut ? (
+                                    <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/25">
+                                      <span className="size-1.5 rounded-full bg-rose-600 dark:bg-rose-400 shrink-0" />
+                                      Out of Stock
+                                    </span>
+                                  ) : isLow ? (
+                                    <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-600 dark:text-[#ffb627] border border-amber-500/25">
+                                      <span className="size-1.5 rounded-full bg-amber-600 dark:bg-[#ffb627] shrink-0" />
+                                      Low Stock
+                                    </span>
+                                  ) : null}
+                                </div>
+                                <div className="flex items-baseline gap-1.5 mt-1.5">
+                                  <span
+                                    className={`text-base font-extrabold tracking-tight ${
+                                      isOut
+                                        ? 'text-rose-600 dark:text-rose-400'
+                                        : isLow
+                                          ? 'text-amber-600 dark:text-[#ffb627]'
+                                          : 'text-foreground'
+                                    }`}
+                                  >
+                                    {qtyNum.toLocaleString()}
+                                  </span>
+                                  <span className="text-[11px] font-medium text-muted-foreground">
+                                    units
+                                  </span>
+                                </div>
                               </div>
-                            )}
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )}
-                </div>
-              </Card>
-            )
-          })}
+
+                              {(isAdmin || isManager) && (
+                                <div className="flex items-center gap-1 shrink-0">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handleAdjustStock(stock)}
+                                    className="h-7.5 px-2.5 text-[11px] font-bold rounded-xl gap-1.5 cursor-pointer bg-background hover:bg-muted/70 text-foreground border-border/80 shadow-2xs"
+                                  >
+                                    <ArrowUpDown className="size-3 text-muted-foreground" />
+                                    Adjust
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() =>
+                                      handleRemoveStockAllocation(stock, prod.name, whDisplayName)
+                                    }
+                                    className="size-7.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-xl cursor-pointer"
+                                    title={`Remove allocation from ${whDisplayName}`}
+                                  >
+                                    <Trash2 className="size-3.5" />
+                                  </Button>
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </Card>
+              )
+            })
+          )}
         </div>
       )}
 

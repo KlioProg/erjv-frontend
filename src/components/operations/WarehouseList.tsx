@@ -1,400 +1,449 @@
-import { useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import {
-  Warehouse as WarehouseIcon,
-  MapPin,
-  Phone,
-  Plus,
-  Search,
-  MoreVertical,
-  Edit2,
-  Boxes,
-  CheckCircle2,
+  AlertTriangle,
   Archive,
+  ArrowRight,
+  Edit2,
+  MapPin,
+  Plus,
   RotateCcw,
+  Search,
+  Warehouse as WarehouseIcon,
 } from 'lucide-react'
 import { ArchiveTabNav } from '@/components/ui/ArchiveTabNav'
-import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { Spinner } from '@/components/ui/spinner'
+import { DataTable, type ColumnDef } from '@/components/ui/data-table'
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Spinner } from '@/components/ui/spinner'
 import {
   useAllWarehouses,
   useDeactivateWarehouse,
   useReactivateWarehouse,
 } from '@/features/logistics/warehouses.hooks'
 import { useStockItems } from '@/features/logistics/stock-items.hooks'
+import { fetchStockByWarehouseApi } from '@/features/logistics/stock-items.api'
 import { useAuth } from '@/features/auth/AuthContext'
 import type { Warehouse } from '@/features/logistics/warehouses.types'
+import type { StockItemWithRelations } from '@/features/logistics/stock-items.types'
+import { getErrorMessage } from '@/lib/api-client'
 import { WarehouseModal } from './WarehouseModal'
-import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal'
+import { WarehouseInventory } from './WarehouseInventory'
+
+type WarehouseStockSummary = { products: number; units: number }
+type ArchiveCheck = WarehouseStockSummary & {
+  status: 'checking' | 'empty' | 'blocked' | 'error'
+  error?: string
+}
+
+function summarizeWarehouseStock(items: StockItemWithRelations[]): WarehouseStockSummary {
+  let products = 0
+  let units = 0
+  for (const item of items) {
+    const quantity = Number(item.quantity)
+    if (!Number.isFinite(quantity) || quantity < 0) {
+      throw new Error('The warehouse stock count could not be verified. Please try again.')
+    }
+    if (quantity > 0) {
+      products += 1
+      units += quantity
+    }
+  }
+  return { products, units }
+}
 
 export function WarehouseList() {
   const [activeTab, setActiveTab] = useState<'ACTIVE' | 'ARCHIVED'>('ACTIVE')
-  const { data: allWarehouses = [], isLoading } = useAllWarehouses()
-  const { data: stockItems = [] } = useStockItems()
+  const { data: allWarehouses = [], isLoading: isLoadingWarehouses } = useAllWarehouses()
+  const { data: stockItems = [], isLoading: isLoadingStock } = useStockItems()
+  const { isAdmin, isManager } = useAuth()
+  const canManage = isAdmin || isManager
+  const [searchTerm, setSearchTerm] = useState('')
+  const [selectedWarehouseId, setSelectedWarehouseId] = useState<number | null>(null)
+  const [editingWarehouse, setEditingWarehouse] = useState<Warehouse | null>(null)
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [warehouseToArchive, setWarehouseToArchive] = useState<Warehouse | null>(null)
+  const [archiveCheck, setArchiveCheck] = useState<ArchiveCheck | null>(null)
+  const archiveRequestId = useRef(0)
   const deactivateMutation = useDeactivateWarehouse({
     onViewArchive: () => setActiveTab('ARCHIVED'),
   })
   const reactivateMutation = useReactivateWarehouse()
-  const { isAdmin, isManager } = useAuth()
-  const [searchTerm, setSearchTerm] = useState('')
-  const [selectedWarehouse, setSelectedWarehouse] = useState<Warehouse | null>(null)
-  const [isModalOpen, setIsModalOpen] = useState(false)
-  const [warehouseToArchive, setWarehouseToArchive] = useState<Warehouse | null>(null)
 
-  const activeWarehouses = allWarehouses.filter((w) => w.isActive !== false)
-  const archivedWarehouses = allWarehouses.filter((w) => w.isActive === false)
-
-  const currentList = activeTab === 'ACTIVE' ? activeWarehouses : archivedWarehouses
-
-  const filteredWarehouses = currentList.filter(
-    (w) =>
-      w.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      w.address.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (w.contactNumber && w.contactNumber.includes(searchTerm)),
+  const activeWarehouses = useMemo(
+    () => allWarehouses.filter((warehouse) => warehouse.isActive !== false),
+    [allWarehouses],
   )
+  const archivedWarehouses = useMemo(
+    () => allWarehouses.filter((warehouse) => warehouse.isActive === false),
+    [allWarehouses],
+  )
+  const selectedWarehouse = allWarehouses.find((warehouse) => warehouse.id === selectedWarehouseId)
+  const warehouseTotals = useMemo(() => {
+    const totals = new Map<number, { products: number; units: number }>()
+    for (const stock of stockItems) {
+      const total = totals.get(stock.warehouseId) || { products: 0, units: 0 }
+      total.products += 1
+      total.units += Number(stock.quantity) || 0
+      totals.set(stock.warehouseId, total)
+    }
+    return totals
+  }, [stockItems])
+  const filteredWarehouses = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase()
+    return (activeTab === 'ACTIVE' ? activeWarehouses : archivedWarehouses).filter(
+      (warehouse) =>
+        !term ||
+        warehouse.name.toLowerCase().includes(term) ||
+        warehouse.address.toLowerCase().includes(term) ||
+        (warehouse.contactNumber || '').toLowerCase().includes(term),
+    )
+  }, [activeTab, activeWarehouses, archivedWarehouses, searchTerm])
 
-  const handleCreate = () => {
-    setSelectedWarehouse(null)
-    setIsModalOpen(true)
+  const closeArchiveDialog = () => {
+    if (deactivateMutation.isPending) return
+    archiveRequestId.current += 1
+    setWarehouseToArchive(null)
+    setArchiveCheck(null)
   }
 
-  const handleEdit = (warehouse: Warehouse) => {
-    setSelectedWarehouse(warehouse)
-    setIsModalOpen(true)
-  }
-
-  const handleArchive = (warehouse: Warehouse) => {
+  const checkWarehouseBeforeArchive = async (warehouse: Warehouse) => {
+    const requestId = ++archiveRequestId.current
     setWarehouseToArchive(warehouse)
-  }
-
-  const confirmArchive = async () => {
-    if (warehouseToArchive) {
-      const wh = warehouseToArchive
-      setWarehouseToArchive(null)
-      await deactivateMutation.mutateAsync(wh.id)
+    setArchiveCheck({ status: 'checking', products: 0, units: 0 })
+    try {
+      const summary = summarizeWarehouseStock(await fetchStockByWarehouseApi(warehouse.id))
+      if (archiveRequestId.current !== requestId) return
+      setArchiveCheck({ ...summary, status: summary.units > 0 ? 'blocked' : 'empty' })
+    } catch (error) {
+      if (archiveRequestId.current !== requestId) return
+      setArchiveCheck({ status: 'error', products: 0, units: 0, error: getErrorMessage(error) })
     }
   }
 
-  const handleRestore = (warehouse: Warehouse) => {
-    reactivateMutation.mutate(warehouse.id)
+  const confirmArchive = async () => {
+    const warehouse = warehouseToArchive
+    if (!warehouse || archiveCheck?.status !== 'empty') return
+    const requestId = ++archiveRequestId.current
+    setArchiveCheck({ status: 'checking', products: 0, units: 0 })
+    try {
+      // Recheck immediately before the write so the confirmation cannot use stale list totals.
+      const summary = summarizeWarehouseStock(await fetchStockByWarehouseApi(warehouse.id))
+      if (archiveRequestId.current !== requestId) return
+      if (summary.units > 0) {
+        setArchiveCheck({ ...summary, status: 'blocked' })
+        return
+      }
+      await deactivateMutation.mutateAsync(warehouse.id)
+      if (archiveRequestId.current === requestId) {
+        archiveRequestId.current += 1
+        setWarehouseToArchive(null)
+        setArchiveCheck(null)
+      }
+    } catch (error) {
+      if (archiveRequestId.current !== requestId) return
+      setArchiveCheck({ status: 'error', products: 0, units: 0, error: getErrorMessage(error) })
+    }
   }
 
+  const columns: ColumnDef<Warehouse>[] = [
+    {
+      id: 'name',
+      header: 'Warehouse',
+      sortable: true,
+      sortKey: 'name',
+      cell: ({ row }) => (
+        <Button
+          variant="link"
+          className="h-auto p-0 text-xs font-bold"
+          onClick={() => setSelectedWarehouseId(row.id)}
+        >
+          <WarehouseIcon className="size-4 mr-2" />
+          {row.name}
+        </Button>
+      ),
+    },
+    {
+      id: 'location',
+      header: 'Location',
+      sortable: true,
+      sortKey: 'address',
+      cell: ({ row }) => (
+        <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <MapPin className="size-3.5 shrink-0" />
+          {row.address}
+        </span>
+      ),
+    },
+    {
+      id: 'products',
+      header: 'Products',
+      align: 'right',
+      sortable: true,
+      sortKey: (row) => warehouseTotals.get(row.id)?.products || 0,
+      cell: ({ row }) => (
+        <span className="text-xs font-semibold">
+          {warehouseTotals.get(row.id)?.products || 0} products
+        </span>
+      ),
+    },
+    {
+      id: 'units',
+      header: 'Total Stock',
+      align: 'right',
+      sortable: true,
+      sortKey: (row) => warehouseTotals.get(row.id)?.units || 0,
+      cell: ({ row }) => (
+        <span className="text-xs font-semibold">
+          {(warehouseTotals.get(row.id)?.units || 0).toLocaleString()} units
+        </span>
+      ),
+    },
+    {
+      id: 'status',
+      header: 'Status',
+      align: 'center',
+      sortable: true,
+      sortKey: 'isActive',
+      cell: ({ row }) => (
+        <Badge
+          variant="outline"
+          className={
+            row.isActive === false
+              ? 'text-amber-600 border-amber-500/30'
+              : 'text-emerald-600 border-emerald-500/30'
+          }
+        >
+          {row.isActive === false ? 'Archived' : 'Active'}
+        </Badge>
+      ),
+    },
+    {
+      id: 'actions',
+      header: 'Actions',
+      align: 'right',
+      width: 320,
+      cell: ({ row }) => (
+        <div className="flex flex-wrap items-center justify-end gap-1.5 min-w-max">
+          <Button
+            size="sm"
+            variant={row.isActive === false ? 'outline' : 'default'}
+            onClick={() => setSelectedWarehouseId(row.id)}
+            className="gap-1.5 font-semibold"
+          >
+            {row.isActive === false ? 'View Details' : 'View Inventory'}
+            <ArrowRight className="size-3.5" />
+          </Button>
+          {canManage &&
+            (row.isActive === false ? (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => reactivateMutation.mutate(row.id)}
+                disabled={reactivateMutation.isPending}
+                className="gap-1.5"
+              >
+                <RotateCcw className="size-3.5" />
+                Restore
+              </Button>
+            ) : (
+              <>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setEditingWarehouse(row)
+                    setIsModalOpen(true)
+                  }}
+                  className="gap-1.5"
+                >
+                  <Edit2 className="size-3.5" />
+                  Edit
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => void checkWarehouseBeforeArchive(row)}
+                  className="gap-1.5 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                >
+                  <Archive className="size-3.5" />
+                  Archive
+                </Button>
+              </>
+            ))}
+        </div>
+      ),
+    },
+  ]
+
+  if (selectedWarehouse)
+    return (
+      <WarehouseInventory
+        warehouse={selectedWarehouse}
+        onBack={() => setSelectedWarehouseId(null)}
+      />
+    )
+
   return (
-    <div className="flex flex-col gap-5">
-      {/* Overview & Quick Stats Bar */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-        <div className="flex items-center gap-3 p-3.5 rounded-2xl bg-card border border-border/80 shadow-xs">
-          <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
-            <WarehouseIcon className="size-5" />
-          </div>
-          <div>
-            <div className="text-xl font-extrabold text-foreground">{allWarehouses.length}</div>
-            <div className="text-[11px] text-muted-foreground font-medium">Total Facilities</div>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3 p-3.5 rounded-2xl bg-card border border-border/80 shadow-xs">
-          <div className="flex size-10 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600">
-            <CheckCircle2 className="size-5" />
-          </div>
-          <div>
-            <div className="text-xl font-extrabold text-foreground">{activeWarehouses.length}</div>
-            <div className="text-[11px] text-muted-foreground font-medium">
-              Active Distribution Hubs
-            </div>
-          </div>
-        </div>
-
-        <div className="col-span-2 sm:col-span-1 flex items-center gap-3 p-3.5 rounded-2xl bg-card border border-border/80 shadow-xs">
-          <div className="flex size-10 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600">
-            <Archive className="size-5" />
-          </div>
-          <div>
-            <div className="text-xl font-extrabold text-foreground">
-              {archivedWarehouses.length}
-            </div>
-            <div className="text-[11px] text-muted-foreground font-medium">Archived Facilities</div>
-          </div>
-        </div>
-      </div>
-
-      {/* Warehouse Archive / Active Tabs */}
+    <div className="flex flex-col gap-4">
       <ArchiveTabNav
         activeTab={activeTab}
         onTabChange={setActiveTab}
-        activeLabel="Active Hubs"
+        activeLabel="Active Warehouses"
         activeCount={activeWarehouses.length}
-        archivedLabel="Archived Facilities"
+        archivedLabel="Archived Warehouses"
         archivedCount={archivedWarehouses.length}
         activeIcon={<WarehouseIcon className="size-3.5" />}
-        bannerDescription="Showing archived warehouse facilities. Stored stock items and location addresses are safely preserved and can be reactivated anytime."
+        bannerDescription="Archived warehouses retain their inventory records and can be restored."
       />
-
-      {/* Header with Search and New Warehouse Button */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-        <div className="relative w-full sm:w-80">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="relative w-full sm:max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
           <Input
-            placeholder="Search warehouses & distribution depots..."
+            aria-label="Search warehouses"
+            placeholder="Search warehouses or locations..."
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(event) => setSearchTerm(event.target.value)}
             className="pl-9 h-9 text-xs"
           />
         </div>
-
-        {(isAdmin || isManager) && activeTab === 'ACTIVE' && (
+        {canManage && activeTab === 'ACTIVE' && (
           <Button
-            onClick={handleCreate}
             size="sm"
-            className="gap-1.5 shadow-xs font-semibold cursor-pointer"
+            onClick={() => {
+              setEditingWarehouse(null)
+              setIsModalOpen(true)
+            }}
+            className="gap-1.5"
           >
             <Plus className="size-4" />
             Register Warehouse
           </Button>
         )}
       </div>
-
-      {/* Warehouse Cards Grid */}
-      {isLoading ? (
-        <div className="flex items-center justify-center py-16 text-muted-foreground">
-          <Spinner className="mr-2 size-5" /> Loading warehouse locations...
-        </div>
-      ) : filteredWarehouses.length === 0 ? (
-        <Card className="border-dashed bg-muted/20">
-          <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-            {activeTab === 'ARCHIVED' ? (
-              <>
-                <Archive className="size-10 text-muted-foreground/50 mb-3" />
-                <h3 className="text-sm font-semibold text-foreground">No archived warehouses</h3>
-                <p className="text-xs text-muted-foreground mt-1 max-w-xs">
-                  When you archive a warehouse facility, its data and stored stocks are safely
-                  preserved here and can be restored anytime.
-                </p>
-              </>
-            ) : (
-              <>
-                <WarehouseIcon className="size-10 text-muted-foreground/50 mb-3" />
-                <h3 className="text-sm font-semibold text-foreground">
-                  No active warehouses found
-                </h3>
-                <p className="text-xs text-muted-foreground mt-1 max-w-xs">
-                  {searchTerm
-                    ? 'No active facilities matched your search query.'
-                    : archivedWarehouses.length > 0
-                      ? `All warehouse hubs are currently archived (${archivedWarehouses.length} total).`
-                      : 'Register your central logistics complex, regional depots, and fulfillment hubs.'}
-                </p>
-                {!searchTerm && archivedWarehouses.length > 0 && (
-                  <Button
-                    onClick={() => setActiveTab('ARCHIVED')}
-                    size="sm"
-                    variant="outline"
-                    className="mt-3 gap-1.5 cursor-pointer text-xs"
-                  >
-                    <Archive className="size-3.5 text-amber-600" />
-                    View Archived Facilities ({archivedWarehouses.length})
-                  </Button>
-                )}
-                {(isAdmin || isManager) && !searchTerm && archivedWarehouses.length === 0 && (
-                  <Button
-                    onClick={handleCreate}
-                    size="sm"
-                    variant="outline"
-                    className="mt-4 gap-1.5 cursor-pointer"
-                  >
-                    <Plus className="size-3.5" />
-                    Register First Warehouse
-                  </Button>
-                )}
-              </>
-            )}
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredWarehouses.map((wh) => {
-            const whStock = stockItems.filter((s) => s.warehouseId === wh.id)
-            const totalUnits = whStock.reduce((acc, s) => acc + parseFloat(s.quantity), 0)
-            const isArchived = wh.isActive === false
-
-            return (
-              <Card
-                key={wh.id}
-                className={`group relative overflow-hidden transition-all duration-200 hover:shadow-md border-border/80 rounded-2xl ${
-                  isArchived ? 'opacity-85 bg-muted/30 border-dashed' : 'hover:border-primary/40'
-                }`}
-              >
-                <CardContent className="p-5 flex flex-col justify-between h-full gap-4">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-start gap-3">
-                      <div
-                        className={`flex size-10 shrink-0 items-center justify-center rounded-xl transition-transform ${
-                          isArchived
-                            ? 'bg-amber-500/15 text-amber-600'
-                            : 'bg-primary/10 text-primary group-hover:scale-105'
-                        }`}
-                      >
-                        <WarehouseIcon className="size-5" />
-                      </div>
-                      <div>
-                        <h4 className="text-sm font-bold text-foreground leading-tight">
-                          {wh.name}
-                        </h4>
-                        <div className="flex items-center gap-1.5 mt-1 text-[11px] text-muted-foreground">
-                          <MapPin className="size-3 shrink-0" />
-                          <span className="line-clamp-1">{wh.address}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {(isAdmin || isManager) && (
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="size-7 text-muted-foreground hover:text-foreground cursor-pointer"
-                          >
-                            <MoreVertical className="size-4" />
-                            <span className="sr-only">Warehouse actions</span>
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          {!isArchived ? (
-                            <>
-                              <DropdownMenuItem
-                                onClick={() => handleEdit(wh)}
-                                className="gap-2 text-xs cursor-pointer"
-                              >
-                                <Edit2 className="size-3.5" />
-                                Edit Details
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem
-                                onClick={() => handleArchive(wh)}
-                                className="gap-2 text-xs text-amber-600 focus:text-amber-700 cursor-pointer"
-                              >
-                                <Archive className="size-3.5" />
-                                Archive Warehouse
-                              </DropdownMenuItem>
-                            </>
-                          ) : (
-                            <DropdownMenuItem
-                              onClick={() => handleRestore(wh)}
-                              className="gap-2 text-xs text-emerald-600 focus:text-emerald-700 font-bold cursor-pointer"
-                            >
-                              <RotateCcw className="size-3.5" />
-                              Restore Facility
-                            </DropdownMenuItem>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    )}
-                  </div>
-
-                  {/* Metrics & Stored Units */}
-                  <div className="grid grid-cols-2 gap-2 pt-3 border-t border-border/60 text-xs">
-                    <div className="flex flex-col gap-0.5">
-                      <span className="text-[10px] text-muted-foreground uppercase font-semibold">
-                        Preserved Stock
-                      </span>
-                      <div className="flex items-center gap-1.5 font-extrabold text-foreground text-sm">
-                        <Boxes className="size-3.5 text-primary" />
-                        <span>
-                          {totalUnits.toLocaleString()}{' '}
-                          <span className="text-xs font-medium text-muted-foreground">units</span>
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-col gap-0.5">
-                      <span className="text-[10px] text-muted-foreground uppercase font-semibold">
-                        Tracked Products
-                      </span>
-                      <span className="font-semibold text-foreground text-xs">
-                        {whStock.length} Products
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Contact & Status Bar with Direct Action */}
-                  <div className="flex items-center justify-between pt-2 text-[11px] text-muted-foreground border-t border-border/40">
-                    <div className="flex items-center gap-1.5">
-                      <Phone className="size-3" />
-                      <span>{wh.contactNumber || 'No phone set'}</span>
-                    </div>
-
-                    {isArchived ? (
-                      (isAdmin || isManager) &&
-                      (() => {
-                        const isRestoringThis =
-                          reactivateMutation.isPending &&
-                          (typeof reactivateMutation.variables === 'number'
-                            ? reactivateMutation.variables === wh.id
-                            : (reactivateMutation.variables as Warehouse | undefined)?.id === wh.id)
-
-                        return (
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            onClick={() => handleRestore(wh)}
-                            disabled={isRestoringThis}
-                            className="group h-8 px-3.5 text-xs font-bold text-emerald-600 dark:text-emerald-600 bg-emerald-500/15 hover:bg-emerald-500/25 active:scale-95 border border-emerald-500/30 rounded-xl gap-2 shadow-2xs cursor-pointer transition-all duration-150 ml-auto"
-                          >
-                            {isRestoringThis ? (
-                              <Spinner className="size-3.5 text-emerald-600 dark:text-emerald-600 animate-spin" />
-                            ) : (
-                              <RotateCcw className="size-3.5 text-emerald-600 dark:text-emerald-600 transition-transform duration-200 group-hover:-rotate-45" />
-                            )}
-                            <span>{isRestoringThis ? 'Restoring...' : 'Restore Facility'}</span>
-                          </Button>
-                        )
-                      })()
-                    ) : (
-                      <Badge
-                        variant="outline"
-                        className="text-[10px] bg-emerald-500/10 text-emerald-600 border-emerald-500/20 font-semibold gap-1"
-                      >
-                        <CheckCircle2 className="size-2.5" />
-                        Active Hub
-                      </Badge>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            )
-          })}
-        </div>
-      )}
-
-      {/* Main Warehouse Modal */}
+      <DataTable
+        data={filteredWarehouses}
+        columns={columns}
+        rowClassName={() => 'hover:bg-primary/5 focus-within:bg-primary/5'}
+        isLoading={isLoadingWarehouses || isLoadingStock}
+        loadingMessage="Loading warehouses..."
+        emptyContent={
+          searchTerm
+            ? 'No warehouses match your search.'
+            : activeTab === 'ACTIVE'
+              ? 'No active warehouses yet.'
+              : 'No archived warehouses.'
+        }
+        pageSizeOptions={[10, 25, 50, 100]}
+      />
       <WarehouseModal
-        warehouse={selectedWarehouse}
+        warehouse={editingWarehouse}
         open={isModalOpen}
         onClose={() => setIsModalOpen(false)}
       />
-
-      {/* Archive / Soft-Delete Confirmation Modal */}
-      <ConfirmDeleteModal
-        open={!!warehouseToArchive}
-        onClose={() => setWarehouseToArchive(null)}
-        onConfirm={confirmArchive}
-        title="Archive Warehouse Facility"
-        description="Are you sure you want to archive this warehouse facility? All stored inventory counts, address information, and past logs are safely preserved. You can restore this facility at any time from the Archived Facilities tab."
-        itemName={warehouseToArchive?.name}
-        itemDetails={warehouseToArchive ? `Address: ${warehouseToArchive.address}` : undefined}
-        confirmText="Archive Warehouse"
-        variant="destructive"
-      />
+      <Dialog open={!!warehouseToArchive} onOpenChange={(open) => !open && closeArchiveDialog()}>
+        <DialogContent className="sm:max-w-[440px]">
+          <DialogHeader className="gap-2">
+            <div
+              className={`mb-1 flex size-11 items-center justify-center rounded-xl ${archiveCheck?.status === 'blocked' || archiveCheck?.status === 'error' ? 'bg-amber-500/10 text-amber-600' : 'bg-destructive/10 text-destructive'}`}
+            >
+              {archiveCheck?.status === 'checking' ? (
+                <Spinner className="size-5" />
+              ) : archiveCheck?.status === 'blocked' || archiveCheck?.status === 'error' ? (
+                <AlertTriangle className="size-5" />
+              ) : (
+                <Archive className="size-5" />
+              )}
+            </div>
+            <DialogTitle>
+              {archiveCheck?.status === 'blocked'
+                ? 'Cannot Archive Warehouse'
+                : archiveCheck?.status === 'error'
+                  ? 'Cannot Verify Warehouse Stock'
+                  : archiveCheck?.status === 'checking'
+                    ? 'Checking warehouse inventory'
+                    : `Archive ${warehouseToArchive?.name || 'warehouse'}?`}
+            </DialogTitle>
+            <DialogDescription className="text-xs leading-relaxed">
+              {archiveCheck?.status === 'blocked'
+                ? `${warehouseToArchive?.name} still contains inventory. Transfer or remove the remaining stock before archiving this warehouse.`
+                : archiveCheck?.status === 'error'
+                  ? 'Inventory could not be checked, so this warehouse cannot be archived yet.'
+                  : archiveCheck?.status === 'checking'
+                    ? 'Checking the current stock before archival...'
+                    : 'This warehouse currently contains no inventory. New allocations will stop after archival, and historical records will remain available.'}
+            </DialogDescription>
+          </DialogHeader>
+          {archiveCheck?.status === 'blocked' && (
+            <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3.5 text-xs text-foreground">
+              <p className="font-bold">{warehouseToArchive?.name}</p>
+              <p className="mt-1">
+                {archiveCheck.products} {archiveCheck.products === 1 ? 'product' : 'products'} ·{' '}
+                {archiveCheck.units.toLocaleString()} units of inventory
+              </p>
+            </div>
+          )}
+          {archiveCheck?.status === 'error' && archiveCheck.error && (
+            <p
+              role="alert"
+              className="rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive"
+            >
+              {archiveCheck.error}
+            </p>
+          )}
+          <DialogFooter className="gap-2 border-t pt-3">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={closeArchiveDialog}
+              disabled={deactivateMutation.isPending}
+            >
+              Cancel
+            </Button>
+            {archiveCheck?.status === 'blocked' && warehouseToArchive && (
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => {
+                  setSelectedWarehouseId(warehouseToArchive.id)
+                  closeArchiveDialog()
+                }}
+              >
+                View Inventory <ArrowRight className="size-3.5" />
+              </Button>
+            )}
+            {archiveCheck?.status === 'error' && warehouseToArchive && (
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => void checkWarehouseBeforeArchive(warehouseToArchive)}
+              >
+                Retry Check
+              </Button>
+            )}
+            {archiveCheck?.status === 'empty' && (
+              <Button
+                type="button"
+                size="sm"
+                variant="destructive"
+                onClick={() => void confirmArchive()}
+                disabled={deactivateMutation.isPending}
+              >
+                Archive Warehouse
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

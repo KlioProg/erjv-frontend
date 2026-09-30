@@ -45,6 +45,7 @@ import { getErrorMessage } from '@/lib/api-client'
 export type StockAdjustModalProps = {
   stockItem?: StockItemWithRelations | null
   inventoryItem?: InventoryItemResponse | null
+  warehouseId?: number
   initialMode?: 'increase' | 'decrease' | 'set'
   open: boolean
   onClose: () => void
@@ -53,11 +54,13 @@ export type StockAdjustModalProps = {
 function StockAdjustContent({
   stockItem,
   inventoryItem,
+  warehouseId,
   initialMode = 'increase',
   onClose,
 }: {
   stockItem?: StockItemWithRelations | null
   inventoryItem?: InventoryItemResponse | null
+  warehouseId?: number
   initialMode?: 'increase' | 'decrease' | 'set'
   onClose: () => void
 }) {
@@ -74,7 +77,7 @@ function StockAdjustContent({
   )
 
   const [selectedWarehouseId, setSelectedWarehouseId] = useState<string>(() =>
-    stockItem ? String(stockItem.warehouseId) : '',
+    stockItem ? String(stockItem.warehouseId) : warehouseId ? String(warehouseId) : '',
   )
 
   const effectiveWarehouseId =
@@ -210,7 +213,7 @@ function StockAdjustContent({
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-4 py-1">
         {/* Target Warehouse Facility Selector (shown when adjusting an item across facilities) */}
-        {!stockItem && (
+        {!stockItem && !warehouseId && (
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center justify-between">
               <Label className="text-xs font-semibold text-foreground">
@@ -448,6 +451,7 @@ function StockAdjustContent({
 export function StockAdjustModal({
   stockItem,
   inventoryItem,
+  warehouseId,
   initialMode = 'increase',
   open,
   onClose,
@@ -466,6 +470,7 @@ export function StockAdjustModal({
             }
             stockItem={stockItem}
             inventoryItem={inventoryItem}
+            warehouseId={warehouseId}
             initialMode={initialMode}
             onClose={onClose}
           />

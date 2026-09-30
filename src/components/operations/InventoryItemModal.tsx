@@ -4,7 +4,6 @@ import {
   Tag,
   FileText,
   Sparkles,
-  Warehouse as WarehouseIcon,
   RotateCcw,
 } from 'lucide-react'
 import {
@@ -30,8 +29,6 @@ import {
   useReactivateProduct,
   fetchProductByNameApi,
 } from '@/features/products/products.hooks'
-import { useWarehouses } from '@/features/logistics/warehouses.hooks'
-import { useCreateStockItem } from '@/features/logistics/stock-items.hooks'
 import type { InventoryItemResponse } from '@/features/products/products.types'
 import { getErrorMessage } from '@/lib/api-client'
 import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal'
@@ -56,8 +53,6 @@ function ItemFormContent({
   const updatePriceMutation = useUpdateProductPrice()
   const deactivateMutation = useDeactivateProduct()
   const reactivateMutation = useReactivateProduct()
-  const createStockMutation = useCreateStockItem()
-  const { data: warehouses = [] } = useWarehouses()
 
   const [name, setName] = useState(item?.name || '')
   const [variety, setVariety] = useState(item?.variety || '')
@@ -69,16 +64,6 @@ function ItemFormContent({
   const [deactivatedProductMatch, setDeactivatedProductMatch] =
     useState<InventoryItemResponse | null>(null)
   const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = useState(false)
-
-  // Warehouse Initial Stock Allocations map: { [warehouseId]: quantityString }
-  const [warehouseAllocations, setWarehouseAllocations] = useState<Record<number, string>>({})
-
-  const handleWarehouseQtyChange = (whId: number, qty: string) => {
-    setWarehouseAllocations((prev) => ({
-      ...prev,
-      [whId]: qty,
-    }))
-  }
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
@@ -152,48 +137,14 @@ function ItemFormContent({
           })
         }
 
-        // Also save any newly specified warehouse allocations
-        const entries = Object.entries(warehouseAllocations)
-        for (const [whIdStr, qtyStr] of entries) {
-          const parsedQty = parseFloat(qtyStr)
-          if (!isNaN(parsedQty) && parsedQty > 0) {
-            const whObj = warehouses.find((w) => w.id === Number(whIdStr))
-            await createStockMutation.mutateAsync({
-              payload: {
-                inventoryItemId: item.id,
-                warehouseId: Number(whIdStr),
-                quantity: parsedQty.toFixed(2),
-              },
-              itemName: item.name,
-              whName: whObj?.name,
-            })
-          }
-        }
       } else {
-        const newProduct = await createMutation.mutateAsync({
+        await createMutation.mutateAsync({
           name: name.trim(),
           variety: variety.trim() || null,
           unitPrice: parsedPrice,
           description: description.trim() || null,
         })
 
-        // Automatically allocate initial stock to specified warehouses
-        const entries = Object.entries(warehouseAllocations)
-        for (const [whIdStr, qtyStr] of entries) {
-          const parsedQty = parseFloat(qtyStr)
-          if (!isNaN(parsedQty) && parsedQty > 0) {
-            const whObj = warehouses.find((w) => w.id === Number(whIdStr))
-            await createStockMutation.mutateAsync({
-              payload: {
-                inventoryItemId: newProduct.id,
-                warehouseId: Number(whIdStr),
-                quantity: parsedQty.toFixed(2),
-              },
-              itemName: newProduct.name,
-              whName: whObj?.name,
-            })
-          }
-        }
       }
       onClose()
     } catch (err) {
@@ -211,7 +162,6 @@ function ItemFormContent({
   const isPending =
     createMutation.isPending ||
     updateMutation.isPending ||
-    createStockMutation.isPending ||
     reactivateMutation.isPending
 
   return (
@@ -225,8 +175,8 @@ function ItemFormContent({
         </DialogTitle>
         <DialogDescription className="text-xs text-muted-foreground leading-relaxed">
           {isEditing
-            ? 'Update product catalog item specifications, packaging units, and warehouse allocations.'
-            : 'Register a product item to track multi-warehouse inventory, pricing, and distribution across 1, 2, or all storage hubs.'}
+            ? 'Update product details and pricing.'
+            : 'Register a product, then allocate its stock from the Warehouses view.'}
         </DialogDescription>
       </DialogHeader>
 
@@ -275,7 +225,7 @@ function ItemFormContent({
           </div>
         </div>
 
-        {/* Variety / Category */}
+        {/* Variety / Grade */}
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="item-variety" className="text-xs font-semibold text-foreground/90">
             Variety / Grade (Optional)
@@ -323,59 +273,6 @@ function ItemFormContent({
               className="pl-9 h-11 text-base font-extrabold"
               required
             />
-          </div>
-        </div>
-
-        {/* Multi-Warehouse Stock Allocation Section */}
-        <div className="flex flex-col gap-2 p-4 rounded-2xl bg-card border border-border/80 shadow-2xs">
-          <div className="flex items-center justify-between">
-            <Label className="text-xs font-bold text-foreground flex items-center gap-1.5">
-              <WarehouseIcon className="size-4 text-primary" />
-              Warehouse Stock Distribution (Assign across 1, 2, or All Facilities)
-            </Label>
-            <span className="text-[11px] text-muted-foreground font-medium">
-              Optional initial allocation
-            </span>
-          </div>
-
-          <p className="text-[11px] text-muted-foreground">
-            Specify how many units of this product to store in each warehouse hub upon creation:
-          </p>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
-            {warehouses.map((wh) => {
-              const currentVal = warehouseAllocations[wh.id] || ''
-              return (
-                <div
-                  key={wh.id}
-                  className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-muted/40 border border-border/70"
-                >
-                  <div className="min-w-0 flex-1">
-                    <span
-                      className="text-xs font-bold text-foreground block truncate"
-                      title={wh.name}
-                    >
-                      {wh.name}
-                    </span>
-                    <span className="text-[10px] text-muted-foreground block truncate">
-                      {wh.address}
-                    </span>
-                  </div>
-
-                  <div className="w-24 shrink-0">
-                    <Input
-                      type="number"
-                      step="1"
-                      min="0"
-                      placeholder="0 units"
-                      value={currentVal}
-                      onChange={(e) => handleWarehouseQtyChange(wh.id, e.target.value)}
-                      className="h-8 text-xs font-bold text-right"
-                    />
-                  </div>
-                </div>
-              )
-            })}
           </div>
         </div>
 
@@ -445,10 +342,10 @@ function ItemFormContent({
                 {isPending ? (
                   <>
                     <Spinner data-icon="inline-start" />
-                    {isEditing ? 'Saving...' : 'Registering Product & Stocks...'}
+                    {isEditing ? 'Saving...' : 'Registering Product...'}
                   </>
                 ) : (
-                  <>{isEditing ? 'Save Product Changes' : 'Register Product & Allocate Stocks'}</>
+                  <>{isEditing ? 'Save Product Changes' : 'Register Product'}</>
                 )}
               </Button>
             )}

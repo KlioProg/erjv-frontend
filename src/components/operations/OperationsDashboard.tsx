@@ -22,7 +22,7 @@ import { useStockItems } from '@/features/logistics/stock-items.hooks'
 import { useDeliveryVehicles } from '@/features/logistics/delivery-vehicles.hooks'
 import { useProducts } from '@/features/products/products.hooks'
 import { WarehouseList } from './WarehouseList'
-import { InventoryStockList } from './InventoryStockList'
+import { InventoryItemCatalog } from '@/components/inventory/InventoryItemCatalog'
 import { VehicleList } from './VehicleList'
 
 type OperationsDashboardProps = {
@@ -186,7 +186,7 @@ export function OperationsDashboard({ onSwitchToStaffing }: OperationsDashboardP
             <TabsList className="bg-secondary/70 p-1">
               <TabsTrigger value="inventory" className="gap-1.5 text-xs">
                 <Boxes className="size-3.5" />
-                Inventory & Stock
+                Inventory
               </TabsTrigger>
               <TabsTrigger value="warehouses" className="gap-1.5 text-xs">
                 <WarehouseIcon className="size-3.5" />
@@ -211,7 +211,7 @@ export function OperationsDashboard({ onSwitchToStaffing }: OperationsDashboardP
           </div>
 
           <TabsContent value="inventory" className="focus-visible:outline-none">
-            <InventoryStockList />
+            <InventoryItemCatalog />
           </TabsContent>
 
           <TabsContent value="warehouses" className="focus-visible:outline-none">

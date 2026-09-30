@@ -14,15 +14,6 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { Spinner } from '@/components/ui/spinner'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 import {
   Select,
   SelectContent,
@@ -31,12 +22,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { DataTable, type ColumnDef } from '@/components/ui/data-table'
 import { useStockItems } from '@/features/logistics/stock-items.hooks'
 import { useWarehouses } from '@/features/logistics/warehouses.hooks'
 import { useProducts } from '@/features/products/products.hooks'
 import { useAuth } from '@/features/auth/AuthContext'
-import type { StockItemWithRelations } from '@/features/logistics/stock-items.types'
+import type { InventoryItemSummary, StockItemWithRelations, WarehouseSummary } from '@/features/logistics/stock-items.types'
 import { StockAdjustModal } from '@/components/operations/StockAdjustModal'
+
+type LowStockSeverity = 'OUT' | 'CRITICAL' | 'LOW'
+
+interface EnrichedLowStockRecord extends StockItemWithRelations {
+  quantityNum: number
+  enrichedProduct?: InventoryItemSummary
+  enrichedWarehouse?: WarehouseSummary
+  severity: LowStockSeverity
+}
 
 export function LowStockList() {
   const { data: stockItems = [], isLoading: isLoadingStock } = useStockItems()
@@ -60,14 +61,15 @@ export function LowStockList() {
   const warehouseMap = useMemo(() => new Map(warehouses.map((w) => [w.id, w])), [warehouses])
 
   // Filter low stock records
-  const lowStockRecords = useMemo(() => {
+  const lowStockRecords = useMemo<EnrichedLowStockRecord[]>(() => {
     return stockItems
+      .filter((item) => parseFloat(item.quantity || '0') <= threshold)
       .map((item) => {
         const qty = parseFloat(item.quantity || '0')
         const prod = productsMap.get(item.inventoryItemId) || item.inventoryItem
         const wh = warehouseMap.get(item.warehouseId) || item.warehouse
 
-        let severity: 'OUT' | 'CRITICAL' | 'LOW' | 'NORMAL' = 'NORMAL'
+        let severity: LowStockSeverity = 'LOW'
         if (qty <= 0) {
           severity = 'OUT'
         } else if (qty <= 10) {
@@ -84,7 +86,6 @@ export function LowStockList() {
           severity,
         }
       })
-      .filter((item) => item.severity !== 'NORMAL')
   }, [stockItems, productsMap, warehouseMap, threshold])
 
   // Aggregate KPI counts
@@ -135,6 +136,171 @@ export function LowStockList() {
   }
 
   const isLoading = isLoadingStock || isLoadingWarehouses
+
+  // Columns for the reusable DataTable
+  const columns = useMemo<ColumnDef<EnrichedLowStockRecord>[]>(() => {
+    return [
+      {
+        id: 'product',
+        header: 'Item & Variety',
+        sortable: true,
+        sortKey: (row) => row.enrichedProduct?.name || '',
+        cell: ({ row }) => {
+          const prod = row.enrichedProduct
+          const isOut = row.severity === 'OUT'
+          const isCritical = row.severity === 'CRITICAL'
+
+          return (
+            <div className="flex items-start gap-3 py-0.5">
+              <div
+                className={`p-2 rounded-xl shrink-0 mt-0.5 ${
+                  isOut
+                    ? 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/25'
+                    : isCritical
+                      ? 'bg-amber-500/15 text-amber-600 dark:text-[#ffb627] border border-amber-500/25'
+                      : 'bg-primary/10 text-primary'
+                }`}
+              >
+                <Package className="size-4" />
+              </div>
+              <div className="flex flex-col min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs font-bold text-foreground truncate">
+                    {prod?.name || `Item #${row.inventoryItemId}`}
+                  </span>
+                  {prod?.variety && (
+                    <Badge
+                      variant="outline"
+                      className="text-[10px] px-1.5 py-0 bg-muted/60 text-muted-foreground font-semibold"
+                    >
+                      <Tag className="size-2.5 mr-1 text-primary" />
+                      {prod.variety}
+                    </Badge>
+                  )}
+                </div>
+                {prod?.unitPrice && (
+                  <span className="text-[11px] text-muted-foreground mt-0.5">
+                    ₱{Number(prod.unitPrice).toFixed(2)} wholesale
+                  </span>
+                )}
+              </div>
+            </div>
+          )
+        },
+      },
+      {
+        id: 'warehouse',
+        header: 'Warehouse Hub',
+        sortable: true,
+        sortKey: (row) => row.enrichedWarehouse?.name || '',
+        cell: ({ row }) => {
+          const wh = row.enrichedWarehouse
+          return (
+            <div>
+              <div className="flex items-center gap-2">
+                <WarehouseIcon className="size-3.5 text-muted-foreground shrink-0" />
+                <span className="text-xs font-semibold text-foreground">
+                  {wh?.name || `Warehouse #${row.warehouseId}`}
+                </span>
+              </div>
+              {wh?.address && (
+                <span className="text-[10px] text-muted-foreground block truncate max-w-xs mt-0.5">
+                  {wh.address}
+                </span>
+              )}
+            </div>
+          )
+        },
+      },
+      {
+        id: 'quantity',
+        header: 'Current Balance',
+        align: 'center',
+        sortable: true,
+        sortKey: 'quantityNum',
+        cell: ({ row }) => {
+          const isOut = row.severity === 'OUT'
+          const isCritical = row.severity === 'CRITICAL'
+          return (
+            <Badge
+              variant="outline"
+              className={`text-xs px-2.5 py-1 font-extrabold rounded-xl ${
+                isOut
+                  ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/25'
+                  : isCritical
+                    ? 'bg-amber-500/10 text-amber-600 dark:text-[#ffb627] border-amber-500/25'
+                    : 'bg-amber-500/[0.06] text-amber-600 dark:text-[#ffb627] border-amber-500/20'
+              }`}
+            >
+              {row.quantityNum.toLocaleString()} units
+            </Badge>
+          )
+        },
+      },
+      {
+        id: 'urgency',
+        header: 'Urgency Status',
+        align: 'center',
+        sortable: true,
+        sortKey: 'severity',
+        cell: ({ row }) => {
+          const isOut = row.severity === 'OUT'
+          const isCritical = row.severity === 'CRITICAL'
+          return (
+            <div className="inline-flex items-center justify-center">
+              <span
+                className={`inline-flex items-center gap-2 px-2.5 py-1 rounded-full text-[11px] font-bold tracking-wide border ${
+                  isOut
+                    ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30'
+                    : isCritical
+                      ? 'bg-amber-500/10 text-amber-600 dark:text-[#ffb627] border-amber-500/30'
+                      : 'bg-amber-500/[0.06] text-amber-600 dark:text-[#ffb627] border-amber-500/20'
+                }`}
+              >
+                {isOut ? (
+                  <span className="relative flex size-2 shrink-0">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose-500 opacity-75" />
+                    <span className="relative inline-flex size-2 rounded-full bg-rose-600" />
+                  </span>
+                ) : isCritical ? (
+                  <span className="relative flex size-2 shrink-0">
+                    <span className="inline-flex size-2 rounded-full bg-amber-500 animate-pulse" />
+                  </span>
+                ) : (
+                  <span className="inline-flex size-2 rounded-full bg-amber-500/80 shrink-0" />
+                )}
+                <span className="whitespace-nowrap">
+                  {isOut ? 'Out of Stock' : isCritical ? 'Critical Deficit' : 'Low Stock Buffer'}
+                </span>
+              </span>
+            </div>
+          )
+        },
+      },
+      ...(isAdmin || isManager
+        ? [
+            {
+              id: 'actions',
+              header: 'Quick Action',
+              align: 'right' as const,
+              width: 140,
+              cell: ({ row }: { row: EnrichedLowStockRecord }) => (
+                <div className="text-right">
+                  <Button
+                    size="sm"
+                    onClick={() => handleRestock(row)}
+                    className="h-7.5 px-3 text-xs font-bold gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer shadow-2xs"
+                  >
+                    <PlusCircle className="size-3.5" />
+                    Restock Now
+                  </Button>
+                </div>
+              ),
+            },
+          ]
+        : []),
+    ]
+  }, [isAdmin, isManager])
 
   return (
     <div className="flex flex-col gap-5">
@@ -322,187 +488,41 @@ export function LowStockList() {
         </div>
       </div>
 
-      {/* Main Table View */}
-      {isLoading ? (
-        <div className="flex items-center justify-center py-16 text-muted-foreground">
-          <Spinner className="mr-2 size-5" /> Checking stock levels across facilities...
-        </div>
-      ) : filteredRecords.length === 0 ? (
-        <Card className="border-dashed bg-emerald-500/5 border-emerald-500/20 rounded-2xl">
-          <CardContent className="flex flex-col items-center justify-center py-14 text-center">
-            <div className="size-12 rounded-2xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center mb-3">
-              <CheckCircle2 className="size-6" />
-            </div>
-            <h3 className="text-sm font-bold text-foreground">
-              {kpis.totalAlerts === 0
-                ? 'All Inventory Stocks Healthy'
-                : 'No matching low-stock items'}
-            </h3>
-            <p className="text-xs text-muted-foreground mt-1 max-w-sm leading-relaxed">
-              {kpis.totalAlerts === 0
-                ? `Every warehouse stock record is comfortably above the ${threshold}-unit threshold.`
-                : 'Try adjusting your search query, warehouse facility, or severity filter.'}
-            </p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="rounded-2xl border border-border/80 overflow-hidden shadow-xs bg-card">
-          <Table>
-            <TableHeader className="bg-muted/40">
-              <TableRow>
-                <TableHead className="text-xs font-bold text-foreground">Item</TableHead>
-                <TableHead className="text-xs font-bold text-foreground">Warehouse Hub</TableHead>
-                <TableHead className="text-xs font-bold text-foreground text-center">
-                  Current Balance
-                </TableHead>
-                <TableHead className="text-xs font-bold text-foreground text-center">
-                  Urgency Status
-                </TableHead>
-                {(isAdmin || isManager) && (
-                  <TableHead className="text-xs font-bold text-foreground text-right w-36">
-                    Quick Action
-                  </TableHead>
-                )}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredRecords.map((stock) => {
-                const prod = stock.enrichedProduct
-                const wh = stock.enrichedWarehouse
-                const isOut = stock.severity === 'OUT'
-                const isCritical = stock.severity === 'CRITICAL'
-
-                return (
-                  <TableRow
-                    key={stock.id}
-                    className={`hover:bg-muted/20 transition-colors ${
-                      isOut ? 'bg-rose-500/[0.04]' : isCritical ? 'bg-amber-500/[0.04]' : ''
-                    }`}
-                  >
-                    {/* Item */}
-                    <TableCell>
-                      <div className="flex items-start gap-3">
-                        <div
-                          className={`p-2 rounded-xl shrink-0 mt-0.5 ${
-                            isOut
-                              ? 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/25'
-                              : isCritical
-                                ? 'bg-amber-500/15 text-amber-600 dark:text-[#ffb627] border border-amber-500/25'
-                                : 'bg-primary/10 text-primary'
-                          }`}
-                        >
-                          <Package className="size-4" />
-                        </div>
-                        <div className="flex flex-col min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-xs font-bold text-foreground truncate">
-                              {prod?.name || `Item #${stock.inventoryItemId}`}
-                            </span>
-                            {prod?.variety && (
-                              <Badge
-                                variant="outline"
-                                className="text-[10px] px-1.5 py-0 bg-muted/60 text-muted-foreground font-semibold"
-                              >
-                                <Tag className="size-2.5 mr-1 text-primary" />
-                                {prod.variety}
-                              </Badge>
-                            )}
-                          </div>
-                          {prod?.unitPrice && (
-                            <span className="text-[11px] text-muted-foreground mt-0.5">
-                              ₱{Number(prod.unitPrice).toFixed(2)} wholesale
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </TableCell>
-
-                    {/* Warehouse Facility */}
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <WarehouseIcon className="size-3.5 text-muted-foreground shrink-0" />
-                        <span className="text-xs font-semibold text-foreground">
-                          {wh?.name || `Warehouse #${stock.warehouseId}`}
-                        </span>
-                      </div>
-                      {wh?.address && (
-                        <span className="text-[10px] text-muted-foreground block truncate max-w-xs mt-0.5">
-                          {wh.address}
-                        </span>
-                      )}
-                    </TableCell>
-
-                    {/* Current Balance */}
-                    <TableCell className="text-center">
-                      <Badge
-                        variant="outline"
-                        className={`text-xs px-2.5 py-1 font-extrabold rounded-xl ${
-                          isOut
-                            ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/25'
-                            : isCritical
-                              ? 'bg-amber-500/10 text-amber-600 dark:text-[#ffb627] border-amber-500/25'
-                              : 'bg-amber-500/[0.06] text-amber-600 dark:text-[#ffb627] border-amber-500/20'
-                        }`}
-                      >
-                        {stock.quantityNum.toLocaleString()} units
-                      </Badge>
-                    </TableCell>
-
-                    {/* Urgency Status */}
-                    <TableCell className="text-center">
-                      <div className="inline-flex items-center justify-center">
-                        <span
-                          className={`inline-flex items-center gap-2 px-2.5 py-1 rounded-full text-[11px] font-bold tracking-wide border ${
-                            isOut
-                              ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30'
-                              : isCritical
-                                ? 'bg-amber-500/10 text-amber-600 dark:text-[#ffb627] border-amber-500/30'
-                                : 'bg-amber-500/[0.06] text-amber-600 dark:text-[#ffb627] border-amber-500/20'
-                          }`}
-                        >
-                          {isOut ? (
-                            <span className="relative flex size-2 shrink-0">
-                              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose-500 opacity-75" />
-                              <span className="relative inline-flex size-2 rounded-full bg-rose-600" />
-                            </span>
-                          ) : isCritical ? (
-                            <span className="relative flex size-2 shrink-0">
-                              <span className="inline-flex size-2 rounded-full bg-amber-500 animate-pulse" />
-                            </span>
-                          ) : (
-                            <span className="inline-flex size-2 rounded-full bg-amber-500/80 shrink-0" />
-                          )}
-                          <span className="whitespace-nowrap">
-                            {isOut
-                              ? 'Out of Stock'
-                              : isCritical
-                                ? 'Critical Deficit'
-                                : 'Low Stock Buffer'}
-                          </span>
-                        </span>
-                      </div>
-                    </TableCell>
-
-                    {/* Quick Action */}
-                    {(isAdmin || isManager) && (
-                      <TableCell className="text-right">
-                        <Button
-                          size="sm"
-                          onClick={() => handleRestock(stock)}
-                          className="h-8 px-3 text-xs font-bold gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer shadow-2xs"
-                        >
-                          <PlusCircle className="size-3.5" />
-                          Restock Now
-                        </Button>
-                      </TableCell>
-                    )}
-                  </TableRow>
-                )
-              })}
-            </TableBody>
-          </Table>
-        </div>
-      )}
+      {/* Main Table View via reusable DataTable */}
+      <DataTable
+        data={filteredRecords}
+        columns={columns}
+        isLoading={isLoading}
+        loadingMessage="Checking stock levels across facilities..."
+        pagination={true}
+        pageSizeOptions={[10, 25, 50]}
+        rowClassName={(row) =>
+          row.severity === 'OUT'
+            ? 'bg-rose-500/[0.04]'
+            : row.severity === 'CRITICAL'
+              ? 'bg-amber-500/[0.04]'
+              : ''
+        }
+        emptyContent={
+          <Card className="border-dashed bg-emerald-500/5 border-emerald-500/20 rounded-2xl">
+            <CardContent className="flex flex-col items-center justify-center py-14 text-center">
+              <div className="size-12 rounded-2xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center mb-3">
+                <CheckCircle2 className="size-6" />
+              </div>
+              <h3 className="text-sm font-bold text-foreground">
+                {kpis.totalAlerts === 0
+                  ? 'All Inventory Stocks Healthy'
+                  : 'No matching low-stock items'}
+              </h3>
+              <p className="text-xs text-muted-foreground mt-1 max-w-sm leading-relaxed">
+                {kpis.totalAlerts === 0
+                  ? `Every warehouse stock record is comfortably above the ${threshold}-unit threshold.`
+                  : 'Try adjusting your search query, warehouse facility, or severity filter.'}
+              </p>
+            </CardContent>
+          </Card>
+        }
+      />
 
       {/* Unified Stock Adjust Modal */}
       <StockAdjustModal

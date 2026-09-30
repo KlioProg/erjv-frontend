@@ -1,5 +1,14 @@
 import { useState, useMemo, type ReactNode } from 'react'
-import { ArrowUpDown, ArrowUp, ArrowDown, Package } from 'lucide-react'
+import {
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+  Package,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+} from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
   Table,
@@ -11,6 +20,7 @@ import {
 } from '@/components/ui/table'
 import { Card, CardContent } from '@/components/ui/card'
 import { Spinner } from '@/components/ui/spinner'
+import { Button } from '@/components/ui/button'
 
 export type ColumnAlign = 'left' | 'center' | 'right'
 
@@ -64,7 +74,7 @@ export interface ColumnDef<T, V = unknown> {
   /** Additional custom classNames for the table header */
   headerClassName?: string
 
-  // --- Future Extensibility Hooks ---
+  // --- Extensibility Hooks ---
   /** Whether the column can be clicked to sort */
   sortable?: boolean
 
@@ -91,7 +101,7 @@ export interface DataTableProps<T> {
   /** Click handler for an entire row */
   onRowClick?: (row: T, index: number) => void
 
-  // --- Loading & Empty State Props (Matches InventoryItemCatalog UX) ---
+  // --- Loading & Empty State Props ---
   /** Indicates whether data is currently loading */
   isLoading?: boolean
 
@@ -101,7 +111,7 @@ export interface DataTableProps<T> {
   /** Custom empty state card or message when data is empty */
   emptyContent?: ReactNode
 
-  // --- Sorting (Hybrid: built-in client sorting by default, controlled via props if provided) ---
+  // --- Sorting ---
   /** Optional controlled sort configuration */
   sortConfig?: SortConfig | null
 
@@ -113,6 +123,31 @@ export interface DataTableProps<T> {
 
   /** When true, client-side sorting in DataTable is disabled (useful for server-side sorting) */
   manualSorting?: boolean
+
+  // --- Pagination (Site-wide Reusable) ---
+  /** Whether pagination is enabled. Defaults to true */
+  pagination?: boolean
+
+  /** Controlled current page (1-indexed) */
+  page?: number
+
+  /** Callback fired when page changes */
+  onPageChange?: (newPage: number) => void
+
+  /** Page size (rows per page). Defaults to 10 */
+  pageSize?: number
+
+  /** Available page size options */
+  pageSizeOptions?: number[]
+
+  /** Callback fired when page size changes */
+  onPageSizeChange?: (newPageSize: number) => void
+
+  /** Total records count (required for server-side manualPagination) */
+  totalCount?: number
+
+  /** When true, client-side pagination slicing is bypassed for external/server pagination */
+  manualPagination?: boolean
 
   // --- Container & Table Styling ---
   className?: string
@@ -194,7 +229,27 @@ function getHeaderJustifyClass(align?: ColumnAlign): string {
 }
 
 /**
- * Generic, extensible DataTable component styled to match project design conventions.
+ * Helper to compute an array of visible page numbers with ellipsis (e.g. [1, 2, '...', 9, 10])
+ */
+function getVisiblePages(totalPages: number, currentPage: number): (number | '...')[] {
+  if (totalPages <= 7) {
+    return Array.from({ length: totalPages }, (_, i) => i + 1)
+  }
+
+  if (currentPage <= 4) {
+    return [1, 2, 3, 4, 5, '...', totalPages]
+  }
+
+  if (currentPage >= totalPages - 3) {
+    return [1, '...', totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages]
+  }
+
+  return [1, '...', currentPage - 1, currentPage, currentPage + 1, '...', totalPages]
+}
+
+/**
+ * Generic, extensible DataTable component styled to match project design conventions
+ * with built-in client/server sorting and pagination.
  */
 export function DataTable<T>({
   data,
@@ -209,12 +264,24 @@ export function DataTable<T>({
   onSortChange,
   defaultSort,
   manualSorting = false,
+  pagination = true,
+  page: controlledPage,
+  onPageChange,
+  pageSize: controlledPageSize,
+  pageSizeOptions = [10, 20, 50, 100],
+  onPageSizeChange,
+  totalCount,
+  manualPagination = false,
   className,
   tableClassName,
 }: DataTableProps<T>) {
   const [internalSort, setInternalSort] = useState<SortConfig | null>(defaultSort ?? null)
+  const [internalPage, setInternalPage] = useState<number>(1)
+  const [internalPageSize, setInternalPageSize] = useState<number>(controlledPageSize ?? 10)
 
   const activeSort = controlledSort !== undefined ? controlledSort : internalSort
+  const activePage = controlledPage !== undefined ? controlledPage : internalPage
+  const activePageSize = controlledPageSize !== undefined ? controlledPageSize : internalPageSize
 
   // Map columns with deterministic IDs
   const resolvedColumns = useMemo(() => {
@@ -283,6 +350,37 @@ export function DataTable<T>({
     })
   }, [data, activeSort, manualSorting, resolvedColumns])
 
+  // Pagination metrics
+  const totalRows = manualPagination ? (totalCount ?? data.length) : sortedData.length
+  const totalPages = Math.max(1, Math.ceil(totalRows / activePageSize))
+  const safeCurrentPage = Math.min(Math.max(1, activePage), totalPages)
+
+  const handlePageSelect = (newPage: number) => {
+    const clamped = Math.min(Math.max(1, newPage), totalPages)
+    if (controlledPage === undefined) {
+      setInternalPage(clamped)
+    }
+    onPageChange?.(clamped)
+  }
+
+  const handlePageSizeSelect = (newSize: number) => {
+    if (controlledPageSize === undefined) {
+      setInternalPageSize(newSize)
+    }
+    onPageSizeChange?.(newSize)
+    handlePageSelect(1)
+  }
+
+  // Paginated records to render
+  const startIndex = (safeCurrentPage - 1) * activePageSize
+  const endIndex = Math.min(startIndex + activePageSize, totalRows)
+  const displayRows = useMemo(() => {
+    if (manualPagination || !pagination) {
+      return sortedData
+    }
+    return sortedData.slice(startIndex, endIndex)
+  }, [manualPagination, pagination, sortedData, startIndex, endIndex])
+
   // Loading View
   if (isLoading) {
     return (
@@ -312,118 +410,241 @@ export function DataTable<T>({
     )
   }
 
+  const visiblePages = getVisiblePages(totalPages, safeCurrentPage)
+
   return (
     <div
       className={cn(
-        'rounded-2xl border border-border/80 overflow-hidden shadow-xs bg-card',
+        'rounded-2xl border border-border/80 overflow-hidden shadow-xs bg-card flex flex-col',
         className,
       )}
     >
-      <Table className={tableClassName}>
-        <TableHeader className="bg-muted/40">
-          <TableRow>
-            {resolvedColumns.map((column) => {
-              const alignClass = getAlignmentClass(column.align)
-              const justifyClass = getHeaderJustifyClass(column.align)
-              const isSorted = activeSort?.key === column.resolvedId
-              const widthStyle = column.width != null
-                ? { width: typeof column.width === 'number' ? `${column.width}px` : column.width }
-                : undefined
-
-              return (
-                <TableHead
-                  key={column.resolvedId}
-                  style={widthStyle}
-                  className={cn(
-                    'text-xs font-bold text-foreground select-none',
-                    alignClass,
-                    column.headerClassName,
-                  )}
-                >
-                  {column.sortable ? (
-                    <button
-                      type="button"
-                      onClick={() => handleSortToggle(column)}
-                      className={cn(
-                        'inline-flex items-center gap-1.5 font-bold hover:text-foreground/80 cursor-pointer transition-colors focus:outline-hidden group',
-                        justifyClass,
-                        column.align === 'right' && 'w-full',
-                      )}
-                    >
-                      {typeof column.header === 'function'
-                        ? column.header({
-                            column,
-                            sortConfig: activeSort,
-                            onSort: () => handleSortToggle(column),
-                          })
-                        : column.header}
-
-                      <span className="shrink-0">
-                        {isSorted && activeSort.direction === 'asc' ? (
-                          <ArrowUp className="size-3.5 text-primary" />
-                        ) : isSorted && activeSort.direction === 'desc' ? (
-                          <ArrowDown className="size-3.5 text-primary" />
-                        ) : (
-                          <ArrowUpDown className="size-3.5 opacity-30 group-hover:opacity-70 transition-opacity" />
-                        )}
-                      </span>
-                    </button>
-                  ) : typeof column.header === 'function' ? (
-                    column.header({ column, sortConfig: activeSort })
-                  ) : (
-                    column.header
-                  )}
-                </TableHead>
-              )
-            })}
-          </TableRow>
-        </TableHeader>
-
-        <TableBody>
-          {sortedData.map((row, rowIndex) => {
-            const rowKey = getRowKey
-              ? getRowKey(row, rowIndex)
-              : ((row as { id?: string | number })?.id ?? rowIndex)
-            const computedRowClass = rowClassName?.(row, rowIndex)
-
-            return (
-              <TableRow
-                key={rowKey}
-                onClick={onRowClick ? () => onRowClick(row, rowIndex) : undefined}
-                className={cn(
-                  'hover:bg-muted/20 transition-colors',
-                  onRowClick && 'cursor-pointer',
-                  computedRowClass,
-                )}
-              >
-                {resolvedColumns.map((column) => {
-                  const alignClass = getAlignmentClass(column.align)
-                  const value = getCellValue(row, column)
-                  const widthStyle = column.width != null
+      <div className="overflow-x-auto">
+        <Table className={tableClassName}>
+          <TableHeader className="bg-muted/40">
+            <TableRow>
+              {resolvedColumns.map((column) => {
+                const alignClass = getAlignmentClass(column.align)
+                const justifyClass = getHeaderJustifyClass(column.align)
+                const isSorted = activeSort?.key === column.resolvedId
+                const widthStyle =
+                  column.width != null
                     ? { width: typeof column.width === 'number' ? `${column.width}px` : column.width }
                     : undefined
 
-                  return (
-                    <TableCell
-                      key={column.resolvedId}
-                      style={widthStyle}
-                      className={cn(alignClass, column.className)}
-                    >
-                      {column.cell ? (
-                        column.cell({ row, value, index: rowIndex })
-                      ) : (
-                        <span className="text-xs text-foreground">
-                          {value != null && typeof value !== 'object' ? String(value) : '—'}
+                return (
+                  <TableHead
+                    key={column.resolvedId}
+                    style={widthStyle}
+                    className={cn(
+                      'text-xs font-bold text-foreground select-none',
+                      alignClass,
+                      column.headerClassName,
+                    )}
+                  >
+                    {column.sortable ? (
+                      <button
+                        type="button"
+                        onClick={() => handleSortToggle(column)}
+                        className={cn(
+                          'inline-flex items-center gap-1.5 font-bold hover:text-foreground/80 cursor-pointer transition-colors focus:outline-hidden group',
+                          justifyClass,
+                          column.align === 'right' && 'w-full',
+                        )}
+                      >
+                        {typeof column.header === 'function'
+                          ? column.header({
+                              column,
+                              sortConfig: activeSort,
+                              onSort: () => handleSortToggle(column),
+                            })
+                          : column.header}
+
+                        <span className="shrink-0">
+                          {isSorted && activeSort.direction === 'asc' ? (
+                            <ArrowUp className="size-3.5 text-primary" />
+                          ) : isSorted && activeSort.direction === 'desc' ? (
+                            <ArrowDown className="size-3.5 text-primary" />
+                          ) : (
+                            <ArrowUpDown className="size-3.5 opacity-30 group-hover:opacity-70 transition-opacity" />
+                          )}
                         </span>
+                      </button>
+                    ) : typeof column.header === 'function' ? (
+                      column.header({ column, sortConfig: activeSort })
+                    ) : (
+                      column.header
+                    )}
+                  </TableHead>
+                )
+              })}
+            </TableRow>
+          </TableHeader>
+
+          <TableBody>
+            {displayRows.map((row, rowIndex) => {
+              const rowKey = getRowKey
+                ? getRowKey(row, rowIndex)
+                : ((row as { id?: string | number })?.id ?? rowIndex)
+              const computedRowClass = rowClassName?.(row, rowIndex)
+
+              return (
+                <TableRow
+                  key={rowKey}
+                  onClick={onRowClick ? () => onRowClick(row, rowIndex) : undefined}
+                  className={cn(
+                    'hover:bg-muted/20 transition-colors',
+                    onRowClick && 'cursor-pointer',
+                    computedRowClass,
+                  )}
+                >
+                  {resolvedColumns.map((column) => {
+                    const alignClass = getAlignmentClass(column.align)
+                    const value = getCellValue(row, column)
+                    const widthStyle =
+                      column.width != null
+                        ? { width: typeof column.width === 'number' ? `${column.width}px` : column.width }
+                        : undefined
+
+                    return (
+                      <TableCell
+                        key={column.resolvedId}
+                        style={widthStyle}
+                        className={cn(alignClass, column.className)}
+                      >
+                        {column.cell ? (
+                          column.cell({ row, value, index: rowIndex })
+                        ) : (
+                          <span className="text-xs text-foreground">
+                            {value != null && typeof value !== 'object' ? String(value) : '—'}
+                          </span>
+                        )}
+                      </TableCell>
+                    )
+                  })}
+                </TableRow>
+              )
+            })}
+          </TableBody>
+        </Table>
+      </div>
+
+      {/* Pagination Footer */}
+      {pagination && totalRows > 0 && (
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-border/70 bg-muted/25 px-4 py-3 text-xs">
+          <div className="flex items-center gap-4 text-muted-foreground w-full sm:w-auto justify-between sm:justify-start">
+            <span>
+              Showing <span className="font-bold text-foreground">{startIndex + 1}</span> to{' '}
+              <span className="font-bold text-foreground">{endIndex}</span> of{' '}
+              <span className="font-bold text-foreground">{totalRows}</span> entries
+            </span>
+
+            {pageSizeOptions.length > 1 && (
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px]">Rows:</span>
+                <select
+                  aria-label="Rows per page"
+                  value={activePageSize}
+                  onChange={(e) => handlePageSizeSelect(Number(e.target.value))}
+                  className="h-7 rounded-lg border border-border/80 bg-background px-2 text-[11px] font-semibold text-foreground focus:outline-hidden cursor-pointer"
+                >
+                  {pageSizeOptions.map((opt) => (
+                    <option key={opt} value={opt}>
+                      {opt}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+
+          {/* Navigation Controls */}
+          {totalPages > 1 && (
+            <div className="flex items-center gap-1 self-center sm:self-auto">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => handlePageSelect(1)}
+                disabled={safeCurrentPage === 1}
+                className="size-7.5 rounded-lg text-muted-foreground hover:text-foreground cursor-pointer disabled:opacity-30 disabled:pointer-events-none"
+                title="First Page"
+              >
+                <ChevronsLeft className="size-3.5" />
+                <span className="sr-only">First Page</span>
+              </Button>
+
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => handlePageSelect(safeCurrentPage - 1)}
+                disabled={safeCurrentPage === 1}
+                className="size-7.5 rounded-lg text-muted-foreground hover:text-foreground cursor-pointer disabled:opacity-30 disabled:pointer-events-none"
+                title="Previous Page"
+              >
+                <ChevronLeft className="size-3.5" />
+                <span className="sr-only">Previous Page</span>
+              </Button>
+
+              <div className="flex items-center gap-1 mx-1">
+                {visiblePages.map((pageNum, idx) => {
+                  if (pageNum === '...') {
+                    return (
+                      <span
+                        key={`ellipsis-${idx}`}
+                        className="px-1.5 text-xs text-muted-foreground select-none"
+                      >
+                        …
+                      </span>
+                    )
+                  }
+
+                  const isCurrent = pageNum === safeCurrentPage
+                  return (
+                    <Button
+                      key={pageNum}
+                      variant={isCurrent ? 'default' : 'ghost'}
+                      size="sm"
+                      onClick={() => handlePageSelect(pageNum as number)}
+                      className={cn(
+                        'size-7.5 p-0 text-xs font-bold rounded-lg cursor-pointer transition-all',
+                        isCurrent
+                          ? 'bg-primary text-primary-foreground shadow-2xs font-extrabold'
+                          : 'text-muted-foreground hover:text-foreground hover:bg-muted',
                       )}
-                    </TableCell>
+                    >
+                      {pageNum}
+                    </Button>
                   )
                 })}
-              </TableRow>
-            )
-          })}
-        </TableBody>
-      </Table>
+              </div>
+
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => handlePageSelect(safeCurrentPage + 1)}
+                disabled={safeCurrentPage === totalPages}
+                className="size-7.5 rounded-lg text-muted-foreground hover:text-foreground cursor-pointer disabled:opacity-30 disabled:pointer-events-none"
+                title="Next Page"
+              >
+                <ChevronRight className="size-3.5" />
+                <span className="sr-only">Next Page</span>
+              </Button>
+
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => handlePageSelect(totalPages)}
+                disabled={safeCurrentPage === totalPages}
+                className="size-7.5 rounded-lg text-muted-foreground hover:text-foreground cursor-pointer disabled:opacity-30 disabled:pointer-events-none"
+                title="Last Page"
+              >
+                <ChevronsRight className="size-3.5" />
+                <span className="sr-only">Last Page</span>
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
