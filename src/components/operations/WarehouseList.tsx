@@ -260,14 +260,14 @@ export function WarehouseList({ initialWarehouseId }: { initialWarehouseId?: num
               <>
                 <Button
                   size="icon"
-                  variant="outline"
+                  variant="ghost"
                   aria-label="Edit Warehouse"
                   title="Edit Warehouse"
                   onClick={() => {
                     setEditingWarehouse(row)
                     setIsModalOpen(true)
                   }}
-                  className="size-8"
+                  className="text-muted-foreground hover:text-foreground"
                 >
                   <Edit2 className="size-3.5" />
                 </Button>
@@ -277,7 +277,7 @@ export function WarehouseList({ initialWarehouseId }: { initialWarehouseId?: num
                   aria-label="Archive Warehouse"
                   title="Archive Warehouse"
                   onClick={() => void checkWarehouseBeforeArchive(row)}
-                  className="size-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  className="text-destructive/70 hover:bg-destructive/10 hover:text-destructive"
                 >
                   <Archive className="size-3.5" />
                 </Button>
