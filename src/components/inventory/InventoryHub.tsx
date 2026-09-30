@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react'
 import { Package, AlertTriangle, Archive } from 'lucide-react'
 import { useStockItems } from '@/features/logistics/stock-items.hooks'
 import { useAllProducts } from '@/features/products/products.hooks'
+import { parseStockCents } from '@/features/logistics/stock-display'
 import { InventoryItemCatalog } from './InventoryItemCatalog'
 import { LowStockList } from './LowStockList'
 import { UnifiedNavbar, ArchiveNoticeBanner, type NavTabGroup } from '@/components/ui/UnifiedNavbar'
@@ -18,7 +19,10 @@ export function InventoryHub({ onOpenWarehouse }: { onOpenWarehouse?: (warehouse
 
   // Count low stock items (quantity <= 20)
   const lowStockCount = useMemo(() => {
-    return stockItems.filter((s) => parseFloat(s.quantity || '0') <= 20).length
+    return stockItems.filter((s) => {
+      const quantity = parseStockCents(s.quantity)
+      return quantity === null || quantity <= 2000n
+    }).length
   }, [stockItems])
 
   // Count active vs archived products

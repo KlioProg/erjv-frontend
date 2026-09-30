@@ -22,16 +22,18 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { DataTable, type ColumnDef } from '@/components/ui/data-table'
+import { OverflowValue } from '@/components/ui/OverflowValue'
 import { useStockItems } from '@/features/logistics/stock-items.hooks'
 import { useWarehouses } from '@/features/logistics/warehouses.hooks'
 import { useProducts } from '@/features/products/products.hooks'
 import type { InventoryItemSummary, StockItemWithRelations, WarehouseSummary } from '@/features/logistics/stock-items.types'
 import { getErrorMessage } from '@/lib/api-client'
+import { formatStockCents, parseStockCents, stockSortKey } from '@/features/logistics/stock-display'
 
-type LowStockSeverity = 'OUT' | 'CRITICAL' | 'LOW'
+type LowStockSeverity = 'OUT' | 'CRITICAL' | 'LOW' | 'UNKNOWN'
 
 interface EnrichedLowStockRecord extends StockItemWithRelations {
-  quantityNum: number
+  quantityCents: bigint | null
   enrichedProduct?: InventoryItemSummary
   enrichedWarehouse?: WarehouseSummary
   severity: LowStockSeverity
@@ -58,24 +60,29 @@ export function LowStockList() {
   // Filter low stock records
   const lowStockRecords = useMemo<EnrichedLowStockRecord[]>(() => {
     return stockItems
-      .filter((item) => parseFloat(item.quantity || '0') <= threshold)
+      .filter((item) => {
+        const cents = parseStockCents(item.quantity)
+        return cents === null || cents <= BigInt(threshold) * 100n
+      })
       .map((item) => {
-        const qty = parseFloat(item.quantity || '0')
+        const quantityCents = parseStockCents(item.quantity)
         const prod = productsMap.get(item.inventoryItemId) || item.inventoryItem
         const wh = warehouseMap.get(item.warehouseId) || item.warehouse
 
         let severity: LowStockSeverity = 'LOW'
-        if (qty <= 0) {
+        if (quantityCents === null) {
+          severity = 'UNKNOWN'
+        } else if (quantityCents <= 0n) {
           severity = 'OUT'
-        } else if (qty <= 10) {
+        } else if (quantityCents <= 1000n) {
           severity = 'CRITICAL'
-        } else if (qty <= threshold) {
+        } else if (quantityCents <= BigInt(threshold) * 100n) {
           severity = 'LOW'
         }
 
         return {
           ...item,
-          quantityNum: qty,
+          quantityCents,
           enrichedProduct: prod,
           enrichedWarehouse: wh,
           severity,
@@ -88,6 +95,7 @@ export function LowStockList() {
     let outCount = 0
     let criticalCount = 0
     let lowCount = 0
+    let unknownCount = 0
     const impactedWarehouses = new Set<number>()
 
     lowStockRecords.forEach((item) => {
@@ -95,12 +103,14 @@ export function LowStockList() {
       if (item.severity === 'OUT') outCount++
       else if (item.severity === 'CRITICAL') criticalCount++
       else if (item.severity === 'LOW') lowCount++
+      else if (item.severity === 'UNKNOWN') unknownCount++
     })
 
     return {
       outCount,
       criticalCount,
       lowCount,
+      unknownCount,
       totalAlerts: lowStockRecords.length,
       impactedWarehousesCount: impactedWarehouses.size,
     }
@@ -109,8 +119,8 @@ export function LowStockList() {
   // Apply filters
   const filteredRecords = useMemo(() => {
     return lowStockRecords.filter((item) => {
-      const prodName = item.enrichedProduct?.name?.toLowerCase() || ''
-      const prodVariety = item.enrichedProduct?.variety?.toLowerCase() || ''
+      const prodName = String(item.enrichedProduct?.name ?? '').toLowerCase()
+      const prodVariety = String(item.enrichedProduct?.variety ?? '').toLowerCase()
       const matchesSearch =
         prodName.includes(searchTerm.toLowerCase()) ||
         prodVariety.includes(searchTerm.toLowerCase())
@@ -132,7 +142,8 @@ export function LowStockList() {
     return [
       {
         id: 'product',
-        header: 'Item & Variety',
+        header: <><span className="sm:hidden">Product</span><span className="hidden sm:inline">Item & Variety</span></>,
+        width: '40%',
         sortable: true,
         sortKey: (row) => row.enrichedProduct?.name || '',
         cell: ({ row }) => {
@@ -141,9 +152,9 @@ export function LowStockList() {
           const isCritical = row.severity === 'CRITICAL'
 
           return (
-            <div className="flex items-start gap-3 py-0.5">
+            <div className="flex min-w-0 items-start gap-2 py-0.5 sm:gap-3">
               <div
-                className={`p-2 rounded-xl shrink-0 mt-0.5 ${
+                className={`hidden p-2 rounded-xl shrink-0 mt-0.5 sm:block ${
                   isOut
                     ? 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/25'
                     : isCritical
@@ -153,23 +164,23 @@ export function LowStockList() {
               >
                 <Package className="size-4" />
               </div>
-              <div className="flex flex-col min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs font-bold text-foreground truncate">
-                    {prod?.name || `Item #${row.inventoryItemId}`}
-                  </span>
-                  {prod?.variety && (
-                    <Badge
-                      variant="outline"
-                      className="text-[10px] px-1.5 py-0 bg-muted/60 text-muted-foreground font-semibold"
-                    >
-                      <Tag className="size-2.5 mr-1 text-primary" />
-                      {prod.variety}
-                    </Badge>
-                  )}
+              <div className="flex min-w-0 flex-1 flex-col">
+                <OverflowValue value={prod?.name ?? `Item #${row.inventoryItemId}`} className="text-xs font-bold text-foreground" />
+                {prod?.variety && (
+                  <Badge
+                    variant="outline"
+                    className="mt-1 flex max-w-full self-start bg-muted/60 px-1.5 py-0 text-[10px] font-semibold text-muted-foreground"
+                  >
+                    <Tag className="mr-1 size-2.5 shrink-0 text-primary" />
+                    <OverflowValue value={prod.variety} />
+                  </Badge>
+                )}
+                <div className="mt-1 flex min-w-0 items-center gap-1 text-[11px] text-muted-foreground sm:hidden">
+                  <WarehouseIcon className="size-3 shrink-0" />
+                  <OverflowValue value={row.enrichedWarehouse?.name ?? `Warehouse #${row.warehouseId}`} />
                 </div>
-                {prod?.unitPrice && (
-                  <span className="text-[11px] text-muted-foreground mt-0.5">
+                {prod?.unitPrice && Number.isFinite(Number(prod.unitPrice)) && (
+                  <span className="mt-0.5 hidden text-[11px] text-muted-foreground lg:block">
                     ₱{Number(prod.unitPrice).toFixed(2)} wholesale
                   </span>
                 )}
@@ -181,22 +192,21 @@ export function LowStockList() {
       {
         id: 'warehouse',
         header: 'Warehouse Hub',
+        width: '28%',
+        className: 'hidden sm:table-cell',
+        headerClassName: 'hidden sm:table-cell',
         sortable: true,
         sortKey: (row) => row.enrichedWarehouse?.name || '',
         cell: ({ row }) => {
           const wh = row.enrichedWarehouse
           return (
-            <div>
-              <div className="flex items-center gap-2">
+            <div className="min-w-0">
+              <div className="flex min-w-0 items-center gap-2">
                 <WarehouseIcon className="size-3.5 text-muted-foreground shrink-0" />
-                <span className="text-xs font-semibold text-foreground">
-                  {wh?.name || `Warehouse #${row.warehouseId}`}
-                </span>
+                <OverflowValue value={wh?.name ?? `Warehouse #${row.warehouseId}`} className="text-xs font-semibold text-foreground" />
               </div>
               {wh?.address && (
-                <span className="text-[10px] text-muted-foreground block truncate max-w-xs mt-0.5">
-                  {wh.address}
-                </span>
+                <OverflowValue value={wh.address} className="mt-0.5 text-[10px] text-muted-foreground" />
               )}
             </div>
           )
@@ -204,63 +214,80 @@ export function LowStockList() {
       },
       {
         id: 'quantity',
-        header: 'Current Balance',
+        header: <><span className="sm:hidden">Stock</span><span className="hidden sm:inline">Current Balance</span></>,
+        width: '14%',
         align: 'center',
         sortable: true,
-        sortKey: 'quantityNum',
+        sortKey: (row) => stockSortKey(row.quantityCents),
         cell: ({ row }) => {
           const isOut = row.severity === 'OUT'
           const isCritical = row.severity === 'CRITICAL'
+          const isUnknown = row.severity === 'UNKNOWN'
           return (
             <Badge
               variant="outline"
-              className={`text-xs px-2.5 py-1 font-extrabold rounded-xl ${
-                isOut
+              className={`max-w-full rounded-xl px-1.5 py-1 text-xs font-extrabold sm:px-2.5 ${
+                isUnknown
+                  ? 'border-border text-muted-foreground'
+                  : isOut
                   ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/25'
                   : isCritical
                     ? 'bg-amber-500/10 text-amber-600 dark:text-[#ffb627] border-amber-500/25'
                     : 'bg-amber-500/[0.06] text-amber-600 dark:text-[#ffb627] border-amber-500/20'
               }`}
             >
-              {row.quantityNum.toLocaleString()} units
+              <OverflowValue
+                value={formatStockCents(row.quantityCents)}
+                fullValue={row.quantityCents === null ? row.quantity : undefined}
+                tooltipSuffix="units"
+                className="text-center tabular-nums"
+              />
+              <span className="ml-1 hidden shrink-0 lg:inline">units</span>
             </Badge>
           )
         },
       },
       {
         id: 'urgency',
-        header: 'Urgency Status',
+        header: <><span className="sm:hidden">Status</span><span className="hidden sm:inline">Urgency Status</span></>,
+        width: '18%',
         align: 'center',
         sortable: true,
         sortKey: 'severity',
         cell: ({ row }) => {
           const isOut = row.severity === 'OUT'
           const isCritical = row.severity === 'CRITICAL'
+          const isUnknown = row.severity === 'UNKNOWN'
           return (
             <div className="inline-flex items-center justify-center">
               <span
-                className={`inline-flex items-center gap-2 px-2.5 py-1 rounded-full text-[11px] font-bold tracking-wide border ${
-                  isOut
+                className={`inline-flex max-w-full items-center gap-1 rounded-full border px-1 py-1 text-[11px] font-bold tracking-wide sm:gap-2 sm:px-2.5 ${
+                  isUnknown
+                    ? 'border-border text-muted-foreground'
+                    : isOut
                     ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30'
                     : isCritical
                       ? 'bg-amber-500/10 text-amber-600 dark:text-[#ffb627] border-amber-500/30'
                       : 'bg-amber-500/[0.06] text-amber-600 dark:text-[#ffb627] border-amber-500/20'
                 }`}
               >
-                {isOut ? (
-                  <span className="relative flex size-2 shrink-0">
+                {isUnknown ? null : isOut ? (
+                  <span className="relative hidden size-2 shrink-0 sm:flex">
                     <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose-500 opacity-75" />
                     <span className="relative inline-flex size-2 rounded-full bg-rose-600" />
                   </span>
                 ) : isCritical ? (
-                  <span className="relative flex size-2 shrink-0">
+                  <span className="relative hidden size-2 shrink-0 sm:flex">
                     <span className="inline-flex size-2 rounded-full bg-amber-500 animate-pulse" />
                   </span>
                 ) : (
-                  <span className="inline-flex size-2 rounded-full bg-amber-500/80 shrink-0" />
+                  <span className="hidden size-2 shrink-0 rounded-full bg-amber-500/80 sm:inline-flex" />
                 )}
-                <span className="whitespace-nowrap">
-                  {isOut ? 'Out of Stock' : isCritical ? 'Critical Deficit' : 'Low Stock Buffer'}
+                <span className="whitespace-nowrap sm:hidden">
+                  {row.severity === 'UNKNOWN' ? 'N/A' : isOut ? 'Out' : isCritical ? 'Critical' : 'Low'}
+                </span>
+                <span className="hidden whitespace-nowrap sm:inline">
+                  {row.severity === 'UNKNOWN' ? 'Unknown' : isOut ? 'Out of Stock' : isCritical ? 'Critical Deficit' : 'Low Stock Buffer'}
                 </span>
               </span>
             </div>
@@ -372,8 +399,14 @@ export function LowStockList() {
         </Card>
       </div>
 
+      {kpis.unknownCount > 0 && (
+        <div role="alert" className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs text-foreground">
+          {kpis.unknownCount} stock {kpis.unknownCount === 1 ? 'balance needs' : 'balances need'} review because the quantity returned by the server could not be read.
+        </div>
+      )}
+
       {/* Filter and Search Bar */}
-      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+      <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
         <div className="flex flex-1 flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
           <div className="relative flex-1 sm:max-w-xs">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
@@ -438,7 +471,7 @@ export function LowStockList() {
         </div>
 
         {/* Threshold setting */}
-        <div className="flex items-center gap-2 self-end md:self-center">
+        <div className="flex items-center gap-2 self-end lg:self-center">
           <span className="text-[11px] font-semibold text-muted-foreground whitespace-nowrap">
             Alert Threshold:
           </span>
@@ -477,6 +510,7 @@ export function LowStockList() {
         loadingMessage="Checking stock levels across facilities..."
         pagination={true}
         pageSizeOptions={[10, 25, 50]}
+        tableClassName="table-fixed w-full [&_td]:px-1.5 [&_th]:px-1.5 sm:[&_td]:px-3.5 sm:[&_th]:px-3.5"
         rowClassName={(row) =>
           row.severity === 'OUT'
             ? 'bg-rose-500/[0.04]'
