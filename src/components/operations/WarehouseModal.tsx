@@ -162,7 +162,7 @@ function WarehouseFormContent({
           <div className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-amber-500/20 text-amber-700 dark:text-amber-300 mt-0.5">
             <RotateCcw className="size-4 animate-in spin-in-180 duration-500" />
           </div>
-          <div className="flex-1 text-xs">
+          <div className="min-w-0 flex-1 text-xs [overflow-wrap:anywhere]">
             <p className="font-bold text-foreground">Deactivated Warehouse Found</p>
             <p className="text-muted-foreground mt-0.5 leading-relaxed">
               An archived facility record for{' '}

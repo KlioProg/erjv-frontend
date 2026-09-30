@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { DataTable, type ColumnDef } from '@/components/ui/data-table'
+import { OverflowValue } from '@/components/ui/OverflowValue'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -45,8 +46,9 @@ import type { StockItem } from '@/features/logistics/stock-items.types'
 import { getErrorMessage } from '@/lib/api-client'
 import { WarehouseModal } from './WarehouseModal'
 import { WarehouseInventory } from './WarehouseInventory'
+import { formatStockCents, parseStockCents, stockSortKey } from '@/features/logistics/stock-display'
 
-type WarehouseStockSummary = { products: number; units: number }
+type WarehouseStockSummary = { products: number; units: bigint }
 type ArchiveCheck = WarehouseStockSummary & {
   status: 'checking' | 'empty' | 'blocked' | 'error'
   error?: string
@@ -54,13 +56,13 @@ type ArchiveCheck = WarehouseStockSummary & {
 
 function summarizeWarehouseStock(items: StockItem[]): WarehouseStockSummary {
   let products = 0
-  let units = 0
+  let units = 0n
   for (const item of items) {
-    const quantity = Number(item.quantity)
-    if (!Number.isFinite(quantity) || quantity < 0) {
+    const quantity = parseStockCents(item.quantity)
+    if (quantity === null) {
       throw new Error('The warehouse stock count could not be verified. Please try again.')
     }
-    if (quantity > 0) {
+    if (quantity > 0n) {
       products += 1
       units += quantity
     }
@@ -98,23 +100,27 @@ export function WarehouseList({ initialWarehouseId }: { initialWarehouseId?: num
   )
   const selectedWarehouse = allWarehouses.find((warehouse) => warehouse.id === selectedWarehouseId)
   const warehouseTotals = useMemo(() => {
-    const totals = new Map<number, { products: number; units: number }>()
+    const totals = new Map<number, { products: number; units: bigint | null }>()
     for (const stock of stockItems) {
-      const total = totals.get(stock.warehouseId) || { products: 0, units: 0 }
+      const total = totals.get(stock.warehouseId) || { products: 0, units: 0n }
+      const quantity = parseStockCents(stock.quantity)
       total.products += 1
-      total.units += Number(stock.quantity) || 0
+      total.units = total.units === null || quantity === null ? null : total.units + quantity
       totals.set(stock.warehouseId, total)
     }
     return totals
   }, [stockItems])
+  const getWarehouseUnits = (id: number): bigint | null => warehouseTotals.get(id)?.units === undefined
+    ? 0n
+    : warehouseTotals.get(id)!.units
   const filteredWarehouses = useMemo(() => {
     const term = searchTerm.trim().toLowerCase()
     return (activeTab === 'ACTIVE' ? activeWarehouses : archivedWarehouses).filter(
       (warehouse) =>
         !term ||
-        warehouse.name.toLowerCase().includes(term) ||
-        warehouse.address.toLowerCase().includes(term) ||
-        (warehouse.contactNumber || '').toLowerCase().includes(term),
+        String(warehouse.name ?? '').toLowerCase().includes(term) ||
+        String(warehouse.address ?? '').toLowerCase().includes(term) ||
+        String(warehouse.contactNumber ?? '').toLowerCase().includes(term),
     )
   }, [activeTab, activeWarehouses, archivedWarehouses, searchTerm])
 
@@ -128,14 +134,14 @@ export function WarehouseList({ initialWarehouseId }: { initialWarehouseId?: num
   const checkWarehouseBeforeArchive = async (warehouse: Warehouse) => {
     const requestId = ++archiveRequestId.current
     setWarehouseToArchive(warehouse)
-    setArchiveCheck({ status: 'checking', products: 0, units: 0 })
+    setArchiveCheck({ status: 'checking', products: 0, units: 0n })
     try {
       const summary = summarizeWarehouseStock(await fetchStockByWarehouseApi(warehouse.id))
       if (archiveRequestId.current !== requestId) return
-      setArchiveCheck({ ...summary, status: summary.units > 0 ? 'blocked' : 'empty' })
+      setArchiveCheck({ ...summary, status: summary.units > 0n ? 'blocked' : 'empty' })
     } catch (error) {
       if (archiveRequestId.current !== requestId) return
-      setArchiveCheck({ status: 'error', products: 0, units: 0, error: getErrorMessage(error) })
+      setArchiveCheck({ status: 'error', products: 0, units: 0n, error: getErrorMessage(error) })
     }
   }
 
@@ -143,12 +149,12 @@ export function WarehouseList({ initialWarehouseId }: { initialWarehouseId?: num
     const warehouse = warehouseToArchive
     if (!warehouse || archiveCheck?.status !== 'empty') return
     const requestId = ++archiveRequestId.current
-    setArchiveCheck({ status: 'checking', products: 0, units: 0 })
+    setArchiveCheck({ status: 'checking', products: 0, units: 0n })
     try {
       // Recheck immediately before the write so the confirmation cannot use stale list totals.
       const summary = summarizeWarehouseStock(await fetchStockByWarehouseApi(warehouse.id))
       if (archiveRequestId.current !== requestId) return
-      if (summary.units > 0) {
+      if (summary.units > 0n) {
         setArchiveCheck({ ...summary, status: 'blocked' })
         return
       }
@@ -160,7 +166,7 @@ export function WarehouseList({ initialWarehouseId }: { initialWarehouseId?: num
       }
     } catch (error) {
       if (archiveRequestId.current !== requestId) return
-      setArchiveCheck({ status: 'error', products: 0, units: 0, error: getErrorMessage(error) })
+      setArchiveCheck({ status: 'error', products: 0, units: 0n, error: getErrorMessage(error) })
     }
   }
 
@@ -168,58 +174,85 @@ export function WarehouseList({ initialWarehouseId }: { initialWarehouseId?: num
     {
       id: 'name',
       header: 'Warehouse',
+      width: '28%',
       sortable: true,
       sortKey: 'name',
       cell: ({ row }) => (
-        <Button
-          variant="link"
-          className="h-auto p-0 text-xs font-bold"
-          onClick={() => setSelectedWarehouseId(row.id)}
-        >
-          <WarehouseIcon className="size-4 mr-2" />
-          {row.name}
-        </Button>
+        <div className="min-w-0">
+          <div className="flex min-w-0 items-center gap-2">
+            <WarehouseIcon className="size-4 shrink-0 text-primary" />
+            <OverflowValue
+              value={row.name}
+              onActivate={() => setSelectedWarehouseId(row.id)}
+              className="h-auto p-0 text-left text-xs font-bold"
+            />
+          </div>
+          <div className="mt-1 flex min-w-0 items-center gap-2 pl-6 text-[11px] sm:hidden">
+            <OverflowValue
+              value={formatStockCents(getWarehouseUnits(row.id))}
+              tooltipSuffix="units"
+              className="max-w-[55%] font-semibold tabular-nums"
+            />
+            <Badge variant="outline" className="shrink-0 px-1.5 py-0 text-[10px]">
+              {row.isActive === false ? 'Archived' : 'Active'}
+            </Badge>
+          </div>
+        </div>
       ),
     },
     {
       id: 'location',
       header: 'Location',
+      width: '24%',
+      className: 'hidden lg:table-cell',
+      headerClassName: 'hidden lg:table-cell',
       sortable: true,
       sortKey: 'address',
       cell: ({ row }) => (
-        <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        <span className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
           <MapPin className="size-3.5 shrink-0" />
-          {row.address}
+          <OverflowValue value={row.address} />
         </span>
       ),
     },
     {
       id: 'products',
       header: 'Products',
+      width: '11%',
+      className: 'hidden lg:table-cell',
+      headerClassName: 'hidden lg:table-cell',
       align: 'right',
       sortable: true,
       sortKey: (row) => warehouseTotals.get(row.id)?.products || 0,
       cell: ({ row }) => (
-        <span className="text-xs font-semibold">
-          {warehouseTotals.get(row.id)?.products || 0} products
-        </span>
+        <div className="flex min-w-0 items-center justify-end gap-1 text-xs font-semibold">
+          <OverflowValue value={(warehouseTotals.get(row.id)?.products ?? 0).toLocaleString()} className="text-right tabular-nums" />
+          <span className="shrink-0">products</span>
+        </div>
       ),
     },
     {
       id: 'units',
       header: 'Total Stock',
+      width: '13%',
+      className: 'hidden sm:table-cell',
+      headerClassName: 'hidden sm:table-cell',
       align: 'right',
       sortable: true,
-      sortKey: (row) => warehouseTotals.get(row.id)?.units || 0,
+      sortKey: (row) => stockSortKey(getWarehouseUnits(row.id)),
       cell: ({ row }) => (
-        <span className="text-xs font-semibold">
-          {(warehouseTotals.get(row.id)?.units || 0).toLocaleString()} units
-        </span>
+        <div className="flex min-w-0 items-center justify-end gap-1 text-xs font-semibold">
+          <OverflowValue value={formatStockCents(getWarehouseUnits(row.id))} tooltipSuffix="units" className="text-right tabular-nums" />
+          <span className="hidden shrink-0 xl:inline">units</span>
+        </div>
       ),
     },
     {
       id: 'status',
       header: 'Status',
+      width: '9%',
+      className: 'hidden sm:table-cell',
+      headerClassName: 'hidden sm:table-cell',
       align: 'center',
       sortable: true,
       sortKey: 'isActive',
@@ -240,17 +273,18 @@ export function WarehouseList({ initialWarehouseId }: { initialWarehouseId?: num
       id: 'actions',
       header: 'Actions',
       align: 'right',
-      width: 200,
+      width: '15%',
       cell: ({ row }) => (
-        <div className="flex items-center justify-end gap-1.5 min-w-max">
+        <div className="flex items-center justify-end gap-1 sm:gap-1.5">
           <Button
             size="sm"
             variant={row.isActive === false ? 'outline' : 'default'}
             onClick={() => setSelectedWarehouseId(row.id)}
-            className="gap-1.5 font-semibold"
+            className="shrink-0 gap-1 px-2 font-semibold sm:px-3"
           >
-            {row.isActive === false ? 'View Details' : 'View Inventory'}
-            <ArrowRight className="size-3.5" />
+            <span className="sm:hidden">View</span>
+            <span className="hidden sm:inline">{row.isActive === false ? 'View Details' : 'View Inventory'}</span>
+            <ArrowRight className="hidden size-3.5 lg:inline" />
           </Button>
           {canManage && (
             <DropdownMenu>
@@ -260,7 +294,7 @@ export function WarehouseList({ initialWarehouseId }: { initialWarehouseId?: num
                   variant="ghost"
                   aria-label={`Actions for ${row.name}`}
                   title="Warehouse actions"
-                  className="text-muted-foreground hover:text-foreground"
+                  className="shrink-0 text-muted-foreground hover:text-foreground"
                 >
                   <MoreVertical className="size-4" />
                 </Button>
@@ -324,16 +358,18 @@ export function WarehouseList({ initialWarehouseId }: { initialWarehouseId?: num
 
   return (
     <div className="flex flex-col gap-4">
-      <ArchiveTabNav
-        activeTab={activeTab}
-        onTabChange={setActiveTab}
-        activeLabel="Active Warehouses"
-        activeCount={activeWarehouses.length}
-        archivedLabel="Archived Warehouses"
-        archivedCount={archivedWarehouses.length}
-        activeIcon={<WarehouseIcon className="size-3.5" />}
-        bannerDescription="Archived warehouses retain their inventory records and can be restored."
-      />
+      <div className="min-w-0 overflow-x-auto">
+        <ArchiveTabNav
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          activeLabel="Active Warehouses"
+          activeCount={activeWarehouses.length}
+          archivedLabel="Archived Warehouses"
+          archivedCount={archivedWarehouses.length}
+          activeIcon={<WarehouseIcon className="size-3.5" />}
+          bannerDescription="Archived warehouses retain their inventory records and can be restored."
+        />
+      </div>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="relative w-full sm:max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
@@ -373,6 +409,7 @@ export function WarehouseList({ initialWarehouseId }: { initialWarehouseId?: num
               : 'No archived warehouses.'
         }
         pageSizeOptions={[10, 25, 50, 100]}
+        tableClassName="table-fixed w-full [&_td]:px-2 [&_th]:px-2 sm:[&_td]:px-3.5 sm:[&_th]:px-3.5"
       />
       <WarehouseModal
         warehouse={editingWarehouse}
@@ -393,7 +430,7 @@ export function WarehouseList({ initialWarehouseId }: { initialWarehouseId?: num
                 <Archive className="size-5" />
               )}
             </div>
-            <DialogTitle>
+            <DialogTitle className="break-all">
               {archiveCheck?.status === 'blocked'
                 ? 'Cannot Archive Warehouse'
                 : archiveCheck?.status === 'error'
@@ -414,10 +451,10 @@ export function WarehouseList({ initialWarehouseId }: { initialWarehouseId?: num
           </DialogHeader>
           {archiveCheck?.status === 'blocked' && (
             <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3.5 text-xs text-foreground">
-              <p className="font-bold">{warehouseToArchive?.name}</p>
+              <p className="break-all font-bold">{warehouseToArchive?.name}</p>
               <p className="mt-1">
                 {archiveCheck.products} {archiveCheck.products === 1 ? 'product' : 'products'} ·{' '}
-                {archiveCheck.units.toLocaleString()} units of inventory
+                {formatStockCents(archiveCheck.units)} units of inventory
               </p>
             </div>
           )}

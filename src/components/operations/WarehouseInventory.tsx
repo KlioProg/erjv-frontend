@@ -13,14 +13,16 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { DataTable, type ColumnDef } from '@/components/ui/data-table'
+import { OverflowValue } from '@/components/ui/OverflowValue'
 import { useWarehouseStock } from '@/features/logistics/stock-items.hooks'
+import { formatStockCents, parseStockCents, stockSortKey } from '@/features/logistics/stock-display'
 import type { StockItemWithInventoryItem } from '@/features/logistics/stock-items.types'
 import type { Warehouse } from '@/features/logistics/warehouses.types'
 import { getErrorMessage } from '@/lib/api-client'
 
 type StockRow = {
   stock: StockItemWithInventoryItem
-  quantity: number
+  quantityCents: bigint | null
 }
 
 export function WarehouseInventory({
@@ -36,20 +38,22 @@ export function WarehouseInventory({
     () =>
       (stockQuery.data ?? []).map((stock) => ({
         stock,
-        quantity: Number(stock.quantity),
+        quantityCents: parseStockCents(stock.quantity),
       })),
     [stockQuery.data],
   )
   const filteredRows = useMemo(() => {
     const term = search.trim().toLowerCase()
     return term
-      ? rows.filter(({ stock }) => stock.inventoryItem.name.toLowerCase().includes(term))
+      ? rows.filter(({ stock }) => String(stock.inventoryItem?.name ?? '').toLowerCase().includes(term))
       : rows
   }, [rows, search])
-  const totalUnits = rows.reduce((sum, row) => sum + row.quantity, 0)
+  const totalStockCents = rows.some((row) => row.quantityCents === null)
+    ? null
+    : rows.reduce((sum, row) => sum + (row.quantityCents ?? 0n), 0n)
   const summaryMetrics = [
-    { label: 'Total stock', value: totalUnits, unit: 'units', icon: Boxes },
-    { label: 'Products', value: rows.length, unit: 'products', icon: Package },
+    { label: 'Total stock', value: formatStockCents(totalStockCents), unit: 'units', icon: Boxes },
+    { label: 'Products', value: rows.length.toLocaleString(), unit: 'products', icon: Package },
   ]
 
   const columns = useMemo<ColumnDef<StockRow>[]>(
@@ -59,31 +63,38 @@ export function WarehouseInventory({
         header: 'Product',
         width: '40%',
         sortable: true,
-        sortKey: (row) => row.stock.inventoryItem.name,
+        sortKey: (row) => row.stock.inventoryItem?.name ?? '',
         cell: ({ row }) => (
-          <span className="text-xs font-semibold">{row.stock.inventoryItem.name}</span>
+          <OverflowValue value={row.stock.inventoryItem?.name} className="text-xs font-semibold" />
         ),
       },
       {
         id: 'unit',
         header: 'Unit',
         width: '20%',
+        className: 'hidden sm:table-cell',
+        headerClassName: 'hidden sm:table-cell',
         sortable: true,
-        sortKey: (row) => row.stock.inventoryItem.unit ?? '',
+        sortKey: (row) => row.stock.inventoryItem?.unit ?? '',
         cell: ({ row }) => (
-          <span className="text-xs text-muted-foreground">
-            {row.stock.inventoryItem.unit ?? '—'}
-          </span>
+          <OverflowValue value={row.stock.inventoryItem?.unit} className="text-xs text-muted-foreground" />
         ),
       },
       {
         id: 'quantity',
-        header: 'Quantity',
+        header: <><span className="sm:hidden">Qty</span><span className="hidden sm:inline">Quantity</span></>,
         width: '20%',
         align: 'right',
         sortable: true,
-        sortKey: 'quantity',
-        cell: ({ row }) => <span className="text-xs font-bold tabular-nums">{row.quantity.toLocaleString()}</span>,
+        sortKey: (row) => stockSortKey(row.quantityCents),
+        cell: ({ row }) => (
+          <OverflowValue
+            value={formatStockCents(row.quantityCents)}
+            fullValue={row.quantityCents === null ? row.stock.quantity : undefined}
+            tooltipSuffix="units"
+            className="text-right text-xs font-bold tabular-nums"
+          />
+        ),
       },
       {
         id: 'status',
@@ -91,19 +102,26 @@ export function WarehouseInventory({
         width: '20%',
         align: 'center',
         sortable: true,
-        sortKey: (row) => (row.quantity <= 0 ? 0 : row.quantity <= 20 ? 1 : 2),
+        sortKey: (row) => (row.quantityCents === null ? -1 : row.quantityCents <= 0n ? 0 : row.quantityCents <= 2000n ? 1 : 2),
         cell: ({ row }) => (
           <Badge
             variant="outline"
             className={
-              row.quantity <= 0
+              row.quantityCents === null
+                ? 'text-muted-foreground border-border'
+                : row.quantityCents <= 0n
                 ? 'text-rose-600 border-rose-500/30'
-                : row.quantity <= 20
+                : row.quantityCents <= 2000n
                   ? 'text-amber-600 border-amber-500/30'
                   : 'text-emerald-600 border-emerald-500/30'
             }
           >
-            {row.quantity <= 0 ? 'Out of Stock' : row.quantity <= 20 ? 'Low Stock' : 'In Stock'}
+            <span className="sm:hidden">
+              {row.quantityCents === null ? 'N/A' : row.quantityCents <= 0n ? 'Out' : row.quantityCents <= 2000n ? 'Low' : 'In'}
+            </span>
+            <span className="hidden sm:inline">
+              {row.quantityCents === null ? 'Unknown' : row.quantityCents <= 0n ? 'Out of Stock' : row.quantityCents <= 2000n ? 'Low Stock' : 'In Stock'}
+            </span>
           </Badge>
         ),
       },
@@ -120,14 +138,14 @@ export function WarehouseInventory({
             Warehouses
           </Button>
           <ChevronRight className="size-3.5 shrink-0" />
-          <span className="truncate font-semibold text-foreground">{warehouse.name}</span>
+          <OverflowValue value={warehouse.name} className="font-semibold text-foreground" />
         </nav>
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-              <h2 className="flex min-w-0 items-center gap-2 text-xl font-bold">
+              <h2 className="flex min-w-0 max-w-full items-center gap-2 text-xl font-bold">
                 <WarehouseIcon className="size-5 shrink-0 text-primary" />
-                {warehouse.name}
+                <OverflowValue value={warehouse.name} className="font-bold" />
               </h2>
               <Badge
                 variant="outline"
@@ -139,14 +157,14 @@ export function WarehouseInventory({
               </Badge>
             </div>
             <div className="mt-1.5 flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-muted-foreground">
-              <span className="flex items-center gap-1.5">
+              <span className="flex min-w-0 max-w-full items-center gap-1.5">
                 <MapPin className="size-3.5 shrink-0" />
-                {warehouse.address}
+                <OverflowValue value={warehouse.address} />
               </span>
               {warehouse.contactNumber && (
-                <span className="flex items-center gap-1.5">
+                <span className="flex min-w-0 max-w-full items-center gap-1.5">
                   <Phone className="size-3.5 shrink-0" />
-                  {warehouse.contactNumber}
+                  <OverflowValue value={warehouse.contactNumber} />
                 </span>
               )}
             </div>
@@ -158,8 +176,8 @@ export function WarehouseInventory({
                   <Icon className="size-3.5 shrink-0 text-primary" />
                   <span>{label}</span>
                 </div>
-                <p className="mt-1 text-lg font-bold tabular-nums leading-none">
-                  {stockQuery.isLoading || stockQuery.isError ? '—' : value.toLocaleString()}
+                <p className="mt-1 flex min-w-0 items-center text-lg font-bold tabular-nums leading-none">
+                  <OverflowValue value={stockQuery.isLoading || stockQuery.isError ? '—' : value} tooltipSuffix={unit} />
                   <span className="ml-1 text-[11px] font-normal text-muted-foreground">{unit}</span>
                 </p>
               </div>
@@ -170,7 +188,10 @@ export function WarehouseInventory({
 
       <section aria-label={`Inventory in ${warehouse.name}`} className="overflow-hidden rounded-2xl border border-border/80 bg-card shadow-xs">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/70 px-4 py-3">
-          <h3 className="text-sm font-bold">Inventory in {warehouse.name}</h3>
+          <h3 className="flex min-w-0 max-w-full items-center gap-1 text-sm font-bold">
+            <span className="shrink-0">Inventory in</span>
+            <OverflowValue value={warehouse.name} className="font-bold" />
+          </h3>
           <div className="relative w-full sm:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
             <Input
@@ -201,6 +222,7 @@ export function WarehouseInventory({
             }
             pageSizeOptions={[10, 25, 50, 100]}
             className="rounded-none border-0 shadow-none"
+            tableClassName="table-fixed w-full [&_td]:px-2 [&_th]:px-2 sm:[&_td]:px-3.5 sm:[&_th]:px-3.5"
           />
         )}
       </section>
