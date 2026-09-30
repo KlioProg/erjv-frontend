@@ -230,9 +230,9 @@ export function WarehouseList() {
       id: 'actions',
       header: 'Actions',
       align: 'right',
-      width: 320,
+      width: 250,
       cell: ({ row }) => (
-        <div className="flex flex-wrap items-center justify-end gap-1.5 min-w-max">
+        <div className="flex items-center justify-end gap-1.5 min-w-max">
           <Button
             size="sm"
             variant={row.isActive === false ? 'outline' : 'default'}
@@ -257,25 +257,27 @@ export function WarehouseList() {
             ) : (
               <>
                 <Button
-                  size="sm"
+                  size="icon"
                   variant="outline"
+                  aria-label="Edit Warehouse"
+                  title="Edit Warehouse"
                   onClick={() => {
                     setEditingWarehouse(row)
                     setIsModalOpen(true)
                   }}
-                  className="gap-1.5"
+                  className="size-8"
                 >
                   <Edit2 className="size-3.5" />
-                  Edit
                 </Button>
                 <Button
-                  size="sm"
+                  size="icon"
                   variant="ghost"
+                  aria-label="Archive Warehouse"
+                  title="Archive Warehouse"
                   onClick={() => void checkWarehouseBeforeArchive(row)}
-                  className="gap-1.5 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  className="size-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
                 >
                   <Archive className="size-3.5" />
-                  Archive
                 </Button>
               </>
             ))}
