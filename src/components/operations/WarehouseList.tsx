@@ -33,7 +33,7 @@ import { useStockItems } from '@/features/logistics/stock-items.hooks'
 import { fetchStockByWarehouseApi } from '@/features/logistics/stock-items.api'
 import { useAuth } from '@/features/auth/AuthContext'
 import type { Warehouse } from '@/features/logistics/warehouses.types'
-import type { StockItemWithRelations } from '@/features/logistics/stock-items.types'
+import type { StockItem } from '@/features/logistics/stock-items.types'
 import { getErrorMessage } from '@/lib/api-client'
 import { WarehouseModal } from './WarehouseModal'
 import { WarehouseInventory } from './WarehouseInventory'
@@ -44,7 +44,7 @@ type ArchiveCheck = WarehouseStockSummary & {
   error?: string
 }
 
-function summarizeWarehouseStock(items: StockItemWithRelations[]): WarehouseStockSummary {
+function summarizeWarehouseStock(items: StockItem[]): WarehouseStockSummary {
   let products = 0
   let units = 0
   for (const item of items) {
@@ -62,8 +62,10 @@ function summarizeWarehouseStock(items: StockItemWithRelations[]): WarehouseStoc
 
 export function WarehouseList({ initialWarehouseId }: { initialWarehouseId?: number | null } = {}) {
   const [activeTab, setActiveTab] = useState<'ACTIVE' | 'ARCHIVED'>('ACTIVE')
-  const { data: allWarehouses = [], isLoading: isLoadingWarehouses } = useAllWarehouses()
-  const { data: stockItems = [], isLoading: isLoadingStock } = useStockItems()
+  const warehousesQuery = useAllWarehouses()
+  const stockQuery = useStockItems()
+  const allWarehouses = useMemo(() => warehousesQuery.data ?? [], [warehousesQuery.data])
+  const stockItems = useMemo(() => stockQuery.data ?? [], [stockQuery.data])
   const { isAdmin, isManager } = useAuth()
   const canManage = isAdmin || isManager
   const [searchTerm, setSearchTerm] = useState('')
@@ -294,6 +296,17 @@ export function WarehouseList({ initialWarehouseId }: { initialWarehouseId?: num
       />
     )
 
+  if (warehousesQuery.isError || stockQuery.isError)
+    return (
+      <div role="alert" className="rounded-lg border border-destructive/30 p-3 text-xs text-destructive">
+        Warehouses and stock could not be loaded: {getErrorMessage(warehousesQuery.error ?? stockQuery.error)}
+        <Button variant="link" size="sm" onClick={() => {
+          if (warehousesQuery.isError) void warehousesQuery.refetch()
+          if (stockQuery.isError) void stockQuery.refetch()
+        }}>Retry</Button>
+      </div>
+    )
+
   return (
     <div className="flex flex-col gap-4">
       <ArchiveTabNav
@@ -335,7 +348,7 @@ export function WarehouseList({ initialWarehouseId }: { initialWarehouseId?: num
         data={filteredWarehouses}
         columns={columns}
         rowClassName={() => 'hover:bg-primary/5 focus-within:bg-primary/5'}
-        isLoading={isLoadingWarehouses || isLoadingStock}
+        isLoading={warehousesQuery.isLoading || stockQuery.isLoading}
         loadingMessage="Loading warehouses..."
         emptyContent={
           searchTerm

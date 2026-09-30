@@ -27,6 +27,14 @@ export type StockItemWithRelations = StockItem & {
   warehouse: WarehouseSummary
 }
 
+export type StockItemWithInventoryItem = StockItem & {
+  inventoryItem: InventoryItemSummary
+}
+
+export type StockItemWithWarehouse = StockItem & {
+  warehouse: WarehouseSummary
+}
+
 export type CreateStockItemPayload = {
   inventoryItemId: number
   warehouseId: number

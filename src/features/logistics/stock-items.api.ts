@@ -4,7 +4,9 @@ import type {
   CreateStockItemPayload,
   SetStockQuantityPayload,
   StockItem,
+  StockItemWithInventoryItem,
   StockItemWithRelations,
+  StockItemWithWarehouse,
 } from './stock-items.types'
 
 export async function fetchStockItemsApi(params?: FetchParams): Promise<StockItemWithRelations[]> {
@@ -14,20 +16,20 @@ export async function fetchStockItemsApi(params?: FetchParams): Promise<StockIte
 
 export async function fetchStockByWarehouseApi(
   warehouseId: number,
-): Promise<StockItemWithRelations[]> {
-  const { data } = await apiClient.get<StockItemWithRelations[]>(
+): Promise<StockItemWithInventoryItem[]> {
+  const { data } = await apiClient.get<StockItemWithInventoryItem[]>(
     `/stock-items/warehouses/${warehouseId}`,
   )
-  return extractArray<StockItemWithRelations>(data)
+  return extractArray<StockItemWithInventoryItem>(data)
 }
 
 export async function fetchStockByItemApi(
   inventoryItemId: number,
-): Promise<StockItemWithRelations[]> {
-  const { data } = await apiClient.get<StockItemWithRelations[]>(
+): Promise<StockItemWithWarehouse[]> {
+  const { data } = await apiClient.get<StockItemWithWarehouse[]>(
     `/stock-items/inventory-items/${inventoryItemId}`,
   )
-  return extractArray<StockItemWithRelations>(data)
+  return extractArray<StockItemWithWarehouse>(data)
 }
 
 export async function fetchStockItemByPairApi(

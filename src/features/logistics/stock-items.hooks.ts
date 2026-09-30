@@ -30,7 +30,7 @@ export function useStockItems(params?: FetchParams) {
 export function useWarehouseStock(warehouseId?: number) {
   return useQuery({
     queryKey: [...STOCK_ITEMS_QUERY_KEY, 'warehouse', warehouseId],
-    queryFn: () => (warehouseId ? fetchStockByWarehouseApi(warehouseId) : fetchStockItemsApi()),
+    queryFn: () => fetchStockByWarehouseApi(warehouseId!),
     enabled: warehouseId !== undefined,
   })
 }
@@ -38,7 +38,7 @@ export function useWarehouseStock(warehouseId?: number) {
 export function useItemStock(inventoryItemId?: number) {
   return useQuery({
     queryKey: [...STOCK_ITEMS_QUERY_KEY, 'item', inventoryItemId],
-    queryFn: () => (inventoryItemId ? fetchStockByItemApi(inventoryItemId) : fetchStockItemsApi()),
+    queryFn: () => fetchStockByItemApi(inventoryItemId!),
     enabled: inventoryItemId !== undefined,
   })
 }
