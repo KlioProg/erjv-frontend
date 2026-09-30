@@ -32,6 +32,7 @@ import {
 import type { InventoryItemResponse } from '@/features/products/products.types'
 import { getErrorMessage } from '@/lib/api-client'
 import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal'
+import { parseStockCents } from '@/features/logistics/stock-display'
 
 type InventoryItemModalProps = {
   item: InventoryItemResponse | null
@@ -113,9 +114,9 @@ function ItemFormContent({
       }
     }
 
-    const parsedPrice = parseFloat(unitPrice)
-    if (isNaN(parsedPrice) || parsedPrice < 0) {
-      setErrorMsg('Please enter a valid positive unit price.')
+    const priceCents = parseStockCents(unitPrice)
+    if (priceCents === null || priceCents > 999_999_999_999n) {
+      setErrorMsg('Enter a non-negative price with up to 2 decimals and 10 digits before the decimal point.')
       return
     }
 
@@ -130,10 +131,10 @@ function ItemFormContent({
           },
         })
 
-        if (parsedPrice !== item.unitPrice) {
+        if (priceCents !== parseStockCents(item.unitPrice)) {
           await updatePriceMutation.mutateAsync({
             id: item.id,
-            unitPrice: parsedPrice,
+            unitPrice: unitPrice.trim(),
           })
         }
 
@@ -141,7 +142,7 @@ function ItemFormContent({
         await createMutation.mutateAsync({
           name: name.trim(),
           variety: variety.trim() || null,
-          unitPrice: parsedPrice,
+          unitPrice: unitPrice.trim(),
           description: description.trim() || null,
         })
 
@@ -191,7 +192,7 @@ function ItemFormContent({
           <div className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-amber-500/20 text-amber-700 dark:text-amber-300 mt-0.5">
             <RotateCcw className="size-4 animate-in spin-in-180 duration-500" />
           </div>
-          <div className="flex-1 text-xs">
+          <div className="min-w-0 flex-1 text-xs [overflow-wrap:anywhere]">
             <p className="font-bold text-foreground">Deactivated Product Found</p>
             <p className="text-muted-foreground mt-0.5 leading-relaxed">
               An archived catalog item for{' '}
