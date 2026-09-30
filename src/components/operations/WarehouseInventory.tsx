@@ -122,7 +122,7 @@ export function WarehouseInventory({
           <ChevronRight className="size-3.5 shrink-0" />
           <span className="truncate font-semibold text-foreground">{warehouse.name}</span>
         </nav>
-        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
           <h2 className="flex min-w-0 items-center gap-2 text-xl font-bold">
             <WarehouseIcon className="size-5 shrink-0 text-primary" />
             {warehouse.name}
