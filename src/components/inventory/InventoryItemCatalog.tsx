@@ -36,7 +36,7 @@ import { useAuth } from '@/features/auth/AuthContext'
 import type { InventoryItemResponse } from '@/features/products/products.types'
 import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal'
 import { InventoryItemModal } from '@/components/operations/InventoryItemModal'
-import { StockAdjustModal } from '@/components/operations/StockAdjustModal'
+import { getErrorMessage } from '@/lib/api-client'
 
 export interface InventoryItemCatalogProps {
   activeTab?: 'ACTIVE' | 'ARCHIVED'
@@ -51,8 +51,10 @@ export function InventoryItemCatalog({
   hideArchiveNav = false,
   onOpenWarehouse,
 }: InventoryItemCatalogProps = {}) {
-  const { data: allProducts = [], isLoading: isLoadingProducts } = useAllProducts()
-  const { data: stockItems = [], isLoading: isLoadingStock } = useStockItems()
+  const productsQuery = useAllProducts()
+  const stockQuery = useStockItems()
+  const allProducts = useMemo(() => productsQuery.data ?? [], [productsQuery.data])
+  const stockItems = useMemo(() => stockQuery.data ?? [], [stockQuery.data])
   const { isAdmin, isManager } = useAuth()
 
   const [internalActiveTab, setInternalActiveTab] = useState<'ACTIVE' | 'ARCHIVED'>('ACTIVE')
@@ -67,8 +69,6 @@ export function InventoryItemCatalog({
     useState<InventoryItemResponse | null>(null)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [productToArchive, setProductToArchive] = useState<InventoryItemResponse | null>(null)
-  const [productForAllocate, setProductForAllocate] = useState<InventoryItemResponse | null>(null)
-  const [isAllocateModalOpen, setIsAllocateModalOpen] = useState(false)
 
   const deactivateProductMutation = useDeactivateProduct({
     onViewArchive: () => handleTabChange('ARCHIVED'),
@@ -123,11 +123,6 @@ export function InventoryItemCatalog({
     setIsEditModalOpen(true)
   }
 
-  const handleAllocateProduct = (prod: InventoryItemResponse) => {
-    setProductForAllocate(prod)
-    setIsAllocateModalOpen(true)
-  }
-
   const confirmArchive = async () => {
     if (productToArchive) {
       const prod = productToArchive
@@ -140,7 +135,7 @@ export function InventoryItemCatalog({
     reactivateProductMutation.mutate(prod)
   }
 
-  const isLoading = isLoadingProducts || isLoadingStock
+  const isLoading = productsQuery.isLoading || stockQuery.isLoading
 
   // Column definitions for the reusable DataTable component
   const columns: ColumnDef<InventoryItemResponse>[] = [
@@ -321,13 +316,6 @@ export function InventoryItemCatalog({
                             <Edit2 className="size-3.5" />
                             Edit Details & Price
                           </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => handleAllocateProduct(row)}
-                            className="gap-2 text-xs font-semibold text-primary cursor-pointer px-2 py-1.5 rounded-md"
-                          >
-                            <Plus className="size-3.5" />
-                            Allocate to Warehouse
-                          </DropdownMenuItem>
                           <DropdownMenuSeparator className="my-1" />
                           <DropdownMenuItem
                             onClick={() => setProductToArchive(row)}
@@ -378,7 +366,6 @@ export function InventoryItemCatalog({
                     ) : (
                       <p className="truncate text-xs font-semibold">{stock.warehouse.name}</p>
                     )}
-                    {stock.warehouse.address && <p className="truncate text-[11px] text-muted-foreground">{stock.warehouse.address}</p>}
                   </div>
                 </div>
                 <div className="ml-auto flex items-center gap-3">
@@ -443,7 +430,17 @@ export function InventoryItemCatalog({
         )}
       </div>
 
+      {(productsQuery.isError || stockQuery.isError) && (
+        <div role="alert" className="rounded-lg border border-destructive/30 p-3 text-xs text-destructive">
+          Inventory could not be loaded: {getErrorMessage(productsQuery.error ?? stockQuery.error)}
+          <Button variant="link" size="sm" onClick={() => {
+            if (productsQuery.isError) void productsQuery.refetch()
+            if (stockQuery.isError) void stockQuery.refetch()
+          }}>Retry</Button>
+        </div>
+      )}
       {/* Reusable DataTable Component */}
+      {!productsQuery.isError && !stockQuery.isError && (
       <DataTable
         data={filteredProducts}
         columns={columns}
@@ -454,6 +451,7 @@ export function InventoryItemCatalog({
         pageSizeOptions={[10, 25, 50, 100]}
         rowClassName={(row) => (row.isActive === false ? 'opacity-75 bg-muted/10' : '')}
       />
+      )}
 
       {/* Edit / Create Item Modal */}
       <InventoryItemModal
@@ -462,16 +460,6 @@ export function InventoryItemCatalog({
         onClose={() => {
           setIsEditModalOpen(false)
           setSelectedProductForEdit(null)
-        }}
-      />
-
-      {/* Unified Stock Allocation Modal */}
-      <StockAdjustModal
-        open={isAllocateModalOpen}
-        inventoryItem={productForAllocate}
-        onClose={() => {
-          setIsAllocateModalOpen(false)
-          setProductForAllocate(null)
         }}
       />
 

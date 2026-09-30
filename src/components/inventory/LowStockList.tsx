@@ -2,7 +2,6 @@ import { useState, useMemo } from 'react'
 import {
   AlertTriangle,
   Boxes,
-  PlusCircle,
   Warehouse as WarehouseIcon,
   Search,
   CheckCircle2,
@@ -26,9 +25,8 @@ import { DataTable, type ColumnDef } from '@/components/ui/data-table'
 import { useStockItems } from '@/features/logistics/stock-items.hooks'
 import { useWarehouses } from '@/features/logistics/warehouses.hooks'
 import { useProducts } from '@/features/products/products.hooks'
-import { useAuth } from '@/features/auth/AuthContext'
 import type { InventoryItemSummary, StockItemWithRelations, WarehouseSummary } from '@/features/logistics/stock-items.types'
-import { StockAdjustModal } from '@/components/operations/StockAdjustModal'
+import { getErrorMessage } from '@/lib/api-client'
 
 type LowStockSeverity = 'OUT' | 'CRITICAL' | 'LOW'
 
@@ -40,21 +38,18 @@ interface EnrichedLowStockRecord extends StockItemWithRelations {
 }
 
 export function LowStockList() {
-  const { data: stockItems = [], isLoading: isLoadingStock } = useStockItems()
-  const { data: warehouses = [], isLoading: isLoadingWarehouses } = useWarehouses()
-  const { data: products = [] } = useProducts()
-  const { isAdmin, isManager } = useAuth()
+  const stockQuery = useStockItems()
+  const warehousesQuery = useWarehouses()
+  const productsQuery = useProducts()
+  const stockItems = useMemo(() => stockQuery.data ?? [], [stockQuery.data])
+  const warehouses = useMemo(() => warehousesQuery.data ?? [], [warehousesQuery.data])
+  const products = useMemo(() => productsQuery.data ?? [], [productsQuery.data])
 
   // Filter states
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedWarehouseId, setSelectedWarehouseId] = useState<string>('ALL')
   const [severityFilter, setSeverityFilter] = useState<'ALL' | 'OUT' | 'CRITICAL' | 'LOW'>('ALL')
   const [threshold, setThreshold] = useState<number>(20)
-
-  // Unified stock modal state
-  const [stockToUpdate, setStockToUpdate] = useState<StockItemWithRelations | null>(null)
-  const [adjustMode, setAdjustMode] = useState<'increase' | 'decrease' | 'set'>('increase')
-  const [isAdjustModalOpen, setIsAdjustModalOpen] = useState(false)
 
   // Products map for faster lookup
   const productsMap = useMemo(() => new Map(products.map((p) => [p.id, p])), [products])
@@ -129,13 +124,8 @@ export function LowStockList() {
     })
   }, [lowStockRecords, searchTerm, selectedWarehouseId, severityFilter])
 
-  const handleRestock = (stock: StockItemWithRelations) => {
-    setStockToUpdate(stock)
-    setAdjustMode('increase')
-    setIsAdjustModalOpen(true)
-  }
-
-  const isLoading = isLoadingStock || isLoadingWarehouses
+  const isLoading = stockQuery.isLoading || warehousesQuery.isLoading || productsQuery.isLoading
+  const loadError = stockQuery.error ?? warehousesQuery.error ?? productsQuery.error
 
   // Columns for the reusable DataTable
   const columns = useMemo<ColumnDef<EnrichedLowStockRecord>[]>(() => {
@@ -277,30 +267,21 @@ export function LowStockList() {
           )
         },
       },
-      ...(isAdmin || isManager
-        ? [
-            {
-              id: 'actions',
-              header: 'Quick Action',
-              align: 'right' as const,
-              width: 140,
-              cell: ({ row }: { row: EnrichedLowStockRecord }) => (
-                <div className="text-right">
-                  <Button
-                    size="sm"
-                    onClick={() => handleRestock(row)}
-                    className="h-7.5 px-3 text-xs font-bold gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer shadow-2xs"
-                  >
-                    <PlusCircle className="size-3.5" />
-                    Restock Now
-                  </Button>
-                </div>
-              ),
-            },
-          ]
-        : []),
     ]
-  }, [isAdmin, isManager])
+  }, [])
+
+  if (loadError) {
+    return (
+      <div role="alert" className="rounded-lg border border-destructive/30 p-3 text-xs text-destructive">
+        Stock levels could not be loaded: {getErrorMessage(loadError)}
+        <Button variant="link" size="sm" onClick={() => {
+          if (stockQuery.isError) void stockQuery.refetch()
+          if (warehousesQuery.isError) void warehousesQuery.refetch()
+          if (productsQuery.isError) void productsQuery.refetch()
+        }}>Retry</Button>
+      </div>
+    )
+  }
 
   return (
     <div className="flex flex-col gap-5">
@@ -524,16 +505,6 @@ export function LowStockList() {
         }
       />
 
-      {/* Unified Stock Adjust Modal */}
-      <StockAdjustModal
-        open={isAdjustModalOpen}
-        stockItem={stockToUpdate}
-        initialMode={adjustMode}
-        onClose={() => {
-          setIsAdjustModalOpen(false)
-          setStockToUpdate(null)
-        }}
-      />
     </div>
   )
 }
