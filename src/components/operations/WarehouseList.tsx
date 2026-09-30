@@ -5,6 +5,7 @@ import {
   ArrowRight,
   Edit2,
   MapPin,
+  MoreVertical,
   Plus,
   RotateCcw,
   Search,
@@ -15,6 +16,13 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { DataTable, type ColumnDef } from '@/components/ui/data-table'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import {
   Dialog,
   DialogContent,
@@ -232,7 +240,7 @@ export function WarehouseList({ initialWarehouseId }: { initialWarehouseId?: num
       id: 'actions',
       header: 'Actions',
       align: 'right',
-      width: 250,
+      width: 200,
       cell: ({ row }) => (
         <div className="flex items-center justify-end gap-1.5 min-w-max">
           <Button
@@ -244,45 +252,52 @@ export function WarehouseList({ initialWarehouseId }: { initialWarehouseId?: num
             {row.isActive === false ? 'View Details' : 'View Inventory'}
             <ArrowRight className="size-3.5" />
           </Button>
-          {canManage &&
-            (row.isActive === false ? (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => reactivateMutation.mutate(row.id)}
-                disabled={reactivateMutation.isPending}
-                className="gap-1.5"
-              >
-                <RotateCcw className="size-3.5" />
-                Restore
-              </Button>
-            ) : (
-              <>
+          {canManage && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
                 <Button
                   size="icon"
                   variant="ghost"
-                  aria-label="Edit Warehouse"
-                  title="Edit Warehouse"
-                  onClick={() => {
-                    setEditingWarehouse(row)
-                    setIsModalOpen(true)
-                  }}
+                  aria-label={`Actions for ${row.name}`}
+                  title="Warehouse actions"
                   className="text-muted-foreground hover:text-foreground"
                 >
-                  <Edit2 className="size-3.5" />
+                  <MoreVertical className="size-4" />
                 </Button>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  aria-label="Archive Warehouse"
-                  title="Archive Warehouse"
-                  onClick={() => void checkWarehouseBeforeArchive(row)}
-                  className="text-destructive/70 hover:bg-destructive/10 hover:text-destructive"
-                >
-                  <Archive className="size-3.5" />
-                </Button>
-              </>
-            ))}
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {row.isActive === false ? (
+                  <DropdownMenuItem
+                    disabled={reactivateMutation.isPending}
+                    onSelect={() => reactivateMutation.mutate(row.id)}
+                  >
+                    <RotateCcw className="mr-2 size-3.5" />
+                    Restore Warehouse
+                  </DropdownMenuItem>
+                ) : (
+                  <>
+                    <DropdownMenuItem
+                      onSelect={() => {
+                        setEditingWarehouse(row)
+                        setIsModalOpen(true)
+                      }}
+                    >
+                      <Edit2 className="mr-2 size-3.5" />
+                      Edit Warehouse
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onSelect={() => void checkWarehouseBeforeArchive(row)}
+                      className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                    >
+                      <Archive className="mr-2 size-3.5" />
+                      Archive Warehouse
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </div>
       ),
     },
