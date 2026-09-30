@@ -222,7 +222,7 @@ export function WarehouseInventory({
             }
             pageSizeOptions={[10, 25, 50, 100]}
             className="rounded-none border-0 shadow-none"
-            tableClassName="table-fixed w-full [&_td]:px-2 [&_th]:px-2 sm:[&_td]:px-3.5 sm:[&_th]:px-3.5"
+            tableClassName="table-fixed w-full"
           />
         )}
       </section>

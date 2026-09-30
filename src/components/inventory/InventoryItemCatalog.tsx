@@ -196,7 +196,7 @@ export function InventoryItemCatalog({
       {
         id: 'name',
         header: 'Product',
-        width: '42%',
+        width: '34%',
         sortable: true,
         sortKey: 'name',
         cell: ({ row }) => {
@@ -211,17 +211,19 @@ export function InventoryItemCatalog({
                 <Package className="size-4" />
               </div>
               <div className="flex min-w-0 flex-1 flex-col">
-                <OverflowValue value={row.name} className="text-xs font-bold text-foreground" />
-                {row.variety && (
-                  <Badge variant="outline" className="mt-1 flex max-w-full self-start bg-muted/60 px-1.5 py-0 text-[10px] font-semibold text-muted-foreground">
-                    <Tag className="mr-1 size-2.5 shrink-0 text-primary" />
-                    <OverflowValue value={row.variety} />
-                  </Badge>
-                )}
+                <div className="flex min-w-0 flex-wrap items-center gap-x-1.5">
+                  <OverflowValue value={row.name} className="text-xs font-bold leading-tight text-foreground" />
+                  {row.variety && (
+                    <Badge variant="outline" className="flex max-w-[50%] shrink-0 bg-muted/60 px-1.5 py-0 text-[10px] font-semibold leading-tight text-muted-foreground">
+                      <Tag className="mr-1 size-2.5 shrink-0 text-primary" />
+                      <OverflowValue value={row.variety} />
+                    </Badge>
+                  )}
+                </div>
                 {row.description ? (
-                  <OverflowValue value={row.description} className="mt-0.5 hidden text-[11px] text-muted-foreground lg:block" />
+                  <OverflowValue value={row.description} className="mt-0.5 hidden text-[11px] leading-tight text-muted-foreground lg:block" />
                 ) : (
-                  <span className="mt-0.5 hidden text-[10px] italic text-muted-foreground/60 lg:block">
+                  <span className="mt-0.5 hidden text-[10px] italic leading-tight text-muted-foreground/60 lg:block">
                     No description provided
                   </span>
                 )}
@@ -281,7 +283,7 @@ export function InventoryItemCatalog({
       {
         id: 'locations',
         header: <><span className="sm:hidden">Loc.</span><span className="hidden sm:inline">Locations</span></>,
-        width: '15%',
+        width: '16%',
         align: 'center',
         sortable: true,
         sortKey: (row) => productStockMap.get(row.id)?.warehouseCount ?? 0,
@@ -311,7 +313,7 @@ export function InventoryItemCatalog({
       {
         id: 'status',
         header: 'Status',
-        width: '9%',
+        width: '10%',
         className: 'hidden md:table-cell',
         headerClassName: 'hidden md:table-cell',
         align: 'center',
@@ -323,7 +325,7 @@ export function InventoryItemCatalog({
               id: 'actions',
               header: 'Actions',
               align: 'right' as const,
-              width: '4%',
+              width: 64,
               className: 'hidden md:table-cell',
               headerClassName: 'hidden md:table-cell',
               cell: ({ row }: { row: InventoryItemResponse }) => renderProductActions(row),
@@ -341,7 +343,7 @@ export function InventoryItemCatalog({
         id={`inventory-locations-${product.id}`}
         role="region"
         aria-label={`Stock by location for ${String(product.name ?? 'product')}`}
-        className="min-w-0 border-l-2 border-primary/40 bg-muted/20 px-3 py-3 sm:px-4 sm:pl-8"
+        className="min-w-0 bg-muted/40 px-3 py-2.5 sm:px-7 sm:py-3"
       >
         <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Stock by Location</p>
         <div className="divide-y divide-border/60 rounded-lg border border-border/70 bg-card">
@@ -448,7 +450,7 @@ export function InventoryItemCatalog({
         loadingMessage="Loading inventory catalog items..."
         pagination={true}
         pageSizeOptions={[10, 25, 50, 100]}
-        tableClassName="table-fixed w-full [&_td]:px-2 [&_th]:px-2 sm:[&_td]:px-3.5 sm:[&_th]:px-3.5"
+        tableClassName="table-fixed w-full"
         rowClassName={(row) => (row.isActive === false ? 'opacity-75 bg-muted/10' : '')}
       />
       )}

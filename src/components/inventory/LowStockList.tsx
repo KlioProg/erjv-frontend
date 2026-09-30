@@ -510,7 +510,7 @@ export function LowStockList() {
         loadingMessage="Checking stock levels across facilities..."
         pagination={true}
         pageSizeOptions={[10, 25, 50]}
-        tableClassName="table-fixed w-full [&_td]:px-1.5 [&_th]:px-1.5 sm:[&_td]:px-3.5 sm:[&_th]:px-3.5"
+        tableClassName="table-fixed w-full"
         rowClassName={(row) =>
           row.severity === 'OUT'
             ? 'bg-rose-500/[0.04]'

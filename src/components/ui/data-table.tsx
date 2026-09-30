@@ -424,7 +424,12 @@ export function DataTable<T>({
       )}
     >
       <div className="overflow-x-auto">
-        <Table className={tableClassName}>
+        <Table
+          className={cn(
+            '[&_td]:px-2 [&_th]:px-2 [&_td:first-child]:pl-3 [&_th:first-child]:pl-3 [&_td:last-child]:pr-3 [&_th:last-child]:pr-3',
+            tableClassName,
+          )}
+        >
           <TableHeader className="bg-muted/40">
             <TableRow>
               {resolvedColumns.map((column) => {

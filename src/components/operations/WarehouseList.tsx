@@ -409,7 +409,7 @@ export function WarehouseList({ initialWarehouseId }: { initialWarehouseId?: num
               : 'No archived warehouses.'
         }
         pageSizeOptions={[10, 25, 50, 100]}
-        tableClassName="table-fixed w-full [&_td]:px-2 [&_th]:px-2 sm:[&_td]:px-3.5 sm:[&_th]:px-3.5"
+        tableClassName="table-fixed w-full"
       />
       <WarehouseModal
         warehouse={editingWarehouse}
