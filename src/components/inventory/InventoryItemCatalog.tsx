@@ -9,7 +9,9 @@ import {
   Boxes,
   RotateCcw,
   Archive,
-  Layers,
+  ArrowRight,
+  ChevronDown,
+  Warehouse as WarehouseIcon,
 } from 'lucide-react'
 import { ArchiveTabNav } from '@/components/ui/ArchiveTabNav'
 import { Button } from '@/components/ui/button'
@@ -29,6 +31,7 @@ import {
   useReactivateProduct,
 } from '@/features/products/products.hooks'
 import { useStockItems } from '@/features/logistics/stock-items.hooks'
+import type { StockItemWithRelations } from '@/features/logistics/stock-items.types'
 import { useAuth } from '@/features/auth/AuthContext'
 import type { InventoryItemResponse } from '@/features/products/products.types'
 import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal'
@@ -39,12 +42,14 @@ export interface InventoryItemCatalogProps {
   activeTab?: 'ACTIVE' | 'ARCHIVED'
   onArchiveTabChange?: (tab: 'ACTIVE' | 'ARCHIVED') => void
   hideArchiveNav?: boolean
+  onOpenWarehouse?: (warehouseId: number) => void
 }
 
 export function InventoryItemCatalog({
   activeTab: controlledActiveTab,
   onArchiveTabChange,
   hideArchiveNav = false,
+  onOpenWarehouse,
 }: InventoryItemCatalogProps = {}) {
   const { data: allProducts = [], isLoading: isLoadingProducts } = useAllProducts()
   const { data: stockItems = [], isLoading: isLoadingStock } = useStockItems()
@@ -55,6 +60,7 @@ export function InventoryItemCatalog({
   const handleTabChange = onArchiveTabChange ?? setInternalActiveTab
 
   const [searchTerm, setSearchTerm] = useState('')
+  const [expandedProductIds, setExpandedProductIds] = useState<Set<number>>(() => new Set())
 
   // Modals state
   const [selectedProductForEdit, setSelectedProductForEdit] =
@@ -71,15 +77,25 @@ export function InventoryItemCatalog({
 
   // Calculate stock metrics per product
   const productStockMap = useMemo(() => {
-    const map = new Map<number, { total: number; warehouseCount: number }>()
+    const map = new Map<number, { total: number; warehouseCount: number; allocations: StockItemWithRelations[] }>()
     stockItems.forEach((s) => {
-      const entry = map.get(s.inventoryItemId) || { total: 0, warehouseCount: 0 }
+      const entry = map.get(s.inventoryItemId) || { total: 0, warehouseCount: 0, allocations: [] }
       entry.total += parseFloat(s.quantity || '0')
       entry.warehouseCount += 1
+      entry.allocations.push(s)
       map.set(s.inventoryItemId, entry)
     })
     return map
   }, [stockItems])
+
+  const toggleProductLocations = (productId: number) => {
+    setExpandedProductIds((current) => {
+      const next = new Set(current)
+      if (next.has(productId)) next.delete(productId)
+      else next.add(productId)
+      return next
+    })
+  }
 
   const activeProducts = useMemo(() => allProducts.filter((p) => p.isActive !== false), [allProducts])
   const archivedProducts = useMemo(() => allProducts.filter((p) => p.isActive === false), [allProducts])
@@ -220,12 +236,24 @@ export function InventoryItemCatalog({
         sortable: true,
         sortKey: (row) => productStockMap.get(row.id)?.warehouseCount ?? 0,
         cell: ({ row }) => {
-          const stockData = productStockMap.get(row.id) || { total: 0, warehouseCount: 0 }
+          const warehouseCount = productStockMap.get(row.id)?.warehouseCount ?? 0
+          if (warehouseCount === 0) {
+            return <span className="text-xs text-muted-foreground">0 Warehouses</span>
+          }
+          const isExpanded = expandedProductIds.has(row.id)
           return (
-            <Badge variant="secondary" className="text-[11px] font-semibold px-2 py-0.5 rounded-lg">
-              <Layers className="size-3 mr-1 text-muted-foreground" />
-              {stockData.warehouseCount} hubs
-            </Badge>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => toggleProductLocations(row.id)}
+              aria-expanded={isExpanded}
+              aria-controls={`inventory-locations-${row.id}`}
+              aria-label={`${isExpanded ? 'Hide' : 'Show'} stock by location for ${row.name}`}
+              className="h-7 gap-1.5 rounded-lg px-2 text-[11px] font-semibold"
+            >
+              {warehouseCount} {warehouseCount === 1 ? 'Warehouse' : 'Warehouses'}
+              <ChevronDown className={`size-3.5 transition-transform duration-150 ${isExpanded ? 'rotate-180' : ''}`} />
+            </Button>
           )
         },
       },
@@ -319,6 +347,62 @@ export function InventoryItemCatalog({
         : []),
   ]
 
+  const renderProductLocations = (product: InventoryItemResponse) => {
+    const stockData = productStockMap.get(product.id)
+    if (!expandedProductIds.has(product.id) || !stockData?.allocations.length) return null
+
+    return (
+      <div
+        id={`inventory-locations-${product.id}`}
+        role="region"
+        aria-label={`Stock by location for ${product.name}`}
+        className="border-l-2 border-primary/40 bg-muted/20 px-4 py-3 sm:pl-8"
+      >
+        <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Stock by Location</p>
+        <div className="divide-y divide-border/60 rounded-lg border border-border/70 bg-card">
+          {[...stockData.allocations]
+            .sort((a, b) => a.warehouse.name.localeCompare(b.warehouse.name))
+            .map((stock) => (
+              <div key={stock.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5">
+                <div className="flex min-w-0 items-center gap-2">
+                  <WarehouseIcon className="size-4 shrink-0 text-primary" />
+                  <div className="min-w-0">
+                    {onOpenWarehouse ? (
+                      <Button
+                        variant="link"
+                        onClick={() => onOpenWarehouse(stock.warehouseId)}
+                        className="h-auto max-w-full truncate p-0 text-left text-xs font-semibold"
+                      >
+                        {stock.warehouse.name}
+                      </Button>
+                    ) : (
+                      <p className="truncate text-xs font-semibold">{stock.warehouse.name}</p>
+                    )}
+                    {stock.warehouse.address && <p className="truncate text-[11px] text-muted-foreground">{stock.warehouse.address}</p>}
+                  </div>
+                </div>
+                <div className="ml-auto flex items-center gap-3">
+                  <span className="whitespace-nowrap text-xs font-bold">{Number(stock.quantity).toLocaleString()} units</span>
+                  {onOpenWarehouse && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => onOpenWarehouse(stock.warehouseId)}
+                      aria-label={`View inventory in ${stock.warehouse.name}`}
+                      className="h-7 gap-1 px-2 text-xs text-primary"
+                    >
+                      View <ArrowRight className="size-3.5" />
+                    </Button>
+                  )}
+                </div>
+              </div>
+            ))}
+        </div>
+        <p className="mt-2 text-right text-xs font-bold">Total: {stockData.total.toLocaleString()} units</p>
+      </div>
+    )
+  }
+
   return (
     <div className="flex flex-col gap-4">
       {/* Archive / Active Tabs (Only shown if not hidden by parent UnifiedNavbar) */}
@@ -363,6 +447,7 @@ export function InventoryItemCatalog({
       <DataTable
         data={filteredProducts}
         columns={columns}
+        renderExpandedRow={renderProductLocations}
         isLoading={isLoading}
         loadingMessage="Loading inventory catalog items..."
         pagination={true}

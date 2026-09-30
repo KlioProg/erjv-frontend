@@ -1,4 +1,4 @@
-import { useState, useMemo, type ReactNode } from 'react'
+import { Fragment, useState, useMemo, type ReactNode } from 'react'
 import {
   ArrowUpDown,
   ArrowUp,
@@ -100,6 +100,9 @@ export interface DataTableProps<T> {
 
   /** Click handler for an entire row */
   onRowClick?: (row: T, index: number) => void
+
+  /** Optional content shown directly beneath a visible row. Return null when collapsed. */
+  renderExpandedRow?: (row: T, index: number) => ReactNode
 
   // --- Loading & Empty State Props ---
   /** Indicates whether data is currently loading */
@@ -257,6 +260,7 @@ export function DataTable<T>({
   getRowKey,
   rowClassName,
   onRowClick,
+  renderExpandedRow,
   isLoading,
   loadingMessage = 'Loading records...',
   emptyContent,
@@ -487,42 +491,51 @@ export function DataTable<T>({
                 ? getRowKey(row, rowIndex)
                 : ((row as { id?: string | number })?.id ?? rowIndex)
               const computedRowClass = rowClassName?.(row, rowIndex)
+              const expandedContent = renderExpandedRow?.(row, rowIndex)
 
               return (
-                <TableRow
-                  key={rowKey}
-                  onClick={onRowClick ? () => onRowClick(row, rowIndex) : undefined}
-                  className={cn(
-                    'hover:bg-muted/20 transition-colors',
-                    onRowClick && 'cursor-pointer',
-                    computedRowClass,
-                  )}
-                >
-                  {resolvedColumns.map((column) => {
-                    const alignClass = getAlignmentClass(column.align)
-                    const value = getCellValue(row, column)
-                    const widthStyle =
-                      column.width != null
-                        ? { width: typeof column.width === 'number' ? `${column.width}px` : column.width }
-                        : undefined
+                <Fragment key={rowKey}>
+                  <TableRow
+                    onClick={onRowClick ? () => onRowClick(row, rowIndex) : undefined}
+                    className={cn(
+                      'hover:bg-muted/20 transition-colors',
+                      onRowClick && 'cursor-pointer',
+                      computedRowClass,
+                    )}
+                  >
+                    {resolvedColumns.map((column) => {
+                      const alignClass = getAlignmentClass(column.align)
+                      const value = getCellValue(row, column)
+                      const widthStyle =
+                        column.width != null
+                          ? { width: typeof column.width === 'number' ? `${column.width}px` : column.width }
+                          : undefined
 
-                    return (
-                      <TableCell
-                        key={column.resolvedId}
-                        style={widthStyle}
-                        className={cn(alignClass, column.className)}
-                      >
-                        {column.cell ? (
-                          column.cell({ row, value, index: rowIndex })
-                        ) : (
-                          <span className="text-xs text-foreground">
-                            {value != null && typeof value !== 'object' ? String(value) : '—'}
-                          </span>
-                        )}
+                      return (
+                        <TableCell
+                          key={column.resolvedId}
+                          style={widthStyle}
+                          className={cn(alignClass, column.className)}
+                        >
+                          {column.cell ? (
+                            column.cell({ row, value, index: rowIndex })
+                          ) : (
+                            <span className="text-xs text-foreground">
+                              {value != null && typeof value !== 'object' ? String(value) : '—'}
+                            </span>
+                          )}
+                        </TableCell>
+                      )
+                    })}
+                  </TableRow>
+                  {expandedContent && (
+                    <TableRow className="bg-muted/20 hover:bg-muted/20">
+                      <TableCell colSpan={resolvedColumns.length} className="p-0 align-top">
+                        {expandedContent}
                       </TableCell>
-                    )
-                  })}
-                </TableRow>
+                    </TableRow>
+                  )}
+                </Fragment>
               )
             })}
           </TableBody>

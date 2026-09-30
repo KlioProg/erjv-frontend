@@ -32,6 +32,7 @@ import { useAuth } from '@/features/auth/AuthContext'
 
 export function MainDashboard() {
   const [currentTab, setCurrentTab] = useState<NavItemKey>('inventory')
+  const [warehouseToOpen, setWarehouseToOpen] = useState<number | null>(null)
   const [deliverySubTab, setDeliverySubTab] = useState<DeliverySubTab>('schedule')
   const { isStaff } = useAuth()
 
@@ -66,7 +67,7 @@ export function MainDashboard() {
   const effectiveTab = isStaff && isStaffingTab ? 'inventory' : currentTab
 
   return (
-    <DashboardLayout currentTab={effectiveTab} onSelectTab={setCurrentTab}>
+    <DashboardLayout currentTab={effectiveTab} onSelectTab={(tab) => { setWarehouseToOpen(null); setCurrentTab(tab) }}>
       <div className="flex flex-col gap-6">
         {/* KPI Top Bar when inside Operations */}
         {isOperationsTab && (
@@ -260,8 +261,8 @@ export function MainDashboard() {
         {/* Lightweight Main Section Card View */}
         <Card className="border-border/80 bg-card shadow-xs rounded-2xl overflow-hidden">
           <CardContent className="p-4 sm:p-6">
-            {effectiveTab === 'inventory' && <InventoryHub />}
-            {effectiveTab === 'warehouses' && <WarehouseList />}
+            {effectiveTab === 'inventory' && <InventoryHub onOpenWarehouse={(id) => { setWarehouseToOpen(id); setCurrentTab('warehouses') }} />}
+            {effectiveTab === 'warehouses' && <WarehouseList key={warehouseToOpen ?? 'list'} initialWarehouseId={warehouseToOpen} />}
             {effectiveTab === 'fleet' && <VehicleList />}
             {effectiveTab === 'deliveries' && (
               <DeliveriesHub key={deliverySubTab} initialTab={deliverySubTab} />

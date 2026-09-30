@@ -37,6 +37,7 @@ export function OperationsDashboard({ onSwitchToStaffing }: OperationsDashboardP
   const { data: products = [] } = useProducts()
 
   const [activeTab, setActiveTab] = useState<string>('inventory')
+  const [warehouseToOpen, setWarehouseToOpen] = useState<number | null>(null)
 
   const totalStockUnits = stockItems.reduce((acc, s) => acc + parseFloat(s.quantity), 0)
   const availableVehiclesCount = vehicles.filter((v) => v.status === 'AVAILABLE').length
@@ -181,7 +182,7 @@ export function OperationsDashboard({ onSwitchToStaffing }: OperationsDashboardP
         </div>
 
         {/* Navigation Tabs and Active Views */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full flex flex-col gap-4">
+        <Tabs value={activeTab} onValueChange={(tab) => { setWarehouseToOpen(null); setActiveTab(tab) }} className="w-full flex flex-col gap-4">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b pb-3">
             <TabsList className="bg-secondary/70 p-1">
               <TabsTrigger value="inventory" className="gap-1.5 text-xs">
@@ -211,11 +212,11 @@ export function OperationsDashboard({ onSwitchToStaffing }: OperationsDashboardP
           </div>
 
           <TabsContent value="inventory" className="focus-visible:outline-none">
-            <InventoryItemCatalog />
+            <InventoryItemCatalog onOpenWarehouse={(id) => { setWarehouseToOpen(id); setActiveTab('warehouses') }} />
           </TabsContent>
 
           <TabsContent value="warehouses" className="focus-visible:outline-none">
-            <WarehouseList />
+            <WarehouseList key={warehouseToOpen ?? 'list'} initialWarehouseId={warehouseToOpen} />
           </TabsContent>
 
           <TabsContent value="fleet" className="focus-visible:outline-none">

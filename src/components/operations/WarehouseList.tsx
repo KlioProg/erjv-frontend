@@ -60,14 +60,14 @@ function summarizeWarehouseStock(items: StockItemWithRelations[]): WarehouseStoc
   return { products, units }
 }
 
-export function WarehouseList() {
+export function WarehouseList({ initialWarehouseId }: { initialWarehouseId?: number | null } = {}) {
   const [activeTab, setActiveTab] = useState<'ACTIVE' | 'ARCHIVED'>('ACTIVE')
   const { data: allWarehouses = [], isLoading: isLoadingWarehouses } = useAllWarehouses()
   const { data: stockItems = [], isLoading: isLoadingStock } = useStockItems()
   const { isAdmin, isManager } = useAuth()
   const canManage = isAdmin || isManager
   const [searchTerm, setSearchTerm] = useState('')
-  const [selectedWarehouseId, setSelectedWarehouseId] = useState<number | null>(null)
+  const [selectedWarehouseId, setSelectedWarehouseId] = useState<number | null>(initialWarehouseId ?? null)
   const [editingWarehouse, setEditingWarehouse] = useState<Warehouse | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [warehouseToArchive, setWarehouseToArchive] = useState<Warehouse | null>(null)

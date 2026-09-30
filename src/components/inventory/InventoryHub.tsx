@@ -9,7 +9,7 @@ import { UnifiedNavbar, ArchiveNoticeBanner, type NavTabGroup } from '@/componen
 type InventorySubTab = 'catalog' | 'low-stock'
 type ArchiveTab = 'ACTIVE' | 'ARCHIVED'
 
-export function InventoryHub() {
+export function InventoryHub({ onOpenWarehouse }: { onOpenWarehouse?: (warehouseId: number) => void } = {}) {
   const [activeSubTab, setActiveSubTab] = useState<InventorySubTab>('catalog')
   const [archiveTab, setArchiveTab] = useState<ArchiveTab>('ACTIVE')
 
@@ -95,6 +95,7 @@ export function InventoryHub() {
             activeTab={archiveTab}
             onArchiveTabChange={setArchiveTab}
             hideArchiveNav={true}
+            onOpenWarehouse={onOpenWarehouse}
           />
         )}
         {activeSubTab === 'low-stock' && <LowStockList />}
