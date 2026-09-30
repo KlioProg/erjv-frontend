@@ -122,48 +122,51 @@ export function WarehouseInventory({
           <ChevronRight className="size-3.5 shrink-0" />
           <span className="truncate font-semibold text-foreground">{warehouse.name}</span>
         </nav>
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-          <h2 className="flex min-w-0 items-center gap-2 text-xl font-bold">
-            <WarehouseIcon className="size-5 shrink-0 text-primary" />
-            {warehouse.name}
-          </h2>
-          <Badge
-            variant="outline"
-            className={warehouse.isActive === false
-              ? 'border-amber-500/30 text-amber-600'
-              : 'border-emerald-500/30 text-emerald-600'}
-          >
-            {warehouse.isActive === false ? 'Archived · View only' : 'Active'}
-          </Badge>
-        </div>
-        <div className="mt-1.5 flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-muted-foreground">
-          <span className="flex items-center gap-1.5">
-            <MapPin className="size-3.5 shrink-0" />
-            {warehouse.address}
-          </span>
-          {warehouse.contactNumber && (
-            <span className="flex items-center gap-1.5">
-              <Phone className="size-3.5 shrink-0" />
-              {warehouse.contactNumber}
-            </span>
-          )}
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+              <h2 className="flex min-w-0 items-center gap-2 text-xl font-bold">
+                <WarehouseIcon className="size-5 shrink-0 text-primary" />
+                {warehouse.name}
+              </h2>
+              <Badge
+                variant="outline"
+                className={warehouse.isActive === false
+                  ? 'border-amber-500/30 text-amber-600'
+                  : 'border-emerald-500/30 text-emerald-600'}
+              >
+                {warehouse.isActive === false ? 'Archived · View only' : 'Active'}
+              </Badge>
+            </div>
+            <div className="mt-1.5 flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-muted-foreground">
+              <span className="flex items-center gap-1.5">
+                <MapPin className="size-3.5 shrink-0" />
+                {warehouse.address}
+              </span>
+              {warehouse.contactNumber && (
+                <span className="flex items-center gap-1.5">
+                  <Phone className="size-3.5 shrink-0" />
+                  {warehouse.contactNumber}
+                </span>
+              )}
+            </div>
+          </div>
+          <section aria-label="Warehouse stock summary" className="grid grid-cols-2 gap-3">
+            {summaryMetrics.map(({ label, value, unit, icon: Icon }) => (
+              <div key={label} className="min-w-0 rounded-xl border border-border/80 bg-muted/20 px-4 py-3 lg:w-44">
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <Icon className="size-3.5 shrink-0 text-primary" />
+                  <span>{label}</span>
+                </div>
+                <p className="mt-1 text-lg font-bold tabular-nums leading-none">
+                  {stockQuery.isLoading || stockQuery.isError ? '—' : value.toLocaleString()}
+                  <span className="ml-1 text-[11px] font-normal text-muted-foreground">{unit}</span>
+                </p>
+              </div>
+            ))}
+          </section>
         </div>
       </header>
-
-      <section aria-label="Warehouse stock summary" className="grid grid-cols-2 gap-3 sm:flex">
-        {summaryMetrics.map(({ label, value, unit, icon: Icon }) => (
-          <div key={label} className="min-w-0 rounded-xl border border-border/80 bg-muted/20 px-4 py-3 sm:w-48">
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <Icon className="size-3.5 shrink-0 text-primary" />
-              <span>{label}</span>
-            </div>
-            <p className="mt-1 text-lg font-bold tabular-nums leading-none">
-              {stockQuery.isLoading || stockQuery.isError ? '—' : value.toLocaleString()}
-              <span className="ml-1 text-[11px] font-normal text-muted-foreground">{unit}</span>
-            </p>
-          </div>
-        ))}
-      </section>
 
       <section aria-label={`Inventory in ${warehouse.name}`} className="overflow-hidden rounded-2xl border border-border/80 bg-card shadow-xs">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/70 px-4 py-3">
