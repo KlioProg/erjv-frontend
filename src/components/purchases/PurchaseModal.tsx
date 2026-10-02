@@ -62,7 +62,7 @@ export function PurchaseModal({
 }: PurchaseModalProps) {
   const queryClient = useQueryClient()
   const [selectedSupplierId, setSelectedSupplierId] = useState<string>(
-    suppliers[0] ? String(suppliers[0].id) : '',
+    String(suppliers.find((supplier) => supplier.isActive)?.id || ''),
   )
   const [referenceNo, setReferenceNo] = useState('')
   const [expectedAt, setExpectedAt] = useState('')
@@ -172,7 +172,10 @@ export function PurchaseModal({
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     const supplierId = Number(selectedSupplierId)
-    if (!supplierId || supplierId <= 0) {
+    if (
+      !supplierId ||
+      !suppliers.some((supplier) => supplier.id === supplierId && supplier.isActive)
+    ) {
       setErrorMessage('Please select a supplier.')
       return
     }
@@ -265,7 +268,7 @@ export function PurchaseModal({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="flex flex-col gap-1.5">
               <Label className="text-xs font-semibold">
-                Supplier Vendor <span className="text-primary">*</span>
+                Supplier <span className="text-primary">*</span>
               </Label>
               <Select value={selectedSupplierId} onValueChange={setSelectedSupplierId}>
                 <SelectTrigger className="h-9 text-xs">
@@ -441,6 +444,7 @@ export function PurchaseModal({
                     <Label className="text-[11px] font-semibold">Cost per Unit (₱) *</Label>
                     <Input
                       type="number"
+                      aria-label="Cost per unit"
                       min="0"
                       step="0.01"
                       value={itemCost}
@@ -531,6 +535,7 @@ export function PurchaseModal({
                             type="number"
                             min="0"
                             step="0.01"
+                            aria-label={`Unit cost for ${line.name}`}
                             value={line.unitCost}
                             onChange={(e) => updateCost(line.id, parseFloat(e.target.value) || 0)}
                             className="h-7 w-20 text-right text-xs ml-auto font-mono"
@@ -540,6 +545,7 @@ export function PurchaseModal({
                           <div className="mx-auto flex w-fit items-center rounded-lg border border-border bg-background">
                             <button
                               type="button"
+                              aria-label={`Decrease ${line.name} quantity`}
                               onClick={() => changeQuantity(line.id, -1)}
                               className="flex size-7 items-center justify-center text-muted-foreground hover:text-foreground"
                             >
@@ -550,6 +556,7 @@ export function PurchaseModal({
                             </span>
                             <button
                               type="button"
+                              aria-label={`Increase ${line.name} quantity`}
                               onClick={() => changeQuantity(line.id, 1)}
                               className="flex size-7 items-center justify-center text-muted-foreground hover:text-foreground"
                             >
@@ -608,7 +615,7 @@ export function PurchaseModal({
             </Button>
             <Button type="submit" size="sm" disabled={isSubmitting} className="font-semibold">
               <ClipboardList className="size-4 mr-1" />
-              {isSubmitting ? 'Submitting PO...' : 'Post Purchase Order'}
+              {isSubmitting ? 'Creating Purchase Order...' : 'Create Purchase Order'}
             </Button>
           </DialogFooter>
         </form>

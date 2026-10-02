@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import type { Supplier } from '@/features/logistics/suppliers.types'
+import { getErrorMessage } from '@/lib/api-client'
 
 type SupplierModalProps = {
   open: boolean
@@ -63,11 +64,7 @@ export function SupplierModal({
       })
       onClose()
     } catch (err: unknown) {
-      if (err instanceof Error) {
-        setErrorMessage(err.message)
-      } else {
-        setErrorMessage('Failed to save supplier.')
-      }
+      setErrorMessage(getErrorMessage(err))
     }
   }
 
@@ -82,7 +79,7 @@ export function SupplierModal({
             {supplier ? 'Edit Supplier' : 'Add New Supplier'}
           </DialogTitle>
           <DialogDescription className="text-xs">
-            Manage vendor details for purchasing materials and stock inventory.
+            Manage supplier details for buying products and materials.
           </DialogDescription>
         </DialogHeader>
 

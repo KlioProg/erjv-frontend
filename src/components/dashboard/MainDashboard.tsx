@@ -272,8 +272,13 @@ export function MainDashboard() {
             {effectiveTab === 'deliveries' && (
               <DeliveriesHub key={deliverySubTab} initialTab={deliverySubTab} />
             )}
-            {effectiveTab === 'purchases' && (
+            {(effectiveTab === 'purchases' || effectiveTab === 'suppliers') && (
               <PurchasesView
+                key={effectiveTab}
+                initialSection={effectiveTab === 'suppliers' ? 'suppliers' : 'orders'}
+                onSectionChange={(section) =>
+                  setCurrentTab(section === 'suppliers' ? 'suppliers' : 'purchases')
+                }
                 onNavigateToDeliveries={() => {
                   setDeliverySubTab('incoming')
                   setCurrentTab('deliveries')

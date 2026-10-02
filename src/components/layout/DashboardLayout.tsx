@@ -41,6 +41,7 @@ export type NavItemKey =
   | 'fleet'
   | 'deliveries'
   | 'purchases'
+  | 'suppliers'
   | 'clients'
   | 'employees'
   | 'jobs'
@@ -66,20 +67,26 @@ type NavGroup = {
 
 const NAV_GROUPS: NavGroup[] = [
   {
+    title: 'Sales',
+    items: [
+      { key: 'clients', label: 'Customers', icon: Building2 },
+      { key: 'orders', label: 'Sales Orders', icon: ReceiptText },
+    ],
+  },
+  {
+    title: 'Purchases',
+    items: [
+      { key: 'suppliers', label: 'Suppliers', icon: Building2 },
+      { key: 'purchases', label: 'Purchase Orders', icon: Package },
+    ],
+  },
+  {
     title: 'Operations & Logistics',
     items: [
       { key: 'inventory', label: 'Inventory', icon: Boxes },
       { key: 'warehouses', label: 'Warehouses', icon: WarehouseIcon },
       { key: 'fleet', label: 'Delivery Fleet', icon: Truck },
       { key: 'deliveries', label: 'Deliveries Hub', icon: MapPinned },
-      { key: 'purchases', label: 'Purchases', icon: Package },
-    ],
-  },
-  {
-    title: 'Sales',
-    items: [
-      { key: 'clients', label: 'Customers', icon: Building2 },
-      { key: 'orders', label: 'Sales Orders', icon: ReceiptText },
     ],
   },
   {
@@ -90,7 +97,7 @@ const NAV_GROUPS: NavGroup[] = [
       { key: 'grouping', label: 'Grouped by Role', icon: Layers, requiresAdmin: true },
       { key: 'users', label: 'User Roles & Access', icon: Shield, requiresAdmin: true },
     ],
-  },
+  }
 ]
 
 export function DashboardLayout({ currentTab, onSelectTab, children }: DashboardLayoutProps) {

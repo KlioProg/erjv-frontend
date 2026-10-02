@@ -1,6 +1,16 @@
 export type PurchaseOrderStatus =
   'DRAFT' | 'CONFIRMED' | 'PARTIALLY_RECEIVED' | 'RECEIVED' | 'CANCELLED'
 
+/** Prepared for Phase 3; these values are not persisted by today's PO API. */
+export type PurchaseOrderDeliveryMethod = 'TO_BE_CONFIRMED' | 'SUPPLIER_DELIVERY' | 'PICKUP'
+
+/** Logistics reads supplier and ordered items from purchaseOrderId, without copying them. */
+export interface PurchaseOrderIncomingPlan {
+  purchaseOrderId: PurchaseOrderRecord['id']
+  warehouseId: number | null
+  deliveryMethod: PurchaseOrderDeliveryMethod
+}
+
 export interface PurchaseOrderItemRecord {
   id: number
   purchaseOrderId: number

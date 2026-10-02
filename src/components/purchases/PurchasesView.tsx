@@ -7,6 +7,7 @@ import {
   ChevronRight,
   Clock,
   Edit2,
+  Eye,
   Info,
   Package,
   Plus,
@@ -24,6 +25,7 @@ import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { StatusTabNav } from '@/components/ui/StatusTabNav'
 import { PurchaseModal } from './PurchaseModal'
+import { PurchaseOrderDetailModal } from './PurchaseOrderDetailModal'
 import { SupplierModal } from './SupplierModal'
 import { useAuth } from '@/features/auth/AuthContext'
 import { useProducts } from '@/features/products/products.hooks'
@@ -42,23 +44,26 @@ import {
 } from '@/features/logistics/suppliers.hooks'
 import type { Supplier } from '@/features/logistics/suppliers.types'
 import type { CreatePurchaseOrderPayload } from '@/features/logistics/purchase-orders.types'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
+import { useWarehouses } from '@/features/logistics/warehouses.hooks'
+import { useIncomingDeliveries } from '@/features/logistics/incoming-deliveries.hooks'
+import { DataTable, type ColumnDef } from '@/components/ui/data-table'
 
 export type PurchaseTabFilter = 'Active' | 'Completed' | 'Cancelled'
 
+export type PurchaseSection = 'orders' | 'suppliers'
+
 type PurchasesViewProps = {
+  initialSection?: PurchaseSection
+  onSectionChange?: (section: PurchaseSection) => void
   onNavigateToDeliveries?: () => void
 }
 
-export function PurchasesView({ onNavigateToDeliveries }: PurchasesViewProps = {}) {
-  const [activeSection, setActiveSection] = useState<'orders' | 'suppliers'>('orders')
+export function PurchasesView({
+  initialSection = 'orders',
+  onSectionChange,
+  onNavigateToDeliveries,
+}: PurchasesViewProps = {}) {
+  const [activeSection, setActiveSection] = useState<PurchaseSection>(initialSection)
   const [searchTerm, setSearchTerm] = useState('')
   const [activeStatus, setActiveStatus] = useState<PurchaseTabFilter>('Active')
 
@@ -66,14 +71,20 @@ export function PurchasesView({ onNavigateToDeliveries }: PurchasesViewProps = {
   const [isPurchaseModalOpen, setIsPurchaseModalOpen] = useState(false)
   const [isSupplierModalOpen, setIsSupplierModalOpen] = useState(false)
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null)
+  const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null)
 
   const { user } = useAuth()
   const processedBy = user?.fullName || user?.email || 'Current User'
 
   // Data queries
   const { data: purchaseOrders = [], isLoading: isLoadingPOs } = usePurchaseOrders()
-  const { data: suppliers = [], isLoading: isLoadingSuppliers } = useSuppliers()
+  const { data: suppliers = [], isLoading: isLoadingSuppliers } = useSuppliers({
+    includeInactive: 'true',
+  })
   const { data: products = [] } = useProducts()
+  const { data: warehouses = [] } = useWarehouses()
+  const { data: incomingDeliveries = [] } = useIncomingDeliveries()
+  const selectedOrder = purchaseOrders.find((order) => order.id === selectedOrderId)
 
   // Mutations
   const createPOMutation = useCreatePurchaseOrder()
@@ -231,12 +242,332 @@ export function PurchasesView({ onNavigateToDeliveries }: PurchasesViewProps = {
     }
   }
 
+  const orderRows = filteredOrders.map((po) => {
+    const supplier = supplierMap.get(po.supplierId)
+    const supplierName = supplier?.name || `Supplier #${po.supplierId}`
+    const total = (po.items || []).reduce(
+      (sum, item) =>
+        sum + Number(item.totalAmount || Number(item.quantity) * Number(item.unitPrice)),
+      0,
+    )
+
+    const itemSummary = (po.items || [])
+      .map((item) => {
+        const prod = productMap.get(item.inventoryItemId)
+        const name = prod ? prod.name : `Item #${item.inventoryItemId}`
+        return `${name} (x${item.quantity})`
+      })
+      .join(', ')
+
+    const orderDate = new Date(po.orderedAt).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    })
+
+    const expectedDate = po.expectedAt
+      ? new Date(po.expectedAt).toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric',
+        })
+      : 'Not set'
+
+    return { po, supplierName, total, itemSummary, orderDate, expectedDate }
+  })
+
+  const orderColumns: ColumnDef<(typeof orderRows)[number]>[] = [
+    {
+      id: 'number',
+      header: 'Order Number',
+      className: 'font-mono text-xs font-bold text-foreground',
+      cell: ({ row: { po, orderDate } }) => (
+        <>
+          <div className="flex items-center gap-1.5">
+            <Package className="size-3.5 text-primary" />
+            <span>{po.orderNumber}</span>
+          </div>
+          <span className="text-[10px] text-muted-foreground font-sans block mt-0.5">
+            {orderDate}
+          </span>
+        </>
+      ),
+    },
+    {
+      id: 'supplier',
+      header: 'Supplier',
+      className: 'text-xs font-semibold text-foreground',
+      cell: ({ row: { po, supplierName } }) => (
+        <>
+          <div>{supplierName}</div>
+          {po.externalReference && (
+            <div className="text-[10px] text-muted-foreground font-normal">
+              Ref: {po.externalReference}
+            </div>
+          )}
+        </>
+      ),
+    },
+    {
+      id: 'items',
+      header: 'Ordered Materials',
+      className: 'text-xs text-foreground/90 max-w-[240px] truncate',
+      cell: ({ row: { itemSummary } }) => (
+        <>
+          <span title={itemSummary}>{itemSummary || 'No items listed'}</span>
+        </>
+      ),
+    },
+    {
+      id: 'date',
+      header: 'Expected Date',
+      className: 'text-xs text-muted-foreground',
+      cell: ({ row: { expectedDate } }) => <>{expectedDate}</>,
+    },
+    {
+      id: 'total',
+      header: 'Total Amount',
+      align: 'right',
+      className: 'text-xs font-bold text-foreground text-right font-mono',
+      cell: ({ row: { total } }) => (
+        <>₱{total.toLocaleString('en-US', { minimumFractionDigits: 2 })}</>
+      ),
+    },
+    {
+      id: 'status',
+      header: 'Status',
+      align: 'center',
+      className: 'text-center',
+      cell: ({ row: { po } }) => <>{renderStatusBadge(po.status)}</>,
+    },
+    {
+      id: 'actions',
+      header: 'Actions',
+      align: 'right',
+      className: 'text-right',
+      cell: ({ row: { po } }) => (
+        <>
+          <div className="flex items-center justify-end gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label={`View purchase order ${po.orderNumber}`}
+              title="View Purchase Order"
+              onClick={() => setSelectedOrderId(po.id)}
+            >
+              <Eye data-icon="inline-start" />
+            </Button>
+            {po.status === 'DRAFT' && (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 px-2 text-[11px] text-emerald-600 border-emerald-500/30 hover:bg-emerald-500/10"
+                  onClick={() => confirmPOMutation.mutate(po.id)}
+                  disabled={confirmPOMutation.isPending}
+                  title="Confirm Purchase Order"
+                >
+                  <Check className="size-3 mr-1" />
+                  Confirm
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-[11px] text-rose-600 hover:bg-rose-500/10"
+                  onClick={() => cancelPOMutation.mutate(po.id)}
+                  disabled={cancelPOMutation.isPending}
+                  title="Cancel Purchase Order"
+                >
+                  <X className="size-3 mr-1" />
+                  Cancel
+                </Button>
+              </>
+            )}
+            {po.status === 'CONFIRMED' && (
+              <div className="flex items-center justify-end gap-1.5">
+                {onNavigateToDeliveries ? (
+                  <button
+                    type="button"
+                    onClick={onNavigateToDeliveries}
+                    className="group inline-flex items-center gap-1 rounded-md border border-border/80 bg-muted/40 px-2 py-1 text-[10px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted/70 transition-colors"
+                    title="Go to Deliveries Hub → Inbound Receiving to schedule and receive materials"
+                  >
+                    <ArrowDownToLine className="size-3 text-primary group-hover:translate-y-0.5 transition-transform" />
+                    <span>Inbound Receiving</span>
+                    <ChevronRight className="size-2.5 opacity-60" />
+                  </button>
+                ) : (
+                  <span
+                    className="inline-flex items-center gap-1 rounded-md border border-border/80 bg-muted/40 px-2 py-1 text-[10px] font-medium text-muted-foreground"
+                    title="Receive materials via Deliveries Hub → Inbound Receiving"
+                  >
+                    <ArrowDownToLine className="size-3 text-primary" />
+                    <span>Inbound Receiving</span>
+                  </span>
+                )}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-[11px] text-rose-600 hover:bg-rose-500/10"
+                  onClick={() => cancelPOMutation.mutate(po.id)}
+                  disabled={cancelPOMutation.isPending}
+                  title="Cancel Purchase Order"
+                >
+                  <X className="size-3 mr-1" />
+                  Cancel
+                </Button>
+              </div>
+            )}
+            {po.status === 'PARTIALLY_RECEIVED' && (
+              <div className="flex items-center justify-end">
+                {onNavigateToDeliveries ? (
+                  <button
+                    type="button"
+                    onClick={onNavigateToDeliveries}
+                    className="group inline-flex items-center gap-1 rounded-md border border-border/80 bg-muted/40 px-2 py-1 text-[10px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted/70 transition-colors"
+                    title="Go to Deliveries Hub → Inbound Receiving to receive remaining cargo"
+                  >
+                    <ArrowDownToLine className="size-3 text-indigo-500 group-hover:translate-y-0.5 transition-transform" />
+                    <span>Receive in Inbound</span>
+                    <ChevronRight className="size-2.5 opacity-60" />
+                  </button>
+                ) : (
+                  <span
+                    className="inline-flex items-center gap-1 rounded-md border border-border/80 bg-muted/40 px-2 py-1 text-[10px] font-medium text-muted-foreground"
+                    title="Receive remaining materials via Deliveries Hub → Inbound Receiving"
+                  >
+                    <ArrowDownToLine className="size-3 text-indigo-500" />
+                    <span>Receive in Inbound</span>
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+        </>
+      ),
+    },
+  ]
+
+  const supplierColumns: ColumnDef<Supplier>[] = [
+    {
+      id: 'supplier-0',
+      header: 'Code',
+      className: 'font-mono text-xs font-bold text-foreground',
+      cell: ({ row: supplier }) => <>{supplier.code}</>,
+    },
+    {
+      id: 'supplier-1',
+      header: 'Company Name',
+      className: 'text-xs font-semibold text-foreground',
+      cell: ({ row: supplier }) => <>{supplier.name}</>,
+    },
+    {
+      id: 'supplier-2',
+      header: 'Contact Person',
+      className: 'text-xs text-foreground/90',
+      cell: ({ row: supplier }) => <>{supplier.contactPerson || '—'}</>,
+    },
+    {
+      id: 'supplier-3',
+      header: 'Phone & Email',
+      className: 'text-xs text-muted-foreground',
+      cell: ({ row: supplier }) => (
+        <>
+          <div>{supplier.phone || '—'}</div>
+          {supplier.email && <div className="text-[10px] text-primary">{supplier.email}</div>}
+        </>
+      ),
+    },
+    {
+      id: 'supplier-4',
+      header: 'Address',
+      className: 'text-xs text-muted-foreground max-w-[200px] truncate',
+      cell: ({ row: supplier }) => (
+        <>
+          <span title={supplier.address || ''}>{supplier.address || '—'}</span>
+        </>
+      ),
+    },
+    {
+      id: 'supplier-5',
+      header: 'Status',
+      align: 'center',
+      className: 'text-center',
+      cell: ({ row: supplier }) => (
+        <>
+          <Badge
+            variant="outline"
+            className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+              supplier.isActive
+                ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20'
+                : 'bg-muted text-muted-foreground border-border'
+            }`}
+          >
+            {supplier.isActive ? 'Active' : 'Inactive'}
+          </Badge>
+        </>
+      ),
+    },
+    {
+      id: 'supplier-6',
+      header: 'Actions',
+      align: 'right',
+      className: 'text-right',
+      cell: ({ row: supplier }) => (
+        <>
+          <div className="flex items-center justify-end gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-7 text-muted-foreground hover:text-foreground"
+              onClick={() => {
+                setSelectedSupplier(supplier)
+                setIsSupplierModalOpen(true)
+              }}
+              title="Edit Supplier"
+              aria-label={`Edit supplier ${supplier.name}`}
+            >
+              <Edit2 className="size-3.5" />
+            </Button>
+
+            {supplier.isActive ? (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-7 text-rose-500 hover:text-rose-600 hover:bg-rose-500/10"
+                onClick={() => deleteSupplierMutation.mutate(supplier.id)}
+                disabled={deleteSupplierMutation.isPending}
+                title="Deactivate Supplier"
+                aria-label={`Deactivate supplier ${supplier.name}`}
+              >
+                <PowerOff className="size-3.5" />
+              </Button>
+            ) : (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-7 text-emerald-600 hover:bg-emerald-500/10"
+                onClick={() => reactivateSupplierMutation.mutate(supplier.id)}
+                disabled={reactivateSupplierMutation.isPending}
+                title="Reactivate Supplier"
+                aria-label={`Reactivate supplier ${supplier.name}`}
+              >
+                <Power className="size-3.5" />
+              </Button>
+            )}
+          </div>
+        </>
+      ),
+    },
+  ]
+
   return (
     <div className="flex flex-col gap-5">
       <Tabs
         value={activeSection}
         onValueChange={(val) => {
-          setActiveSection(val as 'orders' | 'suppliers')
+          setActiveSection(val as PurchaseSection)
+          onSectionChange?.(val as PurchaseSection)
           setSearchTerm('')
         }}
         className="w-full flex flex-col gap-4"
@@ -255,7 +586,7 @@ export function PurchasesView({ onNavigateToDeliveries }: PurchasesViewProps = {
               className="gap-2 text-xs font-semibold px-4 cursor-pointer"
             >
               <Building2 className="size-3.5" />
-              <span>Supplier Directory</span>
+              <span>Suppliers</span>
               <span className="ml-1 rounded-full bg-muted text-muted-foreground px-2 py-0.5 text-[10px] font-mono font-bold">
                 {suppliers.length}
               </span>
@@ -270,21 +601,21 @@ export function PurchasesView({ onNavigateToDeliveries }: PurchasesViewProps = {
             tabs={[
               {
                 value: 'Active',
-                label: 'Active POs',
+                label: 'Active Orders',
                 count: statusCount('Active'),
                 icon: <Clock className="size-3.5" />,
                 accent: 'green',
               },
               {
                 value: 'Completed',
-                label: 'Received POs',
+                label: 'Received Orders',
                 count: statusCount('Completed'),
                 icon: <CheckCircle2 className="size-3.5" />,
                 accent: 'blue',
               },
               {
                 value: 'Cancelled',
-                label: 'Cancelled POs',
+                label: 'Cancelled Orders',
                 count: statusCount('Cancelled'),
                 icon: <XCircle className="size-3.5" />,
                 accent: 'red',
@@ -323,7 +654,7 @@ export function PurchasesView({ onNavigateToDeliveries }: PurchasesViewProps = {
             <div className="relative w-full sm:w-80">
               <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="Search PO number, supplier, reference..."
+                placeholder="Search order number, supplier, reference..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-9 h-9 text-xs"
@@ -333,7 +664,7 @@ export function PurchasesView({ onNavigateToDeliveries }: PurchasesViewProps = {
             <Button
               size="sm"
               onClick={() => setIsPurchaseModalOpen(true)}
-              disabled={suppliers.length === 0}
+              disabled={!suppliers.some((supplier) => supplier.isActive)}
             >
               <Plus className="size-4" />
               Create Purchase Order
@@ -358,7 +689,7 @@ export function PurchasesView({ onNavigateToDeliveries }: PurchasesViewProps = {
                 </span>
                 <p className="text-xs text-muted-foreground mt-1 max-w-xs">
                   {searchTerm.trim()
-                    ? 'Try a different PO number or supplier name.'
+                    ? 'Try a different order number or supplier name.'
                     : activeStatus === 'Active'
                       ? 'Issue purchase orders to suppliers for stock replenishment.'
                       : 'Purchase orders moved into this status will appear here.'}
@@ -366,187 +697,12 @@ export function PurchasesView({ onNavigateToDeliveries }: PurchasesViewProps = {
               </div>
             </Card>
           ) : (
-            <Card className="overflow-hidden border-border/80 shadow-xs">
-              <Table>
-                <TableHeader className="bg-muted/40">
-                  <TableRow>
-                    <TableHead className="text-xs font-semibold">PO Number</TableHead>
-                    <TableHead className="text-xs font-semibold">Supplier Vendor</TableHead>
-                    <TableHead className="text-xs font-semibold">Ordered Materials</TableHead>
-                    <TableHead className="text-xs font-semibold">Expected Date</TableHead>
-                    <TableHead className="text-xs font-semibold text-right">Total Amount</TableHead>
-                    <TableHead className="text-xs font-semibold text-center">Status</TableHead>
-                    <TableHead className="text-xs font-semibold text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredOrders.map((po) => {
-                    const supplier = supplierMap.get(po.supplierId)
-                    const supplierName = supplier?.name || `Supplier #${po.supplierId}`
-                    const total = (po.items || []).reduce(
-                      (sum, item) =>
-                        sum +
-                        Number(item.totalAmount || Number(item.quantity) * Number(item.unitPrice)),
-                      0,
-                    )
-
-                    const itemSummary = (po.items || [])
-                      .map((item) => {
-                        const prod = productMap.get(item.inventoryItemId)
-                        const name = prod ? prod.name : `Item #${item.inventoryItemId}`
-                        return `${name} (x${item.quantity})`
-                      })
-                      .join(', ')
-
-                    const orderDate = new Date(po.orderedAt).toLocaleDateString('en-US', {
-                      year: 'numeric',
-                      month: 'short',
-                      day: 'numeric',
-                    })
-
-                    const expectedDate = po.expectedAt
-                      ? new Date(po.expectedAt).toLocaleDateString('en-US', {
-                          year: 'numeric',
-                          month: 'short',
-                          day: 'numeric',
-                        })
-                      : 'Not set'
-
-                    return (
-                      <TableRow key={po.id} className="hover:bg-muted/20">
-                        <TableCell className="font-mono text-xs font-bold text-foreground">
-                          <div className="flex items-center gap-1.5">
-                            <Package className="size-3.5 text-primary" />
-                            <span>{po.orderNumber}</span>
-                          </div>
-                          <span className="text-[10px] text-muted-foreground font-sans block mt-0.5">
-                            {orderDate}
-                          </span>
-                        </TableCell>
-
-                        <TableCell className="text-xs font-semibold text-foreground">
-                          <div>{supplierName}</div>
-                          {po.externalReference && (
-                            <div className="text-[10px] text-muted-foreground font-normal">
-                              Ref: {po.externalReference}
-                            </div>
-                          )}
-                        </TableCell>
-
-                        <TableCell
-                          className="text-xs text-foreground/90 max-w-[240px] truncate"
-                          title={itemSummary}
-                        >
-                          {itemSummary || 'No items listed'}
-                        </TableCell>
-
-                        <TableCell className="text-xs text-muted-foreground">
-                          {expectedDate}
-                        </TableCell>
-
-                        <TableCell className="text-xs font-bold text-foreground text-right font-mono">
-                          ₱{total.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                        </TableCell>
-
-                        <TableCell className="text-center">
-                          {renderStatusBadge(po.status)}
-                        </TableCell>
-
-                        <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-1">
-                            {po.status === 'DRAFT' && (
-                              <>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="h-7 px-2 text-[11px] text-emerald-600 border-emerald-500/30 hover:bg-emerald-500/10"
-                                  onClick={() => confirmPOMutation.mutate(po.id)}
-                                  disabled={confirmPOMutation.isPending}
-                                  title="Confirm Purchase Order"
-                                >
-                                  <Check className="size-3 mr-1" />
-                                  Confirm
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-7 px-2 text-[11px] text-rose-600 hover:bg-rose-500/10"
-                                  onClick={() => cancelPOMutation.mutate(po.id)}
-                                  disabled={cancelPOMutation.isPending}
-                                  title="Cancel Purchase Order"
-                                >
-                                  <X className="size-3 mr-1" />
-                                  Cancel
-                                </Button>
-                              </>
-                            )}
-                            {po.status === 'CONFIRMED' && (
-                              <div className="flex items-center justify-end gap-1.5">
-                                {onNavigateToDeliveries ? (
-                                  <button
-                                    type="button"
-                                    onClick={onNavigateToDeliveries}
-                                    className="group inline-flex items-center gap-1 rounded-md border border-border/80 bg-muted/40 px-2 py-1 text-[10px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted/70 transition-colors"
-                                    title="Go to Deliveries Hub → Inbound Receiving to schedule and receive materials"
-                                  >
-                                    <ArrowDownToLine className="size-3 text-primary group-hover:translate-y-0.5 transition-transform" />
-                                    <span>Inbound Receiving</span>
-                                    <ChevronRight className="size-2.5 opacity-60" />
-                                  </button>
-                                ) : (
-                                  <span
-                                    className="inline-flex items-center gap-1 rounded-md border border-border/80 bg-muted/40 px-2 py-1 text-[10px] font-medium text-muted-foreground"
-                                    title="Receive materials via Deliveries Hub → Inbound Receiving"
-                                  >
-                                    <ArrowDownToLine className="size-3 text-primary" />
-                                    <span>Inbound Receiving</span>
-                                  </span>
-                                )}
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-7 px-2 text-[11px] text-rose-600 hover:bg-rose-500/10"
-                                  onClick={() => cancelPOMutation.mutate(po.id)}
-                                  disabled={cancelPOMutation.isPending}
-                                  title="Cancel Purchase Order"
-                                >
-                                  <X className="size-3 mr-1" />
-                                  Cancel
-                                </Button>
-                              </div>
-                            )}
-                            {po.status === 'PARTIALLY_RECEIVED' && (
-                              <div className="flex items-center justify-end">
-                                {onNavigateToDeliveries ? (
-                                  <button
-                                    type="button"
-                                    onClick={onNavigateToDeliveries}
-                                    className="group inline-flex items-center gap-1 rounded-md border border-border/80 bg-muted/40 px-2 py-1 text-[10px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted/70 transition-colors"
-                                    title="Go to Deliveries Hub → Inbound Receiving to receive remaining cargo"
-                                  >
-                                    <ArrowDownToLine className="size-3 text-indigo-500 group-hover:translate-y-0.5 transition-transform" />
-                                    <span>Receive in Inbound</span>
-                                    <ChevronRight className="size-2.5 opacity-60" />
-                                  </button>
-                                ) : (
-                                  <span
-                                    className="inline-flex items-center gap-1 rounded-md border border-border/80 bg-muted/40 px-2 py-1 text-[10px] font-medium text-muted-foreground"
-                                    title="Receive remaining materials via Deliveries Hub → Inbound Receiving"
-                                  >
-                                    <ArrowDownToLine className="size-3 text-indigo-500" />
-                                    <span>Receive in Inbound</span>
-                                  </span>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    )
-                  })}
-                </TableBody>
-              </Table>
-            </Card>
+            <DataTable
+              data={orderRows}
+              columns={orderColumns}
+              getRowKey={({ po }) => po.id}
+              pagination={false}
+            />
           )}
         </TabsContent>
 
@@ -595,114 +751,33 @@ export function PurchasesView({ onNavigateToDeliveries }: PurchasesViewProps = {
                     : 'No suppliers registered yet'}
                 </span>
                 <p className="text-xs text-muted-foreground mt-1 max-w-xs">
-                  Register accredited vendor companies to begin purchasing stock materials.
+                  Register suppliers to begin purchasing stock materials.
                 </p>
               </div>
             </Card>
           ) : (
-            <Card className="overflow-hidden border-border/80 shadow-xs">
-              <Table>
-                <TableHeader className="bg-muted/40">
-                  <TableRow>
-                    <TableHead className="text-xs font-semibold">Code</TableHead>
-                    <TableHead className="text-xs font-semibold">Company Name</TableHead>
-                    <TableHead className="text-xs font-semibold">Contact Person</TableHead>
-                    <TableHead className="text-xs font-semibold">Phone & Email</TableHead>
-                    <TableHead className="text-xs font-semibold">Address</TableHead>
-                    <TableHead className="text-xs font-semibold text-center">Status</TableHead>
-                    <TableHead className="text-xs font-semibold text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredSuppliers.map((supplier) => (
-                    <TableRow key={supplier.id} className="hover:bg-muted/20">
-                      <TableCell className="font-mono text-xs font-bold text-foreground">
-                        {supplier.code}
-                      </TableCell>
-
-                      <TableCell className="text-xs font-semibold text-foreground">
-                        {supplier.name}
-                      </TableCell>
-
-                      <TableCell className="text-xs text-foreground/90">
-                        {supplier.contactPerson || '—'}
-                      </TableCell>
-
-                      <TableCell className="text-xs text-muted-foreground">
-                        <div>{supplier.phone || '—'}</div>
-                        {supplier.email && (
-                          <div className="text-[10px] text-primary">{supplier.email}</div>
-                        )}
-                      </TableCell>
-
-                      <TableCell
-                        className="text-xs text-muted-foreground max-w-[200px] truncate"
-                        title={supplier.address || ''}
-                      >
-                        {supplier.address || '—'}
-                      </TableCell>
-
-                      <TableCell className="text-center">
-                        <Badge
-                          variant="outline"
-                          className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                            supplier.isActive
-                              ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20'
-                              : 'bg-muted text-muted-foreground border-border'
-                          }`}
-                        >
-                          {supplier.isActive ? 'Active' : 'Inactive'}
-                        </Badge>
-                      </TableCell>
-
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="size-7 text-muted-foreground hover:text-foreground"
-                            onClick={() => {
-                              setSelectedSupplier(supplier)
-                              setIsSupplierModalOpen(true)
-                            }}
-                            title="Edit Supplier"
-                          >
-                            <Edit2 className="size-3.5" />
-                          </Button>
-
-                          {supplier.isActive ? (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="size-7 text-rose-500 hover:text-rose-600 hover:bg-rose-500/10"
-                              onClick={() => deleteSupplierMutation.mutate(supplier.id)}
-                              disabled={deleteSupplierMutation.isPending}
-                              title="Deactivate Supplier"
-                            >
-                              <PowerOff className="size-3.5" />
-                            </Button>
-                          ) : (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="size-7 text-emerald-600 hover:bg-emerald-500/10"
-                              onClick={() => reactivateSupplierMutation.mutate(supplier.id)}
-                              disabled={reactivateSupplierMutation.isPending}
-                              title="Reactivate Supplier"
-                            >
-                              <Power className="size-3.5" />
-                            </Button>
-                          )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </Card>
+            <DataTable
+              data={filteredSuppliers}
+              columns={supplierColumns}
+              getRowKey={(supplier) => supplier.id}
+              pagination={false}
+            />
           )}
         </TabsContent>
       </Tabs>
+
+      {selectedOrder && (
+        <PurchaseOrderDetailModal
+          order={selectedOrder}
+          supplier={supplierMap.get(selectedOrder.supplierId)}
+          products={products}
+          warehouses={warehouses}
+          incomingDeliveries={incomingDeliveries}
+          statusBadge={renderStatusBadge(selectedOrder.status)}
+          onClose={() => setSelectedOrderId(null)}
+          onNavigateToDeliveries={onNavigateToDeliveries}
+        />
+      )}
 
       {isPurchaseModalOpen && (
         <PurchaseModal
