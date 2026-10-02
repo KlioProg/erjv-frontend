@@ -52,7 +52,7 @@ function ClientFormContent({ client, onClose }: { client: Client | null; onClose
 
     const cleanName = name.trim()
     if (!cleanName) {
-      setErrorMsg('Client business/account name is required.')
+      setErrorMsg('Customer business/account name is required.')
       return
     }
 
@@ -76,7 +76,7 @@ function ClientFormContent({ client, onClose }: { client: Client | null; onClose
       if (backendInactive) {
         setDeactivatedClientMatch(backendInactive)
         setErrorMsg(
-          `Client account "${cleanName}" is currently deactivated. You can reactivate it directly.`,
+          `Customer account "${cleanName}" is currently deactivated. You can reactivate it directly.`,
         )
         return
       }
@@ -89,7 +89,7 @@ function ClientFormContent({ client, onClose }: { client: Client | null; onClose
         (c) => c.name.toUpperCase().trim() === cleanName.toUpperCase() && c.isActive !== false,
       )
       if (isNameDup || backendActive) {
-        setErrorMsg(`A client account with the name "${cleanName}" is already registered.`)
+        setErrorMsg(`A customer account with the name "${cleanName}" is already registered.`)
         return
       }
     }
@@ -100,7 +100,7 @@ function ClientFormContent({ client, onClose }: { client: Client | null; onClose
         (c) => c.id !== client?.id && c.email?.toLowerCase().trim() === cleanEmail,
       )
       if (isEmailDup) {
-        setErrorMsg(`A client with email "${cleanEmail}" already exists.`)
+        setErrorMsg(`A customer with email "${cleanEmail}" already exists.`)
         return
       }
     }
@@ -158,7 +158,7 @@ function ClientFormContent({ client, onClose }: { client: Client | null; onClose
           {isEditing ? <Building2 className="size-5" /> : <Users className="size-5" />}
         </div>
         <DialogTitle className="text-xl font-bold tracking-tight">
-          {isEditing ? 'Edit Client Business Profile' : 'Register New Client'}
+          {isEditing ? 'Edit Customer Business Profile' : 'Register New Customer'}
         </DialogTitle>
         <DialogDescription className="text-xs text-muted-foreground leading-relaxed">
           {isEditing
@@ -179,12 +179,12 @@ function ClientFormContent({ client, onClose }: { client: Client | null; onClose
             <RotateCcw className="size-4 animate-in spin-in-180 duration-500" />
           </div>
           <div className="flex-1 text-xs">
-            <p className="font-bold text-foreground">Deactivated Client Found</p>
+            <p className="font-bold text-foreground">Deactivated Customer Found</p>
             <p className="text-muted-foreground mt-0.5 leading-relaxed">
               An archived account for{' '}
               <strong className="text-foreground">{deactivatedClientMatch.name}</strong> (
               {deactivatedClientMatch.address}) already exists. Click{' '}
-              <strong>"Reactivate Client"</strong> below to restore it.
+              <strong>"Reactivate Customer"</strong> below to restore it.
             </p>
           </div>
         </div>
@@ -193,7 +193,7 @@ function ClientFormContent({ client, onClose }: { client: Client | null; onClose
       <form onSubmit={handleSubmit} className="flex flex-col gap-4 py-2">
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="client-name" className="text-xs font-semibold text-foreground/90">
-            Business / Client Name <span className="text-primary">*</span>
+            Business / Customer Name <span className="text-primary">*</span>
           </Label>
           <div className="relative">
             <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
@@ -309,12 +309,12 @@ function ClientFormContent({ client, onClose }: { client: Client | null; onClose
               {reactivateMutation.isPending ? (
                 <>
                   <Spinner data-icon="inline-start" />
-                  Reactivating Client...
+                  Reactivating Customer...
                 </>
               ) : (
                 <>
                   <RotateCcw className="size-4 transition-transform duration-200 group-hover:-rotate-45" />
-                  Reactivate Client Profile
+                  Reactivate Customer Profile
                 </>
               )}
             </Button>
@@ -327,10 +327,10 @@ function ClientFormContent({ client, onClose }: { client: Client | null; onClose
               {isPending ? (
                 <>
                   <Spinner data-icon="inline-start" />
-                  {isEditing ? 'Saving...' : 'Registering Client...'}
+                  {isEditing ? 'Saving...' : 'Registering Customer...'}
                 </>
               ) : (
-                <>{isEditing ? 'Save Changes' : 'Register Client Profile'}</>
+                <>{isEditing ? 'Save Changes' : 'Register Customer Profile'}</>
               )}
             </Button>
           )}
@@ -346,7 +346,7 @@ export function ClientModal({ client, open, onClose }: ClientModalProps) {
       <DialogContent className="sm:max-w-[540px]">
         {open && (
           <ClientFormContent
-            key={client ? `client-${client.id}` : 'new-client'}
+            key={client ? `client-${client.id}` : 'new-customer'}
             client={client}
             onClose={onClose}
           />

@@ -1,6 +1,19 @@
 export type SalesOrderStatus =
   'DRAFT' | 'CONFIRMED' | 'PARTIALLY_DELIVERED' | 'DELIVERED' | 'CANCELLED'
 
+/** Future fulfillment intent; the current Sales Order API does not persist this yet. */
+export type SalesOrderOutgoingMethod = 'CLIENT_PICKUP' | 'DELIVERY'
+
+/**
+ * Sales-to-Logistics handoff contract for the next phase, separate from API payloads.
+ * Logistics resolves customer, destination and allocations from salesOrderId.
+ * Client Pickup requires no company vehicle; Delivery assigns one in Logistics.
+ */
+export interface SalesOrderFulfillmentPlan {
+  salesOrderId: SalesOrderRecord['id']
+  outgoingMethod: SalesOrderOutgoingMethod
+}
+
 export interface SalesOrderAllocationRecord {
   id: number
   salesOrderItemId: number

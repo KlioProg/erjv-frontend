@@ -3,6 +3,7 @@ import {
   AlertTriangle,
   Archive,
   ArrowRight,
+  Boxes,
   Edit2,
   MapPin,
   MoreVertical,
@@ -174,7 +175,7 @@ export function WarehouseList({ initialWarehouseId }: { initialWarehouseId?: num
     {
       id: 'name',
       header: 'Warehouse',
-      width: '28%',
+      width: '32%',
       sortable: true,
       sortKey: 'name',
       cell: ({ row }) => (
@@ -203,7 +204,7 @@ export function WarehouseList({ initialWarehouseId }: { initialWarehouseId?: num
     {
       id: 'location',
       header: 'Location',
-      width: '24%',
+      width: '28%',
       className: 'hidden lg:table-cell',
       headerClassName: 'hidden lg:table-cell',
       sortable: true,
@@ -218,7 +219,7 @@ export function WarehouseList({ initialWarehouseId }: { initialWarehouseId?: num
     {
       id: 'products',
       header: 'Products',
-      width: '11%',
+      width: '12%',
       className: 'hidden lg:table-cell',
       headerClassName: 'hidden lg:table-cell',
       align: 'right',
@@ -234,7 +235,7 @@ export function WarehouseList({ initialWarehouseId }: { initialWarehouseId?: num
     {
       id: 'units',
       header: 'Total Stock',
-      width: '13%',
+      width: '14%',
       className: 'hidden sm:table-cell',
       headerClassName: 'hidden sm:table-cell',
       align: 'right',
@@ -250,7 +251,7 @@ export function WarehouseList({ initialWarehouseId }: { initialWarehouseId?: num
     {
       id: 'status',
       header: 'Status',
-      width: '9%',
+      width: '8%',
       className: 'hidden sm:table-cell',
       headerClassName: 'hidden sm:table-cell',
       align: 'center',
@@ -273,43 +274,41 @@ export function WarehouseList({ initialWarehouseId }: { initialWarehouseId?: num
       id: 'actions',
       header: 'Actions',
       align: 'right',
-      width: '15%',
+      width: 60,
       cell: ({ row }) => (
-        <div className="flex items-center justify-end gap-1 sm:gap-1.5">
-          <Button
-            size="sm"
-            variant={row.isActive === false ? 'outline' : 'default'}
-            onClick={() => setSelectedWarehouseId(row.id)}
-            className="shrink-0 gap-1 px-2 font-semibold sm:px-3"
-          >
-            <span className="sm:hidden">View</span>
-            <span className="hidden sm:inline">{row.isActive === false ? 'View Details' : 'View Inventory'}</span>
-            <ArrowRight className="hidden size-3.5 lg:inline" />
-          </Button>
-          {canManage && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  aria-label={`Actions for ${row.name}`}
-                  title="Warehouse actions"
-                  className="shrink-0 text-muted-foreground hover:text-foreground"
-                >
-                  <MoreVertical className="size-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {row.isActive === false ? (
-                  <DropdownMenuItem
-                    disabled={reactivateMutation.isPending}
-                    onSelect={() => reactivateMutation.mutate(row.id)}
-                  >
-                    <RotateCcw className="mr-2 size-3.5" />
-                    Restore Warehouse
-                  </DropdownMenuItem>
+        <div className="flex items-center justify-end">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                size="icon"
+                variant="ghost"
+                aria-label={`Actions for ${row.name}`}
+                title="Warehouse actions"
+                className="size-8 shrink-0 text-muted-foreground hover:text-foreground"
+              >
+                <MoreVertical className="size-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onSelect={() => setSelectedWarehouseId(row.id)}>
+                <Boxes className="mr-2 size-3.5" />
+                {row.isActive === false ? 'View Details' : 'View Inventory'}
+              </DropdownMenuItem>
+              {canManage && (
+                row.isActive === false ? (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      disabled={reactivateMutation.isPending}
+                      onSelect={() => reactivateMutation.mutate(row.id)}
+                    >
+                      <RotateCcw className="mr-2 size-3.5" />
+                      Restore Warehouse
+                    </DropdownMenuItem>
+                  </>
                 ) : (
                   <>
+                    <DropdownMenuSeparator />
                     <DropdownMenuItem
                       onSelect={() => {
                         setEditingWarehouse(row)
@@ -328,10 +327,10 @@ export function WarehouseList({ initialWarehouseId }: { initialWarehouseId?: num
                       Archive Warehouse
                     </DropdownMenuItem>
                   </>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
+                )
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       ),
     },

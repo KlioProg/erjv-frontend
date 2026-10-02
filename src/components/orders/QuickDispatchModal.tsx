@@ -65,9 +65,6 @@ export function QuickDispatchModal({
   const [scheduledAt, setScheduledAt] = useState<string>(() =>
     new Date(Date.now() + 30 * 60000).toISOString().slice(0, 16),
   )
-  const [destinationAddress, setDestinationAddress] = useState(
-    order.deliveryAddress || 'Commercial Client Address',
-  )
   const [notes, setNotes] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
@@ -179,7 +176,7 @@ export function QuickDispatchModal({
             <Truck className="size-5" />
           </div>
           <DialogTitle className="text-xl font-bold tracking-tight">
-            Schedule & Dispatch Shipment
+            Prepare Delivery
           </DialogTitle>
           <DialogDescription className="text-xs leading-relaxed">
             Assign a fleet vehicle and driver to immediately dispatch{' '}
@@ -308,10 +305,11 @@ export function QuickDispatchModal({
                 Destination Address
               </Label>
               <Input
-                value={destinationAddress}
-                onChange={(e) => setDestinationAddress(e.target.value)}
+                value={order.deliveryAddress}
+                readOnly
+                aria-label="Destination address from sales order"
                 className="h-9 text-xs"
-                placeholder="Client store / delivery dock"
+                placeholder="Customer store / delivery dock"
               />
             </div>
           </div>
@@ -325,7 +323,7 @@ export function QuickDispatchModal({
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               className="h-9 text-xs"
-              placeholder="e.g. Call client before arrival, fragile produce..."
+              placeholder="e.g. Call customer before arrival, fragile produce..."
             />
           </div>
 

@@ -92,12 +92,12 @@ export function ClientList() {
       <ArchiveTabNav
         activeTab={activeTab}
         onTabChange={setActiveTab}
-        activeLabel="Active Clients"
+        activeLabel="Active Customers"
         activeCount={activeClients.length}
-        archivedLabel="Archived Clients"
+        archivedLabel="Archived Customers"
         archivedCount={archivedClients.length}
         activeIcon={<Users className="size-3.5" />}
-        bannerDescription="Showing deactivated commercial clients. Past orders, invoices, and contact data remain safely preserved and can be reactivated anytime."
+        bannerDescription="Showing deactivated commercial customers. Past orders, invoices, and contact data remain safely preserved and can be reactivated anytime."
       />
 
       {/* Controls Bar */}
@@ -105,7 +105,7 @@ export function ClientList() {
         <div className="relative w-full sm:w-80">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
           <Input
-            placeholder="Search clients by name, contact, city..."
+            placeholder="Search customers by name, contact, city..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-9 h-9 text-xs"
@@ -115,7 +115,7 @@ export function ClientList() {
         {(isAdmin || isManager) && activeTab === 'ACTIVE' && (
           <Button onClick={handleCreate} size="sm" className="gap-1.5 shadow-xs cursor-pointer">
             <Plus className="size-4" />
-            Register New Client
+            Register New Customer
           </Button>
         )}
       </div>
@@ -123,23 +123,23 @@ export function ClientList() {
       {/* Clients Cards Grid */}
       {isLoading ? (
         <div className="flex items-center justify-center py-16 text-muted-foreground">
-          <Spinner className="mr-2 size-5" /> Loading CRM client directory...
+          <Spinner className="mr-2 size-5" /> Loading customers...
         </div>
       ) : filteredClients.length === 0 ? (
         <Card className="border-dashed bg-muted/20">
           <CardContent className="flex flex-col items-center justify-center py-12 text-center">
             <Users className="size-10 text-muted-foreground/50 mb-3" />
             <h3 className="text-sm font-semibold text-foreground">
-              {activeTab === 'ACTIVE' ? 'No active clients found' : 'No deactivated clients found'}
+              {activeTab === 'ACTIVE' ? 'No active customers found' : 'No deactivated customers found'}
             </h3>
             <p className="text-xs text-muted-foreground mt-1 max-w-xs">
               {searchTerm
-                ? 'No client accounts match your search filter.'
+                ? 'No customer accounts match your search filter.'
                 : activeTab === 'ACTIVE'
                   ? archivedClients.length > 0
-                    ? `All client profiles are currently archived (${archivedClients.length} total).`
-                    : 'Register commercial buyers and supermarket clients to manage wholesale accounts.'
-                  : 'Archived client profiles will appear here and can be reactivated at any time.'}
+                    ? `All customer profiles are currently archived (${archivedClients.length} total).`
+                    : 'Register commercial buyers and supermarket customers to manage wholesale accounts.'
+                  : 'Archived customer profiles will appear here and can be reactivated at any time.'}
             </p>
             {!searchTerm && activeTab === 'ACTIVE' && archivedClients.length > 0 && (
               <Button
@@ -149,7 +149,7 @@ export function ClientList() {
                 className="mt-3 gap-1.5 cursor-pointer text-xs"
               >
                 <Archive className="size-3.5 text-amber-600" />
-                View Archived Clients ({archivedClients.length})
+                View Archived Customers ({archivedClients.length})
               </Button>
             )}
             {!searchTerm && activeTab === 'ACTIVE' && archivedClients.length === 0 && (
@@ -160,7 +160,7 @@ export function ClientList() {
                 className="mt-4 gap-1.5 cursor-pointer"
               >
                 <Plus className="size-3.5" />
-                Register First Client
+                Register First Customer
               </Button>
             )}
           </CardContent>
@@ -237,7 +237,7 @@ export function ClientList() {
                                   <RotateCcw className="size-3.5 text-emerald-600 dark:text-emerald-600 transition-transform duration-200 group-hover:-rotate-45" />
                                 )}
                                 <span>
-                                  {isReactivatingThis ? 'Reactivating...' : 'Reactivate Client'}
+                                  {isReactivatingThis ? 'Reactivating...' : 'Reactivate Customer'}
                                 </span>
                               </Button>
                             )
@@ -251,7 +251,7 @@ export function ClientList() {
                                 className="size-8 text-muted-foreground hover:text-foreground cursor-pointer rounded-lg hover:bg-muted active:scale-90 transition-all duration-150"
                               >
                                 <MoreVertical className="size-4" />
-                                <span className="sr-only">Client actions</span>
+                                <span className="sr-only">Customer actions</span>
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="p-1">
@@ -267,7 +267,7 @@ export function ClientList() {
                                 className="gap-2 text-xs text-destructive focus:text-destructive cursor-pointer px-2 py-1.5 rounded-md active:scale-95 transition-transform"
                               >
                                 <Archive className="size-3.5" />
-                                Archive Client
+                                Archive Customer
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
@@ -307,7 +307,7 @@ export function ClientList() {
                         className="text-[10px] bg-emerald-500/10 text-emerald-600 border-emerald-500/20 font-medium gap-1"
                       >
                         <CheckCircle2 className="size-2.5" />
-                        Active Client
+                        Active Customer
                       </Badge>
                     )}
                   </div>
@@ -328,15 +328,15 @@ export function ClientList() {
         open={!!clientToDeactivate}
         onClose={() => setClientToDeactivate(null)}
         onConfirm={confirmDeactivate}
-        title="Archive Commercial Client"
-        description="Are you sure you want to archive this client profile? All contact details, invoices, and order histories are safely preserved and can be restored anytime from the Archived Clients tab."
+        title="Archive Commercial Customer"
+        description="Are you sure you want to archive this customer profile? All contact details, invoices, and order histories are safely preserved and can be restored anytime from the Archived Customers tab."
         itemName={clientToDeactivate?.name}
         itemDetails={
           clientToDeactivate
             ? `Contact: ${clientToDeactivate.contactPerson || 'N/A'} • ${clientToDeactivate.phone || 'No phone'}`
             : undefined
         }
-        confirmText="Archive Client"
+        confirmText="Archive Customer"
         variant="destructive"
       />
     </div>

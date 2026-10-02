@@ -8,6 +8,7 @@ import {
   Users,
   Briefcase,
   Layers,
+  ReceiptText,
 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { DashboardLayout, type NavItemKey } from '../layout/DashboardLayout'
@@ -27,6 +28,7 @@ import { useStockItems } from '@/features/logistics/stock-items.hooks'
 import { useDeliveryVehicles } from '@/features/logistics/delivery-vehicles.hooks'
 import { useProducts } from '@/features/products/products.hooks'
 import { useClients } from '@/features/crm/clients.hooks'
+import { useSalesOrders } from '@/features/crm/sales-orders.hooks'
 import { useEmployees, useJobs } from '@/features/staffing/staffing.hooks'
 import { useAuth } from '@/features/auth/AuthContext'
 
@@ -41,6 +43,7 @@ export function MainDashboard() {
   const { data: vehicles = [] } = useDeliveryVehicles()
   const { data: products = [] } = useProducts()
   const { data: clients = [] } = useClients()
+  const { data: salesOrders = [] } = useSalesOrders()
   const { data: employees = [] } = useEmployees()
   const { data: jobs = [] } = useJobs()
 
@@ -146,13 +149,13 @@ export function MainDashboard() {
           </div>
         )}
 
-        {/* KPI Top Bar when inside CRM */}
+        {/* KPI Top Bar when inside Sales */}
         {(effectiveTab === 'clients' || effectiveTab === 'orders') && (
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
             <Card className="p-4 bg-card border-border/80 shadow-xs flex flex-col justify-between rounded-2xl">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold text-muted-foreground">
-                  Commercial Clients
+                  Customers
                 </span>
                 <div className="p-2 rounded-xl bg-primary/10 text-primary">
                   <Building2 className="size-4" />
@@ -186,17 +189,19 @@ export function MainDashboard() {
             <Card className="p-4 bg-card border-border/80 shadow-xs flex flex-col justify-between rounded-2xl">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold text-muted-foreground">
-                  Delivery Fleet Ready
+                  Active Sales Orders
                 </span>
                 <div className="p-2 rounded-xl bg-blue-500/10 text-blue-600">
-                  <Truck className="size-4" />
+                  <ReceiptText className="size-4" />
                 </div>
               </div>
               <div className="mt-3">
                 <div className="text-2xl font-extrabold text-foreground">
-                  {availableVehiclesCount} Vehicles
+                  {salesOrders.filter((order) =>
+                    ['DRAFT', 'CONFIRMED', 'PARTIALLY_DELIVERED'].includes(order.status),
+                  ).length} Orders
                 </div>
-                <p className="text-[11px] text-muted-foreground mt-0.5">Fleet units on standby</p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">Open customer orders</p>
               </div>
             </Card>
           </div>

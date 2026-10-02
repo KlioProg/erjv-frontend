@@ -53,6 +53,7 @@ interface OrderDetailDrawerProps {
   employees: Employee[]
   stockItems: StockItem[]
   outgoingDeliveries: OutgoingDeliveryRecord[]
+  onViewDelivery?: (id: number) => void
 }
 
 export function OrderDetailDrawer({
@@ -66,6 +67,7 @@ export function OrderDetailDrawer({
   employees,
   stockItems,
   outgoingDeliveries,
+  onViewDelivery,
 }: OrderDetailDrawerProps) {
   const queryClient = useQueryClient()
   const [isDispatchModalOpen, setIsDispatchModalOpen] = useState(false)
@@ -410,14 +412,14 @@ export function OrderDetailDrawer({
                       What is its current state?
                     </p>
                     <p className="text-muted-foreground">
-                      <span className="font-semibold text-blue-600">Confirmed & Ready</span> —
-                      Awaiting fleet vehicle and driver dispatch.
+                      <span className="font-semibold text-blue-600">Confirmed & Ready</span> — Ready
+                      for outgoing fulfillment.
                     </p>
                     <p className="font-bold text-blue-950 dark:text-blue-200 mt-2">
                       What should you do next?
                     </p>
                     <p className="text-muted-foreground">
-                      Dispatch the shipment to customer{' '}
+                      Prepare an outgoing delivery for customer{' '}
                       <span className="font-semibold text-foreground">
                         {client?.name || 'Customer'}
                       </span>
@@ -437,16 +439,18 @@ export function OrderDetailDrawer({
                     <X className="size-3 mr-1" />
                     Cancel Order
                   </Button>
-                  <Button
-                    size="sm"
-                    onClick={() => setIsDispatchModalOpen(true)}
-                    className="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs shadow-xs"
-                  >
-                    <span className="flex items-center gap-1.5">
-                      <Truck className="size-3.5" />
-                      Dispatch / Schedule Delivery
-                    </span>
-                  </Button>
+                  {(!activeDelivery || activeDelivery.status === 'DELIVERED') && (
+                    <Button
+                      size="sm"
+                      onClick={() => setIsDispatchModalOpen(true)}
+                      className="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs shadow-xs"
+                    >
+                      <span className="flex items-center gap-1.5">
+                        <Truck className="size-3.5" />
+                        Prepare Delivery
+                      </span>
+                    </Button>
+                  )}
                 </div>
               </div>
             )}
@@ -528,10 +532,10 @@ export function OrderDetailDrawer({
               <div className="rounded-xl border border-border/80 bg-card p-3.5 space-y-1.5">
                 <div className="flex items-center gap-1.5 text-muted-foreground font-semibold">
                   <Building2 className="size-3.5 text-primary" />
-                  Customer / Client
+                  Customer
                 </div>
                 <div className="font-bold text-foreground text-sm">
-                  {client?.name || `Client #${order.clientId}`}
+                  {client?.name || `Customer #${order.clientId}`}
                 </div>
                 <div className="text-muted-foreground">{client?.phone || 'No phone recorded'}</div>
                 <div className="text-muted-foreground">{client?.email || ''}</div>
@@ -561,16 +565,27 @@ export function OrderDetailDrawer({
                     <Truck className="size-4 text-primary" />
                     Shipment Trip: {activeDelivery.deliveryNumber}
                   </div>
-                  <Badge
-                    variant="outline"
-                    className={`text-[10px] ${
-                      activeDelivery.status === 'DELIVERED'
-                        ? 'bg-emerald-500/10 text-emerald-600'
-                        : 'bg-blue-500/10 text-blue-600'
-                    }`}
-                  >
-                    {activeDelivery.status}
-                  </Badge>
+                  <div className="flex items-center gap-2">
+                    {onViewDelivery && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => onViewDelivery(activeDelivery.id)}
+                      >
+                        View Delivery
+                      </Button>
+                    )}
+                    <Badge
+                      variant="outline"
+                      className={`text-[10px] ${
+                        activeDelivery.status === 'DELIVERED'
+                          ? 'bg-emerald-500/10 text-emerald-600'
+                          : 'bg-blue-500/10 text-blue-600'
+                      }`}
+                    >
+                      {activeDelivery.status}
+                    </Badge>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-2 text-muted-foreground pt-1 border-t border-border/60">

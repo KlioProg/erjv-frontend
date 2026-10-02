@@ -30,7 +30,7 @@ export function useCreateClient() {
     mutationFn: (payload: CreateClientPayload) => createClientApi(payload),
     onSuccess: (newClient) => {
       void queryClient.invalidateQueries({ queryKey: CLIENTS_QUERY_KEY })
-      toast.success(`Client "${newClient.name}" registered successfully`)
+      toast.success(`Customer "${newClient.name}" registered successfully`)
     },
     onError: (err) => {
       toast.error(getErrorMessage(err))
@@ -45,7 +45,7 @@ export function useUpdateClientDetails() {
       updateClientDetailsApi(id, payload),
     onSuccess: (updatedClient) => {
       void queryClient.invalidateQueries({ queryKey: CLIENTS_QUERY_KEY })
-      toast.success(`Client "${updatedClient.name}" updated successfully`)
+      toast.success(`Customer "${updatedClient.name}" updated successfully`)
     },
     onError: (err) => {
       toast.error(getErrorMessage(err))
@@ -84,8 +84,8 @@ export function useDeactivateClient(options?: { onViewArchive?: () => void }) {
     },
     onSuccess: ({ res, inputClient }) => {
       const name = res?.name || inputClient?.name || 'Account'
-      toast.success(`Client "${name}" archived`, {
-        description: 'Client profile moved to the Archived Clients tab.',
+      toast.success(`Customer "${name}" archived`, {
+        description: 'Customer profile moved to the Archived Customers tab.',
         action: options?.onViewArchive
           ? {
               label: 'View in Archive',
@@ -128,7 +128,7 @@ export function useReactivateClient() {
     },
     onSuccess: ({ res }) => {
       toast.success(
-        `Client "${res.name || 'Account'}" reactivated and restored to active directory`,
+        `Customer "${res.name || 'Account'}" reactivated and restored to active directory`,
       )
     },
   })

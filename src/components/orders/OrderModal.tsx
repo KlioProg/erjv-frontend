@@ -505,7 +505,7 @@ export function OrderModal({
                 <div className="rounded-lg bg-background/80 p-2 border border-border/60">
                   <strong className="text-foreground block text-[11px]">3. Sales Orders</strong>
                   Deducts & reserves from <strong>Available Warehouse Stock</strong> to sell to
-                  clients.
+                  customers.
                 </div>
               </div>
             </div>
@@ -526,11 +526,11 @@ export function OrderModal({
                 htmlFor="order-customer-type"
                 className="text-[11px] font-semibold text-foreground/90"
               >
-                Client / Customer <span className="text-primary">*</span>
+                Customer <span className="text-primary">*</span>
               </Label>
               <Select value={customerType} onValueChange={handleCustomerChange}>
                 <SelectTrigger id="order-customer-type" className="h-8 text-xs bg-background">
-                  <SelectValue placeholder="Choose client or walk-in" />
+                  <SelectValue placeholder="Choose customer or walk-in" />
                 </SelectTrigger>
                 <SelectContent>
                   {clients
@@ -561,7 +561,7 @@ export function OrderModal({
                   value={customerName}
                   onChange={(event) => setCustomerName(event.target.value)}
                   placeholder={
-                    customerType === 'walk-in' ? 'e.g. Walk-in Customer' : 'Select client'
+                    customerType === 'walk-in' ? 'e.g. Walk-in Customer' : 'Select customer'
                   }
                   className="h-8 pl-8 text-xs bg-background"
                   disabled={!customerType || customerType.startsWith('client:')}
@@ -729,7 +729,7 @@ export function OrderModal({
                         Reserved: <strong>{selectedProductStats.totalReserved}</strong>
                       </span>
                       <span className="text-muted-foreground">|</span>
-                      <span title="Ready to sell to clients" className="text-rose-600 font-bold">
+                      <span title="Ready to sell to customers" className="text-rose-600 font-bold">
                         Avail: 0
                       </span>
                     </div>

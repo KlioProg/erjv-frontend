@@ -22,6 +22,7 @@ import { StatusTabNav } from '@/components/ui/StatusTabNav'
 import { OrderModal, type OrderFormValues } from './OrderModal'
 import { OrderDetailDrawer } from './OrderDetailDrawer'
 import { QuickDispatchModal } from './QuickDispatchModal'
+import { DeliveryDetailModal } from '@/components/deliveries/shared/DeliveryDetailModal'
 import { useClients } from '@/features/crm/clients.hooks'
 import { useProducts } from '@/features/products/products.hooks'
 import { useWarehouses } from '@/features/logistics/warehouses.hooks'
@@ -44,14 +45,7 @@ import { toast } from 'sonner'
 import { useAuth } from '@/features/auth/AuthContext'
 import type { SalesOrderRecord } from '@/features/crm/sales-orders.types'
 import { getErrorMessage } from '@/lib/api-client'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
+import { DataTable, type ColumnDef } from '@/components/ui/data-table'
 
 export type OrderTabFilter = 'Active' | 'Completed' | 'Cancelled'
 
@@ -77,6 +71,7 @@ export function OrdersView({
   const [selectedOrderRecord, setSelectedOrderRecord] = useState<SalesOrderRecord | null>(null)
   const [isDetailDrawerOpen, setIsDetailDrawerOpen] = useState(false)
   const [dispatchOrder, setDispatchOrder] = useState<SalesOrderRecord | null>(null)
+  const [deliveryToView, setDeliveryToView] = useState<number | null>(null)
 
   // Real backend queries
   const { data: salesOrders = [], isLoading: isLoadingOrders } = useSalesOrders()
@@ -297,6 +292,286 @@ export function OrdersView({
     }
   }
 
+  const orderRows = filteredOrders.map((order) => {
+    const client = clientMap.get(order.clientId)
+    const items = order.items || []
+
+    // Summary of items
+    const itemSummary = items
+      .map((item) => {
+        const prod = productMap.get(item.inventoryItemId)
+        const name = prod ? prod.name : `Product #${item.inventoryItemId}`
+        return `${name} x${item.quantity}`
+      })
+      .join(', ')
+
+    const firstItem = items[0]
+    const firstItemProduct = firstItem ? productMap.get(firstItem.inventoryItemId) : null
+    const firstItemName = firstItemProduct
+      ? firstItemProduct.name
+      : firstItem
+        ? `Product #${firstItem.inventoryItemId}`
+        : 'No items'
+    const primaryItemText = firstItem
+      ? `${firstItemName} (×${firstItem.quantity})`
+      : 'No items listed'
+
+    // Compute total amount
+    const orderTotal = items.reduce((sum, item) => {
+      const itemTotal =
+        parseFloat(item.totalAmount) || parseFloat(item.unitPrice) * parseFloat(item.quantity) || 0
+      return sum + itemTotal
+    }, 0)
+
+    // Date
+    const orderDate = new Date(order.orderedAt || order.createdAt).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    })
+
+    // Check tied outgoing delivery
+    const activeDelivery = outgoingDeliveries.find(
+      (d) => d.salesOrderId === order.id && d.status !== 'CANCELLED',
+    )
+
+    // Derive warehouse
+    let sourceWarehouseName = '—'
+    for (const item of items) {
+      for (const alloc of item.allocations || []) {
+        const st = stockMap.get(alloc.stockItemId)
+        if (st?.warehouseId) {
+          const wh = warehouseMap.get(st.warehouseId)
+          if (wh) {
+            sourceWarehouseName = wh.name
+            break
+          }
+        }
+      }
+      if (sourceWarehouseName !== '—') break
+    }
+
+    return {
+      order,
+      client,
+      items,
+      itemSummary,
+      primaryItemText,
+      orderTotal,
+      orderDate,
+      activeDelivery,
+      sourceWarehouseName,
+    }
+  })
+
+  const columns: ColumnDef<(typeof orderRows)[number]>[] = [
+    {
+      id: 'order',
+      header: 'Order #',
+      width: 130,
+      className: 'py-3 px-3.5 font-mono text-xs font-bold text-foreground whitespace-nowrap',
+      headerClassName: 'whitespace-nowrap',
+      cell: ({ row: { order, orderDate } }) => (
+        <>
+          <div className="flex items-center gap-1.5">
+            <Receipt className="size-3.5 text-rose-600 shrink-0" />
+            <span className="hover:underline text-primary whitespace-nowrap">
+              {order.orderNumber}
+            </span>
+          </div>
+          <span className="text-[11px] text-muted-foreground font-sans block pl-5 mt-0.5 whitespace-nowrap">
+            {orderDate}
+          </span>
+        </>
+      ),
+    },
+    {
+      id: 'customer',
+      header: 'Customer / Destination',
+      width: 170,
+      className: 'py-3 px-3.5 min-w-0',
+      headerClassName: 'whitespace-nowrap',
+      cell: ({ row: { order, client } }) => (
+        <>
+          <div
+            className="font-semibold text-xs text-foreground truncate"
+            title={client?.name || `Customer #${order.clientId}`}
+          >
+            {client?.name || `Customer #${order.clientId}`}
+          </div>
+          <div
+            className="flex items-center gap-1 text-[11px] text-muted-foreground mt-0.5 truncate"
+            title={order.deliveryAddress}
+          >
+            <MapPin className="size-3 text-muted-foreground/70 shrink-0" />
+            <span className="truncate">{order.deliveryAddress || 'No address specified'}</span>
+          </div>
+        </>
+      ),
+    },
+    {
+      id: 'items',
+      header: 'Items & Fulfillment',
+      width: 200,
+      className: 'py-3 px-3.5 min-w-0',
+      headerClassName: 'whitespace-nowrap',
+      cell: ({ row: { items, itemSummary, primaryItemText, sourceWarehouseName } }) => (
+        <>
+          <div className="flex flex-col gap-1 min-w-0">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-primary/10 text-primary shrink-0">
+                <Package className="size-2.5 mr-1" />
+                {items.length} {items.length === 1 ? 'item' : 'items'}
+              </span>
+              <span className="text-xs font-medium text-foreground truncate" title={itemSummary}>
+                {primaryItemText}
+              </span>
+            </div>
+            <div
+              className="flex items-center gap-1.5 text-[11px] text-muted-foreground truncate pl-1"
+              title={`Fulfillment Warehouse: ${sourceWarehouseName}`}
+            >
+              <WarehouseIcon className="size-3 text-muted-foreground/70 shrink-0" />
+              <span className="truncate">
+                {sourceWarehouseName !== '—' ? sourceWarehouseName : 'No warehouse assigned'}
+              </span>
+            </div>
+          </div>
+        </>
+      ),
+    },
+    {
+      id: 'amount',
+      header: 'Amount (₱)',
+      width: 110,
+      align: 'right',
+      className:
+        'py-3 px-3.5 text-xs font-bold text-foreground text-right font-mono whitespace-nowrap',
+      headerClassName: 'whitespace-nowrap',
+      cell: ({ row: { orderTotal } }) => (
+        <>₱{orderTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}</>
+      ),
+    },
+    {
+      id: 'status',
+      header: 'Status',
+      width: 125,
+      align: 'center',
+      className: 'py-3 px-3.5 text-center whitespace-nowrap',
+      headerClassName: 'whitespace-nowrap',
+      cell: ({ row: { order, activeDelivery } }) => (
+        <>{renderStatusBadge(order.status, activeDelivery?.status)}</>
+      ),
+    },
+    {
+      id: 'actions',
+      header: 'Actions',
+      width: 160,
+      align: 'right',
+      className: 'py-3 px-3.5 text-right whitespace-nowrap',
+      headerClassName: 'whitespace-nowrap',
+      cell: ({ row: { order, activeDelivery } }) => (
+        <>
+          <div
+            className="flex items-center justify-end gap-1.5 whitespace-nowrap"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Status Action 1: Draft -> Confirm */}
+            {order.status === 'DRAFT' && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={(e) => handleConfirmOrder(order, e)}
+                disabled={confirmOrderMutation.isPending}
+                className="h-7 px-2.5 text-xs font-semibold gap-1 text-blue-600 hover:text-blue-700 hover:bg-blue-50 border-blue-200 shrink-0"
+                title="Confirm order and reserve inventory stock"
+              >
+                <CheckCircle2 className="size-3 shrink-0" />
+                <span>Confirm</span>
+              </Button>
+            )}
+
+            {/* Status Action 2: Confirmed / Partial -> Dispatch */}
+            {(order.status === 'CONFIRMED' || order.status === 'PARTIALLY_DELIVERED') &&
+              (!activeDelivery || activeDelivery.status === 'DELIVERED') && (
+                <Button
+                  size="sm"
+                  onClick={() => setDispatchOrder(order)}
+                  className="h-7 px-2.5 text-xs font-semibold gap-1 bg-amber-600 hover:bg-amber-700 text-white shrink-0 shadow-xs"
+                  title="Prepare an outgoing delivery from this sales order"
+                >
+                  <Send className="size-3 shrink-0" />
+                  <span>Prepare Delivery</span>
+                </Button>
+              )}
+
+            {activeDelivery && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setDeliveryToView(activeDelivery.id)}
+                title={`View delivery ${activeDelivery.deliveryNumber}`}
+              >
+                <Truck data-icon="inline-start" />
+                View Delivery
+              </Button>
+            )}
+
+            {/* Status Action 3: Dispatched -> Confirm Arrivals (leads to Deliveries Hub) */}
+            {activeDelivery?.status === 'DISPATCHED' && (
+              <Button
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  if (onNavigateToDeliveries) {
+                    onNavigateToDeliveries('completed')
+                  } else {
+                    handleConfirmArrival(activeDelivery.id, order.orderNumber, e)
+                  }
+                }}
+                className="h-7 px-2.5 text-xs font-semibold gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer shrink-0 shadow-xs"
+                title="Go to Deliveries Hub to confirm arrival and record receipt"
+              >
+                <CheckCircle2 className="size-3 shrink-0" />
+                <span>Confirm Arrivals</span>
+              </Button>
+            )}
+
+            {/* View Details Drawer */}
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                setSelectedOrderRecord(order)
+                setIsDetailDrawerOpen(true)
+              }}
+              className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground shrink-0"
+              title="View sales order"
+              aria-label={`View sales order ${order.orderNumber}`}
+            >
+              <Eye className="size-3.5" />
+            </Button>
+
+            {/* Destructive Cancel */}
+            {(order.status === 'DRAFT' || order.status === 'CONFIRMED') && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={(e) => handleCancelOrder(order, e)}
+                disabled={cancelOrderMutation.isPending}
+                className="h-7 w-7 p-0 text-rose-500 hover:text-rose-700 hover:bg-rose-50 shrink-0"
+                title="Cancel sales order"
+                aria-label={`Cancel sales order ${order.orderNumber}`}
+              >
+                <X className="size-3.5" />
+              </Button>
+            )}
+          </div>
+        </>
+      ),
+    },
+  ]
+
   return (
     <div className="flex flex-col gap-5">
       <StatusTabNav
@@ -332,7 +607,7 @@ export function OrdersView({
         <div className="relative w-full sm:w-80">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
           <Input
-            placeholder="Search order #, client, address..."
+            placeholder="Search order #, customer, address..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-9 h-9 text-xs"
@@ -372,275 +647,26 @@ export function OrdersView({
             </span>
             <p className="text-xs text-muted-foreground mt-1 max-w-xs">
               {searchTerm.trim()
-                ? 'Try searching with a different order number, client name, or item.'
+                ? 'Try searching with a different order number, customer name, or item.'
                 : activeStatus === 'Active'
-                  ? 'Click "Create Sales Order" to record your first client purchase!'
+                  ? 'Click "Create Sales Order" to record your first customer purchase!'
                   : 'Orders moved into this status will appear here.'}
             </p>
           </div>
         </Card>
       ) : (
-        <Card className="overflow-hidden border-border/80 shadow-xs">
-          <Table className="w-full">
-            <TableHeader className="bg-muted/40">
-              <TableRow>
-                <TableHead className="text-xs font-semibold whitespace-nowrap w-[130px] px-3.5">
-                  Order #
-                </TableHead>
-                <TableHead className="text-xs font-semibold whitespace-nowrap min-w-[170px] px-3.5">
-                  Client / Destination
-                </TableHead>
-                <TableHead className="text-xs font-semibold whitespace-nowrap min-w-[200px] px-3.5">
-                  Items & Fulfillment
-                </TableHead>
-                <TableHead className="text-xs font-semibold whitespace-nowrap text-right w-[110px] px-3.5">
-                  Amount (₱)
-                </TableHead>
-                <TableHead className="text-xs font-semibold whitespace-nowrap text-center w-[125px] px-3.5">
-                  Status
-                </TableHead>
-                <TableHead className="text-xs font-semibold whitespace-nowrap text-right w-[160px] px-3.5">
-                  Actions
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredOrders.map((order) => {
-                const client = clientMap.get(order.clientId)
-                const items = order.items || []
-
-                // Summary of items
-                const itemSummary = items
-                  .map((item) => {
-                    const prod = productMap.get(item.inventoryItemId)
-                    const name = prod ? prod.name : `Product #${item.inventoryItemId}`
-                    return `${name} x${item.quantity}`
-                  })
-                  .join(', ')
-
-                const firstItem = items[0]
-                const firstItemProduct = firstItem
-                  ? productMap.get(firstItem.inventoryItemId)
-                  : null
-                const firstItemName = firstItemProduct
-                  ? firstItemProduct.name
-                  : firstItem
-                    ? `Product #${firstItem.inventoryItemId}`
-                    : 'No items'
-                const primaryItemText = firstItem
-                  ? `${firstItemName} (×${firstItem.quantity})`
-                  : 'No items listed'
-
-                // Compute total amount
-                const orderTotal = items.reduce((sum, item) => {
-                  const itemTotal =
-                    parseFloat(item.totalAmount) ||
-                    parseFloat(item.unitPrice) * parseFloat(item.quantity) ||
-                    0
-                  return sum + itemTotal
-                }, 0)
-
-                // Date
-                const orderDate = new Date(order.orderedAt || order.createdAt).toLocaleDateString(
-                  'en-US',
-                  {
-                    year: 'numeric',
-                    month: 'short',
-                    day: 'numeric',
-                  },
-                )
-
-                // Check tied outgoing delivery
-                const activeDelivery = outgoingDeliveries.find(
-                  (d) => d.salesOrderId === order.id && d.status !== 'CANCELLED',
-                )
-
-                // Derive warehouse
-                let sourceWarehouseName = '—'
-                for (const item of items) {
-                  for (const alloc of item.allocations || []) {
-                    const st = stockMap.get(alloc.stockItemId)
-                    if (st?.warehouseId) {
-                      const wh = warehouseMap.get(st.warehouseId)
-                      if (wh) {
-                        sourceWarehouseName = wh.name
-                        break
-                      }
-                    }
-                  }
-                  if (sourceWarehouseName !== '—') break
-                }
-
-                return (
-                  <TableRow
-                    key={order.id}
-                    onClick={() => {
-                      setSelectedOrderRecord(order)
-                      setIsDetailDrawerOpen(true)
-                    }}
-                    className="hover:bg-muted/30 cursor-pointer transition-colors"
-                  >
-                    {/* 1. Order Number & Date */}
-                    <TableCell className="py-3 px-3.5 font-mono text-xs font-bold text-foreground whitespace-nowrap">
-                      <div className="flex items-center gap-1.5">
-                        <Receipt className="size-3.5 text-rose-600 shrink-0" />
-                        <span className="hover:underline text-primary whitespace-nowrap">
-                          {order.orderNumber}
-                        </span>
-                      </div>
-                      <span className="text-[11px] text-muted-foreground font-sans block pl-5 mt-0.5 whitespace-nowrap">
-                        {orderDate}
-                      </span>
-                    </TableCell>
-
-                    {/* 2. Client & Delivery Destination */}
-                    <TableCell className="py-3 px-3.5 min-w-0">
-                      <div
-                        className="font-semibold text-xs text-foreground truncate"
-                        title={client?.name || `Customer #${order.clientId}`}
-                      >
-                        {client?.name || `Customer #${order.clientId}`}
-                      </div>
-                      <div
-                        className="flex items-center gap-1 text-[11px] text-muted-foreground mt-0.5 truncate"
-                        title={order.deliveryAddress}
-                      >
-                        <MapPin className="size-3 text-muted-foreground/70 shrink-0" />
-                        <span className="truncate">
-                          {order.deliveryAddress || 'No address specified'}
-                        </span>
-                      </div>
-                    </TableCell>
-
-                    {/* 3. Items Ordered & Warehouse Source */}
-                    <TableCell className="py-3 px-3.5 min-w-0">
-                      <div className="flex flex-col gap-1 min-w-0">
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-primary/10 text-primary shrink-0">
-                            <Package className="size-2.5 mr-1" />
-                            {items.length} {items.length === 1 ? 'item' : 'items'}
-                          </span>
-                          <span
-                            className="text-xs font-medium text-foreground truncate"
-                            title={itemSummary}
-                          >
-                            {primaryItemText}
-                          </span>
-                        </div>
-                        <div
-                          className="flex items-center gap-1.5 text-[11px] text-muted-foreground truncate pl-1"
-                          title={`Fulfillment Warehouse: ${sourceWarehouseName}`}
-                        >
-                          <WarehouseIcon className="size-3 text-muted-foreground/70 shrink-0" />
-                          <span className="truncate">
-                            {sourceWarehouseName !== '—'
-                              ? sourceWarehouseName
-                              : 'No warehouse assigned'}
-                          </span>
-                        </div>
-                      </div>
-                    </TableCell>
-
-                    {/* 4. Total Amount */}
-                    <TableCell className="py-3 px-3.5 text-xs font-bold text-foreground text-right font-mono whitespace-nowrap">
-                      ₱{orderTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                    </TableCell>
-
-                    {/* 5. Status Badge */}
-                    <TableCell className="py-3 px-3.5 text-center whitespace-nowrap">
-                      {renderStatusBadge(order.status, activeDelivery?.status)}
-                    </TableCell>
-
-                    {/* 6. Actions */}
-                    <TableCell className="py-3 px-3.5 text-right whitespace-nowrap">
-                      <div
-                        className="flex items-center justify-end gap-1.5 whitespace-nowrap"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        {/* Status Action 1: Draft -> Confirm */}
-                        {order.status === 'DRAFT' && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={(e) => handleConfirmOrder(order, e)}
-                            disabled={confirmOrderMutation.isPending}
-                            className="h-7 px-2.5 text-xs font-semibold gap-1 text-blue-600 hover:text-blue-700 hover:bg-blue-50 border-blue-200 shrink-0"
-                            title="Confirm order and reserve inventory stock"
-                          >
-                            <CheckCircle2 className="size-3 shrink-0" />
-                            <span>Confirm</span>
-                          </Button>
-                        )}
-
-                        {/* Status Action 2: Confirmed / Partial -> Dispatch */}
-                        {(order.status === 'CONFIRMED' || order.status === 'PARTIALLY_DELIVERED') &&
-                          activeDelivery?.status !== 'DISPATCHED' && (
-                            <Button
-                              size="sm"
-                              onClick={() => setDispatchOrder(order)}
-                              className="h-7 px-2.5 text-xs font-semibold gap-1 bg-amber-600 hover:bg-amber-700 text-white shrink-0 shadow-xs"
-                              title="Assign vehicle and driver to dispatch"
-                            >
-                              <Send className="size-3 shrink-0" />
-                              <span>Dispatch</span>
-                            </Button>
-                          )}
-
-                        {/* Status Action 3: Dispatched -> Confirm Arrivals (leads to Deliveries Hub) */}
-                        {activeDelivery?.status === 'DISPATCHED' && (
-                          <Button
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              if (onNavigateToDeliveries) {
-                                onNavigateToDeliveries('completed')
-                              } else {
-                                handleConfirmArrival(activeDelivery.id, order.orderNumber, e)
-                              }
-                            }}
-                            className="h-7 px-2.5 text-xs font-semibold gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer shrink-0 shadow-xs"
-                            title="Go to Deliveries Hub to confirm arrival and record receipt"
-                          >
-                            <CheckCircle2 className="size-3 shrink-0" />
-                            <span>Confirm Arrivals</span>
-                          </Button>
-                        )}
-
-                        {/* View Details Drawer */}
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => {
-                            setSelectedOrderRecord(order)
-                            setIsDetailDrawerOpen(true)
-                          }}
-                          className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground shrink-0"
-                          title="Open Order Details Workspace"
-                        >
-                          <Eye className="size-3.5" />
-                        </Button>
-
-                        {/* Destructive Cancel */}
-                        {(order.status === 'DRAFT' || order.status === 'CONFIRMED') && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={(e) => handleCancelOrder(order, e)}
-                            disabled={cancelOrderMutation.isPending}
-                            className="h-7 w-7 p-0 text-rose-500 hover:text-rose-700 hover:bg-rose-50 shrink-0"
-                            title="Cancel sales order"
-                          >
-                            <X className="size-3.5" />
-                          </Button>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                )
-              })}
-            </TableBody>
-          </Table>
-        </Card>
+        <DataTable
+          data={orderRows}
+          columns={columns}
+          getRowKey={({ order }) => order.id}
+          pagination={false}
+          onRowClick={({ order }) => {
+            setSelectedOrderRecord(order)
+            setIsDetailDrawerOpen(true)
+          }}
+          rowClassName={() => 'hover:bg-muted/30'}
+          tableClassName="w-full"
+        />
       )}
 
       {/* Order Creation Modal */}
@@ -675,7 +701,19 @@ export function OrdersView({
         employees={employees}
         stockItems={stockItems}
         outgoingDeliveries={outgoingDeliveries}
+        onViewDelivery={(id) => {
+          setIsDetailDrawerOpen(false)
+          setDeliveryToView(id)
+        }}
       />
+
+      {deliveryToView !== null && (
+        <DeliveryDetailModal
+          open
+          deliveryId={deliveryToView}
+          onClose={() => setDeliveryToView(null)}
+        />
+      )}
 
       {/* Quick Dispatch Modal for row actions */}
       {dispatchOrder && (

@@ -76,9 +76,9 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
-    title: 'Customer Relations (CRM)',
+    title: 'Sales',
     items: [
-      { key: 'clients', label: 'Client Management', icon: Building2 },
+      { key: 'clients', label: 'Customers', icon: Building2 },
       { key: 'orders', label: 'Sales Orders', icon: ReceiptText },
     ],
   },
