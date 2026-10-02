@@ -1,18 +1,5 @@
 import { useState, useMemo } from 'react'
-import {
-  CheckCircle2,
-  Eye,
-  MapPin,
-  Package,
-  Plus,
-  Receipt,
-  Search,
-  Send,
-  Truck,
-  Warehouse as WarehouseIcon,
-  X,
-  XCircle,
-} from 'lucide-react'
+import { CheckCircle2, Eye, MoreHorizontal, Plus, Receipt, Search, XCircle } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -46,6 +33,14 @@ import { useAuth } from '@/features/auth/AuthContext'
 import type { SalesOrderRecord } from '@/features/crm/sales-orders.types'
 import { getErrorMessage } from '@/lib/api-client'
 import { DataTable, type ColumnDef } from '@/components/ui/data-table'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import type { OutgoingDeliveryRecord } from '@/features/logistics/outgoing-deliveries.types'
 
 export type OrderTabFilter = 'Active' | 'Completed' | 'Cancelled'
 
@@ -55,6 +50,48 @@ export type OrdersViewProps = {
     tab?: 'schedule' | 'status' | 'completed' | 'incoming' | 'history',
   ) => void
   onNavigateToInventory?: () => void
+}
+
+type SalesOrderPrimaryAction =
+  | 'confirm'
+  | 'prepare-delivery'
+  | 'continue-delivery'
+  | 'view-delivery'
+  | 'confirm-arrival'
+  | 'view-order'
+
+function getSalesOrderPrimaryAction(
+  order: SalesOrderRecord,
+  delivery?: OutgoingDeliveryRecord,
+): SalesOrderPrimaryAction {
+  if (order.status === 'DELIVERED' || order.status === 'CANCELLED') return 'view-order'
+  if (order.status === 'DRAFT') return 'confirm'
+  if (delivery?.status === 'DISPATCHED') return 'confirm-arrival'
+  if (delivery && delivery.status !== 'DELIVERED') return 'view-delivery'
+  if (order.status === 'PARTIALLY_DELIVERED') return 'continue-delivery'
+  return 'prepare-delivery'
+}
+
+function getDeliveryDisplay(order: SalesOrderRecord, delivery?: OutgoingDeliveryRecord) {
+  if (order.status === 'CANCELLED')
+    return { label: 'Cancelled', className: 'border-rose-500/20 bg-rose-500/10 text-rose-600' }
+  if (order.status === 'DELIVERED')
+    return {
+      label: 'Delivered',
+      className: 'border-emerald-500/20 bg-emerald-500/10 text-emerald-600',
+    }
+  if (delivery?.status === 'DISPATCHED')
+    return { label: 'In Transit', className: 'border-amber-500/20 bg-amber-500/10 text-amber-700' }
+  if (delivery?.status === 'SCHEDULED')
+    return { label: 'Scheduled', className: 'border-blue-500/20 bg-blue-500/10 text-blue-600' }
+  if (delivery?.status === 'DRAFT')
+    return { label: 'Preparing', className: 'border-border bg-muted text-muted-foreground' }
+  if (order.status === 'PARTIALLY_DELIVERED')
+    return {
+      label: 'Partial Delivery',
+      className: 'border-amber-500/20 bg-amber-500/10 text-amber-700',
+    }
+  return { label: 'Not Prepared', className: 'border-border bg-muted text-muted-foreground' }
 }
 
 export function OrdersView({
@@ -94,8 +131,6 @@ export function OrdersView({
   // Lookups
   const clientMap = useMemo(() => new Map(clients.map((c) => [c.id, c])), [clients])
   const productMap = useMemo(() => new Map(products.map((p) => [p.id, p])), [products])
-  const warehouseMap = useMemo(() => new Map(warehouses.map((w) => [w.id, w])), [warehouses])
-  const stockMap = useMemo(() => new Map(stockItems.map((s) => [s.id, s])), [stockItems])
 
   // Sync selectedOrderRecord if the list updates
   const activeSelectedOrder = useMemo(() => {
@@ -178,8 +213,7 @@ export function OrdersView({
   }
 
   // Confirm order action
-  const handleConfirmOrder = async (order: SalesOrderRecord, e: React.MouseEvent) => {
-    e.stopPropagation()
+  const handleConfirmOrder = async (order: SalesOrderRecord) => {
     try {
       await confirmOrderMutation.mutateAsync(order.id)
     } catch (err) {
@@ -188,8 +222,7 @@ export function OrdersView({
   }
 
   // Cancel order action
-  const handleCancelOrder = async (order: SalesOrderRecord, e: React.MouseEvent) => {
-    e.stopPropagation()
+  const handleCancelOrder = async (order: SalesOrderRecord) => {
     if (
       !window.confirm(
         `Are you sure you want to cancel order ${order.orderNumber}? Any reserved stock allocations will be released.`,
@@ -205,8 +238,7 @@ export function OrdersView({
   }
 
   // Direct arrival confirmation
-  const handleConfirmArrival = async (deliveryId: number, orderNo: string, e: React.MouseEvent) => {
-    e.stopPropagation()
+  const handleConfirmArrival = async (deliveryId: number, orderNo: string) => {
     try {
       await completeOutgoingDeliveryApi(deliveryId)
       await Promise.all([
@@ -220,360 +252,234 @@ export function OrdersView({
     }
   }
 
-  // Helper for status badge
-  const renderStatusBadge = (status: SalesOrderRecord['status'], activeDeliveryStatus?: string) => {
-    if (activeDeliveryStatus === 'DISPATCHED') {
-      return (
-        <Badge
-          variant="outline"
-          className="rounded-full px-2.5 py-0.5 text-[10px] font-semibold bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30 inline-flex items-center gap-1 whitespace-nowrap shrink-0"
-        >
-          <Truck className="size-3 shrink-0 animate-pulse text-amber-600" />
-          <span>In Transit</span>
-        </Badge>
-      )
-    }
-
-    switch (status) {
-      case 'DRAFT':
-        return (
-          <Badge
-            variant="outline"
-            className="rounded-full px-2.5 py-0.5 text-[10px] font-semibold bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30 whitespace-nowrap shrink-0"
-          >
-            Draft (Allocated)
-          </Badge>
-        )
-      case 'CONFIRMED':
-        return (
-          <Badge
-            variant="outline"
-            className="rounded-full px-2.5 py-0.5 text-[10px] font-semibold bg-blue-500/10 text-blue-600 border-blue-500/30 inline-flex items-center gap-1 whitespace-nowrap shrink-0"
-          >
-            <CheckCircle2 className="size-3 shrink-0" />
-            <span>Confirmed</span>
-          </Badge>
-        )
-      case 'PARTIALLY_DELIVERED':
-        return (
-          <Badge
-            variant="outline"
-            className="rounded-full px-2.5 py-0.5 text-[10px] font-semibold bg-purple-500/10 text-purple-600 border-purple-500/30 whitespace-nowrap shrink-0"
-          >
-            Partial Delivery
-          </Badge>
-        )
-      case 'DELIVERED':
-        return (
-          <Badge
-            variant="outline"
-            className="rounded-full px-2.5 py-0.5 text-[10px] font-semibold bg-emerald-500/10 text-emerald-600 border-emerald-500/30 inline-flex items-center gap-1 whitespace-nowrap shrink-0"
-          >
-            <CheckCircle2 className="size-3 shrink-0" />
-            <span>Delivered</span>
-          </Badge>
-        )
-      case 'CANCELLED':
-        return (
-          <Badge
-            variant="outline"
-            className="rounded-full px-2.5 py-0.5 text-[10px] font-semibold bg-rose-500/10 text-rose-600 border-rose-500/30 inline-flex items-center gap-1 whitespace-nowrap shrink-0"
-          >
-            <XCircle className="size-3 shrink-0" />
-            <span>Cancelled</span>
-          </Badge>
-        )
-      default:
-        return (
-          <Badge variant="outline" className="text-[10px] whitespace-nowrap shrink-0">
-            {status}
-          </Badge>
-        )
-    }
-  }
-
   const orderRows = filteredOrders.map((order) => {
-    const client = clientMap.get(order.clientId)
     const items = order.items || []
-
-    // Summary of items
     const itemSummary = items
       .map((item) => {
-        const prod = productMap.get(item.inventoryItemId)
-        const name = prod ? prod.name : `Product #${item.inventoryItemId}`
-        return `${name} x${item.quantity}`
+        const product = productMap.get(item.inventoryItemId)
+        return `${product?.name || `Product #${item.inventoryItemId}`} ×${item.quantity}`
       })
       .join(', ')
-
-    const firstItem = items[0]
-    const firstItemProduct = firstItem ? productMap.get(firstItem.inventoryItemId) : null
-    const firstItemName = firstItemProduct
-      ? firstItemProduct.name
-      : firstItem
-        ? `Product #${firstItem.inventoryItemId}`
-        : 'No items'
-    const primaryItemText = firstItem
-      ? `${firstItemName} (×${firstItem.quantity})`
-      : 'No items listed'
-
-    // Compute total amount
+    const itemLabel = items.length === 1 ? itemSummary : `${items.length} items`
     const orderTotal = items.reduce((sum, item) => {
       const itemTotal =
         parseFloat(item.totalAmount) || parseFloat(item.unitPrice) * parseFloat(item.quantity) || 0
       return sum + itemTotal
     }, 0)
-
-    // Date
     const orderDate = new Date(order.orderedAt || order.createdAt).toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
     })
-
-    // Check tied outgoing delivery
     const activeDelivery = outgoingDeliveries.find(
-      (d) => d.salesOrderId === order.id && d.status !== 'CANCELLED',
+      (delivery) => delivery.salesOrderId === order.id && delivery.status !== 'CANCELLED',
     )
-
-    // Derive warehouse
-    let sourceWarehouseName = '—'
-    for (const item of items) {
-      for (const alloc of item.allocations || []) {
-        const st = stockMap.get(alloc.stockItemId)
-        if (st?.warehouseId) {
-          const wh = warehouseMap.get(st.warehouseId)
-          if (wh) {
-            sourceWarehouseName = wh.name
-            break
-          }
-        }
-      }
-      if (sourceWarehouseName !== '—') break
-    }
 
     return {
       order,
-      client,
-      items,
+      client: clientMap.get(order.clientId),
       itemSummary,
-      primaryItemText,
+      itemLabel,
       orderTotal,
       orderDate,
       activeDelivery,
-      sourceWarehouseName,
     }
   })
 
-  const columns: ColumnDef<(typeof orderRows)[number]>[] = [
+  const openOrderDetails = (order: SalesOrderRecord) => {
+    setSelectedOrderRecord(order)
+    setIsDetailDrawerOpen(true)
+  }
+
+  const handlePrimaryAction = (
+    action: SalesOrderPrimaryAction,
+    order: SalesOrderRecord,
+    delivery?: OutgoingDeliveryRecord,
+  ) => {
+    switch (action) {
+      case 'confirm':
+        void handleConfirmOrder(order)
+        break
+      case 'prepare-delivery':
+      case 'continue-delivery':
+        setDispatchOrder(order)
+        break
+      case 'view-delivery':
+        if (delivery) setDeliveryToView(delivery.id)
+        break
+      case 'confirm-arrival':
+        if (!delivery) break
+        if (onNavigateToDeliveries) onNavigateToDeliveries('completed')
+        else void handleConfirmArrival(delivery.id, order.orderNumber)
+        break
+      case 'view-order':
+        openOrderDetails(order)
+        break
+    }
+  }
+
+  const salesOrderColumns: ColumnDef<(typeof orderRows)[number]>[] = [
     {
       id: 'order',
-      header: 'Order #',
-      width: 130,
-      className: 'py-3 px-3.5 font-mono text-xs font-bold text-foreground whitespace-nowrap',
-      headerClassName: 'whitespace-nowrap',
+      header: 'Order',
+      width: 145,
+      className: 'min-w-[145px]',
       cell: ({ row: { order, orderDate } }) => (
-        <>
-          <div className="flex items-center gap-1.5">
-            <Receipt className="size-3.5 text-rose-600 shrink-0" />
-            <span className="hover:underline text-primary whitespace-nowrap">
-              {order.orderNumber}
-            </span>
-          </div>
-          <span className="text-[11px] text-muted-foreground font-sans block pl-5 mt-0.5 whitespace-nowrap">
-            {orderDate}
+        <div className="flex flex-col gap-0.5">
+          <span className="whitespace-nowrap font-mono text-xs font-bold text-foreground">
+            {order.orderNumber}
           </span>
-        </>
+          <span className="text-[11px] text-muted-foreground">{orderDate}</span>
+        </div>
       ),
     },
     {
       id: 'customer',
-      header: 'Customer / Destination',
-      width: 170,
-      className: 'py-3 px-3.5 min-w-0',
-      headerClassName: 'whitespace-nowrap',
+      header: 'Customer',
+      width: 210,
+      className: 'min-w-[180px] max-w-[250px]',
       cell: ({ row: { order, client } }) => (
-        <>
-          <div
-            className="font-semibold text-xs text-foreground truncate"
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <span
+            className="truncate text-xs font-semibold text-foreground"
             title={client?.name || `Customer #${order.clientId}`}
           >
             {client?.name || `Customer #${order.clientId}`}
-          </div>
-          <div
-            className="flex items-center gap-1 text-[11px] text-muted-foreground mt-0.5 truncate"
+          </span>
+          <span
+            className="truncate text-[11px] text-muted-foreground"
             title={order.deliveryAddress}
           >
-            <MapPin className="size-3 text-muted-foreground/70 shrink-0" />
-            <span className="truncate">{order.deliveryAddress || 'No address specified'}</span>
-          </div>
-        </>
+            {order.deliveryAddress || 'No address specified'}
+          </span>
+        </div>
       ),
     },
     {
       id: 'items',
-      header: 'Items & Fulfillment',
-      width: 200,
-      className: 'py-3 px-3.5 min-w-0',
-      headerClassName: 'whitespace-nowrap',
-      cell: ({ row: { items, itemSummary, primaryItemText, sourceWarehouseName } }) => (
-        <>
-          <div className="flex flex-col gap-1 min-w-0">
-            <div className="flex items-center gap-1.5 min-w-0">
-              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-primary/10 text-primary shrink-0">
-                <Package className="size-2.5 mr-1" />
-                {items.length} {items.length === 1 ? 'item' : 'items'}
-              </span>
-              <span className="text-xs font-medium text-foreground truncate" title={itemSummary}>
-                {primaryItemText}
-              </span>
-            </div>
-            <div
-              className="flex items-center gap-1.5 text-[11px] text-muted-foreground truncate pl-1"
-              title={`Fulfillment Warehouse: ${sourceWarehouseName}`}
-            >
-              <WarehouseIcon className="size-3 text-muted-foreground/70 shrink-0" />
-              <span className="truncate">
-                {sourceWarehouseName !== '—' ? sourceWarehouseName : 'No warehouse assigned'}
-              </span>
-            </div>
-          </div>
-        </>
+      header: 'Items',
+      width: 165,
+      className: 'hidden max-w-[220px] lg:table-cell',
+      headerClassName: 'hidden lg:table-cell',
+      cell: ({ row: { itemLabel, itemSummary } }) => (
+        <span className="block truncate text-xs text-foreground" title={itemSummary}>
+          {itemLabel || 'No items'}
+        </span>
       ),
     },
     {
-      id: 'amount',
-      header: 'Amount (₱)',
+      id: 'total',
+      header: 'Total',
       width: 110,
       align: 'right',
-      className:
-        'py-3 px-3.5 text-xs font-bold text-foreground text-right font-mono whitespace-nowrap',
-      headerClassName: 'whitespace-nowrap',
-      cell: ({ row: { orderTotal } }) => (
-        <>₱{orderTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}</>
-      ),
+      className: 'whitespace-nowrap font-mono text-xs font-semibold text-foreground',
+      cell: ({ row: { orderTotal } }) =>
+        `₱${orderTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}`,
     },
     {
-      id: 'status',
-      header: 'Status',
-      width: 125,
-      align: 'center',
-      className: 'py-3 px-3.5 text-center whitespace-nowrap',
-      headerClassName: 'whitespace-nowrap',
-      cell: ({ row: { order, activeDelivery } }) => (
-        <>{renderStatusBadge(order.status, activeDelivery?.status)}</>
-      ),
-    },
-    {
-      id: 'actions',
-      header: 'Actions',
-      width: 160,
-      align: 'right',
-      className: 'py-3 px-3.5 text-right whitespace-nowrap',
-      headerClassName: 'whitespace-nowrap',
-      cell: ({ row: { order, activeDelivery } }) => (
-        <>
-          <div
-            className="flex items-center justify-end gap-1.5 whitespace-nowrap"
-            onClick={(e) => e.stopPropagation()}
+      id: 'delivery',
+      header: 'Delivery',
+      width: 135,
+      cell: ({ row: { order, activeDelivery } }) => {
+        const deliveryDisplay = getDeliveryDisplay(order, activeDelivery)
+        return (
+          <Badge
+            variant="outline"
+            className={`whitespace-nowrap px-2 py-0.5 text-[10px] font-semibold ${deliveryDisplay.className}`}
           >
-            {/* Status Action 1: Draft -> Confirm */}
-            {order.status === 'DRAFT' && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={(e) => handleConfirmOrder(order, e)}
-                disabled={confirmOrderMutation.isPending}
-                className="h-7 px-2.5 text-xs font-semibold gap-1 text-blue-600 hover:text-blue-700 hover:bg-blue-50 border-blue-200 shrink-0"
-                title="Confirm order and reserve inventory stock"
-              >
-                <CheckCircle2 className="size-3 shrink-0" />
-                <span>Confirm</span>
-              </Button>
-            )}
+            {deliveryDisplay.label}
+          </Badge>
+        )
+      },
+    },
+    {
+      id: 'action',
+      header: 'Action',
+      width: 185,
+      align: 'right',
+      className: 'whitespace-nowrap',
+      cell: ({ row: { order, activeDelivery } }) => {
+        const primaryAction = getSalesOrderPrimaryAction(order, activeDelivery)
+        const primaryLabel: Record<SalesOrderPrimaryAction, string> = {
+          confirm: 'Confirm',
+          'prepare-delivery': 'Prepare Delivery',
+          'continue-delivery': 'Continue Delivery',
+          'view-delivery': 'View Delivery',
+          'confirm-arrival': 'Confirm Arrival',
+          'view-order': 'View',
+        }
+        const showViewOrder = primaryAction !== 'view-order'
+        const showViewDelivery = Boolean(activeDelivery) && primaryAction !== 'view-delivery'
+        const canCancelOrder = order.status === 'DRAFT' || order.status === 'CONFIRMED'
 
-            {/* Status Action 2: Confirmed / Partial -> Dispatch */}
-            {(order.status === 'CONFIRMED' || order.status === 'PARTIALLY_DELIVERED') &&
-              (!activeDelivery || activeDelivery.status === 'DELIVERED') && (
-                <Button
-                  size="sm"
-                  onClick={() => setDispatchOrder(order)}
-                  className="h-7 px-2.5 text-xs font-semibold gap-1 bg-amber-600 hover:bg-amber-700 text-white shrink-0 shadow-xs"
-                  title="Prepare an outgoing delivery from this sales order"
-                >
-                  <Send className="size-3 shrink-0" />
-                  <span>Prepare Delivery</span>
-                </Button>
-              )}
-
-            {activeDelivery && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setDeliveryToView(activeDelivery.id)}
-                title={`View delivery ${activeDelivery.deliveryNumber}`}
-              >
-                <Truck data-icon="inline-start" />
-                View Delivery
-              </Button>
-            )}
-
-            {/* Status Action 3: Dispatched -> Confirm Arrivals (leads to Deliveries Hub) */}
-            {activeDelivery?.status === 'DISPATCHED' && (
-              <Button
-                size="sm"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  if (onNavigateToDeliveries) {
-                    onNavigateToDeliveries('completed')
-                  } else {
-                    handleConfirmArrival(activeDelivery.id, order.orderNumber, e)
-                  }
-                }}
-                className="h-7 px-2.5 text-xs font-semibold gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer shrink-0 shadow-xs"
-                title="Go to Deliveries to confirm arrival and record receipt"
-              >
-                <CheckCircle2 className="size-3 shrink-0" />
-                <span>Confirm Arrivals</span>
-              </Button>
-            )}
-
-            {/* View Details Drawer */}
+        return (
+          <div
+            className="flex items-center justify-end gap-1"
+            onClick={(event) => event.stopPropagation()}
+          >
             <Button
               size="sm"
-              variant="ghost"
-              onClick={() => {
-                setSelectedOrderRecord(order)
-                setIsDetailDrawerOpen(true)
-              }}
-              className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground shrink-0"
-              title="View sales order"
-              aria-label={`View sales order ${order.orderNumber}`}
+              variant={
+                primaryAction === 'view-order' || primaryAction === 'view-delivery'
+                  ? 'outline'
+                  : 'default'
+              }
+              className="h-7 px-2.5 text-[11px] font-semibold"
+              disabled={primaryAction === 'confirm' && confirmOrderMutation.isPending}
+              onClick={() => handlePrimaryAction(primaryAction, order, activeDelivery)}
             >
-              <Eye className="size-3.5" />
+              {primaryLabel[primaryAction]}
             </Button>
 
-            {/* Destructive Cancel */}
-            {(order.status === 'DRAFT' || order.status === 'CONFIRMED') && (
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={(e) => handleCancelOrder(order, e)}
-                disabled={cancelOrderMutation.isPending}
-                className="h-7 w-7 p-0 text-rose-500 hover:text-rose-700 hover:bg-rose-50 shrink-0"
-                title="Cancel sales order"
-                aria-label={`Cancel sales order ${order.orderNumber}`}
-              >
-                <X className="size-3.5" />
-              </Button>
+            {(showViewOrder || showViewDelivery || canCancelOrder) && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="size-7 text-muted-foreground"
+                    aria-label={`More actions for ${order.orderNumber}`}
+                    title="More actions"
+                  >
+                    <MoreHorizontal className="size-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-44">
+                  {showViewOrder && (
+                    <DropdownMenuItem onSelect={() => openOrderDetails(order)}>
+                      <Eye className="mr-2 size-3.5" />
+                      View Order
+                    </DropdownMenuItem>
+                  )}
+                  {showViewDelivery && activeDelivery && (
+                    <DropdownMenuItem onSelect={() => setDeliveryToView(activeDelivery.id)}>
+                      View Delivery
+                    </DropdownMenuItem>
+                  )}
+                  {canCancelOrder && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        disabled={cancelOrderMutation.isPending}
+                        onSelect={() => void handleCancelOrder(order)}
+                        className="text-destructive focus:text-destructive"
+                      >
+                        Cancel Order
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
             )}
           </div>
-        </>
-      ),
+        )
+      },
     },
   ]
 
   return (
     <div className="flex flex-col gap-5">
+      <h1 className="text-lg font-bold tracking-tight text-foreground">Sales Orders</h1>
       <StatusTabNav
         activeTab={activeStatus}
         onTabChange={(tab) => setActiveStatus(tab as OrderTabFilter)}
@@ -607,7 +513,8 @@ export function OrdersView({
         <div className="relative w-full sm:w-80">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
           <Input
-            placeholder="Search order #, customer, address..."
+            aria-label="Search orders"
+            placeholder="Search order # or customer..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-9 h-9 text-xs"
@@ -657,15 +564,12 @@ export function OrdersView({
       ) : (
         <DataTable
           data={orderRows}
-          columns={columns}
+          columns={salesOrderColumns}
           getRowKey={({ order }) => order.id}
           pagination={false}
-          onRowClick={({ order }) => {
-            setSelectedOrderRecord(order)
-            setIsDetailDrawerOpen(true)
-          }}
+          onRowClick={({ order }) => openOrderDetails(order)}
           rowClassName={() => 'hover:bg-muted/30'}
-          tableClassName="w-full"
+          tableClassName="min-w-[760px] lg:min-w-[940px]"
         />
       )}
 

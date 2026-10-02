@@ -29,7 +29,6 @@ import { useDeliveryVehicles } from '@/features/logistics/delivery-vehicles.hook
 import { useProducts } from '@/features/products/products.hooks'
 import { useClients } from '@/features/crm/clients.hooks'
 import { useSalesOrders } from '@/features/crm/sales-orders.hooks'
-import { useSuppliers } from '@/features/logistics/suppliers.hooks'
 import { useEmployees, useJobs } from '@/features/staffing/staffing.hooks'
 import { useAuth } from '@/features/auth/AuthContext'
 
@@ -46,7 +45,6 @@ export function MainDashboard() {
   const { data: products = [] } = useProducts()
   const { data: clients = [] } = useClients()
   const { data: salesOrders = [] } = useSalesOrders()
-  const { data: suppliers = [] } = useSuppliers({ includeInactive: 'true' })
   const { data: employees = [] } = useEmployees()
   const { data: jobs = [] } = useJobs()
 
@@ -59,10 +57,6 @@ export function MainDashboard() {
     [vehicles],
   )
   const activeStaffCount = useMemo(() => employees.filter((e) => e.isActive).length, [employees])
-  const activeSupplierCount = useMemo(
-    () => suppliers.filter((supplier) => supplier.isActive !== false).length,
-    [suppliers],
-  )
 
   const isOperationsTab = currentTab === 'inventory' || currentTab === 'warehouses'
 
@@ -165,8 +159,8 @@ export function MainDashboard() {
           </div>
         )}
 
-        {/* KPI Top Bar when inside Sales */}
-        {(effectiveTab === 'clients' || effectiveTab === 'orders') && (
+        {/* Customer overview cards */}
+        {effectiveTab === 'clients' && (
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
             <Card className="p-4 bg-card border-border/80 shadow-xs flex flex-col justify-between rounded-2xl">
               <div className="flex items-center justify-between">
@@ -222,24 +216,6 @@ export function MainDashboard() {
               </div>
             </Card>
           </div>
-        )}
-
-        {/* Supplier context on Purchase Orders; the Suppliers page already shows its count. */}
-        {effectiveTab === 'purchases' && (
-          <Card className="flex w-full flex-col justify-between rounded-2xl border-border/80 bg-card p-4 shadow-xs sm:max-w-sm">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-muted-foreground">Active Suppliers</span>
-              <div className="rounded-xl bg-primary/10 p-2 text-primary">
-                <Building2 className="size-4" />
-              </div>
-            </div>
-            <div className="mt-3">
-              <div className="text-2xl font-extrabold text-foreground">{activeSupplierCount}</div>
-              <p className="mt-0.5 text-[11px] text-muted-foreground">
-                Available for new purchase orders
-              </p>
-            </div>
-          </Card>
         )}
 
         {/* KPI Top Bar when inside Staffing & HR */}
