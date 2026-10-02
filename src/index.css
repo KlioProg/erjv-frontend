@@ -145,6 +145,50 @@ body {
   color: var(--foreground);
 }
 
+/* Native scrolling stays intact; only the scrollbar's visual prominence changes. */
+.scrollbar-subtle {
+  --scrollbar-thumb: transparent;
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
+}
+
+.scrollbar-subtle[tabindex='0'] {
+  cursor: auto;
+}
+
+:where([data-sidebar]:hover) .scrollbar-subtle,
+.scrollbar-subtle:hover,
+.scrollbar-subtle:focus-within {
+  --scrollbar-thumb: color-mix(in srgb, var(--muted-foreground) 40%, transparent);
+}
+
+.scrollbar-subtle[data-scrolling='true'] {
+  --scrollbar-thumb: color-mix(in srgb, var(--muted-foreground) 55%, transparent);
+}
+
+@supports selector(::-webkit-scrollbar) {
+  .scrollbar-subtle {
+    /* Non-auto standard values override WebKit pseudo-elements in modern Chromium. */
+    scrollbar-width: auto;
+    scrollbar-color: auto;
+  }
+
+  .scrollbar-subtle::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+  }
+
+  .scrollbar-subtle::-webkit-scrollbar-track,
+  .scrollbar-subtle::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+
+  .scrollbar-subtle::-webkit-scrollbar-thumb {
+    background-color: var(--scrollbar-thumb);
+    border-radius: 999px;
+  }
+}
+
 /* Smooth Accordion Roll-down Transition for Auth Form Switch */
 @keyframes authRollDown {
   0% {

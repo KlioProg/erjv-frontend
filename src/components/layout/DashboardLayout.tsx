@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import {
   Boxes,
@@ -108,6 +108,27 @@ export function DashboardLayout({ currentTab, onSelectTab, children }: Dashboard
   const { data: products = [] } = useProducts()
   const [isMobileOpen, setIsMobileOpen] = useState(false)
   const [isProductsModalOpen, setIsProductsModalOpen] = useState(false)
+  const [isSidebarScrolling, setIsSidebarScrolling] = useState(false)
+  const sidebarScrollTimeout = useRef<number | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (sidebarScrollTimeout.current !== null) {
+        window.clearTimeout(sidebarScrollTimeout.current)
+      }
+    }
+  }, [])
+
+  const handleSidebarScroll = () => {
+    setIsSidebarScrolling(true)
+    if (sidebarScrollTimeout.current !== null) {
+      window.clearTimeout(sidebarScrollTimeout.current)
+    }
+    sidebarScrollTimeout.current = window.setTimeout(() => {
+      setIsSidebarScrolling(false)
+      sidebarScrollTimeout.current = null
+    }, 700)
+  }
 
   const handleSelectTab = (tab: NavItemKey) => {
     onSelectTab(tab)
@@ -140,6 +161,7 @@ export function DashboardLayout({ currentTab, onSelectTab, children }: Dashboard
 
       {/* Sidebar Navigation */}
       <aside
+        data-sidebar
         className={`fixed inset-y-0 left-0 z-50 flex w-60 flex-col justify-between border-r border-border/80 bg-card/95 backdrop-blur-md transition-transform duration-300 lg:sticky lg:top-0 lg:h-screen lg:shrink-0 ${
           isMobileOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full lg:translate-x-0'
         }`}
@@ -158,8 +180,14 @@ export function DashboardLayout({ currentTab, onSelectTab, children }: Dashboard
             </Button>
           </div>
 
-          {/* Nav List with custom smooth scrollbar */}
-          <nav className="flex-1 flex flex-col gap-5 px-3.5 py-4 overflow-y-auto min-h-0">
+          {/* Nav List with a subtle native scrollbar */}
+          <nav
+            aria-label="Main navigation"
+            tabIndex={0}
+            data-scrolling={isSidebarScrolling}
+            onScroll={handleSidebarScroll}
+            className="scrollbar-subtle flex-1 flex flex-col gap-5 px-3.5 py-4 overflow-y-auto min-h-0"
+          >
             {visibleGroups.map((group) => (
               <div key={group.title} className="flex flex-col gap-1.5">
                 <div className="px-3 text-[10px] font-bold tracking-wider uppercase text-muted-foreground/80">
