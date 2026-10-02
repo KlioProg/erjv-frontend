@@ -135,9 +135,9 @@ export function useDeactivateVehicle(options?: { onViewArchive?: () => void }) {
       void queryClient.invalidateQueries({ queryKey: VEHICLES_QUERY_KEY })
     },
     onSuccess: ({ res, inputVehicle }) => {
-      const plate = res?.plateNumber || inputVehicle?.plateNumber || 'Fleet asset'
+      const plate = res?.plateNumber || inputVehicle?.plateNumber || 'Vehicle'
       toast.success(`Vehicle "${plate}" archived`, {
-        description: 'Vehicle moved to the Archived Fleet tab.',
+        description: 'Vehicle moved to the Archived Vehicles tab.',
         action: options?.onViewArchive
           ? {
               label: 'View in Archive',
@@ -183,7 +183,7 @@ export function useReactivateVehicle() {
     },
     onSuccess: ({ res }) => {
       toast.success(
-        `Vehicle "${res?.plateNumber || 'Fleet asset'}" reactivated and restored to active fleet`,
+        `Vehicle "${res?.plateNumber || 'Vehicle'}" restored to Active Vehicles`,
       )
     },
   })

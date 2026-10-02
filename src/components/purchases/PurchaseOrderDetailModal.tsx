@@ -25,7 +25,7 @@ type Props = {
   incomingDeliveries: IncomingDeliveryRecord[]
   statusBadge: ReactNode
   onClose: () => void
-  onNavigateToDeliveries?: () => void
+  onNavigateToDeliveries?: (purchaseOrderId?: number) => void
 }
 
 const currency = (value: string | number) =>
@@ -137,7 +137,7 @@ export function PurchaseOrderDetailModal({
           {currency((order.items || []).reduce((sum, item) => sum + Number(item.totalAmount), 0))}
         </p>
         <p className="text-xs text-muted-foreground">
-          Choose the destination warehouse in Inbound Receiving. Incoming deliveries use the items
+          Choose the destination warehouse when scheduling an incoming delivery. Incoming deliveries use the items
           from this purchase order.
         </p>
         {linkedDeliveries.length > 0 && (
@@ -147,8 +147,8 @@ export function PurchaseOrderDetailModal({
           </p>
         )}
         {onNavigateToDeliveries && ['CONFIRMED', 'PARTIALLY_RECEIVED'].includes(order.status) && (
-          <Button variant="outline" size="sm" onClick={onNavigateToDeliveries}>
-            Go to Inbound Receiving
+          <Button variant="outline" size="sm" onClick={() => onNavigateToDeliveries(order.id)}>
+            View Incoming Deliveries
           </Button>
         )}
       </DialogContent>

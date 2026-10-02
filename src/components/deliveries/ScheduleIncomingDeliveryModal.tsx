@@ -29,6 +29,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useIncomingDeliveries } from '@/features/logistics/incoming-deliveries.hooks'
+import { DeliveryUtils } from '@/features/logistics/delivery-utils'
 import type { PurchaseOrderRecord } from '@/features/logistics/purchase-orders.types'
 import type { Warehouse } from '@/features/logistics/warehouses.types'
 import type { Supplier } from '@/features/logistics/suppliers.types'
@@ -44,6 +45,7 @@ type ScheduleIncomingDeliveryModalProps = {
   warehouses: Warehouse[]
   suppliers: Supplier[]
   products: InventoryItemResponse[]
+  preselectedOrderId?: number
 }
 
 type DeliveryLineState = {
@@ -65,6 +67,7 @@ export function ScheduleIncomingDeliveryModal({
   warehouses,
   suppliers,
   products,
+  preselectedOrderId,
 }: ScheduleIncomingDeliveryModalProps) {
   const { data: allIncomingDeliveries = [] } = useIncomingDeliveries()
 
@@ -74,13 +77,35 @@ export function ScheduleIncomingDeliveryModal({
   }, [purchaseOrders])
 
   const [selectedPOId, setSelectedPOId] = useState<string>(
-    eligiblePOs[0] ? String(eligiblePOs[0].id) : '',
+    preselectedOrderId
+      ? String(preselectedOrderId)
+      : eligiblePOs[0]
+        ? String(eligiblePOs[0].id)
+        : '',
   )
   const [selectedWarehouseId, setSelectedWarehouseId] = useState<string>(
-    warehouses[0] ? String(warehouses[0].id) : '',
+    (() => {
+      const linked = allIncomingDeliveries.filter(
+        (delivery) =>
+          delivery.purchaseOrderId === preselectedOrderId && delivery.status !== 'CANCELLED',
+      )
+      const knownWarehouseIds = [...new Set(linked.map((delivery) => delivery.warehouseId))]
+      const knownWarehouse =
+        knownWarehouseIds.length === 1
+          ? warehouses.find(
+              (warehouse) => warehouse.id === knownWarehouseIds[0] && warehouse.isActive,
+            )
+          : null
+      return String(
+        knownWarehouse?.id || warehouses.find((warehouse) => warehouse.isActive)?.id || '',
+      )
+    })(),
   )
   const [scheduledAt, setScheduledAt] = useState<string>(() =>
-    new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 16),
+    DeliveryUtils.toDateTimeInput(
+      purchaseOrders.find((order) => order.id === preselectedOrderId)?.expectedAt ||
+        new Date(Date.now() + 24 * 60 * 60 * 1000),
+    ),
   )
   const [supplierRef, setSupplierRef] = useState('')
   const [notes, setNotes] = useState('')
@@ -134,6 +159,18 @@ export function ScheduleIncomingDeliveryModal({
 
   const handlePOChange = (newPOId: string) => {
     setSelectedPOId(newPOId)
+    const linked = allIncomingDeliveries.filter(
+      (delivery) => delivery.purchaseOrderId === Number(newPOId) && delivery.status !== 'CANCELLED',
+    )
+    const knownWarehouseIds = [...new Set(linked.map((delivery) => delivery.warehouseId))]
+    if (
+      knownWarehouseIds.length === 1 &&
+      warehouses.some((warehouse) => warehouse.id === knownWarehouseIds[0] && warehouse.isActive)
+    ) {
+      setSelectedWarehouseId(String(knownWarehouseIds[0]))
+    }
+    const expectedAt = purchaseOrders.find((order) => order.id === Number(newPOId))?.expectedAt
+    if (expectedAt) setScheduledAt(DeliveryUtils.toDateTimeInput(expectedAt))
     setCustomQuantities({})
     setErrorMessage('')
   }
@@ -159,11 +196,11 @@ export function ScheduleIncomingDeliveryModal({
     const pId = Number(selectedPOId)
     const wId = Number(selectedWarehouseId)
 
-    if (!pId) {
+    if (!pId || !selectedPO) {
       setErrorMessage('Please select a purchase order.')
       return
     }
-    if (!wId) {
+    if (!wId || !warehouses.some((warehouse) => warehouse.id === wId && warehouse.isActive)) {
       setErrorMessage('Please select a target intake warehouse.')
       return
     }
@@ -221,11 +258,11 @@ export function ScheduleIncomingDeliveryModal({
             <ArrowDownToLine className="size-5" />
           </div>
           <DialogTitle className="text-xl font-bold tracking-tight">
-            Schedule Inbound Shipment Intake
+            Schedule Incoming Delivery
           </DialogTitle>
           <DialogDescription className="text-xs leading-relaxed">
-            Record incoming supplier deliveries, verify material quantities against remaining order
-            balances, and assign intake docks.
+            Choose a purchase order, confirm the remaining quantities, and select the destination
+            warehouse.
           </DialogDescription>
         </DialogHeader>
 

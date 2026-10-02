@@ -1,5 +1,6 @@
 import type { OutgoingDeliveryStatus } from './outgoing-deliveries.types'
 import type { VehicleStatus } from './delivery-vehicles.types'
+import { isActiveDeliveryStatus } from './vehicle-assignment.ts'
 
 export interface DeliveryStatusConfig {
   label: string
@@ -123,6 +124,13 @@ export class DeliveryUtils {
     })
   }
 
+  public static toDateTimeInput(value: string | Date): string {
+    const date = new Date(value)
+    if (isNaN(date.getTime())) return ''
+    const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000)
+    return local.toISOString().slice(0, 16)
+  }
+
   public static getStepIndex(status: OutgoingDeliveryStatus): number {
     switch (status) {
       case 'DRAFT':
@@ -153,7 +161,7 @@ export class DeliveryUtils {
   }
 
   public static canCancel(status: OutgoingDeliveryStatus): boolean {
-    return ['DRAFT', 'SCHEDULED', 'DISPATCHED'].includes(status)
+    return isActiveDeliveryStatus(status)
   }
 
   public static getVehicleAvailability(
@@ -172,6 +180,9 @@ export class DeliveryUtils {
     if (vehicle.status === 'MAINTENANCE') {
       return { isAvailable: false, reason: 'In Maintenance' }
     }
+    if (vehicle.status === 'OUT_OF_SERVICE') {
+      return { isAvailable: false, reason: 'Out of Service' }
+    }
     if (vehicle.status === 'IN_DELIVERY') {
       const activeDelivery = deliveries.find(
         (d) =>
@@ -189,7 +200,7 @@ export class DeliveryUtils {
       (d) =>
         d.id !== currentDeliveryId &&
         d.deliveryVehicleId === vehicle.id &&
-        (d.status === 'SCHEDULED' || d.status === 'DISPATCHED'),
+        isActiveDeliveryStatus(d.status),
     )
 
     if (assignedDelivery) {
@@ -221,7 +232,7 @@ export class DeliveryUtils {
       (d) =>
         d.id !== currentDeliveryId &&
         d.driverEmployeeId === driver.id &&
-        (d.status === 'DISPATCHED' || d.status === 'SCHEDULED'),
+        isActiveDeliveryStatus(d.status),
     )
 
     if (assignedDelivery) {

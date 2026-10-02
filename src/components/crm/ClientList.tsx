@@ -1,31 +1,11 @@
 import { useState } from 'react'
-import {
-  Users,
-  Building2,
-  Phone,
-  Mail,
-  MapPin,
-  Plus,
-  Search,
-  MoreVertical,
-  Edit2,
-  CheckCircle2,
-  User,
-  Archive,
-  RotateCcw,
-} from 'lucide-react'
+import { Archive, Plus, Search, Users } from 'lucide-react'
 import { ArchiveTabNav } from '@/components/ui/ArchiveTabNav'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Badge } from '@/components/ui/badge'
-import { Spinner } from '@/components/ui/spinner'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+import { DataTable, type ColumnDef } from '@/components/ui/data-table'
+import { DirectoryRowActions, DirectoryStatusBadge } from '@/components/ui/DirectoryRowControls'
 import {
   useAllClients,
   useDeactivateClient,
@@ -42,22 +22,23 @@ export function ClientList() {
   const deactivateMutation = useDeactivateClient({ onViewArchive: () => setActiveTab('ARCHIVED') })
   const reactivateMutation = useReactivateClient()
   const { isAdmin, isManager } = useAuth()
+  const canManage = isAdmin || isManager
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedClient, setSelectedClient] = useState<Client | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [clientToDeactivate, setClientToDeactivate] = useState<Client | null>(null)
 
-  const activeClients = allClients.filter((c) => c.isActive !== false)
-  const archivedClients = allClients.filter((c) => c.isActive === false)
+  const activeClients = allClients.filter((client) => client.isActive !== false)
+  const archivedClients = allClients.filter((client) => client.isActive === false)
   const currentClientList = activeTab === 'ACTIVE' ? activeClients : archivedClients
-
+  const query = searchTerm.trim().toLowerCase()
   const filteredClients = currentClientList.filter(
-    (c) =>
-      c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      c.address.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (c.contactPerson && c.contactPerson.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (c.phone && c.phone.includes(searchTerm)) ||
-      (c.email && c.email.toLowerCase().includes(searchTerm.toLowerCase())),
+    (client) =>
+      client.name.toLowerCase().includes(query) ||
+      client.address.toLowerCase().includes(query) ||
+      client.contactPerson?.toLowerCase().includes(query) ||
+      client.phone?.includes(searchTerm.trim()) ||
+      client.email?.toLowerCase().includes(query),
   )
 
   const handleCreate = () => {
@@ -70,10 +51,6 @@ export function ClientList() {
     setIsModalOpen(true)
   }
 
-  const handleDeactivate = (client: Client) => {
-    setClientToDeactivate(client)
-  }
-
   const confirmDeactivate = async () => {
     if (clientToDeactivate) {
       const client = clientToDeactivate
@@ -82,13 +59,76 @@ export function ClientList() {
     }
   }
 
-  const handleReactivate = (client: Client) => {
-    reactivateMutation.mutate(client)
-  }
+  const customerColumns: ColumnDef<Client>[] = [
+    {
+      id: 'customer-id',
+      header: 'Customer ID',
+      accessorKey: 'id',
+      sortable: true,
+      className: 'font-mono text-xs font-bold text-foreground',
+      cell: ({ row }) => `#${String(row.id).padStart(4, '0')}`,
+    },
+    {
+      id: 'customer-name',
+      header: 'Customer Name',
+      accessorKey: 'name',
+      sortable: true,
+      className: 'text-xs font-semibold text-foreground',
+    },
+    {
+      id: 'customer-contact',
+      header: 'Contact Person',
+      accessorKey: 'contactPerson',
+      className: 'text-xs text-foreground/90',
+      cell: ({ row }) => row.contactPerson || '—',
+    },
+    {
+      id: 'customer-channels',
+      header: 'Phone & Email',
+      className: 'text-xs text-muted-foreground',
+      cell: ({ row }) => (
+        <>
+          <div>{row.phone || '—'}</div>
+          {row.email && <div className="text-[10px] text-primary">{row.email}</div>}
+        </>
+      ),
+    },
+    {
+      id: 'customer-address',
+      header: 'Address',
+      accessorKey: 'address',
+      className: 'max-w-[200px] truncate text-xs text-muted-foreground',
+      cell: ({ row }) => <span title={row.address}>{row.address || '—'}</span>,
+    },
+    {
+      id: 'customer-status',
+      header: 'Status',
+      align: 'center',
+      cell: ({ row }) => (
+        <DirectoryStatusBadge isActive={row.isActive !== false} inactiveLabel="Archived" />
+      ),
+    },
+    {
+      id: 'customer-actions',
+      header: 'Actions',
+      align: 'right',
+      cell: ({ row }) =>
+        canManage ? (
+          <DirectoryRowActions
+            recordType="Customer"
+            name={row.name}
+            isActive={row.isActive !== false}
+            onEdit={row.isActive !== false ? () => handleEdit(row) : undefined}
+            onArchive={() => setClientToDeactivate(row)}
+            onRestore={() => reactivateMutation.mutate(row)}
+            isPending={deactivateMutation.isPending || reactivateMutation.isPending}
+          />
+        ) : null,
+    },
+  ]
 
   return (
     <div className="flex flex-col gap-5">
-      {/* Directory Archive / Active Tabs */}
       <ArchiveTabNav
         activeTab={activeTab}
         onTabChange={setActiveTab}
@@ -100,230 +140,80 @@ export function ClientList() {
         bannerDescription="Showing deactivated commercial customers. Past orders, invoices, and contact data remain safely preserved and can be reactivated anytime."
       />
 
-      {/* Controls Bar */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+      <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
         <div className="relative w-full sm:w-80">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
+            aria-label="Search customers"
             placeholder="Search customers by name, contact, city..."
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-9 h-9 text-xs"
+            onChange={(event) => setSearchTerm(event.target.value)}
+            className="h-9 pl-9 text-xs"
           />
         </div>
-
-        {(isAdmin || isManager) && activeTab === 'ACTIVE' && (
-          <Button onClick={handleCreate} size="sm" className="gap-1.5 shadow-xs cursor-pointer">
-            <Plus className="size-4" />
+        {canManage && activeTab === 'ACTIVE' && (
+          <Button onClick={handleCreate} size="sm">
+            <Plus data-icon="inline-start" />
             Register New Customer
           </Button>
         )}
       </div>
 
-      {/* Clients Cards Grid */}
-      {isLoading ? (
-        <div className="flex items-center justify-center py-16 text-muted-foreground">
-          <Spinner className="mr-2 size-5" /> Loading customers...
-        </div>
-      ) : filteredClients.length === 0 ? (
-        <Card className="border-dashed bg-muted/20">
-          <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-            <Users className="size-10 text-muted-foreground/50 mb-3" />
-            <h3 className="text-sm font-semibold text-foreground">
-              {activeTab === 'ACTIVE' ? 'No active customers found' : 'No deactivated customers found'}
-            </h3>
-            <p className="text-xs text-muted-foreground mt-1 max-w-xs">
-              {searchTerm
-                ? 'No customer accounts match your search filter.'
-                : activeTab === 'ACTIVE'
-                  ? archivedClients.length > 0
-                    ? `All customer profiles are currently archived (${archivedClients.length} total).`
-                    : 'Register commercial buyers and supermarket customers to manage wholesale accounts.'
-                  : 'Archived customer profiles will appear here and can be reactivated at any time.'}
-            </p>
-            {!searchTerm && activeTab === 'ACTIVE' && archivedClients.length > 0 && (
-              <Button
-                onClick={() => setActiveTab('ARCHIVED')}
-                size="sm"
-                variant="outline"
-                className="mt-3 gap-1.5 cursor-pointer text-xs"
-              >
-                <Archive className="size-3.5 text-amber-600" />
-                View Archived Customers ({archivedClients.length})
-              </Button>
-            )}
-            {!searchTerm && activeTab === 'ACTIVE' && archivedClients.length === 0 && (
-              <Button
-                onClick={handleCreate}
-                size="sm"
-                variant="outline"
-                className="mt-4 gap-1.5 cursor-pointer"
-              >
-                <Plus className="size-3.5" />
-                Register First Customer
-              </Button>
-            )}
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredClients.map((client) => {
-            const isArchived = client.isActive === false
-
-            return (
-              <Card
-                key={client.id}
-                className={`group relative overflow-hidden transition-all duration-200 hover:shadow-md hover:border-primary/40 border-border/80 rounded-2xl ${
-                  isArchived ? 'opacity-75 bg-muted/20 border-dashed' : ''
-                }`}
-              >
-                <CardContent className="p-5 flex flex-col justify-between h-full gap-4">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-start gap-3 min-w-0">
-                      <div
-                        className={`flex size-10 shrink-0 items-center justify-center rounded-xl transition-transform group-hover:scale-105 ${
-                          isArchived
-                            ? 'bg-muted text-muted-foreground'
-                            : 'bg-primary/10 text-primary'
-                        }`}
-                      >
-                        <Building2 className="size-5" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <h4 className="text-sm font-bold text-foreground leading-tight truncate">
-                            {client.name}
-                          </h4>
-                          {isArchived && (
-                            <Badge
-                              variant="outline"
-                              className="border-amber-500/30 bg-amber-500/10 text-amber-600 text-[10px] font-bold"
-                            >
-                              Deactivated
-                            </Badge>
-                          )}
-                        </div>
-                        {client.contactPerson && (
-                          <div className="flex items-center gap-1.5 mt-1 text-xs text-muted-foreground">
-                            <User className="size-3 shrink-0" />
-                            <span className="truncate">{client.contactPerson}</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {(isAdmin || isManager) && (
-                      <div>
-                        {isArchived ? (
-                          (() => {
-                            const isReactivatingThis =
-                              reactivateMutation.isPending &&
-                              (typeof reactivateMutation.variables === 'number'
-                                ? reactivateMutation.variables === client.id
-                                : (reactivateMutation.variables as Client | undefined)?.id ===
-                                  client.id)
-
-                            return (
-                              <Button
-                                variant="secondary"
-                                size="sm"
-                                onClick={() => handleReactivate(client)}
-                                disabled={isReactivatingThis}
-                                className="group h-8.5 px-3.5 text-xs font-bold text-emerald-600 dark:text-emerald-600 bg-emerald-500/15 hover:bg-emerald-500/25 active:scale-95 border border-emerald-500/30 rounded-xl gap-2 shadow-2xs cursor-pointer transition-all duration-150"
-                              >
-                                {isReactivatingThis ? (
-                                  <Spinner className="size-3.5 text-emerald-600 dark:text-emerald-600 animate-spin" />
-                                ) : (
-                                  <RotateCcw className="size-3.5 text-emerald-600 dark:text-emerald-600 transition-transform duration-200 group-hover:-rotate-45" />
-                                )}
-                                <span>
-                                  {isReactivatingThis ? 'Reactivating...' : 'Reactivate Customer'}
-                                </span>
-                              </Button>
-                            )
-                          })()
-                        ) : (
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="size-8 text-muted-foreground hover:text-foreground cursor-pointer rounded-lg hover:bg-muted active:scale-90 transition-all duration-150"
-                              >
-                                <MoreVertical className="size-4" />
-                                <span className="sr-only">Customer actions</span>
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="p-1">
-                              <DropdownMenuItem
-                                onClick={() => handleEdit(client)}
-                                className="gap-2 text-xs cursor-pointer px-2 py-1.5 rounded-md active:scale-95 transition-transform"
-                              >
-                                <Edit2 className="size-3.5" />
-                                Edit Details
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onClick={() => handleDeactivate(client)}
-                                className="gap-2 text-xs text-destructive focus:text-destructive cursor-pointer px-2 py-1.5 rounded-md active:scale-95 transition-transform"
-                              >
-                                <Archive className="size-3.5" />
-                                Archive Customer
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex items-start gap-2 text-xs text-muted-foreground pt-1">
-                    <MapPin className="size-3.5 shrink-0 mt-0.5 text-primary" />
-                    <span className="line-clamp-2">{client.address}</span>
-                  </div>
-
-                  {/* Contact Channels */}
-                  <div className="flex flex-col gap-1.5 pt-3 border-t border-border/60 text-xs">
-                    {client.phone && (
-                      <div className="flex items-center gap-2 text-foreground font-semibold text-xs">
-                        <Phone className="size-3.5 text-emerald-600 shrink-0" />
-                        <span>{client.phone}</span>
-                      </div>
-                    )}
-                    {client.email && (
-                      <div className="flex items-center gap-2 text-muted-foreground text-[11px]">
-                        <Mail className="size-3 shrink-0" />
-                        <span className="truncate">{client.email}</span>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex items-center justify-between pt-2 text-[11px] text-muted-foreground border-t border-border/40">
-                    <span className="text-[10px] text-muted-foreground font-mono">
-                      ID: #{client.id.toString().padStart(4, '0')}
-                    </span>
-                    {!isArchived && (
-                      <Badge
-                        variant="outline"
-                        className="text-[10px] bg-emerald-500/10 text-emerald-600 border-emerald-500/20 font-medium gap-1"
-                      >
-                        <CheckCircle2 className="size-2.5" />
-                        Active Customer
-                      </Badge>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            )
-          })}
-        </div>
-      )}
+      <DataTable
+        data={filteredClients}
+        columns={customerColumns}
+        getRowKey={(client) => client.id}
+        isLoading={isLoading}
+        loadingMessage="Loading customers..."
+        tableClassName="min-w-[850px]"
+        emptyContent={
+          <Card className="border-dashed bg-muted/20">
+            <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+              <Users className="mb-3 size-10 text-muted-foreground/50" />
+              <h3 className="text-sm font-semibold text-foreground">
+                {activeTab === 'ACTIVE'
+                  ? 'No active customers found'
+                  : 'No archived customers found'}
+              </h3>
+              <p className="mt-1 max-w-xs text-xs text-muted-foreground">
+                {searchTerm
+                  ? 'No customer accounts match your search filter.'
+                  : activeTab === 'ACTIVE'
+                    ? archivedClients.length > 0
+                      ? `All customer profiles are currently archived (${archivedClients.length} total).`
+                      : 'Register commercial buyers and supermarket customers to manage wholesale accounts.'
+                    : 'Archived customer profiles will appear here and can be reactivated at any time.'}
+              </p>
+              {!searchTerm && activeTab === 'ACTIVE' && archivedClients.length > 0 && (
+                <Button
+                  onClick={() => setActiveTab('ARCHIVED')}
+                  size="sm"
+                  variant="outline"
+                  className="mt-3"
+                >
+                  <Archive data-icon="inline-start" />
+                  View Archived Customers ({archivedClients.length})
+                </Button>
+              )}
+              {!searchTerm &&
+                activeTab === 'ACTIVE' &&
+                archivedClients.length === 0 &&
+                canManage && (
+                  <Button onClick={handleCreate} size="sm" variant="outline" className="mt-4">
+                    <Plus data-icon="inline-start" />
+                    Register First Customer
+                  </Button>
+                )}
+            </CardContent>
+          </Card>
+        }
+      />
 
       <ClientModal
         client={selectedClient}
         open={isModalOpen}
         onClose={() => setIsModalOpen(false)}
       />
-
       <ConfirmDeleteModal
         open={!!clientToDeactivate}
         onClose={() => setClientToDeactivate(null)}

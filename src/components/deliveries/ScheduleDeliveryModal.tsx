@@ -50,7 +50,7 @@ interface ScheduleDeliveryModalProps {
 function getInitialScheduledAt(): string {
   const d = new Date()
   d.setDate(d.getDate() + 1)
-  return d.toISOString().slice(0, 16)
+  return DeliveryUtils.toDateTimeInput(d)
 }
 
 function formatCount(val: string | number): string {
@@ -243,7 +243,7 @@ export function ScheduleDeliveryModal({
 
     if (isOrderFullyScheduled) {
       setErrorMessage(
-        'All cargo items for this sales order have already been scheduled in existing shipments. Track or dispatch them under Dispatch Operations.',
+        'All cargo items for this sales order have already been scheduled. Track or dispatch them in Deliveries.',
       )
       return
     }
@@ -278,6 +278,21 @@ export function ScheduleDeliveryModal({
 
     const vehicleIdNum = selectedVehicleId !== 'none' ? parseInt(selectedVehicleId, 10) : null
     const driverIdNum = selectedDriverId !== 'none' ? parseInt(selectedDriverId, 10) : null
+
+    if (vehicleIdNum !== null) {
+      const vehicle = vehicles.find((vehicle) => vehicle.id === vehicleIdNum)
+      if (!vehicle || !DeliveryUtils.getVehicleAvailability(vehicle, deliveries).isAvailable) {
+        setErrorMessage('This vehicle is no longer available. Choose another vehicle or assign it later.')
+        return
+      }
+    }
+    if (driverIdNum !== null) {
+      const driver = employees.find((employee) => employee.id === driverIdNum)
+      if (!driver || !DeliveryUtils.getDriverAvailability(driver, deliveries).isAvailable) {
+        setErrorMessage('This driver is no longer available. Choose another driver or assign one later.')
+        return
+      }
+    }
 
     try {
       const created = await createDelivery.mutateAsync({
@@ -331,7 +346,7 @@ export function ScheduleDeliveryModal({
             <Info className="size-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
             <AlertDescription>
               All confirmed customer orders have already been scheduled. Confirm a new order in
-              Customer Relations to create another delivery.
+              Sales Orders to create another delivery.
             </AlertDescription>
           </Alert>
         )}
@@ -453,14 +468,14 @@ export function ScheduleDeliveryModal({
                 </span>
                 <p className="text-[11px] text-muted-foreground max-w-sm">
                   {deliverableOrders.length === 0
-                    ? 'All confirmed customer orders have already been scheduled. Confirm a new order in Customer Relations to create a delivery.'
+                    ? 'All confirmed customer orders have already been scheduled. Confirm a new Sales Order to create a delivery.'
                     : 'Choose a confirmed sales order from the dropdown above to review cargo items, warehouse stock, and assign dispatch quantities.'}
                 </p>
               </div>
             ) : isOrderFullyScheduled ? (
               <div className="p-3 m-2 rounded border border-amber-500/30 bg-amber-500/10 text-amber-900 dark:text-amber-200 text-xs">
                 All cargo allocations for this order have already been scheduled in active
-                shipments. You can view or dispatch these under <strong>Dispatch Operations</strong>
+                shipments. You can view or dispatch these in <strong>Deliveries</strong>
                 .
               </div>
             ) : filteredAllocations.length === 0 ? (
@@ -852,8 +867,8 @@ export function ScheduleDeliveryModal({
                 type="submit"
                 size="sm"
                 disabled={
-                  !selectedOrderId ||
-                  !selectedWarehouseId ||
+                  !effectiveOrderId ||
+                  !effectiveWarehouseId ||
                   filteredAllocations.length === 0 ||
                   isOrderFullyScheduled ||
                   createDelivery.isPending ||

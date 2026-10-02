@@ -85,6 +85,17 @@ export function DispatchDeliveryModal({ delivery, open, onClose }: DispatchDeliv
       return
     }
 
+    const vehicle = vehicles.find((vehicle) => vehicle.id === vehicleIdNum)
+    if (!vehicle || !DeliveryUtils.getVehicleAvailability(vehicle, deliveries, delivery.id).isAvailable) {
+      setErrorMessage('This vehicle is no longer available. Choose another vehicle.')
+      return
+    }
+    const driver = employees.find((employee) => employee.id === driverIdNum)
+    if (!driver || !DeliveryUtils.getDriverAvailability(driver, deliveries, delivery.id).isAvailable) {
+      setErrorMessage('This driver is no longer available. Choose another driver.')
+      return
+    }
+
     try {
       await dispatchMutation.mutateAsync({
         id: delivery.id,

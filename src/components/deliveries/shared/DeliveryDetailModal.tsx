@@ -117,7 +117,7 @@ export function DeliveryDetailModal({ deliveryId, open, onClose }: DeliveryDetai
                 <Truck className="size-4 text-blue-600 shrink-0 mt-0.5" />
                 <div className="flex flex-col text-xs">
                   <span className="text-[10px] uppercase font-bold text-muted-foreground">
-                    Assigned Fleet Vehicle
+                    Assigned Vehicle
                   </span>
                   <span className="font-bold text-foreground">
                     {vehicle ? `${vehicle.plateNumber} (${vehicle.vehicleType})` : 'Unassigned'}

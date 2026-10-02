@@ -1,4 +1,7 @@
-export const OPERATIONAL_STATUSES = ['AVAILABLE', 'IN_DELIVERY', 'MAINTENANCE'] as const
+// These are condition commands supported by the current API. Assignment is never manual.
+export const OPERATIONAL_STATUSES = ['AVAILABLE', 'MAINTENANCE', 'OUT_OF_SERVICE'] as const
+
+export type VehicleCondition = 'OPERATIONAL' | 'MAINTENANCE' | 'OUT_OF_SERVICE' | 'ARCHIVED'
 
 export const VEHICLE_STATUSES = [
   'AVAILABLE',

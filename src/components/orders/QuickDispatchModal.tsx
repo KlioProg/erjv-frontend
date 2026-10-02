@@ -20,6 +20,8 @@ import {
 } from '@/components/ui/select'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useQueryClient } from '@tanstack/react-query'
+import { useOutgoingDeliveries } from '@/features/logistics/outgoing-deliveries.hooks'
+import { DeliveryUtils } from '@/features/logistics/delivery-utils'
 import { toast } from 'sonner'
 import type { SalesOrderRecord } from '@/features/crm/sales-orders.types'
 import type { DeliveryVehicle } from '@/features/logistics/delivery-vehicles.types'
@@ -60,6 +62,7 @@ export function QuickDispatchModal({
   stockItems,
 }: QuickDispatchModalProps) {
   const queryClient = useQueryClient()
+  const { data: deliveries = [] } = useOutgoingDeliveries()
   const [selectedVehicleId, setSelectedVehicleId] = useState<string>('')
   const [selectedDriverId, setSelectedDriverId] = useState<string>('')
   const [scheduledAt, setScheduledAt] = useState<string>(() =>
@@ -88,11 +91,14 @@ export function QuickDispatchModal({
     warehouseMap.get(fulfillmentWarehouseId)?.name || `Warehouse #${fulfillmentWarehouseId}`
 
   const availableVehicles = useMemo(
-    () => (vehicles || []).filter((v) => v.isActive && v.status === 'AVAILABLE'),
-    [vehicles],
+    () => (vehicles || []).filter((vehicle) => DeliveryUtils.getVehicleAvailability(vehicle, deliveries).isAvailable),
+    [vehicles, deliveries],
   )
 
-  const activeEmployees = useMemo(() => (employees || []).filter((e) => e.isActive), [employees])
+  const activeEmployees = useMemo(
+    () => (employees || []).filter((employee) => DeliveryUtils.getDriverAvailability(employee, deliveries).isAvailable),
+    [employees, deliveries],
+  )
 
   // Collect all allocations for this order to dispatch
   const allocationsToDeliver = useMemo(() => {
@@ -115,6 +121,15 @@ export function QuickDispatchModal({
 
     if (!selectedDriverId) {
       setErrorMessage('Please assign an active driver or courier.')
+      return
+    }
+
+    if (!availableVehicles.some((vehicle) => vehicle.id === Number(selectedVehicleId))) {
+      setErrorMessage('This vehicle is no longer available. Choose another vehicle.')
+      return
+    }
+    if (!activeEmployees.some((employee) => employee.id === Number(selectedDriverId))) {
+      setErrorMessage('This driver is no longer available. Choose another driver.')
       return
     }
 
@@ -226,7 +241,7 @@ export function QuickDispatchModal({
           <div className="space-y-1.5">
             <Label className="text-xs font-semibold flex items-center gap-1.5">
               <Truck className="size-3.5 text-blue-600" />
-              Delivery Fleet Vehicle *
+              Delivery Vehicle *
             </Label>
             <Select value={selectedVehicleId} onValueChange={setSelectedVehicleId}>
               <SelectTrigger className="h-9 text-xs">
@@ -235,7 +250,7 @@ export function QuickDispatchModal({
               <SelectContent>
                 {availableVehicles.length === 0 ? (
                   <div className="p-2 text-xs text-muted-foreground text-center">
-                    No available fleet vehicles. Check Fleet view to release a vehicle.
+                    No available vehicles. Check Vehicles to see current assignments.
                   </div>
                 ) : (
                   availableVehicles.map((vehicle) => (

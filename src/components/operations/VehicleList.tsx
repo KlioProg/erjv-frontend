@@ -1,621 +1,428 @@
-import { useState } from 'react'
+import { VehicleDetailModal } from '@/components/deliveries/shared/VehicleDetailModal'
 import {
-  Truck,
-  Plus,
-  Search,
-  MoreVertical,
-  Edit2,
-  CheckCircle2,
-  Clock,
-  Wrench,
-  AlertOctagon,
-  Archive,
-  RotateCcw,
-} from 'lucide-react'
+  VEHICLE_CONDITION_LABELS as CONDITIONS,
+  VEHICLE_AVAILABILITY_LABELS as STATUS_LABELS,
+} from '@/features/logistics/vehicle-assignment'
+import { useState } from 'react'
+import { Eye, MoreVertical, Plus, Search, Truck } from 'lucide-react'
+import { DataTable, type ColumnDef } from '@/components/ui/data-table'
 import { ArchiveTabNav } from '@/components/ui/ArchiveTabNav'
-import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { Spinner } from '@/components/ui/spinner'
+import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   useAllDeliveryVehicles,
   useDeactivateVehicle,
   useReactivateVehicle,
   useUpdateVehicleStatus,
 } from '@/features/logistics/delivery-vehicles.hooks'
+import { useOutgoingDeliveries } from '@/features/logistics/outgoing-deliveries.hooks'
+import { useSalesOrders } from '@/features/crm/sales-orders.hooks'
+import { useClients } from '@/features/crm/clients.hooks'
+import { useEmployees } from '@/features/staffing/staffing.hooks'
 import { useAuth } from '@/features/auth/AuthContext'
+import type { DeliveryVehicle, VehicleStatus } from '@/features/logistics/delivery-vehicles.types'
 import {
-  VEHICLE_STATUSES,
-  type DeliveryVehicle,
-  type VehicleStatus,
-} from '@/features/logistics/delivery-vehicles.types'
+  getVehicleAssignments,
+  getVehicleAvailabilityStatus,
+  getVehicleCondition,
+} from '@/features/logistics/vehicle-assignment'
+import { VehicleStatusBadge } from '@/components/deliveries/shared/VehicleStatusBadge'
+import { DeliveryDetailModal } from '@/components/deliveries/shared/DeliveryDetailModal'
 import { VehicleModal } from './VehicleModal'
-import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal'
+import { toast } from 'sonner'
 
-function VehicleStatusBadge({ status }: { status: VehicleStatus }) {
-  switch (status) {
-    case 'AVAILABLE':
-      return (
-        <Badge
-          variant="outline"
-          className="bg-emerald-500/10 text-emerald-600 border-emerald-500/25 text-[11px] font-semibold gap-1"
-        >
-          <CheckCircle2 className="size-3" />
-          Available
-        </Badge>
-      )
-    case 'IN_DELIVERY':
-      return (
-        <Badge
-          variant="outline"
-          className="bg-blue-500/10 text-blue-600 border-blue-500/25 text-[11px] font-semibold gap-1"
-        >
-          <Clock className="size-3 animate-spin" />
-          In Delivery
-        </Badge>
-      )
-    case 'MAINTENANCE':
-      return (
-        <Badge
-          variant="outline"
-          className="bg-amber-500/10 text-amber-600 border-amber-500/25 text-[11px] font-semibold gap-1"
-        >
-          <Wrench className="size-3" />
-          Maintenance
-        </Badge>
-      )
-    case 'OUT_OF_SERVICE':
-      return (
-        <Badge
-          variant="outline"
-          className="bg-destructive/10 text-destructive border-destructive/25 text-[11px] font-semibold gap-1"
-        >
-          <AlertOctagon className="size-3" />
-          Out of Service
-        </Badge>
-      )
-    default:
-      return null
-  }
+type VehicleRow = {
+  vehicle: DeliveryVehicle
+  condition: string
+  status: VehicleStatus | 'ARCHIVED'
+  assignment: string
+  driver: string
 }
-
 export function VehicleList() {
   const [activeTab, setActiveTab] = useState<'ACTIVE' | 'ARCHIVED'>('ACTIVE')
-  const { data: allVehicles = [], isLoading } = useAllDeliveryVehicles()
-  const deactivateMutation = useDeactivateVehicle({ onViewArchive: () => setActiveTab('ARCHIVED') })
-  const reactivateMutation = useReactivateVehicle()
-  const statusMutation = useUpdateVehicleStatus()
-  const { isAdmin, isManager } = useAuth()
-  const [searchTerm, setSearchTerm] = useState('')
-  const [statusFilter, setStatusFilter] = useState<string>('ALL')
-  const [selectedVehicle, setSelectedVehicle] = useState<DeliveryVehicle | null>(null)
+  const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState('ALL')
+  const [editVehicleId, setEditVehicleId] = useState<number | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [vehicleToDeactivate, setVehicleToDeactivate] = useState<DeliveryVehicle | null>(null)
-
-  const activeVehicles = allVehicles.filter((v) => v.isActive !== false)
-  const archivedVehicles = allVehicles.filter((v) => v.isActive === false)
-
-  const currentVehicleList = activeTab === 'ACTIVE' ? activeVehicles : archivedVehicles
-
-  const filteredVehicles = currentVehicleList.filter((v) => {
-    const matchesSearch =
-      v.plateNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (v.model && v.model.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      v.vehicleType.toLowerCase().includes(searchTerm.toLowerCase())
-
-    const matchesStatus =
-      activeTab !== 'ACTIVE' || statusFilter.toUpperCase() === 'ALL' || v.status === statusFilter
-
-    return matchesSearch && matchesStatus
-  })
-
-  const availableCount = activeVehicles.filter((v) => v.status === 'AVAILABLE').length
-  const inDeliveryCount = activeVehicles.filter((v) => v.status === 'IN_DELIVERY').length
-  const maintenanceCount = activeVehicles.filter((v) => v.status === 'MAINTENANCE').length
-  const outOfServiceCount = activeVehicles.filter((v) => v.status === 'OUT_OF_SERVICE').length
-
-  const handleCreate = () => {
-    setSelectedVehicle(null)
-    setIsModalOpen(true)
-  }
-
-  const handleEdit = (vehicle: DeliveryVehicle) => {
-    setSelectedVehicle(vehicle)
-    setIsModalOpen(true)
-  }
-
-  const handleStatusChange = async (id: number, status: VehicleStatus) => {
-    await statusMutation.mutateAsync({ id, status })
-  }
-
-  const handleDeactivate = (vehicle: DeliveryVehicle) => {
-    setVehicleToDeactivate(vehicle)
-  }
-
-  const confirmDeactivate = async () => {
-    if (vehicleToDeactivate) {
-      const vehicle = vehicleToDeactivate
-      setVehicleToDeactivate(null)
-      await deactivateMutation.mutateAsync(vehicle)
+  const [viewVehicleId, setViewVehicleId] = useState<number | null>(null)
+  const [historyDeliveryId, setHistoryDeliveryId] = useState<number | null>(null)
+  const [archiveId, setArchiveId] = useState<number | null>(null)
+  const vehicleQuery = useAllDeliveryVehicles()
+  const { data: vehicles = [] } = vehicleQuery
+  const deliveryQuery = useOutgoingDeliveries()
+  const { data: deliveries = [] } = deliveryQuery
+  const { data: salesOrders = [] } = useSalesOrders()
+  const { data: clients = [] } = useClients({ includeInactive: 'true' })
+  const { data: employees = [] } = useEmployees({ includeInactive: 'true' })
+  const deactivate = useDeactivateVehicle({ onViewArchive: () => setActiveTab('ARCHIVED') })
+  const reactivate = useReactivateVehicle()
+  const updateStatus = useUpdateVehicleStatus()
+  const { isAdmin, isManager } = useAuth()
+  const canManage = isAdmin || isManager
+  const pending = deactivate.isPending || reactivate.isPending || updateStatus.isPending
+  const rows: VehicleRow[] = vehicles.map((vehicle) => {
+    const assignments = getVehicleAssignments(vehicle.id, deliveries)
+    const drivers = assignments.flatMap((delivery) => {
+      const employee = employees.find((employee) => employee.id === delivery.driverEmployeeId)
+      return employee ? [`${employee.firstName} ${employee.lastName}`] : []
+    })
+    return {
+      vehicle,
+      condition: CONDITIONS[getVehicleCondition(vehicle)],
+      status: getVehicleAvailabilityStatus(vehicle, deliveries),
+      assignment: assignments.map((delivery) => delivery.deliveryNumber).join(', ') || '—',
+      driver: [...new Set(drivers)].join(', ') || '—',
     }
+  })
+  const active = rows.filter((row) => row.vehicle.isActive)
+  const archived = rows.filter((row) => !row.vehicle.isActive)
+  const filtered = (activeTab === 'ACTIVE' ? active : archived).filter(
+    (row) =>
+      (activeTab === 'ARCHIVED' || statusFilter === 'ALL' || row.status === statusFilter) &&
+      [
+        row.vehicle.plateNumber,
+        row.vehicle.model || '',
+        row.vehicle.vehicleType,
+        row.assignment,
+        row.driver,
+      ].some((value) => value.toLowerCase().includes(search.trim().toLowerCase())),
+  )
+  const viewVehicle = vehicles.find((vehicle) => vehicle.id === viewVehicleId)
+  const archiveVehicle = vehicles.find((vehicle) => vehicle.id === archiveId)
+  const canChangeCondition = (vehicle: DeliveryVehicle) =>
+    !deliveryQuery.isPending &&
+    !deliveryQuery.isError &&
+    getVehicleAssignments(vehicle.id, deliveries).length === 0
+  const changeCondition = (vehicle: DeliveryVehicle, status: VehicleStatus) => {
+    if (!canChangeCondition(vehicle)) {
+      toast.error('Finish or cancel the active delivery before changing this vehicle’s condition.')
+      return
+    }
+    updateStatus.mutate({ id: vehicle.id, status })
   }
-
-  const handleReactivate = (vehicle: DeliveryVehicle) => {
-    reactivateMutation.mutate(vehicle.id)
-  }
-
-  return (
-    <div className="flex flex-col gap-5">
-      {/* Fleet KPI Quick Bar */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-        <div className="flex items-center gap-3 p-3.5 rounded-2xl bg-card border border-border/80 shadow-xs">
-          <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
-            <Truck className="size-5" />
-          </div>
-          <div>
-            <div className="text-xl font-extrabold text-foreground">{allVehicles.length}</div>
-            <div className="text-[11px] text-muted-foreground font-medium">Total Fleet</div>
-          </div>
+  const columns: ColumnDef<VehicleRow>[] = [
+    {
+      id: 'vehicle',
+      header: 'Vehicle',
+      accessorFn: (row) => row.vehicle.model || row.vehicle.vehicleType,
+      sortable: true,
+      cell: ({ row }) => (
+        <div className="flex flex-col gap-1">
+          <span className="font-semibold">{row.vehicle.model || row.vehicle.vehicleType}</span>
+          <span className="text-[11px] text-muted-foreground">
+            {row.vehicle.capacity
+              ? `${Number(row.vehicle.capacity).toLocaleString()} kg capacity`
+              : 'Capacity not specified'}
+          </span>
         </div>
-
-        <div className="flex items-center gap-3 p-3.5 rounded-2xl bg-card border border-border/80 shadow-xs">
-          <div className="flex size-10 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600">
-            <CheckCircle2 className="size-5" />
-          </div>
-          <div>
-            <div className="text-xl font-extrabold text-foreground">{availableCount}</div>
-            <div className="text-[11px] text-muted-foreground font-medium">
-              Available for Dispatch
-            </div>
-          </div>
+      ),
+    },
+    {
+      id: 'plate',
+      header: 'Plate Number',
+      accessorFn: (row) => row.vehicle.plateNumber,
+      sortable: true,
+      cell: ({ row }) => <span className="font-mono font-bold">{row.vehicle.plateNumber}</span>,
+    },
+    {
+      id: 'type',
+      header: 'Vehicle Type',
+      accessorFn: (row) => row.vehicle.vehicleType,
+      sortable: true,
+    },
+    { id: 'condition', header: 'Condition', accessorKey: 'condition', sortable: true },
+    {
+      id: 'status',
+      header: 'Availability / Status',
+      accessorKey: 'status',
+      sortable: true,
+      cell: ({ row }) =>
+        row.status === 'ARCHIVED' ? (
+          <Badge variant="outline">Archived</Badge>
+        ) : (
+          <VehicleStatusBadge status={row.status} />
+        ),
+    },
+    {
+      id: 'assignment',
+      header: 'Current Assignment',
+      accessorKey: 'assignment',
+      cell: ({ row }) => (
+        <div className="flex flex-col gap-1">
+          {getVehicleAssignments(row.vehicle.id, deliveries).map((delivery) => (
+            <Button
+              key={delivery.id}
+              variant="link"
+              size="sm"
+              className="justify-start text-xs"
+              onClick={() => setHistoryDeliveryId(delivery.id)}
+            >
+              {delivery.deliveryNumber}
+            </Button>
+          ))}
+          {row.assignment === '—' && '—'}
         </div>
-
-        <div className="flex items-center gap-3 p-3.5 rounded-2xl bg-card border border-border/80 shadow-xs">
-          <div className="flex size-10 items-center justify-center rounded-xl bg-blue-500/10 text-blue-600">
-            <Clock className="size-5" />
-          </div>
-          <div>
-            <div className="text-xl font-extrabold text-foreground">{inDeliveryCount}</div>
-            <div className="text-[11px] text-muted-foreground font-medium">Active In-Transit</div>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3 p-3.5 rounded-2xl bg-card border border-border/80 shadow-xs">
-          <div className="flex size-10 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600">
-            <Wrench className="size-5" />
-          </div>
-          <div>
-            <div className="text-xl font-extrabold text-foreground">{maintenanceCount}</div>
-            <div className="text-[11px] text-muted-foreground font-medium">In Maintenance</div>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3 p-3.5 rounded-2xl bg-card border border-border/80 shadow-xs">
-          <div className="flex size-10 items-center justify-center rounded-xl bg-destructive/10 text-destructive">
-            <AlertOctagon className="size-5" />
-          </div>
-          <div>
-            <div className="text-xl font-extrabold text-foreground">{outOfServiceCount}</div>
-            <div className="text-[11px] text-muted-foreground font-medium">Out of Service</div>
-          </div>
-        </div>
-      </div>
-
-      {/* Fleet Archive / Active Tabs */}
-      <ArchiveTabNav
-        activeTab={activeTab}
-        onTabChange={setActiveTab}
-        activeLabel="Active Fleet"
-        activeCount={activeVehicles.length}
-        archivedLabel="Archived Fleet"
-        archivedCount={archivedVehicles.length}
-        activeIcon={<Truck className="size-3.5" />}
-        bannerDescription="Showing deactivated transport vehicles. License plates, service logs, and specs are safely preserved and can be restored anytime."
-      />
-
-      {/* Controls & Filter */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-        <div className="flex flex-1 flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full sm:w-auto">
-          <div className="relative flex-1 sm:max-w-xs">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
-            <Input
-              placeholder="Search plate, type, destination..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-9 h-9 text-xs"
-            />
-          </div>
-
-          {activeTab === 'ACTIVE' && (
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
-              <Button
-                variant={statusFilter.toUpperCase() === 'ALL' ? 'secondary' : 'ghost'}
-                size="sm"
-                onClick={() => setStatusFilter('ALL')}
-                className="h-8 text-xs font-semibold cursor-pointer"
-              >
-                All Statuses
-              </Button>
-              {VEHICLE_STATUSES.map((st) => {
-                const label =
-                  st === 'AVAILABLE'
-                    ? 'Available'
-                    : st === 'IN_DELIVERY'
-                      ? 'In Delivery'
-                      : st === 'MAINTENANCE'
-                        ? 'Maintenance'
-                        : 'Out of Service'
-
-                return (
-                  <Button
-                    key={st}
-                    variant={statusFilter === st ? 'secondary' : 'ghost'}
-                    size="sm"
-                    onClick={() => setStatusFilter(st)}
-                    className="h-8 text-xs font-semibold whitespace-nowrap cursor-pointer"
+      ),
+    },
+    { id: 'driver', header: 'Driver', accessorKey: 'driver' },
+    {
+      id: 'actions',
+      header: 'Actions',
+      align: 'right',
+      cell: ({ row }) => (
+        <div className="flex items-center justify-end gap-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label={`View vehicle ${row.vehicle.plateNumber}`}
+            onClick={() => {
+              setViewVehicleId(row.vehicle.id)
+            }}
+          >
+            <Eye data-icon="inline-start" />
+          </Button>
+          {canManage && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label={`Actions for ${row.vehicle.plateNumber}`}
+                >
+                  <MoreVertical data-icon="inline-start" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuGroup>
+                  <DropdownMenuItem
+                    onClick={() => {
+                      setEditVehicleId(row.vehicle.id)
+                      setIsModalOpen(true)
+                    }}
                   >
-                    {label}
-                  </Button>
-                )
-              })}
-            </div>
+                    Edit Vehicle
+                  </DropdownMenuItem>
+                  {row.vehicle.isActive ? (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        disabled={pending || !canChangeCondition(row.vehicle)}
+                        onClick={() => changeCondition(row.vehicle, 'MAINTENANCE')}
+                      >
+                        Mark Under Maintenance
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        disabled={pending || !canChangeCondition(row.vehicle)}
+                        onClick={() => changeCondition(row.vehicle, 'OUT_OF_SERVICE')}
+                      >
+                        Mark Out of Service
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        disabled={
+                          pending ||
+                          !canChangeCondition(row.vehicle) ||
+                          row.vehicle.status === 'AVAILABLE'
+                        }
+                        onClick={() => changeCondition(row.vehicle, 'AVAILABLE')}
+                      >
+                        Return to Service
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        disabled={
+                          pending ||
+                          !canChangeCondition(row.vehicle) ||
+                          row.vehicle.status === 'IN_DELIVERY'
+                        }
+                        onClick={() => setArchiveId(row.vehicle.id)}
+                      >
+                        Archive Vehicle
+                      </DropdownMenuItem>
+                    </>
+                  ) : (
+                    <DropdownMenuItem
+                      disabled={pending || !canChangeCondition(row.vehicle)}
+                      onClick={() => reactivate.mutate(row.vehicle.id)}
+                    >
+                      Restore Vehicle
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
         </div>
-
-        {(isAdmin || isManager) && activeTab === 'ACTIVE' && (
-          <Button onClick={handleCreate} size="sm" className="gap-1.5 shadow-xs cursor-pointer">
-            <Plus className="size-4" />
-            Register Vehicle
+      ),
+    },
+  ]
+  return (
+    <div className="flex flex-col gap-5">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-bold tracking-tight">Vehicles</h1>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Manage ERJV vehicles, their condition, and delivery assignments.
+          </p>
+        </div>
+        {canManage && activeTab === 'ACTIVE' && (
+          <Button
+            size="sm"
+            onClick={() => {
+              setEditVehicleId(null)
+              setIsModalOpen(true)
+            }}
+          >
+            <Plus data-icon="inline-start" />
+            Add Vehicle
           </Button>
         )}
       </div>
-
-      {/* Vehicle Fleet Cards Grid */}
-      {isLoading ? (
-        <div className="flex items-center justify-center py-16 text-muted-foreground">
-          <Spinner className="mr-2 size-5" /> Loading delivery vehicles...
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+        {[
+          ['Total', active.length],
+          ['Available', active.filter((row) => row.status === 'AVAILABLE').length],
+          ['In Delivery', active.filter((row) => row.status === 'IN_DELIVERY').length],
+          ['Maintenance', active.filter((row) => row.status === 'MAINTENANCE').length],
+          ['Out of Service', active.filter((row) => row.status === 'OUT_OF_SERVICE').length],
+        ].map(([label, count]) => (
+          <div
+            key={label}
+            className="flex items-center justify-between gap-2 rounded-lg border border-border/80 bg-muted/20 p-3"
+          >
+            <span className="text-xs font-medium text-muted-foreground">{label}</span>
+            <span className="font-mono text-lg font-bold">{count}</span>
+          </div>
+        ))}
+      </div>
+      <ArchiveTabNav
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        activeLabel="Active Vehicles"
+        activeCount={active.length}
+        archivedLabel="Archived Vehicles"
+        archivedCount={archived.length}
+        activeIcon={<Truck className="size-3.5" />}
+        bannerDescription="Archived ERJV vehicles remain linked to their historical deliveries and can be restored."
+      />
+      <div className="flex flex-col gap-3 sm:flex-row">
+        <div className="relative flex-1 sm:max-w-sm">
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            aria-label="Search vehicles"
+            placeholder="Search plate, model, type, assignment, or driver..."
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            className="h-9 pl-9 text-xs"
+          />
         </div>
-      ) : filteredVehicles.length === 0 ? (
-        <Card className="border-dashed bg-muted/20">
-          <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-            <Truck className="size-10 text-muted-foreground/50 mb-3" />
-            <h3 className="text-sm font-semibold text-foreground">
-              {activeTab === 'ACTIVE'
-                ? 'No active vehicles found'
-                : 'No deactivated vehicles found'}
-            </h3>
-            <p className="text-xs text-muted-foreground mt-1 max-w-xs">
-              {searchTerm || statusFilter !== 'ALL'
-                ? 'No transport vehicles match your search query or status filter.'
-                : activeTab === 'ACTIVE'
-                  ? archivedVehicles.length > 0
-                    ? `All vehicles are currently archived (${archivedVehicles.length} total).`
-                    : 'Register your first delivery truck or cargo hauler.'
-                  : 'Archived delivery vehicles will appear here and can be reactivated at any time.'}
-            </p>
-            {!searchTerm &&
-              statusFilter === 'ALL' &&
-              activeTab === 'ACTIVE' &&
-              archivedVehicles.length > 0 && (
-                <Button
-                  onClick={() => setActiveTab('ARCHIVED')}
-                  size="sm"
-                  variant="outline"
-                  className="mt-3 gap-1.5 cursor-pointer text-xs"
-                >
-                  <Archive className="size-3.5 text-amber-600" />
-                  View Archived Fleet ({archivedVehicles.length})
-                </Button>
-              )}
-            {!searchTerm &&
-              statusFilter === 'ALL' &&
-              activeTab === 'ACTIVE' &&
-              archivedVehicles.length === 0 && (
-                <Button onClick={handleCreate} size="sm" className="mt-4 gap-1.5 cursor-pointer">
-                  <Plus className="size-3.5" />
-                  Register Transport Asset
-                </Button>
-              )}
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredVehicles.map((vehicle) => {
-            const isArchived = vehicle.isActive === false
-            const isInDelivery = vehicle.status === 'IN_DELIVERY'
-            const isAvailable = vehicle.status === 'AVAILABLE'
-            const isMaintenance = vehicle.status === 'MAINTENANCE'
-
-            const iconBg = isArchived
-              ? 'bg-muted text-muted-foreground'
-              : isAvailable
-                ? 'bg-emerald-500/10 text-emerald-600'
-                : isInDelivery
-                  ? 'bg-blue-500/10 text-blue-600'
-                  : isMaintenance
-                    ? 'bg-amber-500/10 text-amber-600'
-                    : 'bg-destructive/10 text-destructive'
-
-            return (
-              <Card
-                key={vehicle.id}
-                className={`group relative overflow-hidden transition-all duration-200 hover:shadow-md border-border/80 rounded-2xl flex flex-col justify-between hover:border-primary/40 ${
-                  isArchived ? 'opacity-75 bg-muted/20 border-dashed' : ''
-                }`}
-              >
-                <CardContent className="p-5 flex flex-col justify-between h-full gap-3.5">
-                  {/* Card Header */}
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-start gap-3 min-w-0">
-                      <div
-                        className={`flex size-10 shrink-0 items-center justify-center rounded-xl transition-transform group-hover:scale-105 ${iconBg}`}
-                      >
-                        <Truck className="size-5" />
-                      </div>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-mono text-sm font-extrabold text-foreground tracking-tight">
-                            {vehicle.plateNumber}
-                          </span>
-                          {!isArchived && <VehicleStatusBadge status={vehicle.status} />}
-                        </div>
-                        <p className="text-xs text-muted-foreground font-medium mt-0.5 truncate">
-                          {vehicle.vehicleType}
-                        </p>
-                      </div>
-                    </div>
-
-                    {(isAdmin || isManager) && (
-                      <div className="flex items-center gap-1.5">
-                        {isArchived ? (
-                          (() => {
-                            const isReactivatingThis =
-                              reactivateMutation.isPending &&
-                              (typeof reactivateMutation.variables === 'number'
-                                ? reactivateMutation.variables === vehicle.id
-                                : (reactivateMutation.variables as DeliveryVehicle | undefined)
-                                    ?.id === vehicle.id)
-
-                            return (
-                              <Button
-                                variant="secondary"
-                                size="sm"
-                                onClick={() => handleReactivate(vehicle)}
-                                disabled={isReactivatingThis}
-                                className="group h-8.5 px-3.5 text-xs font-bold text-emerald-600 dark:text-emerald-600 bg-emerald-500/15 hover:bg-emerald-500/25 active:scale-95 border border-emerald-500/30 rounded-xl gap-2 shadow-2xs cursor-pointer transition-all duration-150"
-                              >
-                                {isReactivatingThis ? (
-                                  <Spinner className="size-3.5 text-emerald-600 dark:text-emerald-600 animate-spin" />
-                                ) : (
-                                  <RotateCcw className="size-3.5 text-emerald-600 dark:text-emerald-600 transition-transform duration-200 group-hover:-rotate-45" />
-                                )}
-                                <span>
-                                  {isReactivatingThis ? 'Reactivating...' : 'Reactivate Fleet'}
-                                </span>
-                              </Button>
-                            )
-                          })()
-                        ) : (
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="size-8 text-muted-foreground hover:text-foreground cursor-pointer shrink-0 rounded-lg hover:bg-muted active:scale-90 transition-all duration-150"
-                              >
-                                <MoreVertical className="size-4" />
-                                <span className="sr-only">Vehicle actions</span>
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="p-1">
-                              <DropdownMenuItem
-                                onClick={() => handleEdit(vehicle)}
-                                className="gap-2 text-xs cursor-pointer px-2 py-1.5 rounded-md active:scale-95 transition-transform"
-                              >
-                                <Edit2 className="size-3.5" />
-                                Edit Vehicle Details
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <div className="px-2 py-1 text-[10px] font-bold text-muted-foreground uppercase">
-                                Change Status
-                              </div>
-                              {VEHICLE_STATUSES.map((st) => {
-                                const label =
-                                  st === 'AVAILABLE'
-                                    ? 'Available'
-                                    : st === 'IN_DELIVERY'
-                                      ? 'In Delivery'
-                                      : st === 'MAINTENANCE'
-                                        ? 'Maintenance'
-                                        : 'Out of Service'
-
-                                return (
-                                  <DropdownMenuItem
-                                    key={st}
-                                    onClick={() => handleStatusChange(vehicle.id, st)}
-                                    className={`gap-2 text-xs cursor-pointer ${
-                                      vehicle.status === st ? 'font-bold text-primary' : ''
-                                    }`}
-                                  >
-                                    {st === 'AVAILABLE' && (
-                                      <CheckCircle2 className="size-3.5 text-emerald-500" />
-                                    )}
-                                    {st === 'IN_DELIVERY' && (
-                                      <Clock className="size-3.5 text-blue-500" />
-                                    )}
-                                    {st === 'MAINTENANCE' && (
-                                      <Wrench className="size-3.5 text-amber-500" />
-                                    )}
-                                    {st === 'OUT_OF_SERVICE' && (
-                                      <AlertOctagon className="size-3.5 text-destructive" />
-                                    )}
-                                    {label}
-                                  </DropdownMenuItem>
-                                )
-                              })}
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem
-                                onClick={() => handleDeactivate(vehicle)}
-                                className="gap-2 text-xs text-destructive focus:text-destructive cursor-pointer"
-                              >
-                                <Archive className="size-3.5" />
-                                Archive Vehicle
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Uniform Status Banner for ALL Cards */}
-                  <div className="min-h-[58px] flex items-center">
-                    {isInDelivery ? (
-                      <div className="w-full flex items-center gap-2.5 p-2.5 rounded-xl bg-blue-500/10 border border-blue-500/25">
-                        <Truck className="size-4 text-blue-600 shrink-0" />
-                        <div className="min-w-0 flex-1">
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-blue-700 block">
-                            Active On Delivery:
-                          </span>
-                          <span className="font-medium text-muted-foreground text-xs block truncate">
-                            Dispatched on route • In transit
-                          </span>
-                        </div>
-                      </div>
-                    ) : isAvailable ? (
-                      <div className="w-full flex items-center gap-2.5 p-2.5 rounded-xl bg-emerald-500/5 border border-emerald-500/15">
-                        <CheckCircle2 className="size-4 text-emerald-600 shrink-0" />
-                        <div className="min-w-0 flex-1">
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 block">
-                            Dispatch Ready:
-                          </span>
-                          <span className="font-medium text-muted-foreground text-xs block truncate">
-                            Stationed in Central Depot • Ready for loading
-                          </span>
-                        </div>
-                      </div>
-                    ) : isMaintenance ? (
-                      <div className="w-full flex items-center gap-2.5 p-2.5 rounded-xl bg-amber-500/5 border border-amber-500/15">
-                        <Wrench className="size-4 text-amber-600 shrink-0" />
-                        <div className="min-w-0 flex-1">
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700 block">
-                            Fleet Servicing:
-                          </span>
-                          <span className="font-medium text-muted-foreground text-xs block truncate">
-                            Under routine maintenance & safety inspection
-                          </span>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="w-full flex items-center gap-2.5 p-2.5 rounded-xl bg-destructive/5 border border-destructive/15">
-                        <AlertOctagon className="size-4 text-destructive shrink-0" />
-                        <div className="min-w-0 flex-1">
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-destructive block">
-                            Off-Duty:
-                          </span>
-                          <span className="font-medium text-muted-foreground text-xs block truncate">
-                            Temporarily removed from active dispatch
-                          </span>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Model & Capacity Specs */}
-                  <div className="grid grid-cols-2 gap-2 pt-3 border-t border-border/60 text-xs">
-                    <div className="flex flex-col gap-0.5">
-                      <span className="text-[10px] text-muted-foreground uppercase font-semibold">
-                        Payload Capacity
-                      </span>
-                      <span className="font-extrabold text-foreground text-xs">
-                        {vehicle.capacity ? `${vehicle.capacity} kg` : 'Not specified'}
-                      </span>
-                    </div>
-
-                    <div className="flex flex-col gap-0.5">
-                      <span className="text-[10px] text-muted-foreground uppercase font-semibold">
-                        Model / Vehicle Make
-                      </span>
-                      <span
-                        className="font-semibold text-xs text-foreground truncate"
-                        title={vehicle.model || 'Standard'}
-                      >
-                        {vehicle.model || 'Standard Unit'}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Status Toggle Bar */}
-                  <div className="flex items-center justify-between pt-2 border-t border-border/40 text-[11px]">
-                    <span className="text-muted-foreground font-medium">Quick Status:</span>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 text-[11px] font-semibold text-muted-foreground hover:text-foreground px-2 cursor-pointer"
-                        >
-                          Update Status ▾
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        {VEHICLE_STATUSES.map((st) => (
-                          <DropdownMenuItem
-                            key={st}
-                            onClick={() => handleStatusChange(vehicle.id, st)}
-                            className="gap-2 text-xs cursor-pointer"
-                          >
-                            {st === 'AVAILABLE' && (
-                              <CheckCircle2 className="size-3.5 text-emerald-500" />
-                            )}
-                            {st === 'IN_DELIVERY' && <Clock className="size-3.5 text-blue-500" />}
-                            {st === 'MAINTENANCE' && <Wrench className="size-3.5 text-amber-500" />}
-                            {st === 'OUT_OF_SERVICE' && (
-                              <AlertOctagon className="size-3.5 text-destructive" />
-                            )}
-                            {st.replace(/_/g, ' ')}
-                          </DropdownMenuItem>
-                        ))}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                </CardContent>
-              </Card>
-            )
-          })}
-        </div>
+        {activeTab === 'ACTIVE' && (
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger aria-label="Vehicle status filter" className="h-9 text-xs sm:w-44">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                <SelectItem value="ALL">All Statuses</SelectItem>
+                {Object.entries(STATUS_LABELS)
+                  .filter(([value]) => value !== 'ARCHIVED')
+                  .map(([value, label]) => (
+                    <SelectItem key={value} value={value}>
+                      {label}
+                    </SelectItem>
+                  ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+        )}
+      </div>
+      {(vehicleQuery.isError || deliveryQuery.isError) && (
+        <Alert variant="destructive">
+          <AlertDescription>
+            Vehicle availability could not be checked.{' '}
+            <Button
+              variant="link"
+              size="sm"
+              onClick={() => {
+                void vehicleQuery.refetch()
+                void deliveryQuery.refetch()
+              }}
+            >
+              Retry
+            </Button>
+          </AlertDescription>
+        </Alert>
       )}
-
-      {/* Main Vehicle Edit / Register Modal */}
+      <DataTable
+        data={filtered}
+        columns={columns}
+        getRowKey={(row) => row.vehicle.id}
+        isLoading={vehicleQuery.isLoading || deliveryQuery.isLoading}
+        tableClassName="min-w-[900px]"
+        emptyContent={
+          <div className="flex flex-col items-center gap-2 py-10 text-center">
+            <Truck className="size-8 text-muted-foreground" />
+            <p className="text-sm font-semibold">
+              No {activeTab === 'ARCHIVED' ? 'archived' : 'active'} vehicles found
+            </p>
+            <p className="text-xs text-muted-foreground">Adjust the search or status filter.</p>
+          </div>
+        }
+      />
       <VehicleModal
-        vehicle={selectedVehicle}
+        vehicle={vehicles.find((vehicle) => vehicle.id === editVehicleId) || null}
         open={isModalOpen}
         onClose={() => setIsModalOpen(false)}
       />
-
-      {/* Themed Archive Modal */}
+      <VehicleDetailModal
+        key={viewVehicleId ?? 'vehicle'}
+        viewVehicle={viewVehicle}
+        deliveries={deliveries}
+        salesOrders={salesOrders}
+        clients={clients}
+        open={viewVehicleId !== null && historyDeliveryId === null}
+        onClose={() => setViewVehicleId(null)}
+        onViewDelivery={setHistoryDeliveryId}
+      />
+      <DeliveryDetailModal
+        deliveryId={historyDeliveryId}
+        open={historyDeliveryId !== null}
+        onClose={() => setHistoryDeliveryId(null)}
+      />
       <ConfirmDeleteModal
-        open={!!vehicleToDeactivate}
-        onClose={() => setVehicleToDeactivate(null)}
-        onConfirm={confirmDeactivate}
-        title="Archive Delivery Vehicle"
-        description="Are you sure you want to archive this transport vehicle? It will be removed from available dispatch allocations. All maintenance logs and transport details are safely preserved and can be restored anytime from the Archived Fleet tab."
-        itemName={`Plate: ${vehicleToDeactivate?.plateNumber}`}
-        itemDetails={
-          vehicleToDeactivate
-            ? `${vehicleToDeactivate.vehicleType} • ${vehicleToDeactivate.model || 'Standard Cargo Unit'}`
-            : undefined
-        }
+        open={archiveId !== null}
+        onClose={() => setArchiveId(null)}
+        onConfirm={async () => {
+          if (
+            archiveVehicle &&
+            canChangeCondition(archiveVehicle) &&
+            archiveVehicle.status !== 'IN_DELIVERY'
+          )
+            await deactivate.mutateAsync(archiveVehicle)
+          else throw new Error('Vehicle has an active delivery assignment.')
+        }}
+        title="Archive Vehicle"
+        description="Archive this vehicle while preserving its details and historical deliveries."
+        itemName={archiveVehicle?.plateNumber}
         confirmText="Archive Vehicle"
-        variant="destructive"
       />
     </div>
   )

@@ -1,18 +1,16 @@
 import { useState, useMemo } from 'react'
 import {
+  Archive,
   ArrowDownToLine,
   Building2,
   Check,
   CheckCircle2,
   ChevronRight,
   Clock,
-  Edit2,
   Eye,
   Info,
   Package,
   Plus,
-  Power,
-  PowerOff,
   Search,
   Truck,
   X,
@@ -22,8 +20,9 @@ import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { ArchiveTabNav } from '@/components/ui/ArchiveTabNav'
 import { StatusTabNav } from '@/components/ui/StatusTabNav'
+import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal'
 import { PurchaseModal } from './PurchaseModal'
 import { PurchaseOrderDetailModal } from './PurchaseOrderDetailModal'
 import { SupplierModal } from './SupplierModal'
@@ -47,30 +46,30 @@ import type { CreatePurchaseOrderPayload } from '@/features/logistics/purchase-o
 import { useWarehouses } from '@/features/logistics/warehouses.hooks'
 import { useIncomingDeliveries } from '@/features/logistics/incoming-deliveries.hooks'
 import { DataTable, type ColumnDef } from '@/components/ui/data-table'
+import { DirectoryRowActions, DirectoryStatusBadge } from '@/components/ui/DirectoryRowControls'
 
 export type PurchaseTabFilter = 'Active' | 'Completed' | 'Cancelled'
 
 export type PurchaseSection = 'orders' | 'suppliers'
 
 type PurchasesViewProps = {
-  initialSection?: PurchaseSection
-  onSectionChange?: (section: PurchaseSection) => void
-  onNavigateToDeliveries?: () => void
+  section?: PurchaseSection
+  onNavigateToDeliveries?: (purchaseOrderId?: number) => void
 }
 
 export function PurchasesView({
-  initialSection = 'orders',
-  onSectionChange,
+  section = 'orders',
   onNavigateToDeliveries,
 }: PurchasesViewProps = {}) {
-  const [activeSection, setActiveSection] = useState<PurchaseSection>(initialSection)
   const [searchTerm, setSearchTerm] = useState('')
   const [activeStatus, setActiveStatus] = useState<PurchaseTabFilter>('Active')
+  const [supplierView, setSupplierView] = useState<'ACTIVE' | 'ARCHIVED'>('ACTIVE')
 
   // Modals state
   const [isPurchaseModalOpen, setIsPurchaseModalOpen] = useState(false)
   const [isSupplierModalOpen, setIsSupplierModalOpen] = useState(false)
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null)
+  const [supplierToArchive, setSupplierToArchive] = useState<Supplier | null>(null)
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null)
 
   const { user } = useAuth()
@@ -143,18 +142,29 @@ export function PurchasesView({
     })
   }, [purchaseOrders, activeStatus, searchTerm, supplierMap])
 
+  const activeSuppliers = useMemo(
+    () => suppliers.filter((supplier) => supplier.isActive !== false),
+    [suppliers],
+  )
+  const archivedSuppliers = useMemo(
+    () => suppliers.filter((supplier) => supplier.isActive === false),
+    [suppliers],
+  )
+
   const filteredSuppliers = useMemo(() => {
-    if (!searchTerm.trim()) return suppliers
+    const visibleSuppliers = supplierView === 'ACTIVE' ? activeSuppliers : archivedSuppliers
+    if (!searchTerm.trim()) return visibleSuppliers
     const q = searchTerm.toLowerCase().trim()
-    return suppliers.filter(
+    return visibleSuppliers.filter(
       (s) =>
         s.name.toLowerCase().includes(q) ||
         s.code.toLowerCase().includes(q) ||
         s.contactPerson?.toLowerCase().includes(q) ||
+        s.phone?.toLowerCase().includes(q) ||
         s.email?.toLowerCase().includes(q) ||
         s.address?.toLowerCase().includes(q),
     )
-  }, [suppliers, searchTerm])
+  }, [activeSuppliers, archivedSuppliers, supplierView, searchTerm])
 
   const handleCreatePO = async (payload: CreatePurchaseOrderPayload) => {
     await createPOMutation.mutateAsync(payload)
@@ -388,21 +398,21 @@ export function PurchasesView({
                 {onNavigateToDeliveries ? (
                   <button
                     type="button"
-                    onClick={onNavigateToDeliveries}
+                    onClick={() => onNavigateToDeliveries(po.id)}
                     className="group inline-flex items-center gap-1 rounded-md border border-border/80 bg-muted/40 px-2 py-1 text-[10px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted/70 transition-colors"
-                    title="Go to Deliveries Hub → Inbound Receiving to schedule and receive materials"
+                    title="Go to Deliveries → Incoming to schedule and receive materials"
                   >
                     <ArrowDownToLine className="size-3 text-primary group-hover:translate-y-0.5 transition-transform" />
-                    <span>Inbound Receiving</span>
+                    <span>Incoming Deliveries</span>
                     <ChevronRight className="size-2.5 opacity-60" />
                   </button>
                 ) : (
                   <span
                     className="inline-flex items-center gap-1 rounded-md border border-border/80 bg-muted/40 px-2 py-1 text-[10px] font-medium text-muted-foreground"
-                    title="Receive materials via Deliveries Hub → Inbound Receiving"
+                    title="Receive materials via Deliveries → Incoming"
                   >
                     <ArrowDownToLine className="size-3 text-primary" />
-                    <span>Inbound Receiving</span>
+                    <span>Incoming Deliveries</span>
                   </span>
                 )}
                 <Button
@@ -423,21 +433,21 @@ export function PurchasesView({
                 {onNavigateToDeliveries ? (
                   <button
                     type="button"
-                    onClick={onNavigateToDeliveries}
+                    onClick={() => onNavigateToDeliveries(po.id)}
                     className="group inline-flex items-center gap-1 rounded-md border border-border/80 bg-muted/40 px-2 py-1 text-[10px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted/70 transition-colors"
-                    title="Go to Deliveries Hub → Inbound Receiving to receive remaining cargo"
+                    title="Go to Deliveries → Incoming to receive remaining cargo"
                   >
                     <ArrowDownToLine className="size-3 text-indigo-500 group-hover:translate-y-0.5 transition-transform" />
-                    <span>Receive in Inbound</span>
+                    <span>View Incoming</span>
                     <ChevronRight className="size-2.5 opacity-60" />
                   </button>
                 ) : (
                   <span
                     className="inline-flex items-center gap-1 rounded-md border border-border/80 bg-muted/40 px-2 py-1 text-[10px] font-medium text-muted-foreground"
-                    title="Receive remaining materials via Deliveries Hub → Inbound Receiving"
+                    title="Receive remaining materials via Deliveries → Incoming"
                   >
                     <ArrowDownToLine className="size-3 text-indigo-500" />
-                    <span>Receive in Inbound</span>
+                    <span>View Incoming</span>
                   </span>
                 )}
               </div>
@@ -494,18 +504,7 @@ export function PurchasesView({
       align: 'center',
       className: 'text-center',
       cell: ({ row: supplier }) => (
-        <>
-          <Badge
-            variant="outline"
-            className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-              supplier.isActive
-                ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20'
-                : 'bg-muted text-muted-foreground border-border'
-            }`}
-          >
-            {supplier.isActive ? 'Active' : 'Inactive'}
-          </Badge>
-        </>
+        <DirectoryStatusBadge isActive={supplier.isActive !== false} inactiveLabel="Archived" />
       ),
     },
     {
@@ -514,87 +513,31 @@ export function PurchasesView({
       align: 'right',
       className: 'text-right',
       cell: ({ row: supplier }) => (
-        <>
-          <div className="flex items-center justify-end gap-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-7 text-muted-foreground hover:text-foreground"
-              onClick={() => {
-                setSelectedSupplier(supplier)
-                setIsSupplierModalOpen(true)
-              }}
-              title="Edit Supplier"
-              aria-label={`Edit supplier ${supplier.name}`}
-            >
-              <Edit2 className="size-3.5" />
-            </Button>
-
-            {supplier.isActive ? (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="size-7 text-rose-500 hover:text-rose-600 hover:bg-rose-500/10"
-                onClick={() => deleteSupplierMutation.mutate(supplier.id)}
-                disabled={deleteSupplierMutation.isPending}
-                title="Deactivate Supplier"
-                aria-label={`Deactivate supplier ${supplier.name}`}
-              >
-                <PowerOff className="size-3.5" />
-              </Button>
-            ) : (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="size-7 text-emerald-600 hover:bg-emerald-500/10"
-                onClick={() => reactivateSupplierMutation.mutate(supplier.id)}
-                disabled={reactivateSupplierMutation.isPending}
-                title="Reactivate Supplier"
-                aria-label={`Reactivate supplier ${supplier.name}`}
-              >
-                <Power className="size-3.5" />
-              </Button>
-            )}
-          </div>
-        </>
+        <DirectoryRowActions
+          recordType="Supplier"
+          name={supplier.name}
+          isActive={supplier.isActive !== false}
+          onEdit={
+            supplier.isActive !== false
+              ? () => {
+                  setSelectedSupplier(supplier)
+                  setIsSupplierModalOpen(true)
+                }
+              : undefined
+          }
+          onArchive={() => setSupplierToArchive(supplier)}
+          onRestore={() => reactivateSupplierMutation.mutate(supplier.id)}
+          restoreLabel="Restore"
+          isPending={deleteSupplierMutation.isPending || reactivateSupplierMutation.isPending}
+        />
       ),
     },
   ]
 
   return (
     <div className="flex flex-col gap-5">
-      <Tabs
-        value={activeSection}
-        onValueChange={(val) => {
-          setActiveSection(val as PurchaseSection)
-          onSectionChange?.(val as PurchaseSection)
-          setSearchTerm('')
-        }}
-        className="w-full flex flex-col gap-4"
-      >
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 border-b border-border/70 pb-3">
-          <TabsList className="h-10 p-1 bg-secondary/80 justify-start w-full sm:w-auto">
-            <TabsTrigger value="orders" className="gap-2 text-xs font-semibold px-4 cursor-pointer">
-              <Package className="size-3.5" />
-              <span>Purchase Orders</span>
-              <span className="ml-1 rounded-full bg-primary/10 text-primary px-2 py-0.5 text-[10px] font-mono font-bold">
-                {purchaseOrders.length}
-              </span>
-            </TabsTrigger>
-            <TabsTrigger
-              value="suppliers"
-              className="gap-2 text-xs font-semibold px-4 cursor-pointer"
-            >
-              <Building2 className="size-3.5" />
-              <span>Suppliers</span>
-              <span className="ml-1 rounded-full bg-muted text-muted-foreground px-2 py-0.5 text-[10px] font-mono font-bold">
-                {suppliers.length}
-              </span>
-            </TabsTrigger>
-          </TabsList>
-        </div>
-
-        <TabsContent value="orders" className="mt-0 focus-visible:outline-none flex flex-col gap-5">
+      {section === 'orders' ? (
+        <div className="flex flex-col gap-5">
           <StatusTabNav
             activeTab={activeStatus}
             onTabChange={(tab) => setActiveStatus(tab as PurchaseTabFilter)}
@@ -629,10 +572,7 @@ export function PurchasesView({
                 <Info className="size-4 text-primary shrink-0" />
                 <span>
                   Delivered shipments are scheduled and received in{' '}
-                  <strong className="text-foreground font-semibold">
-                    Deliveries Hub → Inbound Receiving
-                  </strong>
-                  .
+                  <strong className="text-foreground font-semibold">Deliveries → Incoming</strong>.
                 </span>
               </div>
               {onNavigateToDeliveries && (
@@ -640,10 +580,10 @@ export function PurchasesView({
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={onNavigateToDeliveries}
+                  onClick={() => onNavigateToDeliveries()}
                   className="h-7 text-xs font-semibold gap-1 px-2.5 shrink-0 bg-background hover:bg-muted"
                 >
-                  Go to Inbound Receiving
+                  Go to Incoming Deliveries
                   <ChevronRight className="size-3.5" />
                 </Button>
               )}
@@ -704,18 +644,25 @@ export function PurchasesView({
               pagination={false}
             />
           )}
-        </TabsContent>
-
-        {/* Suppliers Directory Section */}
-        <TabsContent
-          value="suppliers"
-          className="mt-0 focus-visible:outline-none flex flex-col gap-5"
-        >
+        </div>
+      ) : (
+        <div className="flex flex-col gap-5">
+          <ArchiveTabNav
+            activeTab={supplierView}
+            onTabChange={setSupplierView}
+            activeLabel="Active Suppliers"
+            activeCount={activeSuppliers.length}
+            archivedLabel="Archived Suppliers"
+            archivedCount={archivedSuppliers.length}
+            activeIcon={<Building2 className="size-3.5" />}
+            bannerDescription="Archived suppliers remain in past purchase orders and receiving records. Restore them to use them in new orders."
+          />
           <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
             <div className="relative w-full sm:w-80">
               <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="Search supplier name, code, contact..."
+                aria-label="Search suppliers"
+                placeholder="Search suppliers..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-9 h-9 text-xs"
@@ -734,37 +681,35 @@ export function PurchasesView({
             </Button>
           </div>
 
-          {isLoadingSuppliers ? (
-            <Card className="flex min-h-[300px] items-center justify-center p-8">
-              <div className="flex flex-col items-center gap-2">
-                <Clock className="size-6 animate-spin text-primary" />
-                <p className="text-xs text-muted-foreground">Loading supplier directory...</p>
-              </div>
-            </Card>
-          ) : filteredSuppliers.length === 0 ? (
-            <Card className="flex min-h-[340px] items-center justify-center border-dashed bg-muted/20 shadow-xs">
-              <div className="flex flex-col items-center justify-center text-center">
-                <Building2 className="size-8 text-muted-foreground/40 mb-2" />
-                <span className="text-sm font-semibold text-foreground">
-                  {searchTerm.trim()
-                    ? `No suppliers match "${searchTerm.trim()}"`
-                    : 'No suppliers registered yet'}
-                </span>
-                <p className="text-xs text-muted-foreground mt-1 max-w-xs">
-                  Register suppliers to begin purchasing stock materials.
-                </p>
-              </div>
-            </Card>
-          ) : (
-            <DataTable
-              data={filteredSuppliers}
-              columns={supplierColumns}
-              getRowKey={(supplier) => supplier.id}
-              pagination={false}
-            />
-          )}
-        </TabsContent>
-      </Tabs>
+          <DataTable
+            data={filteredSuppliers}
+            columns={supplierColumns}
+            getRowKey={(supplier) => supplier.id}
+            isLoading={isLoadingSuppliers}
+            loadingMessage="Loading supplier directory..."
+            pagination={false}
+            emptyContent={
+              <Card className="flex min-h-[340px] items-center justify-center border-dashed bg-muted/20 shadow-xs">
+                <div className="flex flex-col items-center justify-center text-center">
+                  <Building2 className="size-8 text-muted-foreground/40 mb-2" />
+                  <span className="text-sm font-semibold text-foreground">
+                    {searchTerm.trim()
+                      ? `No suppliers match "${searchTerm.trim()}"`
+                      : supplierView === 'ACTIVE'
+                        ? 'No active suppliers found'
+                        : 'No archived suppliers found'}
+                  </span>
+                  <p className="text-xs text-muted-foreground mt-1 max-w-xs">
+                    {supplierView === 'ACTIVE'
+                      ? 'Register suppliers to begin purchasing stock materials.'
+                      : 'Archived suppliers will appear here and can be restored.'}
+                  </p>
+                </div>
+              </Card>
+            }
+          />
+        </div>
+      )}
 
       {selectedOrder && (
         <PurchaseOrderDetailModal
@@ -802,6 +747,19 @@ export function PurchasesView({
           isSubmitting={createSupplierMutation.isPending || updateSupplierMutation.isPending}
         />
       )}
+      <ConfirmDeleteModal
+        open={supplierToArchive !== null}
+        onClose={() => setSupplierToArchive(null)}
+        onConfirm={async () => {
+          if (supplierToArchive) await deleteSupplierMutation.mutateAsync(supplierToArchive.id)
+        }}
+        title="Archive Supplier?"
+        description="This supplier will be moved to Archived Suppliers. Historical purchase orders, delivery records, and receiving history will not be deleted."
+        itemName={supplierToArchive?.name}
+        confirmText="Archive Supplier"
+        icon={<Archive className="size-6" />}
+        variant="warning"
+      />
     </div>
   )
 }

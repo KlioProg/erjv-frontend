@@ -115,7 +115,7 @@ function VehicleFormContent({
           backendMatch.id &&
           backendMatch.isActive !== false)
       ) {
-        setErrorMsg(`A vehicle with plate number "${cleanPlate}" is already active in the fleet.`)
+        setErrorMsg(`A vehicle with plate number "${cleanPlate}" is already active in Vehicles.`)
         return
       }
     }
@@ -171,12 +171,12 @@ function VehicleFormContent({
           <Truck className="size-5" />
         </div>
         <DialogTitle>
-          {isEditing ? 'Edit Delivery Vehicle' : 'Register Delivery Vehicle'}
+          {isEditing ? 'Edit Vehicle' : 'Add Vehicle'}
         </DialogTitle>
         <DialogDescription>
           {isEditing
             ? 'Update vehicle specifications, payload capacity, and route.'
-            : 'Register a new logistics or delivery transport asset to the fleet.'}
+            : 'Add an ERJV-controlled vehicle for collections and deliveries.'}
         </DialogDescription>
       </DialogHeader>
 
@@ -292,7 +292,7 @@ function VehicleFormContent({
         {!isEditing && (
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="v-status" className="text-xs font-medium">
-              Initial Availability Status
+              Vehicle Condition
             </Label>
             <Select value={status} onValueChange={(val) => setStatus(val as VehicleStatus)}>
               <SelectTrigger id="v-status">
@@ -303,12 +303,10 @@ function VehicleFormContent({
                   {OPERATIONAL_STATUSES.map((st) => {
                     const label =
                       st === 'AVAILABLE'
-                        ? 'Available'
-                        : st === 'IN_DELIVERY'
-                          ? 'In Delivery'
-                          : st === 'MAINTENANCE'
-                            ? 'Maintenance'
-                            : 'Out of Service'
+                        ? 'Operational'
+                        : st === 'MAINTENANCE'
+                          ? 'Under Maintenance'
+                          : 'Out of Service'
 
                     return (
                       <SelectItem key={st} value={st}>
@@ -341,7 +339,7 @@ function VehicleFormContent({
               ) : (
                 <>
                   <RotateCcw className="size-4 transition-transform duration-200 group-hover:-rotate-45" />
-                  Reactivate Vehicle Fleet
+                  Restore Vehicle
                 </>
               )}
             </Button>
@@ -354,10 +352,10 @@ function VehicleFormContent({
               {isPending ? (
                 <>
                   <Spinner data-icon="inline-start" />
-                  {isEditing ? 'Saving...' : 'Registering...'}
+                  {isEditing ? 'Saving...' : 'Adding...'}
                 </>
               ) : (
-                <>{isEditing ? 'Save Vehicle' : 'Register Vehicle'}</>
+                <>{isEditing ? 'Save Vehicle' : 'Add Vehicle'}</>
               )}
             </Button>
           )}

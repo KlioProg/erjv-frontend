@@ -152,11 +152,7 @@ body {
   scrollbar-color: var(--scrollbar-thumb) transparent;
 }
 
-.scrollbar-subtle[tabindex='0'] {
-  cursor: auto;
-}
-
-:where([data-sidebar]:hover) .scrollbar-subtle,
+[data-sidebar]:hover .scrollbar-subtle,
 .scrollbar-subtle:hover,
 .scrollbar-subtle:focus-within {
   --scrollbar-thumb: color-mix(in srgb, var(--muted-foreground) 40%, transparent);

@@ -7,18 +7,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
+import { DataTable, type ColumnDef } from '@/components/ui/data-table'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Spinner } from '@/components/ui/spinner'
 import { useProducts } from '@/features/products/products.hooks'
 import { InventoryItemModal } from '../operations/InventoryItemModal'
 import type { InventoryItemResponse } from '@/features/products/products.types'
@@ -35,17 +27,101 @@ export function ProductListModal({ open, onClose }: ProductListModalProps) {
   const [isCreateOpen, setIsCreateOpen] = useState(false)
 
   const filtered = products.filter(
-    (p) =>
-      p.name.toLowerCase().includes(search.toLowerCase()) ||
-      (p.variety && p.variety.toLowerCase().includes(search.toLowerCase())) ||
-      (p.description && p.description.toLowerCase().includes(search.toLowerCase())),
+    (product) =>
+      product.name.toLowerCase().includes(search.toLowerCase()) ||
+      product.variety?.toLowerCase().includes(search.toLowerCase()) ||
+      product.description?.toLowerCase().includes(search.toLowerCase()),
   )
+
+  const productColumns: ColumnDef<InventoryItemResponse>[] = [
+    {
+      id: 'product',
+      header: 'Product Item',
+      accessorKey: 'name',
+      sortable: true,
+      cell: ({ row }) => (
+        <div className="flex flex-col gap-0.5">
+          <span className="text-xs font-bold text-foreground">{row.name}</span>
+          {row.description && (
+            <span className="line-clamp-1 text-[11px] text-muted-foreground">
+              {row.description}
+            </span>
+          )}
+        </div>
+      ),
+    },
+    {
+      id: 'variety',
+      header: 'Variety / Grade',
+      accessorKey: 'variety',
+      cell: ({ row }) =>
+        row.variety ? (
+          <span className="inline-flex items-center gap-1.5 rounded-lg border border-border/70 bg-muted/80 px-2.5 py-1 text-[11px] font-semibold text-foreground">
+            <Tag className="size-3 shrink-0 text-primary" />
+            {row.variety}
+          </span>
+        ) : (
+          <span className="text-xs text-muted-foreground">—</span>
+        ),
+    },
+    {
+      id: 'price',
+      header: 'Wholesale Price',
+      accessorFn: (row) => Number(row.unitPrice),
+      sortable: true,
+      align: 'right',
+      cell: ({ row }) => (
+        <div>
+          <span className="font-mono text-sm font-extrabold text-foreground">
+            ₱{Number(row.unitPrice).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+          </span>
+          <span className="block text-[10px] font-semibold text-muted-foreground">
+            / {row.unit || 'unit'}
+          </span>
+        </div>
+      ),
+    },
+    {
+      id: 'status',
+      header: 'Status',
+      align: 'center',
+      cell: ({ row }) => (
+        <Badge
+          variant="outline"
+          className={`text-[10px] font-bold ${
+            row.isActive
+              ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-600'
+              : 'border-border bg-muted text-muted-foreground'
+          }`}
+        >
+          {row.isActive ? 'Active' : 'Archived'}
+        </Badge>
+      ),
+    },
+    {
+      id: 'actions',
+      header: 'Actions',
+      align: 'right',
+      cell: ({ row }) => (
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setEditingProduct(row)}
+          className="h-7 gap-1 px-2.5 text-xs font-semibold text-primary hover:bg-primary/10 hover:text-primary"
+          title="Edit product details, price, and stock"
+        >
+          <Edit2 className="size-3.5" />
+          Edit
+        </Button>
+      ),
+    },
+  ]
 
   return (
     <>
       <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-        <DialogContent className="sm:max-w-[820px] p-6 max-h-[92vh] flex flex-col gap-3 overflow-hidden shadow-2xl">
-          <DialogHeader className="pb-0 shrink-0">
+        <DialogContent className="flex max-h-[92vh] flex-col gap-3 overflow-hidden p-6 shadow-2xl sm:max-w-[820px]">
+          <DialogHeader className="shrink-0 pb-0">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-3">
                 <div className="flex size-10 items-center justify-center rounded-2xl bg-primary/10 text-primary shadow-2xs">
@@ -57,17 +133,16 @@ export function ProductListModal({ open, onClose }: ProductListModalProps) {
                   </DialogTitle>
                   <DialogDescription className="text-xs text-muted-foreground">
                     Wholesale and retail inventory items connected to{' '}
-                    <code className="bg-muted px-1.5 py-0.5 rounded text-[11px] font-mono text-primary">
+                    <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] text-primary">
                       GET /inventory-items
                     </code>
                   </DialogDescription>
                 </div>
               </div>
-
               <Button
                 size="sm"
                 onClick={() => setIsCreateOpen(true)}
-                className="gap-1.5 text-xs font-semibold h-8 shadow-xs"
+                className="h-8 gap-1.5 text-xs font-semibold shadow-xs"
               >
                 <Plus className="size-3.5" />
                 Add Product
@@ -75,111 +150,41 @@ export function ProductListModal({ open, onClose }: ProductListModalProps) {
             </div>
           </DialogHeader>
 
-          {/* Search */}
           <div className="relative mt-1 shrink-0">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
+            <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder="Search products by name or variety..."
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-10 h-9 text-xs rounded-xl"
+              onChange={(event) => setSearch(event.target.value)}
+              className="h-9 rounded-xl pl-10 text-xs"
             />
           </div>
 
-          {/* Product Table */}
-          <div className="min-h-0 flex-1 overflow-y-auto rounded-2xl border border-border/80 mt-1 shadow-2xs">
-            {isLoading ? (
-              <div className="flex flex-col items-center justify-center py-16 gap-2.5 text-xs text-muted-foreground">
-                <Spinner className="size-6 text-primary" />
-                Loading product catalog...
-              </div>
-            ) : error ? (
+          <div className="mt-1 min-h-0 flex-1 overflow-y-auto">
+            {error ? (
               <div className="p-8 text-center text-xs text-destructive">
                 Unable to load product catalog. Please check your connection and try again.
               </div>
-            ) : filtered.length === 0 ? (
-              <div className="p-10 text-center text-xs text-muted-foreground">
-                No products found matching your search.
-              </div>
             ) : (
-              <Table>
-                <TableHeader className="bg-muted/50 sticky top-0 z-10">
-                  <TableRow>
-                    <TableHead className="text-xs font-bold">Product Item</TableHead>
-                    <TableHead className="text-xs font-bold">Variety / Grade</TableHead>
-                    <TableHead className="text-xs font-bold text-right">Wholesale Price</TableHead>
-                    <TableHead className="text-xs font-bold text-center">Status</TableHead>
-                    <TableHead className="text-xs font-bold text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filtered.map((item) => (
-                    <TableRow key={item.id} className="hover:bg-muted/20">
-                      <TableCell>
-                        <div className="flex flex-col gap-0.5">
-                          <span className="font-bold text-xs text-foreground">{item.name}</span>
-                          {item.description && (
-                            <span className="text-[11px] text-muted-foreground line-clamp-1">
-                              {item.description}
-                            </span>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {item.variety ? (
-                          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted/80 border border-border/70 text-foreground text-[11px] font-semibold">
-                            <Tag className="size-3 text-primary shrink-0" />
-                            <span>{item.variety}</span>
-                          </div>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <span className="font-extrabold text-sm text-foreground font-mono">
-                          ₱
-                          {Number(item.unitPrice).toLocaleString('en-US', {
-                            minimumFractionDigits: 2,
-                          })}
-                        </span>
-                        <span className="text-[10px] text-muted-foreground font-semibold block">
-                          / {item.unit || 'unit'}
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <Badge
-                          variant="outline"
-                          className={`text-[10px] font-bold ${
-                            item.isActive
-                              ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20'
-                              : 'bg-muted text-muted-foreground border-border'
-                          }`}
-                        >
-                          {item.isActive ? 'Active' : 'Archived'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setEditingProduct(item)}
-                          className="h-7 px-2.5 text-xs font-semibold gap-1 text-primary hover:text-primary hover:bg-primary/10"
-                          title="Edit product details, price, and stock"
-                        >
-                          <Edit2 className="size-3.5" />
-                          <span>Edit</span>
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+              <DataTable
+                data={filtered}
+                columns={productColumns}
+                getRowKey={(product) => product.id}
+                isLoading={isLoading}
+                loadingMessage="Loading product catalog..."
+                pagination={false}
+                tableClassName="min-w-[620px]"
+                emptyContent={
+                  <div className="rounded-lg border border-border/80 p-10 text-center text-xs text-muted-foreground">
+                    No products found matching your search.
+                  </div>
+                }
+              />
             )}
           </div>
         </DialogContent>
       </Dialog>
 
-      {/* Product Edit Modal */}
       {editingProduct && (
         <InventoryItemModal
           item={editingProduct}
@@ -187,8 +192,6 @@ export function ProductListModal({ open, onClose }: ProductListModalProps) {
           onClose={() => setEditingProduct(null)}
         />
       )}
-
-      {/* Product Create Modal */}
       {isCreateOpen && (
         <InventoryItemModal
           item={null}

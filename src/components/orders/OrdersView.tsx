@@ -530,7 +530,7 @@ export function OrdersView({
                   }
                 }}
                 className="h-7 px-2.5 text-xs font-semibold gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer shrink-0 shadow-xs"
-                title="Go to Deliveries Hub to confirm arrival and record receipt"
+                title="Go to Deliveries to confirm arrival and record receipt"
               >
                 <CheckCircle2 className="size-3 shrink-0" />
                 <span>Confirm Arrivals</span>

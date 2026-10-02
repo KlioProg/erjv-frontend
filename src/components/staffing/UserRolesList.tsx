@@ -1,3 +1,5 @@
+import type { UserAccount } from '@/features/staffing/staffing.types'
+import { DataTable, type ColumnDef } from '@/components/ui/data-table'
 import { useState, forwardRef } from 'react'
 import {
   User,
@@ -14,14 +16,6 @@ import {
   UserPlus,
   AlertCircle,
 } from 'lucide-react'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -171,6 +165,253 @@ export function UserRolesList() {
 
   const isEmptyState = !isLoading && !error && filteredUsers.length === 0
 
+  const renderUserCell = (
+    u: UserAccount,
+    column: 'account' | 'staff' | 'role' | 'status' | 'registered' | 'actions',
+  ) => {
+    const linkedEmp = getLinkedEmployee(u.id, u.email)
+    const isUpdating = updatingId === u.id
+    const displayName =
+      u.fullName ||
+      (linkedEmp ? linkedEmp.firstName + ' ' + linkedEmp.lastName : u.email.split('@')[0])
+    const initial = displayName.charAt(0).toUpperCase()
+    const isArchived = u.isActive === false
+    const userRole = normalizeUserRole(u.role || (u as unknown as Record<string, unknown>).userRole)
+    const isSelf = currentUser?.id === u.id
+    switch (column) {
+      case 'account':
+        return (
+          <>
+            <div className="flex items-center gap-3">
+              <Avatar className="size-8 ring-1 ring-border/80 shadow-2xs shrink-0">
+                <AvatarFallback className="bg-primary/10 text-primary text-xs font-bold">
+                  {initial}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex flex-col min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-foreground text-xs leading-snug truncate">
+                    {displayName}
+                  </span>
+                  {isSelf && (
+                    <Badge variant="secondary" className="text-[9px] px-1.5 py-0 font-medium">
+                      You
+                    </Badge>
+                  )}
+                </div>
+                <span className="text-[11px] text-muted-foreground font-mono truncate">
+                  {u.email}
+                </span>
+              </div>
+            </div>
+          </>
+        )
+      case 'staff':
+        return (
+          <>
+            {linkedEmp ? (
+              <div className="flex items-center gap-2 text-xs">
+                <div className="flex items-center gap-1 font-medium text-foreground">
+                  <CheckCircle2 className="size-3.5 text-emerald-600 shrink-0" />
+                  <span>
+                    {linkedEmp.firstName} {linkedEmp.lastName}
+                  </span>
+                </div>
+                <Badge
+                  variant="outline"
+                  className="text-[9px] py-0.5 px-2 text-muted-foreground font-normal bg-muted/40 border-border/60"
+                >
+                  Staff #{linkedEmp.id}
+                </Badge>
+              </div>
+            ) : (
+              <span className="text-xs text-muted-foreground/60 italic">Unlinked account</span>
+            )}
+          </>
+        )
+      case 'role':
+        return (
+          <>
+            {isAdmin && !isArchived ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <RoleBadgeDisplay role={userRole} interactive={true} isUpdating={isUpdating} />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-52 p-1">
+                  <DropdownMenuLabel className="px-2 py-1 text-[11px] text-muted-foreground font-normal">
+                    Change System Role
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator className="my-1" />
+                  <DropdownMenuGroup>
+                    <DropdownMenuItem
+                      onClick={() => handleRoleChange(u.id, USER_ROLES.ADMIN, displayName)}
+                      className="flex items-center justify-between gap-2 px-2 py-1.5 text-xs cursor-pointer rounded-md"
+                    >
+                      <span className="flex items-center gap-2 font-bold text-primary">
+                        <Sparkles className="size-3.5" />
+                        ADMIN
+                      </span>
+                      {userRole === USER_ROLES.ADMIN && <Check className="size-3.5 text-primary" />}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => handleRoleChange(u.id, USER_ROLES.MANAGER, displayName)}
+                      className="flex items-center justify-between gap-2 px-2 py-1.5 text-xs cursor-pointer rounded-md"
+                    >
+                      <span className="flex items-center gap-2 font-semibold text-foreground">
+                        <Shield className="size-3.5 text-blue-500" />
+                        MANAGER (Operations)
+                      </span>
+                      {userRole === USER_ROLES.MANAGER && (
+                        <Check className="size-3.5 text-primary" />
+                      )}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => handleRoleChange(u.id, USER_ROLES.STAFF, displayName)}
+                      className="flex items-center justify-between gap-2 px-2 py-1.5 text-xs cursor-pointer rounded-md"
+                    >
+                      <span className="flex items-center gap-2 text-muted-foreground">
+                        <User className="size-3.5" />
+                        STAFF (Restricted)
+                      </span>
+                      {userRole === USER_ROLES.STAFF && <Check className="size-3.5 text-primary" />}
+                    </DropdownMenuItem>
+                  </DropdownMenuGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <RoleBadgeDisplay role={userRole} interactive={false} isUpdating={isUpdating} />
+            )}
+          </>
+        )
+      case 'status':
+        return (
+          <>
+            {isArchived ? (
+              <Badge
+                variant="outline"
+                className="select-none bg-amber-500/10 text-amber-600 dark:text-amber-300 border-amber-500/30 text-[11px] font-semibold gap-1 px-3 py-1 shadow-2xs cursor-default"
+              >
+                <Archive className="size-3 pointer-events-none" />
+                <span className="select-none pointer-events-none">Archived</span>
+              </Badge>
+            ) : (
+              <Badge
+                variant="outline"
+                className="select-none bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/25 text-[11px] font-semibold gap-1 px-3 py-1 shadow-2xs cursor-default"
+              >
+                <CheckCircle2 className="size-3 pointer-events-none" />
+                <span className="select-none pointer-events-none">Active</span>
+              </Badge>
+            )}
+          </>
+        )
+      case 'registered':
+        return (
+          <>
+            <span className="inline-flex items-center gap-2 font-medium">
+              <Calendar className="size-3.5 text-muted-foreground/70" />
+              {new Date(u.createdAt).toLocaleDateString(undefined, {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+              })}
+            </span>
+          </>
+        )
+      case 'actions':
+        return (
+          <>
+            {isArchived ? (
+              (() => {
+                const isReactivatingThis =
+                  reactivateUser.isPending &&
+                  (typeof reactivateUser.variables === 'number'
+                    ? reactivateUser.variables === u.id
+                    : reactivateUser.variables?.id === u.id)
+
+                return (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => handleReactivate(u)}
+                    disabled={isReactivatingThis}
+                    className="group h-8 px-3 gap-2 text-xs font-semibold text-emerald-600 dark:text-emerald-600 bg-emerald-500/15 hover:bg-emerald-500/25 active:scale-95 border border-emerald-500/30 rounded-xl shadow-2xs cursor-pointer transition-all duration-150"
+                  >
+                    {isReactivatingThis ? (
+                      <Spinner className="size-3 text-emerald-600 dark:text-emerald-600 animate-spin" />
+                    ) : (
+                      <RotateCcw className="size-3 text-emerald-600 dark:text-emerald-600 transition-transform duration-200 group-hover:-rotate-45" />
+                    )}
+                    <span>{isReactivatingThis ? 'Reactivating...' : 'Reactivate Account'}</span>
+                  </Button>
+                )
+              })()
+            ) : (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-8 cursor-pointer rounded-lg hover:bg-muted active:scale-90 transition-all duration-150"
+                    disabled={isSelf}
+                    title={
+                      isSelf ? 'You cannot archive your own active account' : 'Account actions'
+                    }
+                  >
+                    <MoreVertical className="size-4 text-muted-foreground" />
+                    <span className="sr-only">Open actions</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48 p-1">
+                  <DropdownMenuLabel className="px-2 py-1 text-xs text-muted-foreground font-normal">
+                    Account Actions
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator className="my-1" />
+                  <DropdownMenuGroup>
+                    <DropdownMenuItem
+                      onClick={() => handleDeactivate(u)}
+                      className="text-destructive focus:text-destructive focus:bg-destructive/10 cursor-pointer text-xs gap-2 px-2 py-1.5 rounded-md active:scale-95 transition-transform"
+                    >
+                      <Archive className="size-4" />
+                      Archive Account
+                    </DropdownMenuItem>
+                  </DropdownMenuGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </>
+        )
+      default:
+        return null
+    }
+  }
+
+  const userColumns: ColumnDef<UserAccount>[] = [
+    {
+      id: 'user-account',
+      header: 'User Account',
+      cell: ({ row }) => renderUserCell(row, 'account'),
+    },
+    {
+      id: 'linked-staff-profile',
+      header: 'Linked Staff Profile',
+      cell: ({ row }) => renderUserCell(row, 'staff'),
+    },
+    { id: 'system-role', header: 'System Role', cell: ({ row }) => renderUserCell(row, 'role') },
+    { id: 'status', header: 'Status', cell: ({ row }) => renderUserCell(row, 'status') },
+    {
+      id: 'registered-date',
+      header: 'Registered Date',
+      cell: ({ row }) => renderUserCell(row, 'registered'),
+    },
+    {
+      id: 'actions',
+      header: 'Actions',
+      align: 'right',
+      cell: ({ row }) => renderUserCell(row, 'actions'),
+    },
+  ]
+
   return (
     <div className="flex flex-col gap-6">
       {/* Archive / Active Tabs */}
@@ -224,7 +465,9 @@ export function UserRolesList() {
       {/* Users Table */}
       <div
         className={`rounded-2xl border shadow-xs overflow-hidden ${
-          isEmptyState ? 'border-dashed bg-muted/20' : 'border-border/80 bg-card'
+          isEmptyState
+            ? 'border-dashed bg-muted/20'
+            : 'border-0 bg-transparent shadow-none overflow-visible'
         }`}
       >
         {isLoading ? (
@@ -297,281 +540,14 @@ export function UserRolesList() {
             </div>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader className="bg-muted/40 border-b border-border/80">
-                <TableRow className="hover:bg-transparent">
-                  <TableHead className="py-3 px-4 text-xs font-semibold text-foreground min-w-[240px]">
-                    User Account
-                  </TableHead>
-                  <TableHead className="py-3 px-4 text-xs font-semibold text-foreground min-w-[190px]">
-                    Linked Staff Profile
-                  </TableHead>
-                  <TableHead className="py-3 px-4 text-xs font-semibold text-foreground min-w-[170px]">
-                    System Role
-                  </TableHead>
-                  <TableHead className="py-3 px-4 text-xs font-semibold text-foreground min-w-[110px]">
-                    Status
-                  </TableHead>
-                  <TableHead className="py-3 px-4 text-xs font-semibold text-foreground min-w-[140px]">
-                    Registered Date
-                  </TableHead>
-                  <TableHead className="py-3 px-4 text-xs font-semibold text-foreground text-right w-[80px]">
-                    Actions
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredUsers.map((u) => {
-                  const linkedEmp = getLinkedEmployee(u.id, u.email)
-                  const isUpdating = updatingId === u.id
-                  const displayName =
-                    u.fullName ||
-                    (linkedEmp
-                      ? `${linkedEmp.firstName} ${linkedEmp.lastName}`
-                      : u.email.split('@')[0])
-                  const initial = displayName.charAt(0).toUpperCase()
-                  const isArchived = u.isActive === false
-                  const userRole = normalizeUserRole(
-                    u.role || (u as unknown as Record<string, unknown>).userRole,
-                  )
-                  const isSelf = currentUser?.id === u.id
-
-                  return (
-                    <TableRow
-                      key={u.id}
-                      className={`border-b border-border/60 transition-colors hover:bg-muted/30 ${
-                        isArchived ? 'opacity-80 bg-muted/10' : ''
-                      }`}
-                    >
-                      {/* User Account Column (4x spacing: gap-3 between avatar and text) */}
-                      <TableCell className="py-3 px-4">
-                        <div className="flex items-center gap-3">
-                          <Avatar className="size-8 ring-1 ring-border/80 shadow-2xs shrink-0">
-                            <AvatarFallback className="bg-primary/10 text-primary text-xs font-bold">
-                              {initial}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className="flex flex-col min-w-0">
-                            <div className="flex items-center gap-2">
-                              <span className="font-semibold text-foreground text-xs leading-snug truncate">
-                                {displayName}
-                              </span>
-                              {isSelf && (
-                                <Badge
-                                  variant="secondary"
-                                  className="text-[9px] px-1.5 py-0 font-medium"
-                                >
-                                  You
-                                </Badge>
-                              )}
-                            </div>
-                            <span className="text-[11px] text-muted-foreground font-mono truncate">
-                              {u.email}
-                            </span>
-                          </div>
-                        </div>
-                      </TableCell>
-
-                      {/* Linked Staff Column */}
-                      <TableCell className="py-3 px-4">
-                        {linkedEmp ? (
-                          <div className="flex items-center gap-2 text-xs">
-                            <div className="flex items-center gap-1 font-medium text-foreground">
-                              <CheckCircle2 className="size-3.5 text-emerald-600 shrink-0" />
-                              <span>
-                                {linkedEmp.firstName} {linkedEmp.lastName}
-                              </span>
-                            </div>
-                            <Badge
-                              variant="outline"
-                              className="text-[9px] py-0.5 px-2 text-muted-foreground font-normal bg-muted/40 border-border/60"
-                            >
-                              Staff #{linkedEmp.id}
-                            </Badge>
-                          </div>
-                        ) : (
-                          <span className="text-xs text-muted-foreground/60 italic">
-                            Unlinked account
-                          </span>
-                        )}
-                      </TableCell>
-
-                      {/* System Role Column (Interactive Badge Menu for Admin, Static Badge for Non-Admin) */}
-                      <TableCell className="py-3 px-4">
-                        {isAdmin && !isArchived ? (
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <RoleBadgeDisplay
-                                role={userRole}
-                                interactive={true}
-                                isUpdating={isUpdating}
-                              />
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="start" className="w-52 p-1">
-                              <DropdownMenuLabel className="px-2 py-1 text-[11px] text-muted-foreground font-normal">
-                                Change System Role
-                              </DropdownMenuLabel>
-                              <DropdownMenuSeparator className="my-1" />
-                              <DropdownMenuGroup>
-                                <DropdownMenuItem
-                                  onClick={() =>
-                                    handleRoleChange(u.id, USER_ROLES.ADMIN, displayName)
-                                  }
-                                  className="flex items-center justify-between gap-2 px-2 py-1.5 text-xs cursor-pointer rounded-md"
-                                >
-                                  <span className="flex items-center gap-2 font-bold text-primary">
-                                    <Sparkles className="size-3.5" />
-                                    ADMIN
-                                  </span>
-                                  {userRole === USER_ROLES.ADMIN && (
-                                    <Check className="size-3.5 text-primary" />
-                                  )}
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  onClick={() =>
-                                    handleRoleChange(u.id, USER_ROLES.MANAGER, displayName)
-                                  }
-                                  className="flex items-center justify-between gap-2 px-2 py-1.5 text-xs cursor-pointer rounded-md"
-                                >
-                                  <span className="flex items-center gap-2 font-semibold text-foreground">
-                                    <Shield className="size-3.5 text-blue-500" />
-                                    MANAGER (Operations)
-                                  </span>
-                                  {userRole === USER_ROLES.MANAGER && (
-                                    <Check className="size-3.5 text-primary" />
-                                  )}
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  onClick={() =>
-                                    handleRoleChange(u.id, USER_ROLES.STAFF, displayName)
-                                  }
-                                  className="flex items-center justify-between gap-2 px-2 py-1.5 text-xs cursor-pointer rounded-md"
-                                >
-                                  <span className="flex items-center gap-2 text-muted-foreground">
-                                    <User className="size-3.5" />
-                                    STAFF (Restricted)
-                                  </span>
-                                  {userRole === USER_ROLES.STAFF && (
-                                    <Check className="size-3.5 text-primary" />
-                                  )}
-                                </DropdownMenuItem>
-                              </DropdownMenuGroup>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        ) : (
-                          <RoleBadgeDisplay
-                            role={userRole}
-                            interactive={false}
-                            isUpdating={isUpdating}
-                          />
-                        )}
-                      </TableCell>
-
-                      {/* Status Column (Strict 4x: px-3 py-1, gap-1) */}
-                      <TableCell className="py-3 px-4">
-                        {isArchived ? (
-                          <Badge
-                            variant="outline"
-                            className="select-none bg-amber-500/10 text-amber-600 dark:text-amber-300 border-amber-500/30 text-[11px] font-semibold gap-1 px-3 py-1 shadow-2xs cursor-default"
-                          >
-                            <Archive className="size-3 pointer-events-none" />
-                            <span className="select-none pointer-events-none">Archived</span>
-                          </Badge>
-                        ) : (
-                          <Badge
-                            variant="outline"
-                            className="select-none bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/25 text-[11px] font-semibold gap-1 px-3 py-1 shadow-2xs cursor-default"
-                          >
-                            <CheckCircle2 className="size-3 pointer-events-none" />
-                            <span className="select-none pointer-events-none">Active</span>
-                          </Badge>
-                        )}
-                      </TableCell>
-
-                      {/* Registered Date Column (4x spacing: gap-2) */}
-                      <TableCell className="py-3 px-4 text-xs text-muted-foreground">
-                        <span className="inline-flex items-center gap-2 font-medium">
-                          <Calendar className="size-3.5 text-muted-foreground/70" />
-                          {new Date(u.createdAt).toLocaleDateString(undefined, {
-                            year: 'numeric',
-                            month: 'short',
-                            day: 'numeric',
-                          })}
-                        </span>
-                      </TableCell>
-
-                      {/* Actions Column (4x spacing: size-8 rounded-lg) */}
-                      <TableCell className="py-3 px-4 text-right">
-                        {isArchived ? (
-                          (() => {
-                            const isReactivatingThis =
-                              reactivateUser.isPending &&
-                              (typeof reactivateUser.variables === 'number'
-                                ? reactivateUser.variables === u.id
-                                : reactivateUser.variables?.id === u.id)
-
-                            return (
-                              <Button
-                                variant="secondary"
-                                size="sm"
-                                onClick={() => handleReactivate(u)}
-                                disabled={isReactivatingThis}
-                                className="group h-8 px-3 gap-2 text-xs font-semibold text-emerald-600 dark:text-emerald-600 bg-emerald-500/15 hover:bg-emerald-500/25 active:scale-95 border border-emerald-500/30 rounded-xl shadow-2xs cursor-pointer transition-all duration-150"
-                              >
-                                {isReactivatingThis ? (
-                                  <Spinner className="size-3 text-emerald-600 dark:text-emerald-600 animate-spin" />
-                                ) : (
-                                  <RotateCcw className="size-3 text-emerald-600 dark:text-emerald-600 transition-transform duration-200 group-hover:-rotate-45" />
-                                )}
-                                <span>
-                                  {isReactivatingThis ? 'Reactivating...' : 'Reactivate Account'}
-                                </span>
-                              </Button>
-                            )
-                          })()
-                        ) : (
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="size-8 cursor-pointer rounded-lg hover:bg-muted active:scale-90 transition-all duration-150"
-                                disabled={isSelf}
-                                title={
-                                  isSelf
-                                    ? 'You cannot archive your own active account'
-                                    : 'Account actions'
-                                }
-                              >
-                                <MoreVertical className="size-4 text-muted-foreground" />
-                                <span className="sr-only">Open actions</span>
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-48 p-1">
-                              <DropdownMenuLabel className="px-2 py-1 text-xs text-muted-foreground font-normal">
-                                Account Actions
-                              </DropdownMenuLabel>
-                              <DropdownMenuSeparator className="my-1" />
-                              <DropdownMenuGroup>
-                                <DropdownMenuItem
-                                  onClick={() => handleDeactivate(u)}
-                                  className="text-destructive focus:text-destructive focus:bg-destructive/10 cursor-pointer text-xs gap-2 px-2 py-1.5 rounded-md active:scale-95 transition-transform"
-                                >
-                                  <Archive className="size-4" />
-                                  Archive Account
-                                </DropdownMenuItem>
-                              </DropdownMenuGroup>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  )
-                })}
-              </TableBody>
-            </Table>
-          </div>
+          <DataTable
+            data={filteredUsers}
+            columns={userColumns}
+            getRowKey={(row) => row.id}
+            pagination={false}
+            tableClassName="min-w-[980px]"
+            rowClassName={(row) => (row.isActive === false ? 'bg-muted/10 opacity-80' : '')}
+          />
         )}
       </div>
 

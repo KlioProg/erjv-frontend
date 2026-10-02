@@ -3,7 +3,8 @@
 The sidebar now has a Purchases division with Suppliers and Purchase Orders.
 Both entries reuse the existing sections of `PurchasesView`. The `purchases`
 navigation key still opens Purchase Orders; the new `suppliers` key opens the
-existing supplier directory. Internal tabs and sidebar selection stay in sync.
+existing supplier directory. The redundant Purchase Orders/Suppliers tabs inside
+the page have been removed; each sidebar entry opens its section directly.
 Navigation uses React state, not URL routes, so no redirects are needed.
 Phase 1 Sales navigation and workflows remain unchanged.
 
@@ -14,7 +15,8 @@ Phase 1 Sales navigation and workflows remain unchanged.
   `features/logistics/suppliers.*`; their API routes and internal names stay intact.
 - Both existing lists now reuse `ui/data-table.tsx`, already used in Sales and
   inventory. Their filters, badges, amounts, confirm/cancel actions and supplier
-  edit/archive/reactivate actions are preserved.
+  edit/archive/restore actions are preserved. Suppliers use Active and Archived
+  views backed by the existing `isActive` field and archive confirmation.
 - The supplier directory includes inactive records, allowing its existing
   reactivation action to work. New orders still select only active suppliers.
 - `PurchaseOrderDetailModal` provides a read-only view of the existing order,

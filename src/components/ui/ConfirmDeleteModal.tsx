@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { AlertTriangle, Trash2 } from 'lucide-react'
 import {
   Dialog,
@@ -22,6 +22,7 @@ export type ConfirmDeleteModalProps = {
   confirmText?: string
   cancelText?: string
   variant?: 'destructive' | 'warning'
+  icon?: ReactNode
 }
 
 export function ConfirmDeleteModal({
@@ -35,6 +36,7 @@ export function ConfirmDeleteModal({
   confirmText = 'Deactivate',
   cancelText = 'Cancel',
   variant = 'destructive',
+  icon,
 }: ConfirmDeleteModalProps) {
   const [isProcessing, setIsProcessing] = useState(false)
 
@@ -61,7 +63,12 @@ export function ConfirmDeleteModal({
                 : 'bg-amber-500/10 text-amber-600'
             } shadow-2xs mb-1`}
           >
-            {isDestructive ? <Trash2 className="size-6" /> : <AlertTriangle className="size-6" />}
+            {icon ??
+              (isDestructive ? (
+                <Trash2 className="size-6" />
+              ) : (
+                <AlertTriangle className="size-6" />
+              ))}
           </div>
           <DialogTitle className="text-lg font-bold tracking-tight text-foreground">
             {title}
@@ -111,7 +118,7 @@ export function ConfirmDeleteModal({
               </>
             ) : (
               <>
-                {isDestructive && <Trash2 className="size-3.5" />}
+                {isDestructive && !icon && <Trash2 className="size-3.5" />}
                 {confirmText}
               </>
             )}

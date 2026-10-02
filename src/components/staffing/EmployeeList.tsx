@@ -1,3 +1,4 @@
+import { DataTable, type ColumnDef } from '@/components/ui/data-table'
 import { useState } from 'react'
 import {
   Search,
@@ -15,14 +16,6 @@ import {
   AlertCircle,
 } from 'lucide-react'
 import { ArchiveTabNav } from '@/components/ui/ArchiveTabNav'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -137,6 +130,215 @@ export function EmployeeList() {
 
   const isEmptyState = !isLoading && !error && filteredEmployees.length === 0
 
+  const renderEmployeeCell = (
+    emp: Employee,
+    column: 'employee' | 'contact' | 'positions' | 'hireDate' | 'account' | 'actions',
+  ) => {
+    const initials = (emp.firstName.charAt(0) + emp.lastName.charAt(0)).toUpperCase()
+    const formattedHireDate = emp.hireDate
+      ? new Date(emp.hireDate).toLocaleDateString(undefined, {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric',
+        })
+      : '—'
+    const isArchived = emp.isActive === false
+    switch (column) {
+      case 'employee':
+        return (
+          <>
+            <div className="flex items-center gap-3">
+              <Avatar className="size-9 ring-1 ring-border">
+                <AvatarFallback
+                  className={`text-xs font-bold ${
+                    isArchived ? 'bg-muted text-muted-foreground' : 'bg-primary/10 text-primary'
+                  }`}
+                >
+                  {initials}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex flex-col">
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-foreground text-xs">
+                    {emp.firstName} {emp.lastName}
+                  </span>
+                  {isArchived && (
+                    <Badge
+                      variant="outline"
+                      className="border-amber-500/30 bg-amber-500/10 text-amber-600 text-[9px] font-bold px-1.5 py-0"
+                    >
+                      Deactivated
+                    </Badge>
+                  )}
+                </div>
+                {emp.address && (
+                  <span className="text-[11px] text-muted-foreground truncate max-w-[160px]">
+                    {emp.address}
+                  </span>
+                )}
+              </div>
+            </div>
+          </>
+        )
+      case 'contact':
+        return (
+          <>
+            <div className="flex flex-col gap-0.5 text-xs">
+              {emp.email ? (
+                <span className="flex items-center gap-1 text-muted-foreground">
+                  <Mail className="size-3 text-muted-foreground/70" />
+                  {emp.email}
+                </span>
+              ) : (
+                <span className="text-muted-foreground/60">—</span>
+              )}
+              {emp.phone && (
+                <span className="flex items-center gap-1 text-muted-foreground text-[11px]">
+                  <Phone className="size-3 text-muted-foreground/70" />
+                  {emp.phone}
+                </span>
+              )}
+            </div>
+          </>
+        )
+      case 'positions':
+        return (
+          <>
+            <EmployeeJobBadges employeeId={emp.id} />
+          </>
+        )
+      case 'hireDate':
+        return (
+          <>
+            <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Calendar className="size-3" />
+              {formattedHireDate}
+            </span>
+          </>
+        )
+      case 'account':
+        return (
+          <>
+            {emp.userId ? (
+              <Badge
+                variant="outline"
+                className="bg-emerald-500/10 text-emerald-600 border-emerald-500/25 text-[11px] font-semibold gap-1"
+              >
+                <ShieldCheck className="size-3 text-emerald-600" />
+                Linked (ID #{emp.userId})
+              </Badge>
+            ) : (
+              <span className="text-xs text-muted-foreground/70">Unlinked</span>
+            )}
+          </>
+        )
+      case 'actions':
+        return (
+          <>
+            {isArchived ? (
+              (() => {
+                const isReactivatingThis =
+                  reactivateMutation.isPending &&
+                  (typeof reactivateMutation.variables === 'number'
+                    ? reactivateMutation.variables === emp.id
+                    : reactivateMutation.variables?.id === emp.id)
+
+                return (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => handleReactivate(emp)}
+                    disabled={isReactivatingThis}
+                    className="group h-8.5 px-3.5 gap-2 text-xs font-bold text-emerald-600 dark:text-emerald-600 bg-emerald-500/15 hover:bg-emerald-500/25 active:scale-95 border border-emerald-500/30 rounded-xl shadow-2xs cursor-pointer transition-all duration-150"
+                  >
+                    {isReactivatingThis ? (
+                      <Spinner className="size-3.5 text-emerald-600 dark:text-emerald-600 animate-spin" />
+                    ) : (
+                      <RotateCcw className="size-3.5 text-emerald-600 dark:text-emerald-600 transition-transform duration-200 group-hover:-rotate-45" />
+                    )}
+                    <span>{isReactivatingThis ? 'Reactivating...' : 'Reactivate Profile'}</span>
+                  </Button>
+                )
+              })()
+            ) : (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-8 cursor-pointer rounded-lg hover:bg-muted active:scale-90 transition-all duration-150"
+                  >
+                    <MoreVertical className="size-4" />
+                    <span className="sr-only">Open actions</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-44 p-1">
+                  <DropdownMenuLabel className="px-2 py-1 text-xs text-muted-foreground font-normal">
+                    Staff Actions
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator className="my-1" />
+                  <DropdownMenuGroup>
+                    <DropdownMenuItem
+                      onClick={() => handleAssignPositions(emp)}
+                      className="px-2 py-1.5 text-xs cursor-pointer rounded-md active:scale-95 transition-transform"
+                    >
+                      <Briefcase className="size-4 mr-2 text-primary" />
+                      Assign Roles
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => handleEdit(emp)}
+                      className="px-2 py-1.5 text-xs cursor-pointer rounded-md active:scale-95 transition-transform"
+                    >
+                      <Edit2 className="size-4 mr-2" />
+                      Edit Profile
+                    </DropdownMenuItem>
+                  </DropdownMenuGroup>
+                  <DropdownMenuSeparator className="my-1" />
+                  <DropdownMenuGroup>
+                    <DropdownMenuItem
+                      onClick={() => handleDeactivate(emp)}
+                      className="text-destructive focus:text-destructive focus:bg-destructive/10 cursor-pointer text-xs gap-2 px-2 py-1.5 rounded-md active:scale-95 transition-transform"
+                    >
+                      <Archive className="size-4 mr-2" />
+                      Archive Employee
+                    </DropdownMenuItem>
+                  </DropdownMenuGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </>
+        )
+      default:
+        return null
+    }
+  }
+
+  const employeeColumns: ColumnDef<Employee>[] = [
+    { id: 'employee', header: 'Employee', cell: ({ row }) => renderEmployeeCell(row, 'employee') },
+    { id: 'contact', header: 'Contact', cell: ({ row }) => renderEmployeeCell(row, 'contact') },
+    {
+      id: 'assigned-roles-positions',
+      header: 'Assigned Roles / Positions',
+      cell: ({ row }) => renderEmployeeCell(row, 'positions'),
+    },
+    {
+      id: 'hire-date',
+      header: 'Hire Date',
+      cell: ({ row }) => renderEmployeeCell(row, 'hireDate'),
+    },
+    {
+      id: 'user-account',
+      header: 'User Account',
+      cell: ({ row }) => renderEmployeeCell(row, 'account'),
+    },
+    {
+      id: 'actions',
+      header: 'Actions',
+      align: 'right',
+      cell: ({ row }) => renderEmployeeCell(row, 'actions'),
+    },
+  ]
+
   return (
     <div className="flex flex-col gap-4">
       {/* Staff Archive / Active Tabs */}
@@ -173,7 +375,9 @@ export function EmployeeList() {
       {/* Employees Table Card */}
       <div
         className={`rounded-2xl border shadow-xs overflow-hidden ${
-          isEmptyState ? 'border-dashed bg-muted/20' : 'border-border bg-card'
+          isEmptyState
+            ? 'border-dashed bg-muted/20'
+            : 'border-0 bg-transparent shadow-none overflow-visible'
         }`}
       >
         {isLoading ? (
@@ -231,194 +435,14 @@ export function EmployeeList() {
             </div>
           </Card>
         ) : (
-          <Table>
-            <TableHeader className="bg-muted/40">
-              <TableRow>
-                <TableHead>Employee</TableHead>
-                <TableHead>Contact</TableHead>
-                <TableHead>Assigned Roles / Positions</TableHead>
-                <TableHead>Hire Date</TableHead>
-                <TableHead>User Account</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredEmployees.map((emp) => {
-                const initials = `${emp.firstName.charAt(0)}${emp.lastName.charAt(0)}`.toUpperCase()
-                const formattedHireDate = emp.hireDate
-                  ? new Date(emp.hireDate).toLocaleDateString(undefined, {
-                      year: 'numeric',
-                      month: 'short',
-                      day: 'numeric',
-                    })
-                  : '—'
-                const isArchived = emp.isActive === false
-
-                return (
-                  <TableRow
-                    key={emp.id}
-                    className={`group hover:bg-muted/30 ${isArchived ? 'opacity-75 bg-muted/10' : ''}`}
-                  >
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <Avatar className="size-9 ring-1 ring-border">
-                          <AvatarFallback
-                            className={`text-xs font-bold ${
-                              isArchived
-                                ? 'bg-muted text-muted-foreground'
-                                : 'bg-primary/10 text-primary'
-                            }`}
-                          >
-                            {initials}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex flex-col">
-                          <div className="flex items-center gap-2">
-                            <span className="font-semibold text-foreground text-xs">
-                              {emp.firstName} {emp.lastName}
-                            </span>
-                            {isArchived && (
-                              <Badge
-                                variant="outline"
-                                className="border-amber-500/30 bg-amber-500/10 text-amber-600 text-[9px] font-bold px-1.5 py-0"
-                              >
-                                Deactivated
-                              </Badge>
-                            )}
-                          </div>
-                          {emp.address && (
-                            <span className="text-[11px] text-muted-foreground truncate max-w-[160px]">
-                              {emp.address}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </TableCell>
-
-                    <TableCell>
-                      <div className="flex flex-col gap-0.5 text-xs">
-                        {emp.email ? (
-                          <span className="flex items-center gap-1 text-muted-foreground">
-                            <Mail className="size-3 text-muted-foreground/70" />
-                            {emp.email}
-                          </span>
-                        ) : (
-                          <span className="text-muted-foreground/60">—</span>
-                        )}
-                        {emp.phone && (
-                          <span className="flex items-center gap-1 text-muted-foreground text-[11px]">
-                            <Phone className="size-3 text-muted-foreground/70" />
-                            {emp.phone}
-                          </span>
-                        )}
-                      </div>
-                    </TableCell>
-
-                    <TableCell>
-                      <EmployeeJobBadges employeeId={emp.id} />
-                    </TableCell>
-
-                    <TableCell>
-                      <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-                        <Calendar className="size-3" />
-                        {formattedHireDate}
-                      </span>
-                    </TableCell>
-
-                    <TableCell>
-                      {emp.userId ? (
-                        <Badge
-                          variant="outline"
-                          className="bg-emerald-500/10 text-emerald-600 border-emerald-500/25 text-[11px] font-semibold gap-1"
-                        >
-                          <ShieldCheck className="size-3 text-emerald-600" />
-                          Linked (ID #{emp.userId})
-                        </Badge>
-                      ) : (
-                        <span className="text-xs text-muted-foreground/70">Unlinked</span>
-                      )}
-                    </TableCell>
-
-                    <TableCell className="text-right">
-                      {isArchived ? (
-                        (() => {
-                          const isReactivatingThis =
-                            reactivateMutation.isPending &&
-                            (typeof reactivateMutation.variables === 'number'
-                              ? reactivateMutation.variables === emp.id
-                              : reactivateMutation.variables?.id === emp.id)
-
-                          return (
-                            <Button
-                              variant="secondary"
-                              size="sm"
-                              onClick={() => handleReactivate(emp)}
-                              disabled={isReactivatingThis}
-                              className="group h-8.5 px-3.5 gap-2 text-xs font-bold text-emerald-600 dark:text-emerald-600 bg-emerald-500/15 hover:bg-emerald-500/25 active:scale-95 border border-emerald-500/30 rounded-xl shadow-2xs cursor-pointer transition-all duration-150"
-                            >
-                              {isReactivatingThis ? (
-                                <Spinner className="size-3.5 text-emerald-600 dark:text-emerald-600 animate-spin" />
-                              ) : (
-                                <RotateCcw className="size-3.5 text-emerald-600 dark:text-emerald-600 transition-transform duration-200 group-hover:-rotate-45" />
-                              )}
-                              <span>
-                                {isReactivatingThis ? 'Reactivating...' : 'Reactivate Profile'}
-                              </span>
-                            </Button>
-                          )
-                        })()
-                      ) : (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="size-8 cursor-pointer rounded-lg hover:bg-muted active:scale-90 transition-all duration-150"
-                            >
-                              <MoreVertical className="size-4" />
-                              <span className="sr-only">Open actions</span>
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="w-44 p-1">
-                            <DropdownMenuLabel className="px-2 py-1 text-xs text-muted-foreground font-normal">
-                              Staff Actions
-                            </DropdownMenuLabel>
-                            <DropdownMenuSeparator className="my-1" />
-                            <DropdownMenuGroup>
-                              <DropdownMenuItem
-                                onClick={() => handleAssignPositions(emp)}
-                                className="px-2 py-1.5 text-xs cursor-pointer rounded-md active:scale-95 transition-transform"
-                              >
-                                <Briefcase className="size-4 mr-2 text-primary" />
-                                Assign Roles
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onClick={() => handleEdit(emp)}
-                                className="px-2 py-1.5 text-xs cursor-pointer rounded-md active:scale-95 transition-transform"
-                              >
-                                <Edit2 className="size-4 mr-2" />
-                                Edit Profile
-                              </DropdownMenuItem>
-                            </DropdownMenuGroup>
-                            <DropdownMenuSeparator className="my-1" />
-                            <DropdownMenuGroup>
-                              <DropdownMenuItem
-                                onClick={() => handleDeactivate(emp)}
-                                className="text-destructive focus:text-destructive focus:bg-destructive/10 cursor-pointer text-xs gap-2 px-2 py-1.5 rounded-md active:scale-95 transition-transform"
-                              >
-                                <Archive className="size-4 mr-2" />
-                                Archive Employee
-                              </DropdownMenuItem>
-                            </DropdownMenuGroup>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                )
-              })}
-            </TableBody>
-          </Table>
+          <DataTable
+            data={filteredEmployees}
+            columns={employeeColumns}
+            getRowKey={(row) => row.id}
+            pagination={false}
+            tableClassName="min-w-[980px]"
+            rowClassName={(row) => (row.isActive === false ? 'bg-muted/10 opacity-75' : '')}
+          />
         )}
       </div>
 
