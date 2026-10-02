@@ -251,7 +251,7 @@ export function OrderDetailDrawer({
                 {/* Step 1: Draft */}
                 <div className="flex flex-col items-center">
                   <div
-                    className={`size-7 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
+                    className={`size-7 rounded-md flex items-center justify-center text-xs font-bold transition-all ${
                       isCancelled
                         ? 'bg-muted text-muted-foreground'
                         : currentStep >= 1
@@ -268,7 +268,7 @@ export function OrderDetailDrawer({
                 {/* Step 2: Confirmed */}
                 <div className="flex flex-col items-center">
                   <div
-                    className={`size-7 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
+                    className={`size-7 rounded-md flex items-center justify-center text-xs font-bold transition-all ${
                       isCancelled
                         ? 'bg-muted text-muted-foreground'
                         : currentStep >= 2
@@ -287,7 +287,7 @@ export function OrderDetailDrawer({
                 {/* Step 3: In Transit */}
                 <div className="flex flex-col items-center">
                   <div
-                    className={`size-7 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
+                    className={`size-7 rounded-md flex items-center justify-center text-xs font-bold transition-all ${
                       isCancelled
                         ? 'bg-muted text-muted-foreground'
                         : currentStep >= 3
@@ -306,7 +306,7 @@ export function OrderDetailDrawer({
                 {/* Step 4: Delivered */}
                 <div className="flex flex-col items-center">
                   <div
-                    className={`size-7 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
+                    className={`size-7 rounded-md flex items-center justify-center text-xs font-bold transition-all ${
                       isCancelled
                         ? 'bg-rose-500/20 text-rose-600'
                         : currentStep === 4

@@ -63,7 +63,7 @@ export function FeedbackView() {
     <div className="flex flex-col gap-5 max-w-2xl">
       <Card className="border-border/80 text-center p-8">
         <CardContent className="flex flex-col items-center justify-center gap-4">
-          <div className="flex size-14 items-center justify-center rounded-full bg-rose-50 text-rose-600">
+          <div className="flex size-14 items-center justify-center rounded-lg bg-rose-50 text-rose-600">
             ⭐
           </div>
           <h3 className="text-lg font-bold text-foreground">Rate your ERJVPOS Experience</h3>

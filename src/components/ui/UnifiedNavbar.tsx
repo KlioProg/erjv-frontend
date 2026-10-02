@@ -42,10 +42,10 @@ export function UnifiedNavbar<T extends string>({
         className,
       )}
     >
-      {/* Unified Single Navbar Pill Container */}
+      {/* Unified Single Navbar Container */}
       <div
         className={cn(
-          'inline-flex min-w-max items-center gap-1.5 p-1 rounded-2xl bg-muted/60 border border-border/70 shadow-2xs overflow-x-auto max-w-full',
+          'inline-flex min-w-0 items-center gap-1.5 p-1 rounded-lg bg-muted/60 border border-border/70 shadow-2xs overflow-x-auto max-w-full',
           containerClassName,
         )}
       >
@@ -64,7 +64,7 @@ export function UnifiedNavbar<T extends string>({
                     title={tab.title}
                     onClick={() => group.onChange(tab.value)}
                     className={cn(
-                      'flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-150 active:scale-95 cursor-pointer select-none whitespace-nowrap',
+                      'flex items-center gap-2 px-3.5 py-1.5 rounded-md text-xs font-bold transition-all duration-150 active:scale-95 cursor-pointer select-none whitespace-nowrap',
                       isSelected
                         ? 'bg-background text-foreground shadow-2xs border border-border/60'
                         : 'text-muted-foreground hover:text-foreground hover:bg-background/40',
@@ -139,12 +139,12 @@ export function ArchiveNoticeBanner({
   return (
     <div
       className={cn(
-        'flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 px-4 py-3 rounded-2xl bg-amber-500/[0.06] dark:bg-amber-500/[0.1] border border-amber-500/25 text-foreground text-xs shadow-2xs animate-in fade-in-0 duration-200',
+        'flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 px-4 py-3 rounded-lg bg-amber-500/[0.06] dark:bg-amber-500/[0.1] border border-amber-500/25 text-foreground text-xs shadow-2xs animate-in fade-in-0 duration-200',
         className,
       )}
     >
       <div className="flex items-center gap-3">
-        <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-600 dark:text-[#ffb627] shadow-2xs">
+        <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-600 dark:text-[#ffb627] shadow-2xs">
           <Archive className="size-4" />
         </div>
         <div>
@@ -160,7 +160,7 @@ export function ArchiveNoticeBanner({
         variant="outline"
         size="sm"
         onClick={onBackToActive}
-        className="group h-7.5 px-3 text-xs font-bold text-foreground hover:text-amber-600 dark:hover:text-[#ffb627] hover:bg-amber-500/15 bg-background/90 border-border/70 hover:border-amber-500/30 rounded-xl cursor-pointer self-end sm:self-auto gap-1.5 shrink-0 transition-all duration-150 active:scale-95 shadow-2xs"
+        className="group h-7.5 px-3 text-xs font-bold text-foreground hover:text-amber-600 dark:hover:text-[#ffb627] hover:bg-amber-500/15 bg-background/90 border-border/70 hover:border-amber-500/30 rounded-md cursor-pointer self-end sm:self-auto gap-1.5 shrink-0 transition-all duration-150 active:scale-95 shadow-2xs"
       >
         <ArrowLeft className="size-3.5 transition-transform duration-200 group-hover:-translate-x-1" />
         Back to Active

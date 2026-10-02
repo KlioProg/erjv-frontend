@@ -136,7 +136,7 @@ function AccountProfileForm({ onClose }: { onClose: () => void }) {
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="absolute bottom-0 right-0 p-1.5 rounded-full bg-primary text-primary-foreground shadow-md hover:bg-primary/90 transition-transform active:scale-95 cursor-pointer"
+              className="absolute bottom-0 right-0 p-1.5 rounded-md bg-primary text-primary-foreground shadow-md hover:bg-primary/90 transition-transform active:scale-95 cursor-pointer"
               title="Change Photo"
             >
               <Camera className="size-3.5" />

@@ -127,7 +127,7 @@ export function DeliveriesHub({ initialTab = 'schedule' }: DeliveriesHubProps = 
 
         {/* Quiet status pill on the right */}
         <div className="flex items-center gap-2 self-start sm:self-auto">
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-border/80 bg-muted/30 text-xs font-medium text-muted-foreground">
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border/80 bg-muted/30 text-xs font-medium text-muted-foreground">
             <Truck className="size-3.5 text-primary shrink-0" />
             <span>Fleet Standby:</span>
             <span className="font-semibold font-mono text-foreground">

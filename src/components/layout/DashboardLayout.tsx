@@ -140,7 +140,7 @@ export function DashboardLayout({ currentTab, onSelectTab, children }: Dashboard
 
       {/* Sidebar Navigation */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex w-72 flex-col justify-between border-r border-border/80 bg-card/95 backdrop-blur-md transition-transform duration-300 lg:sticky lg:top-0 lg:h-screen lg:shrink-0 ${
+        className={`fixed inset-y-0 left-0 z-50 flex w-60 flex-col justify-between border-r border-border/80 bg-card/95 backdrop-blur-md transition-transform duration-300 lg:sticky lg:top-0 lg:h-screen lg:shrink-0 ${
           isMobileOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full lg:translate-x-0'
         }`}
       >
@@ -177,7 +177,7 @@ export function DashboardLayout({ currentTab, onSelectTab, children }: Dashboard
                           handleSelectTab(item.key)
                           setIsMobileOpen(false)
                         }}
-                        className={`group relative flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-xs font-semibold transition-all duration-150 cursor-pointer select-none active:scale-[0.98] ${
+                        className={`group relative flex w-full items-center justify-between rounded-md px-3 py-2.5 text-xs font-semibold transition-all duration-150 cursor-pointer select-none active:scale-[0.98] ${
                           isActive
                             ? 'bg-primary text-primary-foreground shadow-sm shadow-primary/25'
                             : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'

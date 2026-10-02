@@ -51,7 +51,7 @@ export function ExecutiveDashboard() {
                 ₱141,000.67
               </div>
             </div>
-            <div className="flex size-9 items-center justify-center rounded-full bg-rose-600 text-white font-bold text-sm shadow-sm">
+            <div className="flex size-9 items-center justify-center rounded-lg bg-rose-600 text-white font-bold text-sm shadow-sm">
               ₱
             </div>
           </div>
@@ -80,7 +80,7 @@ export function ExecutiveDashboard() {
                 </Badge>
               </div>
             </div>
-            <div className="flex size-9 items-center justify-center rounded-full bg-rose-600 text-white font-bold text-sm shadow-sm">
+            <div className="flex size-9 items-center justify-center rounded-lg bg-rose-600 text-white font-bold text-sm shadow-sm">
               <ArrowUpRight className="size-4" />
             </div>
           </div>
@@ -101,7 +101,7 @@ export function ExecutiveDashboard() {
                 {deliveriesInProgress}
               </div>
             </div>
-            <div className="flex size-9 items-center justify-center rounded-full bg-rose-600 text-white font-bold text-sm shadow-sm">
+            <div className="flex size-9 items-center justify-center rounded-lg bg-rose-600 text-white font-bold text-sm shadow-sm">
               <Truck className="size-4" />
             </div>
           </div>
@@ -123,7 +123,7 @@ export function ExecutiveDashboard() {
             <Button
               variant="default"
               size="sm"
-              className="bg-rose-600 hover:bg-rose-700 text-white font-semibold text-xs h-7 px-3 rounded-full shadow-xs"
+              className="bg-rose-600 hover:bg-rose-700 text-white font-semibold text-xs h-7 px-3 rounded-md shadow-xs"
             >
               See All
             </Button>
@@ -181,7 +181,7 @@ export function ExecutiveDashboard() {
               variant="default"
               size="sm"
               onClick={() => setPeriod(period === 'This week' ? 'This month' : 'This week')}
-              className="bg-rose-600 hover:bg-rose-700 text-white font-semibold text-xs h-7 px-3 rounded-full shadow-xs gap-1"
+              className="bg-rose-600 hover:bg-rose-700 text-white font-semibold text-xs h-7 px-3 rounded-md shadow-xs gap-1"
             >
               {period} <ChevronDown className="size-3" />
             </Button>
@@ -245,7 +245,7 @@ export function ExecutiveDashboard() {
             variant="default"
             size="sm"
             onClick={() => setYearPeriod(yearPeriod === '2026' ? '2025' : '2026')}
-            className="bg-rose-600 hover:bg-rose-700 text-white font-semibold text-xs h-7 px-3 rounded-full shadow-xs gap-1"
+            className="bg-rose-600 hover:bg-rose-700 text-white font-semibold text-xs h-7 px-3 rounded-md shadow-xs gap-1"
           >
             This year ({yearPeriod}) <ChevronDown className="size-3" />
           </Button>

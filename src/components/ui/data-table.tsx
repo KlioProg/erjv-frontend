@@ -419,7 +419,7 @@ export function DataTable<T>({
   return (
     <div
       className={cn(
-        'rounded-2xl border border-border/80 overflow-hidden shadow-xs bg-card flex flex-col',
+        'rounded-lg border border-border/80 overflow-hidden shadow-xs bg-card flex flex-col',
         className,
       )}
     >
@@ -564,7 +564,7 @@ export function DataTable<T>({
                   aria-label="Rows per page"
                   value={activePageSize}
                   onChange={(e) => handlePageSizeSelect(Number(e.target.value))}
-                  className="h-7 rounded-lg border border-border/80 bg-background px-2 text-[11px] font-semibold text-foreground focus:outline-hidden cursor-pointer"
+                  className="h-7 rounded-md border border-border/80 bg-background px-2 text-[11px] font-semibold text-foreground focus:outline-hidden cursor-pointer"
                 >
                   {pageSizeOptions.map((opt) => (
                     <option key={opt} value={opt}>
@@ -584,7 +584,7 @@ export function DataTable<T>({
                 size="icon"
                 onClick={() => handlePageSelect(1)}
                 disabled={safeCurrentPage === 1}
-                className="size-7.5 rounded-lg text-muted-foreground hover:text-foreground cursor-pointer disabled:opacity-30 disabled:pointer-events-none"
+                className="size-7.5 rounded-md text-muted-foreground hover:text-foreground cursor-pointer disabled:opacity-30 disabled:pointer-events-none"
                 title="First Page"
               >
                 <ChevronsLeft className="size-3.5" />
@@ -596,7 +596,7 @@ export function DataTable<T>({
                 size="icon"
                 onClick={() => handlePageSelect(safeCurrentPage - 1)}
                 disabled={safeCurrentPage === 1}
-                className="size-7.5 rounded-lg text-muted-foreground hover:text-foreground cursor-pointer disabled:opacity-30 disabled:pointer-events-none"
+                className="size-7.5 rounded-md text-muted-foreground hover:text-foreground cursor-pointer disabled:opacity-30 disabled:pointer-events-none"
                 title="Previous Page"
               >
                 <ChevronLeft className="size-3.5" />
@@ -624,7 +624,7 @@ export function DataTable<T>({
                       size="sm"
                       onClick={() => handlePageSelect(pageNum as number)}
                       className={cn(
-                        'size-7.5 p-0 text-xs font-bold rounded-lg cursor-pointer transition-all',
+                        'size-7.5 p-0 text-xs font-bold rounded-md cursor-pointer transition-all',
                         isCurrent
                           ? 'bg-primary text-primary-foreground shadow-2xs font-extrabold'
                           : 'text-muted-foreground hover:text-foreground hover:bg-muted',
@@ -641,7 +641,7 @@ export function DataTable<T>({
                 size="icon"
                 onClick={() => handlePageSelect(safeCurrentPage + 1)}
                 disabled={safeCurrentPage === totalPages}
-                className="size-7.5 rounded-lg text-muted-foreground hover:text-foreground cursor-pointer disabled:opacity-30 disabled:pointer-events-none"
+                className="size-7.5 rounded-md text-muted-foreground hover:text-foreground cursor-pointer disabled:opacity-30 disabled:pointer-events-none"
                 title="Next Page"
               >
                 <ChevronRight className="size-3.5" />
@@ -653,7 +653,7 @@ export function DataTable<T>({
                 size="icon"
                 onClick={() => handlePageSelect(totalPages)}
                 disabled={safeCurrentPage === totalPages}
-                className="size-7.5 rounded-lg text-muted-foreground hover:text-foreground cursor-pointer disabled:opacity-30 disabled:pointer-events-none"
+                className="size-7.5 rounded-md text-muted-foreground hover:text-foreground cursor-pointer disabled:opacity-30 disabled:pointer-events-none"
                 title="Last Page"
               >
                 <ChevronsRight className="size-3.5" />

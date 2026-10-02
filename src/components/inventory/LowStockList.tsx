@@ -324,7 +324,7 @@ export function LowStockList() {
         >
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-foreground">Out of Stock</span>
-            <div className="size-8 rounded-full bg-rose-500/15 border border-rose-500/30 text-rose-600 dark:text-rose-400 flex items-center justify-center shadow-2xs">
+            <div className="size-8 rounded-lg bg-rose-500/15 border border-rose-500/30 text-rose-600 dark:text-rose-400 flex items-center justify-center shadow-2xs">
               <Flame className="size-4" />
             </div>
           </div>
@@ -346,7 +346,7 @@ export function LowStockList() {
         >
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-foreground">Critical Level (≤10)</span>
-            <div className="size-8 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-600 dark:text-[#ffb627] flex items-center justify-center shadow-2xs">
+            <div className="size-8 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-600 dark:text-[#ffb627] flex items-center justify-center shadow-2xs">
               <AlertTriangle className="size-4" />
             </div>
           </div>
@@ -368,7 +368,7 @@ export function LowStockList() {
         >
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-foreground">Low Buffer (≤{threshold})</span>
-            <div className="size-8 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-600 dark:text-[#ffb627] flex items-center justify-center shadow-2xs">
+            <div className="size-8 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-600 dark:text-[#ffb627] flex items-center justify-center shadow-2xs">
               <Boxes className="size-4" />
             </div>
           </div>
@@ -383,7 +383,7 @@ export function LowStockList() {
         <Card className="p-4 border-border/80 bg-card shadow-xs rounded-2xl">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-muted-foreground">Impacted Hubs</span>
-            <div className="size-8 rounded-full bg-primary/10 border border-primary/20 text-primary flex items-center justify-center shadow-2xs">
+            <div className="size-8 rounded-lg bg-primary/10 border border-primary/20 text-primary flex items-center justify-center shadow-2xs">
               <WarehouseIcon className="size-4" />
             </div>
           </div>

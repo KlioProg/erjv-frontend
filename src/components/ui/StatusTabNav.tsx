@@ -36,7 +36,7 @@ const countClasses: Record<StatusTabAccent, string> = {
 export function StatusTabNav({ tabs, activeTab, onTabChange, className = '' }: StatusTabNavProps) {
   return (
     <div className={`flex items-center gap-2 overflow-x-auto pb-3 ${className}`}>
-      <div className="inline-flex min-w-max items-center gap-1.5 rounded-2xl border-border/70 bg-muted/60 p-1 shadow-2xs">
+      <div className="inline-flex min-w-max items-center gap-1.5 rounded-lg border-border/70 bg-muted/60 p-1 shadow-2xs">
         {tabs.map((tab) => {
           const isSelected = tab.value === activeTab
           const accent = tab.accent || 'primary'
@@ -46,7 +46,7 @@ export function StatusTabNav({ tabs, activeTab, onTabChange, className = '' }: S
               key={tab.value}
               type="button"
               onClick={() => onTabChange(tab.value)}
-              className={`flex cursor-pointer select-none items-center gap-2 rounded-xl px-3.5 py-1.5 text-xs font-bold transition-all duration-150 active:scale-95 ${
+              className={`flex cursor-pointer select-none items-center gap-2 rounded-md px-3.5 py-1.5 text-xs font-bold transition-all duration-150 active:scale-95 ${
                 isSelected
                   ? `${selectedClasses[accent]} border shadow-2xs`
                   : 'text-muted-foreground hover:bg-background/40 hover:text-foreground'
