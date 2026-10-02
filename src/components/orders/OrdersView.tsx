@@ -31,11 +31,14 @@ import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { useAuth } from '@/features/auth/AuthContext'
 import type { SalesOrderRecord } from '@/features/crm/sales-orders.types'
+import { getSalesOrderDeliveryDisplay } from '@/features/crm/sales-orders.presentation'
 import { getErrorMessage } from '@/lib/api-client'
+import { cn } from '@/lib/utils'
 import { DataTable, type ColumnDef } from '@/components/ui/data-table'
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
@@ -70,28 +73,6 @@ function getSalesOrderPrimaryAction(
   if (delivery && delivery.status !== 'DELIVERED') return 'view-delivery'
   if (order.status === 'PARTIALLY_DELIVERED') return 'continue-delivery'
   return 'prepare-delivery'
-}
-
-function getDeliveryDisplay(order: SalesOrderRecord, delivery?: OutgoingDeliveryRecord) {
-  if (order.status === 'CANCELLED')
-    return { label: 'Cancelled', className: 'border-rose-500/20 bg-rose-500/10 text-rose-600' }
-  if (order.status === 'DELIVERED')
-    return {
-      label: 'Delivered',
-      className: 'border-emerald-500/20 bg-emerald-500/10 text-emerald-600',
-    }
-  if (delivery?.status === 'DISPATCHED')
-    return { label: 'In Transit', className: 'border-amber-500/20 bg-amber-500/10 text-amber-700' }
-  if (delivery?.status === 'SCHEDULED')
-    return { label: 'Scheduled', className: 'border-blue-500/20 bg-blue-500/10 text-blue-600' }
-  if (delivery?.status === 'DRAFT')
-    return { label: 'Preparing', className: 'border-border bg-muted text-muted-foreground' }
-  if (order.status === 'PARTIALLY_DELIVERED')
-    return {
-      label: 'Partial Delivery',
-      className: 'border-amber-500/20 bg-amber-500/10 text-amber-700',
-    }
-  return { label: 'Not Prepared', className: 'border-border bg-muted text-muted-foreground' }
 }
 
 export function OrdersView({
@@ -274,6 +255,7 @@ export function OrdersView({
     const activeDelivery = outgoingDeliveries.find(
       (delivery) => delivery.salesOrderId === order.id && delivery.status !== 'CANCELLED',
     )
+    const deliveryDisplay = getSalesOrderDeliveryDisplay(order, activeDelivery, outgoingDeliveries)
 
     return {
       order,
@@ -283,6 +265,7 @@ export function OrdersView({
       orderTotal,
       orderDate,
       activeDelivery,
+      deliveryDisplay,
     }
   })
 
@@ -325,8 +308,8 @@ export function OrdersView({
       width: 145,
       className: 'min-w-[145px]',
       cell: ({ row: { order, orderDate } }) => (
-        <div className="flex flex-col gap-0.5">
-          <span className="whitespace-nowrap font-mono text-xs font-bold text-foreground">
+        <div className="flex flex-col gap-1">
+          <span className="whitespace-nowrap font-mono text-xs font-semibold text-foreground">
             {order.orderNumber}
           </span>
           <span className="text-[11px] text-muted-foreground">{orderDate}</span>
@@ -339,9 +322,9 @@ export function OrdersView({
       width: 210,
       className: 'min-w-[180px] max-w-[250px]',
       cell: ({ row: { order, client } }) => (
-        <div className="flex min-w-0 flex-col gap-0.5">
+        <div className="flex min-w-0 flex-col gap-1">
           <span
-            className="truncate text-xs font-semibold text-foreground"
+            className="truncate font-semibold text-foreground"
             title={client?.name || `Customer #${order.clientId}`}
           >
             {client?.name || `Customer #${order.clientId}`}
@@ -361,36 +344,48 @@ export function OrdersView({
       width: 165,
       className: 'hidden max-w-[220px] lg:table-cell',
       headerClassName: 'hidden lg:table-cell',
-      cell: ({ row: { itemLabel, itemSummary } }) => (
-        <span className="block truncate text-xs text-foreground" title={itemSummary}>
-          {itemLabel || 'No items'}
-        </span>
-      ),
+      cell: ({ row: { order, itemLabel, itemSummary } }) => {
+        const item = order.items?.length === 1 ? order.items[0] : undefined
+        const itemName = item
+          ? productMap.get(item.inventoryItemId)?.name || `Product #${item.inventoryItemId}`
+          : itemLabel || 'No items'
+        return (
+          <span className="block truncate text-foreground" title={itemSummary}>
+            {itemName}
+            {item && <span className="font-normal text-muted-foreground"> ×{item.quantity}</span>}
+          </span>
+        )
+      },
     },
     {
       id: 'total',
       header: 'Total',
       width: 110,
       align: 'right',
-      className: 'whitespace-nowrap font-mono text-xs font-semibold text-foreground',
+      className: 'whitespace-nowrap font-semibold tabular-nums text-foreground',
       cell: ({ row: { orderTotal } }) =>
-        `₱${orderTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}`,
+        `₱${orderTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
     },
     {
       id: 'delivery',
       header: 'Delivery',
-      width: 135,
-      cell: ({ row: { order, activeDelivery } }) => {
-        const deliveryDisplay = getDeliveryDisplay(order, activeDelivery)
-        return (
+      width: 155,
+      className: 'whitespace-nowrap',
+      cell: ({ row: { deliveryDisplay } }) => (
+        <div className="flex items-start flex-col gap-1">
           <Badge
             variant="outline"
-            className={`whitespace-nowrap px-2 py-0.5 text-[10px] font-semibold ${deliveryDisplay.className}`}
+            className={cn('whitespace-nowrap px-2', deliveryDisplay.badgeClassName)}
           >
             {deliveryDisplay.label}
           </Badge>
-        )
-      },
+          {deliveryDisplay.supportingText && (
+            <span className="text-[11px] text-muted-foreground">
+              {deliveryDisplay.supportingText}
+            </span>
+          )}
+        </div>
+      ),
     },
     {
       id: 'action',
@@ -408,6 +403,14 @@ export function OrdersView({
           'confirm-arrival': 'Confirm Arrival',
           'view-order': 'View',
         }
+        const primaryVariant = {
+          confirm: 'default',
+          'prepare-delivery': 'outline',
+          'continue-delivery': 'secondary',
+          'view-delivery': 'ghost',
+          'confirm-arrival': 'secondary',
+          'view-order': 'ghost',
+        } as const
         const showViewOrder = primaryAction !== 'view-order'
         const showViewDelivery = Boolean(activeDelivery) && primaryAction !== 'view-delivery'
         const canCancelOrder = order.status === 'DRAFT' || order.status === 'CONFIRMED'
@@ -419,12 +422,7 @@ export function OrdersView({
           >
             <Button
               size="sm"
-              variant={
-                primaryAction === 'view-order' || primaryAction === 'view-delivery'
-                  ? 'outline'
-                  : 'default'
-              }
-              className="h-7 px-2.5 text-[11px] font-semibold"
+              variant={primaryVariant[primaryAction]}
               disabled={primaryAction === 'confirm' && confirmOrderMutation.isPending}
               onClick={() => handlePrimaryAction(primaryAction, order, activeDelivery)}
             >
@@ -437,37 +435,39 @@ export function OrdersView({
                   <Button
                     size="icon"
                     variant="ghost"
-                    className="size-7 text-muted-foreground"
+                    className="size-8 text-muted-foreground"
                     aria-label={`More actions for ${order.orderNumber}`}
                     title="More actions"
                   >
-                    <MoreHorizontal className="size-4" />
+                    <MoreHorizontal />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-44">
-                  {showViewOrder && (
-                    <DropdownMenuItem onSelect={() => openOrderDetails(order)}>
-                      <Eye className="mr-2 size-3.5" />
-                      View Order
-                    </DropdownMenuItem>
-                  )}
-                  {showViewDelivery && activeDelivery && (
-                    <DropdownMenuItem onSelect={() => setDeliveryToView(activeDelivery.id)}>
-                      View Delivery
-                    </DropdownMenuItem>
-                  )}
-                  {canCancelOrder && (
-                    <>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem
-                        disabled={cancelOrderMutation.isPending}
-                        onSelect={() => void handleCancelOrder(order)}
-                        className="text-destructive focus:text-destructive"
-                      >
-                        Cancel Order
+                  <DropdownMenuGroup>
+                    {showViewOrder && (
+                      <DropdownMenuItem onSelect={() => openOrderDetails(order)}>
+                        <Eye className="mr-2 size-3.5" />
+                        View Order
                       </DropdownMenuItem>
-                    </>
-                  )}
+                    )}
+                    {showViewDelivery && activeDelivery && (
+                      <DropdownMenuItem onSelect={() => setDeliveryToView(activeDelivery.id)}>
+                        View Delivery
+                      </DropdownMenuItem>
+                    )}
+                    {canCancelOrder && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          disabled={cancelOrderMutation.isPending}
+                          onSelect={() => void handleCancelOrder(order)}
+                          className="text-destructive focus:text-destructive"
+                        >
+                          Cancel Order
+                        </DropdownMenuItem>
+                      </>
+                    )}
+                  </DropdownMenuGroup>
                 </DropdownMenuContent>
               </DropdownMenu>
             )}
@@ -567,9 +567,15 @@ export function OrdersView({
           columns={salesOrderColumns}
           getRowKey={({ order }) => order.id}
           pagination={false}
+          appearance="subtle"
           onRowClick={({ order }) => openOrderDetails(order)}
-          rowClassName={() => 'hover:bg-muted/30'}
-          tableClassName="min-w-[760px] lg:min-w-[940px]"
+          rowClassName={({ deliveryDisplay }) =>
+            cn(
+              '[&_td:first-child]:border-l-2 [&_td:first-child]:border-l-transparent!',
+              deliveryDisplay.rowClassName,
+            )
+          }
+          tableClassName="table-fixed min-w-[760px] lg:min-w-[960px]"
         />
       )}
 

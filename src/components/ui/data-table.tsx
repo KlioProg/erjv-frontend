@@ -153,6 +153,8 @@ export interface DataTableProps<T> {
   manualPagination?: boolean
 
   // --- Container & Table Styling ---
+  /** Opt-in lighter separators, roomier cells and clearer neutral row hover. */
+  appearance?: 'default' | 'subtle'
   className?: string
   tableClassName?: string
 }
@@ -276,6 +278,7 @@ export function DataTable<T>({
   onPageSizeChange,
   totalCount,
   manualPagination = false,
+  appearance = 'default',
   className,
   tableClassName,
 }: DataTableProps<T>) {
@@ -427,6 +430,8 @@ export function DataTable<T>({
         <Table
           className={cn(
             '[&_td]:px-2 [&_th]:px-2 [&_td:first-child]:pl-3 [&_th:first-child]:pl-3 [&_td:last-child]:pr-3 [&_th:last-child]:pr-3',
+            // Keep controls compact even when feature renderers supply custom typography.
+            '[&_tbody_td_button]:text-xs [&_tbody_td_button]:font-medium [&_tbody_td_button]:leading-4 [&_tbody_[data-slot=badge]]:text-xs [&_tbody_[data-slot=badge]]:font-semibold [&_tbody_[data-slot=badge]]:leading-4 [&_tbody_[data-slot=badge]]:px-2 [&_tbody_[data-slot=badge]]:py-0.5',
             tableClassName,
           )}
         >
@@ -438,7 +443,10 @@ export function DataTable<T>({
                 const isSorted = activeSort?.key === column.resolvedId
                 const widthStyle =
                   column.width != null
-                    ? { width: typeof column.width === 'number' ? `${column.width}px` : column.width }
+                    ? {
+                        width:
+                          typeof column.width === 'number' ? `${column.width}px` : column.width,
+                      }
                     : undefined
 
                 return (
@@ -446,7 +454,8 @@ export function DataTable<T>({
                     key={column.resolvedId}
                     style={widthStyle}
                     className={cn(
-                      'text-xs font-bold text-foreground select-none',
+                      'text-xs font-semibold text-foreground select-none',
+                      appearance === 'subtle' && 'text-muted-foreground',
                       alignClass,
                       column.headerClassName,
                     )}
@@ -456,7 +465,7 @@ export function DataTable<T>({
                         type="button"
                         onClick={() => handleSortToggle(column)}
                         className={cn(
-                          'inline-flex items-center gap-1.5 font-bold hover:text-foreground/80 cursor-pointer transition-colors focus:outline-hidden group',
+                          'inline-flex items-center gap-1.5 hover:text-foreground/80 cursor-pointer transition-colors focus:outline-hidden group',
                           justifyClass,
                           column.align === 'right' && 'w-full',
                         )}
@@ -504,6 +513,8 @@ export function DataTable<T>({
                     onClick={onRowClick ? () => onRowClick(row, rowIndex) : undefined}
                     className={cn(
                       'hover:bg-muted/20 transition-colors',
+                      // The unlayered global border rule otherwise overrides Tailwind colors.
+                      appearance === 'subtle' && 'border-border/60! hover:bg-muted/40',
                       onRowClick && 'cursor-pointer',
                       computedRowClass,
                     )}
@@ -513,19 +524,29 @@ export function DataTable<T>({
                       const value = getCellValue(row, column)
                       const widthStyle =
                         column.width != null
-                          ? { width: typeof column.width === 'number' ? `${column.width}px` : column.width }
+                          ? {
+                              width:
+                                typeof column.width === 'number'
+                                  ? `${column.width}px`
+                                  : column.width,
+                            }
                           : undefined
 
                       return (
                         <TableCell
                           key={column.resolvedId}
                           style={widthStyle}
-                          className={cn(alignClass, column.className)}
+                          className={cn(
+                            'text-xs text-foreground',
+                            appearance === 'subtle' && 'py-4',
+                            alignClass,
+                            column.className,
+                          )}
                         >
                           {column.cell ? (
                             column.cell({ row, value, index: rowIndex })
                           ) : (
-                            <span className="text-xs text-foreground">
+                            <span>
                               {value != null && typeof value !== 'object' ? String(value) : '—'}
                             </span>
                           )}

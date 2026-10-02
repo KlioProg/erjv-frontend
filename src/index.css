@@ -33,6 +33,13 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
 
+  --color-status-info: var(--status-info);
+  --color-status-info-foreground: var(--status-info-foreground);
+  --color-status-warning: var(--status-warning);
+  --color-status-warning-foreground: var(--status-warning-foreground);
+  --color-status-success: var(--status-success);
+  --color-status-success-foreground: var(--status-success-foreground);
+
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -63,6 +70,12 @@
   --border: #e7dfd5;
   --input: #ded5c8;
   --ring: #c2474c;
+  --status-info: #edf2f8;
+  --status-info-foreground: #385e85;
+  --status-warning: #fbf2e3;
+  --status-warning-foreground: #855a18;
+  --status-success: #edf5f0;
+  --status-success-foreground: #336e4d;
   --radius: 0.5rem;
 }
 
@@ -86,6 +99,12 @@
   --border: #332e2a;
   --input: #3b3632;
   --ring: #d85c62;
+  --status-info: #212c38;
+  --status-info-foreground: #a9c5e2;
+  --status-warning: #342b1d;
+  --status-warning-foreground: #dfc08c;
+  --status-success: #202f27;
+  --status-success-foreground: #a6ceb4;
 }
 
 * {
