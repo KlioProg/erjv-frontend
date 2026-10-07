@@ -3,12 +3,8 @@ import {
   Package,
   Plus,
   Search,
-  MoreVertical,
-  Edit2,
   Tag,
   Boxes,
-  RotateCcw,
-  Archive,
   ArrowRight,
   ChevronDown,
   Warehouse as WarehouseIcon,
@@ -17,13 +13,7 @@ import { ArchiveTabNav } from '@/components/ui/ArchiveTabNav'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+import { DataTableActions } from '@/components/ui/DataTableActions'
 import { DataTable, type ColumnDef } from '@/components/ui/data-table'
 import { OverflowValue } from '@/components/ui/OverflowValue'
 import {
@@ -160,35 +150,13 @@ export function InventoryItemCatalog({
     )
   }
 
-  const renderProductActions = (product: InventoryItemResponse) => product.isActive === false ? (
-    <Button
-      variant="secondary"
-      size="sm"
-      onClick={() => handleReactivate(product)}
-      className="h-7.5 shrink-0 px-2.5 text-xs font-bold text-emerald-600 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 rounded-xl"
-    >
-      <RotateCcw className="size-3 mr-1" />
-      Restore
-    </Button>
-  ) : (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" aria-label={`Actions for ${product.name}`} className="size-8 shrink-0 text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted">
-          <MoreVertical className="size-4" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="p-1">
-        <DropdownMenuItem onClick={() => handleEditProduct(product)} className="gap-2 text-xs px-2 py-1.5 rounded-md">
-          <Edit2 className="size-3.5" />
-          Edit Details & Price
-        </DropdownMenuItem>
-        <DropdownMenuSeparator className="my-1" />
-        <DropdownMenuItem onClick={() => setProductToArchive(product)} className="gap-2 text-xs text-destructive focus:text-destructive px-2 py-1.5 rounded-md">
-          <Archive className="size-3.5" />
-          Archive Item
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+  const renderProductActions = (product: InventoryItemResponse) => (
+    <DataTableActions
+      onEdit={product.isActive !== false ? () => handleEditProduct(product) : undefined}
+      onArchive={product.isActive !== false ? () => setProductToArchive(product) : undefined}
+      onRestore={product.isActive === false ? () => handleReactivate(product) : undefined}
+      isPending={deactivateProductMutation.isPending || reactivateProductMutation.isPending}
+    />
   )
 
   // Column definitions for the reusable DataTable component
@@ -325,9 +293,8 @@ export function InventoryItemCatalog({
               id: 'actions',
               header: 'Actions',
               align: 'right' as const,
-              width: 64,
-              className: 'hidden md:table-cell',
-              headerClassName: 'hidden md:table-cell',
+              className: 'hidden w-24 whitespace-nowrap md:table-cell pointer-coarse:w-28',
+              headerClassName: 'hidden w-24 md:table-cell pointer-coarse:w-28',
               cell: ({ row }: { row: InventoryItemResponse }) => renderProductActions(row),
             },
           ]

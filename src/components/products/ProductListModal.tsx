@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Edit2, Package, Plus, Search, Tag } from 'lucide-react'
+import { Package, Plus, Search, Tag } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -7,6 +7,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { DataTableActions } from '@/components/ui/DataTableActions'
 import { DataTable, type ColumnDef } from '@/components/ui/data-table'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -102,18 +103,9 @@ export function ProductListModal({ open, onClose }: ProductListModalProps) {
       id: 'actions',
       header: 'Actions',
       align: 'right',
-      cell: ({ row }) => (
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => setEditingProduct(row)}
-          className="h-7 gap-1 px-2.5 text-xs font-semibold text-primary hover:bg-primary/10 hover:text-primary"
-          title="Edit product details, price, and stock"
-        >
-          <Edit2 className="size-3.5" />
-          Edit
-        </Button>
-      ),
+      className: 'w-px whitespace-nowrap',
+      headerClassName: 'w-px whitespace-nowrap',
+      cell: ({ row }) => <DataTableActions onEdit={() => setEditingProduct(row)} />,
     },
   ]
 

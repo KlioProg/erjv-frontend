@@ -10,7 +10,6 @@ import {
   Sparkles,
   RotateCcw,
   Archive,
-  MoreVertical,
   ChevronDown,
   Check,
   UserPlus,
@@ -28,6 +27,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { DataTableActions } from '@/components/ui/DataTableActions'
 import { Spinner } from '@/components/ui/spinner'
 import {
   useAllUsers,
@@ -347,37 +347,10 @@ export function UserRolesList() {
                 )
               })()
             ) : (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="size-8 cursor-pointer rounded-lg hover:bg-muted active:scale-90 transition-all duration-150"
-                    disabled={isSelf}
-                    title={
-                      isSelf ? 'You cannot archive your own active account' : 'Account actions'
-                    }
-                  >
-                    <MoreVertical className="size-4 text-muted-foreground" />
-                    <span className="sr-only">Open actions</span>
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-48 p-1">
-                  <DropdownMenuLabel className="px-2 py-1 text-xs text-muted-foreground font-normal">
-                    Account Actions
-                  </DropdownMenuLabel>
-                  <DropdownMenuSeparator className="my-1" />
-                  <DropdownMenuGroup>
-                    <DropdownMenuItem
-                      onClick={() => handleDeactivate(u)}
-                      className="text-destructive focus:text-destructive focus:bg-destructive/10 cursor-pointer text-xs gap-2 px-2 py-1.5 rounded-md active:scale-95 transition-transform"
-                    >
-                      <Archive className="size-4" />
-                      Archive Account
-                    </DropdownMenuItem>
-                  </DropdownMenuGroup>
-                </DropdownMenuContent>
-              </DropdownMenu>
+              <DataTableActions
+                onArchive={() => handleDeactivate(u)}
+                isPending={isSelf || deactivateUser.isPending}
+              />
             )}
           </>
         )
@@ -408,6 +381,8 @@ export function UserRolesList() {
       id: 'actions',
       header: 'Actions',
       align: 'right',
+      className: 'w-px whitespace-nowrap',
+      headerClassName: 'w-px whitespace-nowrap',
       cell: ({ row }) => renderUserCell(row, 'actions'),
     },
   ]

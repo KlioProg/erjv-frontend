@@ -8,7 +8,11 @@ import {
   fetchSalesOrderByNumberApi,
   fetchSalesOrdersApi,
 } from './sales-orders.api'
-import type { CreateSalesOrderPayload, SalesOrderFilter } from './sales-orders.types'
+import type {
+  CreateSalesOrderPayload,
+  SalesOrderFilter,
+  SalesOrderRecord,
+} from './sales-orders.types'
 import { STOCK_ITEMS_QUERY_KEY } from '../logistics/stock-items.hooks'
 import { getErrorMessage } from '@/lib/api-client'
 
@@ -43,6 +47,11 @@ export function useCreateSalesOrder() {
   return useMutation({
     mutationFn: (payload: CreateSalesOrderPayload) => createSalesOrderApi(payload),
     onSuccess: (order) => {
+      // Publish only the backend response, then reconcile with the canonical list.
+      queryClient.setQueryData<SalesOrderRecord[]>(
+        [...SALES_ORDERS_QUERY_KEY, 'ALL', 'ALL'],
+        (orders = []) => [order, ...orders.filter((existing) => existing.id !== order.id)],
+      )
       void queryClient.invalidateQueries({ queryKey: SALES_ORDERS_QUERY_KEY })
       toast.success(`Sales Order "${order.orderNumber}" created successfully`)
     },

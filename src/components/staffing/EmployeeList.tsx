@@ -3,9 +3,7 @@ import { useState } from 'react'
 import {
   Search,
   UserPlus,
-  MoreVertical,
   Briefcase,
-  Edit2,
   Phone,
   Mail,
   Calendar,
@@ -20,15 +18,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+import { DataTableActions } from '@/components/ui/DataTableActions'
 import { Spinner } from '@/components/ui/spinner'
 import {
   useAllEmployees,
@@ -261,50 +251,25 @@ export function EmployeeList() {
                 )
               })()
             ) : (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="size-8 cursor-pointer rounded-lg hover:bg-muted active:scale-90 transition-all duration-150"
-                  >
-                    <MoreVertical className="size-4" />
-                    <span className="sr-only">Open actions</span>
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-44 p-1">
-                  <DropdownMenuLabel className="px-2 py-1 text-xs text-muted-foreground font-normal">
-                    Staff Actions
-                  </DropdownMenuLabel>
-                  <DropdownMenuSeparator className="my-1" />
-                  <DropdownMenuGroup>
-                    <DropdownMenuItem
-                      onClick={() => handleAssignPositions(emp)}
-                      className="px-2 py-1.5 text-xs cursor-pointer rounded-md active:scale-95 transition-transform"
-                    >
-                      <Briefcase className="size-4 mr-2 text-primary" />
-                      Assign Roles
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() => handleEdit(emp)}
-                      className="px-2 py-1.5 text-xs cursor-pointer rounded-md active:scale-95 transition-transform"
-                    >
-                      <Edit2 className="size-4 mr-2" />
-                      Edit Profile
-                    </DropdownMenuItem>
-                  </DropdownMenuGroup>
-                  <DropdownMenuSeparator className="my-1" />
-                  <DropdownMenuGroup>
-                    <DropdownMenuItem
-                      onClick={() => handleDeactivate(emp)}
-                      className="text-destructive focus:text-destructive focus:bg-destructive/10 cursor-pointer text-xs gap-2 px-2 py-1.5 rounded-md active:scale-95 transition-transform"
-                    >
-                      <Archive className="size-4 mr-2" />
-                      Archive Employee
-                    </DropdownMenuItem>
-                  </DropdownMenuGroup>
-                </DropdownMenuContent>
-              </DropdownMenu>
+              <DataTableActions
+                onEdit={() => handleEdit(emp)}
+                onArchive={() => handleDeactivate(emp)}
+                isPending={deactivateMutation.isPending}
+              >
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  className="h-8 min-w-8 shrink-0 px-2 pointer-coarse:h-11 pointer-coarse:min-w-11 sm:px-3"
+                  onClick={() => handleAssignPositions(emp)}
+                  title="Assign Roles"
+                  aria-label="Assign Roles"
+                  disabled={deactivateMutation.isPending}
+                >
+                  <Briefcase aria-hidden="true" />
+                  <span className="hidden sm:inline">Assign Roles</span>
+                </Button>
+              </DataTableActions>
             )}
           </>
         )
@@ -335,6 +300,8 @@ export function EmployeeList() {
       id: 'actions',
       header: 'Actions',
       align: 'right',
+      className: 'w-px whitespace-nowrap',
+      headerClassName: 'w-px whitespace-nowrap',
       cell: ({ row }) => renderEmployeeCell(row, 'actions'),
     },
   ]

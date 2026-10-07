@@ -1,4 +1,4 @@
-import { useState, useMemo, type FormEvent } from 'react'
+import { useState, useMemo, useRef, type FormEvent } from 'react'
 import {
   ClipboardList,
   Minus,
@@ -142,6 +142,7 @@ export function OrderModal({
   const status: OrderStatus = order?.status || 'Active'
   const [errorMessage, setErrorMessage] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const submissionInFlight = useRef(false)
 
   const grossTotal = lines.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0)
   const subtotal = grossTotal * (1 - VAT_RATE)
@@ -374,6 +375,7 @@ export function OrderModal({
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    if (submissionInFlight.current) return
     const cleanCustomerName = customerName.trim()
 
     if (!customerType || !cleanCustomerName) {
@@ -420,6 +422,7 @@ export function OrderModal({
     }
 
     try {
+      submissionInFlight.current = true
       setIsSubmitting(true)
       setErrorMessage('')
       await onSubmit({
@@ -438,18 +441,22 @@ export function OrderModal({
         status,
         cashier,
       })
-      setIsSubmitting(false)
       onClose()
     } catch (err) {
-      setIsSubmitting(false)
       setErrorMessage(
         getErrorMessage(err) || 'Failed to create sales order. Please verify items and try again.',
       )
+    } finally {
+      submissionInFlight.current = false
+      setIsSubmitting(false)
     }
   }
 
   return (
-    <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
+    <Dialog
+      open={open}
+      onOpenChange={(isOpen) => !isOpen && !submissionInFlight.current && onClose()}
+    >
       <DialogContent className="w-[94vw] max-w-3xl sm:max-w-4xl max-h-[92vh] flex flex-col p-4 sm:p-5 gap-3 overflow-hidden shadow-2xl">
         <DialogHeader className="pb-0 shrink-0">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
@@ -1065,6 +1072,7 @@ export function OrderModal({
             </Button>
             <Button
               type="submit"
+              variant="default"
               size="sm"
               disabled={isSubmitting}
               className="h-8 text-xs font-semibold gap-1.5 shadow-xs"
@@ -1077,7 +1085,7 @@ export function OrderModal({
               ) : (
                 <>
                   <ClipboardList className="size-3.5" />
-                  <span>{order ? 'Save Changes' : 'Create Sales Order'}</span>
+                  <span>{order ? 'Save Changes' : 'Confirm Sales Order'}</span>
                 </>
               )}
             </Button>

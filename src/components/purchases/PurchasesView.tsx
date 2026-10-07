@@ -46,7 +46,8 @@ import type { CreatePurchaseOrderPayload } from '@/features/logistics/purchase-o
 import { useWarehouses } from '@/features/logistics/warehouses.hooks'
 import { useIncomingDeliveries } from '@/features/logistics/incoming-deliveries.hooks'
 import { DataTable, type ColumnDef } from '@/components/ui/data-table'
-import { DirectoryRowActions, DirectoryStatusBadge } from '@/components/ui/DirectoryRowControls'
+import { DirectoryStatusBadge } from '@/components/ui/DirectoryRowControls'
+import { DataTableActions } from '@/components/ui/DataTableActions'
 
 export type PurchaseTabFilter = 'Active' | 'Completed' | 'Cancelled'
 
@@ -511,12 +512,10 @@ export function PurchasesView({
       id: 'supplier-6',
       header: 'Actions',
       align: 'right',
-      className: 'text-right',
+      className: 'w-px whitespace-nowrap text-right',
+      headerClassName: 'w-px whitespace-nowrap',
       cell: ({ row: supplier }) => (
-        <DirectoryRowActions
-          recordType="Supplier"
-          name={supplier.name}
-          isActive={supplier.isActive !== false}
+        <DataTableActions
           onEdit={
             supplier.isActive !== false
               ? () => {
@@ -525,8 +524,12 @@ export function PurchasesView({
                 }
               : undefined
           }
-          onArchive={() => setSupplierToArchive(supplier)}
-          onRestore={() => reactivateSupplierMutation.mutate(supplier.id)}
+          onArchive={supplier.isActive !== false ? () => setSupplierToArchive(supplier) : undefined}
+          onRestore={
+            supplier.isActive === false
+              ? () => reactivateSupplierMutation.mutate(supplier.id)
+              : undefined
+          }
           restoreLabel="Restore"
           isPending={deleteSupplierMutation.isPending || reactivateSupplierMutation.isPending}
         />

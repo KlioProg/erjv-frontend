@@ -170,9 +170,9 @@ export function OrdersView({
     })
   }, [salesOrders, activeStatus, searchTerm, clientMap, productMap])
 
-  // Submit handler: creates sales order with backend allocations and immediately opens detail drawer
+  // The modal closes once the backend creates the sales order successfully.
   const handleSaveOrder = async (values: OrderFormValues) => {
-    const created = await createOrderMutation.mutateAsync({
+    await createOrderMutation.mutateAsync({
       clientId: values.clientId,
       deliveryAddress: values.deliveryAddress,
       notes: values.notes,
@@ -185,12 +185,6 @@ export function OrdersView({
           : undefined,
       })),
     })
-
-    setIsOrderModalOpen(false)
-    if (created) {
-      setSelectedOrderRecord(created)
-      setIsDetailDrawerOpen(true)
-    }
   }
 
   // Confirm order action

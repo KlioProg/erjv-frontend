@@ -3,12 +3,8 @@ import {
   AlertTriangle,
   Archive,
   ArrowRight,
-  Boxes,
-  Edit2,
   MapPin,
-  MoreVertical,
   Plus,
-  RotateCcw,
   Search,
   Warehouse as WarehouseIcon,
 } from 'lucide-react'
@@ -18,13 +14,7 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { DataTable, type ColumnDef } from '@/components/ui/data-table'
 import { OverflowValue } from '@/components/ui/OverflowValue'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+import { DataTableActions } from '@/components/ui/DataTableActions'
 import {
   Dialog,
   DialogContent,
@@ -274,64 +264,36 @@ export function WarehouseList({ initialWarehouseId }: { initialWarehouseId?: num
       id: 'actions',
       header: 'Actions',
       align: 'right',
-      width: 60,
+      className: canManage
+        ? 'w-32 whitespace-nowrap pointer-coarse:w-40 lg:w-56 lg:pointer-coarse:w-64'
+        : 'w-14 whitespace-nowrap pointer-coarse:w-16 lg:w-40',
+      headerClassName: canManage
+        ? 'w-32 pointer-coarse:w-40 lg:w-56 lg:pointer-coarse:w-64'
+        : 'w-14 pointer-coarse:w-16 lg:w-40',
       cell: ({ row }) => (
-        <div className="flex items-center justify-end">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                size="icon"
-                variant="ghost"
-                aria-label={`Actions for ${row.name}`}
-                title="Warehouse actions"
-                className="size-8 shrink-0 text-muted-foreground hover:text-foreground"
-              >
-                <MoreVertical className="size-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onSelect={() => setSelectedWarehouseId(row.id)}>
-                <Boxes className="mr-2 size-3.5" />
-                {row.isActive === false ? 'View Details' : 'View Inventory'}
-              </DropdownMenuItem>
-              {canManage && (
-                row.isActive === false ? (
-                  <>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      disabled={reactivateMutation.isPending}
-                      onSelect={() => reactivateMutation.mutate(row.id)}
-                    >
-                      <RotateCcw className="mr-2 size-3.5" />
-                      Restore Warehouse
-                    </DropdownMenuItem>
-                  </>
-                ) : (
-                  <>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      onSelect={() => {
-                        setEditingWarehouse(row)
-                        setIsModalOpen(true)
-                      }}
-                    >
-                      <Edit2 className="mr-2 size-3.5" />
-                      Edit Warehouse
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      onSelect={() => void checkWarehouseBeforeArchive(row)}
-                      className="text-destructive focus:text-destructive focus:bg-destructive/10"
-                    >
-                      <Archive className="mr-2 size-3.5" />
-                      Archive Warehouse
-                    </DropdownMenuItem>
-                  </>
-                )
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+        <DataTableActions
+          onView={() => setSelectedWarehouseId(row.id)}
+          viewLabel={row.isActive === false ? 'View Details' : 'View Inventory'}
+          onEdit={
+            canManage && row.isActive !== false
+              ? () => {
+                  setEditingWarehouse(row)
+                  setIsModalOpen(true)
+                }
+              : undefined
+          }
+          onArchive={
+            canManage && row.isActive !== false
+              ? () => void checkWarehouseBeforeArchive(row)
+              : undefined
+          }
+          onRestore={
+            canManage && row.isActive === false
+              ? () => reactivateMutation.mutate(row.id)
+              : undefined
+          }
+          isPending={deactivateMutation.isPending || reactivateMutation.isPending}
+        />
       ),
     },
   ]

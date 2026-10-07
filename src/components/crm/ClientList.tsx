@@ -5,7 +5,8 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { DataTable, type ColumnDef } from '@/components/ui/data-table'
-import { DirectoryRowActions, DirectoryStatusBadge } from '@/components/ui/DirectoryRowControls'
+import { DirectoryStatusBadge } from '@/components/ui/DirectoryRowControls'
+import { DataTableActions } from '@/components/ui/DataTableActions'
 import {
   useAllClients,
   useDeactivateClient,
@@ -112,15 +113,15 @@ export function ClientList() {
       id: 'customer-actions',
       header: 'Actions',
       align: 'right',
+      className: 'w-px whitespace-nowrap',
+      headerClassName: 'w-px whitespace-nowrap',
       cell: ({ row }) =>
         canManage ? (
-          <DirectoryRowActions
-            recordType="Customer"
-            name={row.name}
-            isActive={row.isActive !== false}
+          <DataTableActions
             onEdit={row.isActive !== false ? () => handleEdit(row) : undefined}
-            onArchive={() => setClientToDeactivate(row)}
-            onRestore={() => reactivateMutation.mutate(row)}
+            onArchive={row.isActive !== false ? () => setClientToDeactivate(row) : undefined}
+            onRestore={row.isActive === false ? () => reactivateMutation.mutate(row) : undefined}
+            restoreLabel="Reactivate"
             isPending={deactivateMutation.isPending || reactivateMutation.isPending}
           />
         ) : null,
