@@ -2,18 +2,19 @@ import { useState } from 'react'
 import {
   Plus,
   Briefcase,
-  Edit2,
   Archive,
   RotateCcw,
   CheckCircle2,
   Search,
   AlertCircle,
 } from 'lucide-react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Spinner } from '@/components/ui/spinner'
+import { DataTable, type ColumnDef } from '@/components/ui/data-table'
+import { DataTableActions } from '@/components/ui/DataTableActions'
 import {
   useAllJobs,
   useDeactivateJob,
@@ -98,6 +99,90 @@ export function JobList() {
     reactivateMutation.mutate(job)
   }
 
+  const jobColumns: ColumnDef<Job>[] = [
+    {
+      id: 'name',
+      header: 'Position',
+      accessorKey: 'name',
+      sortable: true,
+      className: 'min-w-48 font-semibold',
+      cell: ({ row }) => (
+        <div className="flex min-w-0 items-center gap-2">
+          <Briefcase aria-hidden="true" className="size-4 shrink-0 text-primary" />
+          <span className="truncate">{row.name}</span>
+        </div>
+      ),
+    },
+    {
+      id: 'description',
+      header: 'Description',
+      accessorKey: 'description',
+      sortable: true,
+      sortKey: (job) => job.description || '',
+      className: 'min-w-64 max-w-xl text-muted-foreground',
+      cell: ({ row }) => (
+        <span className="line-clamp-2">
+          {row.description || 'No description specified.'}
+        </span>
+      ),
+    },
+    {
+      id: 'staff',
+      header: 'Assigned Staff',
+      className: 'min-w-40',
+      cell: ({ row }) => (
+        <JobStaffCount jobId={row.id} isArchived={row.isActive === false} />
+      ),
+    },
+    {
+      id: 'status',
+      header: 'Status',
+      accessorKey: 'isActive',
+      sortable: true,
+      cell: ({ row }) =>
+        row.isActive === false ? (
+          <Badge variant="outline" className="gap-1 border-amber-500/30 bg-amber-500/10 text-amber-700">
+            <Archive aria-hidden="true" className="size-3" />
+            Archived
+          </Badge>
+        ) : (
+          <Badge variant="outline" className="gap-1 border-emerald-500/25 bg-emerald-500/10 text-emerald-700">
+            <CheckCircle2 aria-hidden="true" className="size-3" />
+            Active
+          </Badge>
+        ),
+    },
+    {
+      id: 'actions',
+      header: 'Actions',
+      align: 'right',
+      className: 'w-px whitespace-nowrap',
+      headerClassName: 'w-px whitespace-nowrap',
+      cell: ({ row }) => {
+        const isArchived = row.isActive === false
+        const isReactivatingThis =
+          reactivateMutation.isPending &&
+          (typeof reactivateMutation.variables === 'number'
+            ? reactivateMutation.variables === row.id
+            : (reactivateMutation.variables as Job | undefined)?.id === row.id)
+
+        return isArchived ? (
+          <DataTableActions
+            onRestore={() => handleReactivate(row)}
+            restoreLabel="Reactivate position"
+            isPending={isReactivatingThis}
+          />
+        ) : (
+          <DataTableActions
+            onEdit={() => handleEdit(row)}
+            onArchive={() => handleDeactivate(row)}
+            isPending={deactivateMutation.isPending}
+          />
+        )
+      },
+    },
+  ]
+
   return (
     <div className="flex flex-col gap-4">
       {/* Position Archive / Active Tabs */}
@@ -136,13 +221,7 @@ export function JobList() {
         )}
       </div>
 
-      {/* Grid of Job Position Cards */}
-      {isLoading ? (
-        <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-2">
-          <Spinner className="size-6 text-primary" />
-          <p className="text-xs">Loading job positions...</p>
-        </div>
-      ) : error ? (
+      {error ? (
         <div className="flex flex-col items-center justify-center py-14 px-4 text-center border rounded-2xl bg-card">
           <div className="size-12 rounded-2xl bg-destructive/10 border border-destructive/20 flex items-center justify-center text-destructive mb-3 shadow-2xs">
             <AlertCircle className="size-6" />
@@ -162,151 +241,49 @@ export function JobList() {
             Try Again
           </Button>
         </div>
-      ) : filteredJobList.length === 0 ? (
-        <div className="flex min-h-[360px] flex-col items-center justify-center gap-3 rounded-2xl border border-dashed bg-muted/20 py-16 text-muted-foreground">
-          <Briefcase className="size-8 stroke-[1.5] text-muted-foreground/50" />
-          <div className="text-center">
-            <p className="text-sm font-medium text-foreground">
-              {searchTerm
-                ? 'No matching job positions found'
-                : activeTab === 'ACTIVE'
-                  ? 'No active positions yet'
-                  : 'No archived positions'}
-            </p>
-            <p className="text-xs text-muted-foreground mt-0.5 max-w-sm">
-              {searchTerm
-                ? `No positions matched "${searchTerm}". Try a different keyword.`
-                : activeTab === 'ACTIVE'
-                  ? archivedJobs.length > 0
-                    ? `All positions are currently archived (${archivedJobs.length} total).`
-                    : 'Click "Create Job Position" to establish roles like Cashier, Manager, etc.'
-                  : 'Archived job positions will appear here and can be reactivated at any time.'}
-            </p>
-            {!searchTerm && activeTab === 'ACTIVE' && archivedJobs.length > 0 && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setActiveTab('ARCHIVED')}
-                className="mt-3 text-xs gap-1.5 cursor-pointer"
-              >
-                <Archive className="size-3.5 text-amber-600" />
-                View Archived Positions ({archivedJobs.length})
-              </Button>
-            )}
-          </div>
-        </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredJobList.map((job) => {
-            const isArchived = job.isActive === false
-
-            return (
-              <Card
-                key={job.id}
-                className={`group flex flex-col justify-between transition-all rounded-2xl ${
-                  isArchived
-                    ? 'bg-amber-500/5 border-dashed border-amber-500/30 shadow-2xs'
-                    : 'hover:shadow-md border-border/80'
-                }`}
-              >
-                <CardHeader className="p-4 pb-2">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <div
-                        className={`flex size-8 items-center justify-center rounded-lg ${
-                          isArchived
-                            ? 'bg-amber-500/10 text-amber-600 dark:text-[#ffb627]'
-                            : 'bg-primary/10 text-primary'
-                        }`}
-                      >
-                        <Briefcase className="size-4" />
-                      </div>
-                      <CardTitle className="text-sm font-bold text-foreground">
-                        {job.name}
-                      </CardTitle>
-                    </div>
-                    {isArchived ? (
-                      <Badge
-                        variant="outline"
-                        className="bg-amber-500/10 text-amber-600 dark:text-[#ffb627] border-amber-500/30 text-[11px] font-bold gap-1"
-                      >
-                        <Archive className="size-3" />
-                        Archived
-                      </Badge>
-                    ) : (
-                      <Badge
-                        variant="outline"
-                        className="bg-emerald-500/10 text-emerald-600 border-emerald-500/25 text-[11px] font-semibold gap-1"
-                      >
-                        <CheckCircle2 className="size-3" />
-                        Active
-                      </Badge>
-                    )}
-                  </div>
-                  <CardDescription className="text-xs text-muted-foreground line-clamp-2 mt-2">
-                    {job.description || 'No description specified for this position.'}
-                  </CardDescription>
-                </CardHeader>
-
-                <CardContent className="p-4 pt-3 border-t bg-muted/10 flex items-center justify-between mt-auto">
-                  <JobStaffCount jobId={job.id} isArchived={isArchived} />
-
-                  <div className="flex items-center gap-1.5">
-                    {isArchived ? (
-                      (() => {
-                        const isReactivatingThis =
-                          reactivateMutation.isPending &&
-                          (typeof reactivateMutation.variables === 'number'
-                            ? reactivateMutation.variables === job.id
-                            : (reactivateMutation.variables as Job | undefined)?.id === job.id)
-
-                        return (
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            className="group font-bold text-emerald-600 dark:text-emerald-600 bg-emerald-500/15 hover:bg-emerald-500/25 active:scale-95 border border-emerald-500/30 rounded-xl gap-2 shadow-2xs cursor-pointer transition-all duration-150"
-                            onClick={() => handleReactivate(job)}
-                            disabled={isReactivatingThis}
-                          >
-                            {isReactivatingThis ? (
-                              <Spinner className="size-3.5 text-emerald-600 dark:text-emerald-600 animate-spin" />
-                            ) : (
-                              <RotateCcw className="size-3.5 text-emerald-600 dark:text-emerald-600 transition-transform duration-200 group-hover:-rotate-45" />
-                            )}
-                            <span>
-                              {isReactivatingThis ? 'Reactivating...' : 'Reactivate Position'}
-                            </span>
-                          </Button>
-                        )
-                      })()
-                    ) : (
-                      <>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="cursor-pointer active:scale-95 transition-transform"
-                          onClick={() => handleEdit(job)}
-                        >
-                          <Edit2 className="size-3 mr-1" />
-                          Edit
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-destructive hover:text-destructive hover:bg-destructive/10 cursor-pointer active:scale-95 transition-transform"
-                          onClick={() => handleDeactivate(job)}
-                        >
-                          <Archive className="size-3 mr-1" />
-                          Archive
-                        </Button>
-                      </>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            )
-          })}
-        </div>
+        <DataTable
+          data={filteredJobList}
+          columns={jobColumns}
+          getRowKey={(job) => job.id}
+          isLoading={isLoading}
+          loadingMessage="Loading job positions..."
+          defaultSort={{ key: 'name', direction: 'asc' }}
+          emptyContent={
+            <Card className="flex min-h-64 flex-col items-center justify-center border-dashed bg-muted/20 px-4 py-12 text-center shadow-none">
+              <Briefcase aria-hidden="true" className="mb-3 size-8 text-muted-foreground/50" />
+              <p className="text-sm font-medium text-foreground">
+                {searchTerm
+                  ? 'No matching job positions found'
+                  : activeTab === 'ACTIVE'
+                    ? 'No active positions yet'
+                    : 'No archived positions'}
+              </p>
+              <p className="mt-1 max-w-sm text-xs text-muted-foreground">
+                {searchTerm
+                  ? `No positions matched "${searchTerm}". Try a different keyword.`
+                  : activeTab === 'ACTIVE'
+                    ? archivedJobs.length > 0
+                      ? `All positions are archived (${archivedJobs.length} total).`
+                      : 'Create a job position to define roles such as Cashier or Manager.'
+                    : 'Archived job positions can be restored at any time.'}
+              </p>
+              {!searchTerm && activeTab === 'ACTIVE' && archivedJobs.length > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setActiveTab('ARCHIVED')}
+                  className="mt-3 gap-1.5 text-xs"
+                >
+                  <Archive aria-hidden="true" className="size-3.5 text-amber-600" />
+                  View Archived Positions ({archivedJobs.length})
+                </Button>
+              )}
+            </Card>
+          }
+          rowClassName={(job) => (job.isActive === false ? 'bg-muted/10 opacity-75' : '')}
+          tableClassName="min-w-[760px]"
+        />
       )}
 
       <JobModal job={selectedJob} open={isModalOpen} onClose={() => setIsModalOpen(false)} />
