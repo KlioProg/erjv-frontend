@@ -12,7 +12,6 @@ import { useEmployees, useJobs, useUsers } from '@/features/staffing/staffing.ho
 import { useProducts } from '@/features/products/products.hooks'
 import { EmployeeList } from './EmployeeList'
 import { JobList } from './JobList'
-import { RoleGroupingView } from './RoleGroupingView'
 import { UserRolesList } from './UserRolesList'
 import { ProductListModal } from '../products/ProductListModal'
 
@@ -31,9 +30,7 @@ export function StaffingDashboard({ onSwitchToOperations }: StaffingDashboardPro
   const { data: users = [] } = useUsers()
   const { data: products = [] } = useProducts()
 
-  const [activeTab, setActiveTab] = useState<'employees' | 'jobs' | 'grouping' | 'users'>(
-    'employees',
-  )
+  const [activeTab, setActiveTab] = useState<'employees' | 'jobs' | 'users'>('employees')
   const [isProductsModalOpen, setIsProductsModalOpen] = useState(false)
 
   const activeEmployeesCount = employees.filter((e) => e.isActive).length
@@ -195,7 +192,7 @@ export function StaffingDashboard({ onSwitchToOperations }: StaffingDashboardPro
           <Tabs
             value={activeTab}
             onValueChange={(val) =>
-              setActiveTab(val as 'employees' | 'jobs' | 'grouping' | 'users')
+              setActiveTab(val as 'employees' | 'jobs' | 'users')
             }
             className="w-full flex flex-col gap-4"
           >
@@ -208,10 +205,6 @@ export function StaffingDashboard({ onSwitchToOperations }: StaffingDashboardPro
                 <TabsTrigger value="jobs" className="gap-1.5 text-xs">
                   <Briefcase className="size-3.5" />
                   Job Positions
-                </TabsTrigger>
-                <TabsTrigger value="grouping" className="gap-1.5 text-xs">
-                  <Layers className="size-3.5" />
-                  Grouped by Role
                 </TabsTrigger>
                 <TabsTrigger value="users" className="gap-1.5 text-xs">
                   <Shield className="size-3.5" />
@@ -226,10 +219,6 @@ export function StaffingDashboard({ onSwitchToOperations }: StaffingDashboardPro
 
             <TabsContent value="jobs" className="mt-0 focus-visible:outline-none">
               <JobList />
-            </TabsContent>
-
-            <TabsContent value="grouping" className="mt-0 focus-visible:outline-none">
-              <RoleGroupingView />
             </TabsContent>
 
             <TabsContent value="users" className="mt-0 focus-visible:outline-none">

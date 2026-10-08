@@ -61,14 +61,16 @@ const RoleBadgeDisplay = forwardRef<HTMLButtonElement, RoleBadgeProps>(
     if (!interactive) {
       return (
         <div
-          className={`select-none inline-flex items-center gap-2 px-3 py-1 rounded-lg text-xs font-semibold border shadow-2xs cursor-default ${config.badgeClass}`}
+          className={`select-none inline-flex h-8 w-36 items-center gap-2 rounded-lg border px-2.5 text-xs font-semibold shadow-2xs cursor-default pointer-coarse:h-11 ${config.badgeClass}`}
         >
           {isUpdating ? (
             <Spinner className="size-3 text-current" />
           ) : (
             <Icon className="size-3 shrink-0 pointer-events-none" />
           )}
-          <span className="select-none pointer-events-none">{config.label}</span>
+          <span className="select-none pointer-events-none min-w-0 flex-1 truncate text-center">
+            {config.label}
+          </span>
         </div>
       )
     }
@@ -78,7 +80,8 @@ const RoleBadgeDisplay = forwardRef<HTMLButtonElement, RoleBadgeProps>(
         ref={ref}
         type="button"
         disabled={isUpdating}
-        className={`select-none inline-flex items-center gap-2 px-3 py-1 rounded-lg text-xs font-semibold border transition-all shadow-2xs outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer select-none ${config.badgeClass} ${
+        aria-label={`Change system role; current role ${config.label}`}
+        className={`select-none inline-flex h-8 w-36 items-center justify-between gap-2 rounded-lg border px-2.5 text-xs font-semibold transition-all shadow-2xs outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer pointer-coarse:h-11 ${config.badgeClass} ${
           className || ''
         }`}
         {...props}
@@ -88,7 +91,9 @@ const RoleBadgeDisplay = forwardRef<HTMLButtonElement, RoleBadgeProps>(
         ) : (
           <Icon className="size-3 shrink-0 pointer-events-none" />
         )}
-        <span className="select-none pointer-events-none">{config.label}</span>
+        <span className="select-none pointer-events-none min-w-0 flex-1 truncate text-center">
+          {config.label}
+        </span>
         <ChevronDown className="size-3 opacity-60 ml-0.5 shrink-0 pointer-events-none" />
       </button>
     )

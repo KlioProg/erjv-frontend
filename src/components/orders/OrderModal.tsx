@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, type FormEvent } from 'react'
+import { useState, useMemo, useRef, useEffect, type FormEvent } from 'react'
 import {
   ClipboardList,
   Minus,
@@ -10,10 +10,8 @@ import {
   AlertCircle,
   CheckCircle2,
   Truck,
-  Info,
-  ChevronDown,
-  ChevronUp,
   Loader2,
+  Search,
 } from 'lucide-react'
 import {
   Dialog,
@@ -27,6 +25,13 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import {
   Select,
   SelectContent,
@@ -109,7 +114,6 @@ export function OrderModal({
   onNavigateToInventory,
 }: OrderModalProps) {
   const warehouseMap = useMemo(() => new Map(warehouses.map((w) => [w.id, w])), [warehouses])
-  const [showLifecycleGuide, setShowLifecycleGuide] = useState(false)
 
   // Helper to get available unreserved stock for a stock item
   const getAvailableStock = (stock?: StockItem | null): number => {
@@ -132,7 +136,18 @@ export function OrderModal({
   )
   const [customerName, setCustomerName] = useState(order?.clientName || '')
   const [selectedProductId, setSelectedProductId] = useState('none')
+  const [productSearch, setProductSearch] = useState('')
+  const [isProductPickerOpen, setIsProductPickerOpen] = useState(false)
+  const productSearchRef = useRef<HTMLInputElement>(null)
+  const [customerSearch, setCustomerSearch] = useState('')
+  const [isCustomerPickerOpen, setIsCustomerPickerOpen] = useState(false)
+  const customerSearchRef = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    if (isProductPickerOpen) productSearchRef.current?.focus()
+    if (isCustomerPickerOpen) customerSearchRef.current?.focus()
+  }, [isProductPickerOpen, isCustomerPickerOpen])
   const [lines, setLines] = useState<OrderLine[]>(order?.lines || [])
+  const [quantityDrafts, setQuantityDrafts] = useState<Record<number, string>>({})
   const [discountType, setDiscountType] = useState<'peso' | 'percentage'>(
     order?.discountType || 'peso',
   )
@@ -184,12 +199,32 @@ export function OrderModal({
     return products.find((product) => String(product.id) === selectedProductId) || null
   }, [selectedProductId, products])
 
-  const selectedProductTotalAvailable = useMemo(() => {
-    if (!selectedProduct) return 0
-    return stockItems
-      .filter((s) => s.inventoryItemId === selectedProduct.id)
-      .reduce((sum, s) => sum + getAvailableStock(s), 0)
-  }, [selectedProduct, stockItems])
+  const filteredProducts = useMemo(() => {
+    const query = productSearch.trim().toLocaleLowerCase()
+    return products.filter(
+      (product) =>
+        product.isActive &&
+        (!query ||
+          product.name.toLocaleLowerCase().includes(query) ||
+          product.variety?.toLocaleLowerCase().includes(query)),
+    )
+  }, [products, productSearch])
+
+  const activeClients = useMemo(
+    () => clients.filter((client) => client.isActive),
+    [clients],
+  )
+  const filteredClients = useMemo(() => {
+    const query = customerSearch.trim().toLocaleLowerCase()
+    return activeClients.filter((client) =>
+      [client.name, client.contactPerson, client.email, client.phone]
+        .filter(Boolean)
+        .some((value) => value?.toLocaleLowerCase().includes(query)),
+    )
+  }, [activeClients, customerSearch])
+  const selectedClient = customerType.startsWith('client:')
+    ? clients.find((client) => `client:${client.id}` === customerType)
+    : null
 
   const selectedProductStats = useMemo(() => {
     if (!selectedProduct) return null
@@ -225,21 +260,8 @@ export function OrderModal({
     }
   }, [selectedProduct, stockItems, warehouseMap])
 
-  const selectedProductExistingLine = useMemo(() => {
-    if (!selectedProduct) return null
-    return lines.find((l) => l.productId === selectedProduct.id) || null
-  }, [selectedProduct, lines])
-
-  const isSelectedProductFullyAdded = useMemo(() => {
-    if (!selectedProduct) return false
-    if (!selectedProductExistingLine) return false
-    const stock = stockItems.find((s) => s.id === selectedProductExistingLine.stockItemId)
-    const maxAvail = getAvailableStock(stock)
-    return selectedProductExistingLine.quantity >= maxAvail
-  }, [selectedProduct, selectedProductExistingLine, stockItems])
-
-  const handleAddProduct = () => {
-    const selectedProduct = products.find((product) => String(product.id) === selectedProductId)
+  const handleAddProduct = (productId: string) => {
+    const selectedProduct = products.find((product) => String(product.id) === productId)
     if (!selectedProduct) return
 
     // Find all stock items with positive available stock
@@ -300,6 +322,11 @@ export function OrderModal({
 
   const changeQuantity = (productId: number, change: number) => {
     setErrorMessage('')
+    setQuantityDrafts((drafts) => {
+      const next = { ...drafts }
+      delete next[productId]
+      return next
+    })
     setLines((currentLines) =>
       currentLines
         .map((line) => {
@@ -321,24 +348,38 @@ export function OrderModal({
   }
 
   const handleDirectQuantityChange = (productId: number, valStr: string) => {
+    setQuantityDrafts((drafts) => ({ ...drafts, [productId]: valStr }))
+  }
+
+  const commitDirectQuantityChange = (productId: number) => {
+    const line = lines.find((item) => item.productId === productId)
+    const value = quantityDrafts[productId]
+    if (!line || value === undefined) return
+
+    const parsed = Number(value)
+    setQuantityDrafts((drafts) => {
+      const next = { ...drafts }
+      delete next[productId]
+      return next
+    })
+
+    if (!/^\d+$/.test(value.trim()) || !Number.isInteger(parsed) || parsed < 1) return
+
     setErrorMessage('')
-    const parsed = parseInt(valStr, 10)
+    const stock = stockItems.find((item) => item.id === line.stockItemId)
+    const maxAvailable = getAvailableStock(stock)
+    const committedQuantity = Math.min(parsed, maxAvailable)
+
+    if (parsed > maxAvailable) {
+      setErrorMessage(
+        `Quantity for "${line.name}" capped at maximum available stock (${maxAvailable} ${line.unit || 'units'}).`,
+      )
+    }
+
     setLines((currentLines) =>
       currentLines.map((line) => {
         if (line.productId !== productId) return line
-        const stock = stockItems.find((s) => s.id === line.stockItemId)
-        const maxAvailable = getAvailableStock(stock)
-
-        if (valStr === '' || isNaN(parsed) || parsed < 1) {
-          return { ...line, quantity: 1 }
-        }
-        if (parsed > maxAvailable) {
-          setErrorMessage(
-            `Quantity for "${line.name}" capped at maximum available stock (${maxAvailable} ${line.unit || 'units'}).`,
-          )
-          return { ...line, quantity: maxAvailable }
-        }
-        return { ...line, quantity: parsed }
+        return { ...line, quantity: committedQuantity }
       }),
     )
   }
@@ -469,54 +510,11 @@ export function OrderModal({
                   {order ? 'Edit Sales Order' : 'Create Sales Order'}
                 </DialogTitle>
                 <DialogDescription className="text-[11px] text-muted-foreground">
-                  Select customer, choose inventory items, and allocate warehouse stock.
+                  Select a customer, then choose inventory items to add them instantly.
                 </DialogDescription>
               </div>
             </div>
-
-            <button
-              type="button"
-              onClick={() => setShowLifecycleGuide((prev) => !prev)}
-              className="flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-foreground font-medium px-2.5 py-1 rounded-md hover:bg-muted/50 transition-colors w-fit self-start sm:self-auto cursor-pointer border border-border/60"
-              title="Click to understand how stock moves from purchases to warehouse to sales"
-            >
-              <Info className="size-3 text-primary" />
-              <span>How Stock Works</span>
-              {showLifecycleGuide ? (
-                <ChevronUp className="size-3" />
-              ) : (
-                <ChevronDown className="size-3" />
-              )}
-            </button>
           </div>
-
-          {showLifecycleGuide && (
-            <div className="mt-2 rounded-xl border border-primary/20 bg-primary/5 p-2.5 text-xs text-foreground animate-in fade-in-50 duration-200">
-              <div className="font-semibold text-primary mb-1 text-[11px] flex items-center gap-1.5">
-                <Info className="size-3.5" />
-                ERJV Inventory Fulfillment Lifecycle
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px] text-muted-foreground">
-                <div className="rounded-lg bg-background/80 p-2 border border-border/60">
-                  <strong className="text-foreground block text-[11px]">1. Purchases</strong>
-                  Order items from suppliers. Status is <em>Ordered</em> (truck is on the way; not
-                  yet in warehouse).
-                </div>
-                <div className="rounded-lg bg-background/80 p-2 border border-border/60">
-                  <strong className="text-foreground block text-[11px]">
-                    2. Inbound Receiving
-                  </strong>
-                  Confirm arrival in <strong>Deliveries Hub</strong> &rarr; Stock is physically
-                  added to warehouse inventory.
-                </div>
-                <div className="rounded-lg bg-background/80 p-2 border border-border/60">
-                  <strong className="text-foreground block text-[11px]">3. Sales Orders</strong>
-                  Deducts & reserves from <strong>Available Warehouse Stock</strong> to sell to
-                  customers.
-                </div>
-              </div>
-            </div>
-          )}
         </DialogHeader>
 
         {errorMessage && (
@@ -535,23 +533,91 @@ export function OrderModal({
               >
                 Customer <span className="text-primary">*</span>
               </Label>
-              <Select value={customerType} onValueChange={handleCustomerChange}>
-                <SelectTrigger id="order-customer-type" className="h-8 text-xs bg-background">
-                  <SelectValue placeholder="Choose customer or walk-in" />
-                </SelectTrigger>
-                <SelectContent>
-                  {clients
-                    .filter((client) => client.isActive)
-                    .map((client) => (
-                      <SelectItem key={client.id} value={`client:${client.id}`} className="text-xs">
-                        {client.name}
-                      </SelectItem>
-                    ))}
-                  <SelectItem value="walk-in" className="text-xs">
-                    Walk-in customer
-                  </SelectItem>
-                </SelectContent>
-              </Select>
+              <DropdownMenu
+                open={isCustomerPickerOpen}
+                onOpenChange={(open) => {
+                  setIsCustomerPickerOpen(open)
+                  if (open) setCustomerSearch('')
+                }}
+              >
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    id="order-customer-type"
+                    type="button"
+                    variant="outline"
+                    className="h-10 w-full justify-between bg-background text-xs font-normal sm:h-8"
+                    aria-label="Search and choose a customer or walk-in"
+                  >
+                    <span className="truncate">
+                      {customerType === 'walk-in'
+                        ? 'Walk-in customer'
+                        : selectedClient?.name || 'Search customers'}
+                    </span>
+                    <Search aria-hidden="true" className="size-3.5 shrink-0 text-muted-foreground" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="start"
+                  className="w-[min(24rem,calc(100vw-2rem))] overflow-hidden p-2"
+                >
+                  <div className="relative pb-2">
+                    <Search
+                      aria-hidden="true"
+                      className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
+                    />
+                    <Input
+                      ref={customerSearchRef}
+                      type="search"
+                      value={customerSearch}
+                      onChange={(event) => setCustomerSearch(event.target.value)}
+                      onKeyDown={(event) => event.stopPropagation()}
+                      placeholder="Search name, contact, email, or phone..."
+                      aria-label="Search customers"
+                      className="h-10 pl-8 text-xs"
+                    />
+                  </div>
+                  <div
+                    className="max-h-[min(55vh,24rem)] overflow-y-auto overscroll-contain"
+                    aria-label="Customers"
+                  >
+                    <DropdownMenuGroup>
+                      <DropdownMenuItem
+                        onSelect={() => handleCustomerChange('walk-in')}
+                        className="min-h-11"
+                      >
+                        Walk-in customer
+                      </DropdownMenuItem>
+                    </DropdownMenuGroup>
+                    {filteredClients.length > 0 && (
+                      <DropdownMenuGroup>
+                        {filteredClients.map((client) => (
+                          <DropdownMenuItem
+                            key={client.id}
+                            onSelect={() => handleCustomerChange(`client:${client.id}`)}
+                            className="flex min-h-11 flex-col items-start justify-center gap-0.5"
+                          >
+                            <span className="w-full truncate font-medium">{client.name}</span>
+                            {(client.contactPerson || client.email || client.phone) && (
+                              <span className="w-full truncate text-[11px] text-muted-foreground">
+                                {[client.contactPerson, client.email, client.phone]
+                                  .filter(Boolean)
+                                  .join(' · ')}
+                              </span>
+                            )}
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuGroup>
+                    )}
+                    {filteredClients.length === 0 && (
+                      <p className="px-2.5 py-4 text-center text-xs text-muted-foreground">
+                        {customerSearch
+                          ? `No customers match “${customerSearch}”.`
+                          : 'No active customers.'}
+                      </p>
+                    )}
+                  </div>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
 
             <div className="flex flex-col gap-1">
@@ -596,7 +662,7 @@ export function OrderModal({
           {/* Order items section */}
           <section className="overflow-hidden rounded-xl border border-border/80 bg-muted/10 flex flex-col min-h-0 flex-1">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border/70 p-2.5 bg-muted/20 shrink-0">
-              <div className="flex items-center gap-2">
+              <div className="flex w-full min-w-0 items-center gap-2 sm:w-auto">
                 <Package className="size-3.5 text-primary shrink-0" />
                 <span className="text-xs font-bold uppercase tracking-wider text-foreground">
                   Order Items
@@ -624,73 +690,101 @@ export function OrderModal({
               </div>
 
               <div className="flex items-center gap-2">
-                <Select
-                  value={selectedProductId}
-                  onValueChange={(val) => {
-                    setErrorMessage('')
-                    setSelectedProductId(val)
+                <DropdownMenu
+                  open={isProductPickerOpen}
+                  onOpenChange={(open) => {
+                    setIsProductPickerOpen(open)
+                    if (open) setProductSearch('')
                   }}
                 >
-                  <SelectTrigger className="h-8 text-xs w-64 bg-background">
-                    <SelectValue placeholder="Choose inventory item" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none" className="text-xs">
-                      Choose inventory item
-                    </SelectItem>
-                    {products
-                      .filter((product) => product.isActive)
-                      .map((product) => {
-                        const totalAvail = getTotalAvailableStock(product.id)
-                        const isOut = totalAvail <= 0
-                        return (
-                          <SelectItem
-                            key={product.id}
-                            value={String(product.id)}
-                            className="text-xs"
-                          >
-                            <div className="flex items-center justify-between gap-3 w-full">
-                              <span className="flex items-center gap-1.5 truncate">
-                                <span>{product.name}</span>
-                                {product.variety && (
-                                  <span className="text-muted-foreground">({product.variety})</span>
-                                )}
-                              </span>
-                              {isOut ? (
-                                <span className="shrink-0 text-[10px] font-semibold text-rose-600 bg-rose-500/10 px-1.5 py-0.5 rounded border border-rose-500/20">
-                                  Out of stock (0)
-                                </span>
-                              ) : (
-                                <span className="shrink-0 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
-                                  {totalAvail} {product.unit || 'units'} available
-                                </span>
-                              )}
-                            </div>
-                          </SelectItem>
-                        )
-                      })}
-                  </SelectContent>
-                </Select>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-10 w-full justify-between text-xs font-normal sm:h-8 sm:w-64"
+                      aria-label="Search and choose an inventory item to add"
+                    >
+                      <span className="truncate">
+                        {selectedProduct && selectedProductId !== 'none'
+                          ? `${selectedProduct.name}${selectedProduct.variety ? ` (${selectedProduct.variety})` : ''}`
+                          : 'Search inventory items'}
+                      </span>
+                      <Search aria-hidden="true" className="size-3.5 shrink-0 text-muted-foreground" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    align="end"
+                    className="w-[min(24rem,calc(100vw-2rem))] overflow-hidden p-2"
+                  >
+                    <div className="relative pb-2">
+                      <Search
+                        aria-hidden="true"
+                        className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
+                      />
+                      <Input
+                        ref={productSearchRef}
+                        type="search"
+                        value={productSearch}
+                        onChange={(event) => setProductSearch(event.target.value)}
+                        placeholder="Search by item or variety..."
+                        aria-label="Search inventory items"
+                        className="h-10 pl-8 text-xs"
+                      />
+                    </div>
+                    <div
+                      className="max-h-[min(55vh,24rem)] overflow-y-auto overscroll-contain"
+                      aria-label="Inventory items"
+                    >
+                      {filteredProducts.length === 0 ? (
+                        <p className="px-2.5 py-4 text-center text-xs text-muted-foreground">
+                          {productSearch
+                            ? `No items match “${productSearch}”.`
+                            : 'No active inventory items.'}
+                        </p>
+                      ) : (
+                        <DropdownMenuGroup>
+                          {filteredProducts.map((product) => {
+                            const totalAvail = getTotalAvailableStock(product.id)
+                            const isOut = totalAvail <= 0
 
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={handleAddProduct}
-                  disabled={
-                    selectedProductId === 'none' ||
-                    selectedProductTotalAvailable <= 0 ||
-                    isSelectedProductFullyAdded
-                  }
-                  className="h-8 text-xs font-semibold shrink-0 gap-1"
-                >
-                  <Plus className="size-2" />
-                  {selectedProductId !== 'none' && selectedProductTotalAvailable <= 0
-                    ? 'Out of Stock'
-                    : isSelectedProductFullyAdded
-                      ? 'All Added'
-                      : ''}
-                </Button>
+                            return (
+                              <DropdownMenuItem
+                                key={product.id}
+                                onSelect={() => {
+                                  const productId = String(product.id)
+                                  setSelectedProductId(productId)
+                                  setErrorMessage('')
+                                  handleAddProduct(productId)
+                                }}
+                                className="flex min-h-11 items-center justify-between gap-3"
+                              >
+                                <span className="flex min-w-0 flex-col">
+                                  <span className="truncate font-medium">{product.name}</span>
+                                  {product.variety && (
+                                    <span className="truncate text-[11px] text-muted-foreground">
+                                      {product.variety}
+                                    </span>
+                                  )}
+                                </span>
+                                <span
+                                  className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-semibold ${
+                                    isOut
+                                      ? 'border-destructive/20 bg-destructive/10 text-destructive'
+                                      : 'border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                                  }`}
+                                >
+                                  {isOut
+                                    ? 'Out of stock'
+                                    : `${totalAvail} ${product.unit || 'units'}`}
+                                </span>
+                              </DropdownMenuItem>
+                            )
+                          })}
+                        </DropdownMenuGroup>
+                      )}
+                    </div>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             </div>
 
@@ -937,13 +1031,22 @@ export function OrderModal({
                                 </button>
                                 <input
                                   type="number"
+                                  inputMode="numeric"
                                   min={1}
                                   max={maxAvailable}
-                                  value={line.quantity}
+                                  value={quantityDrafts[line.productId] ?? line.quantity}
                                   onChange={(e) =>
                                     handleDirectQuantityChange(line.productId, e.target.value)
                                   }
-                                  className="h-6 w-10 border-0 bg-transparent text-center text-xs font-bold text-foreground focus:outline-none focus:ring-0 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                                  onBlur={() => commitDirectQuantityChange(line.productId)}
+                                  onKeyDown={(event) => {
+                                    if (event.key === 'Enter') {
+                                      event.preventDefault()
+                                      event.currentTarget.blur()
+                                    }
+                                  }}
+                                  aria-label={`Quantity for ${line.name}`}
+                                  className="h-8 w-14 border-0 bg-transparent text-center text-xs font-bold text-foreground focus:outline-none focus:ring-0 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none pointer-coarse:h-11"
                                 />
                                 <button
                                   type="button"

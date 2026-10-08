@@ -3,7 +3,6 @@ import { useState } from 'react'
 import {
   Search,
   UserPlus,
-  Briefcase,
   Phone,
   Mail,
   Calendar,
@@ -24,44 +23,12 @@ import {
   useAllEmployees,
   useDeactivateEmployee,
   useReactivateEmployee,
-  useEmployeeJobs,
 } from '@/features/staffing/staffing.hooks'
 import type { Employee } from '@/features/staffing/staffing.types'
 import { EmployeeModal } from './EmployeeModal'
-import { PositionAssignModal } from './PositionAssignModal'
+import { EmployeePositionSelector } from './EmployeePositionSelector'
 import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal'
 import { Card } from '../ui/card'
-
-// Inline helper subcomponent for displaying assigned positions badge
-function EmployeeJobBadges({ employeeId }: { employeeId: number }) {
-  const { data: assigned = [], isLoading } = useEmployeeJobs(employeeId)
-
-  if (isLoading) {
-    return <span className="text-[11px] text-muted-foreground">Loading...</span>
-  }
-
-  if (assigned.length === 0) {
-    return (
-      <Badge variant="outline" className="text-[10px] text-muted-foreground border-dashed">
-        Unassigned
-      </Badge>
-    )
-  }
-
-  return (
-    <div className="flex flex-wrap gap-1">
-      {assigned.map((ej: { jobId: number; job: { name: string } }) => (
-        <Badge
-          key={ej.jobId}
-          variant="secondary"
-          className="text-[10px] font-medium py-0 px-2 bg-primary/10 text-primary border-primary/20"
-        >
-          {ej.job.name}
-        </Badge>
-      ))}
-    </div>
-  )
-}
 
 export function EmployeeList() {
   const [activeTab, setActiveTab] = useState<'ACTIVE' | 'ARCHIVED'>('ACTIVE')
@@ -72,7 +39,6 @@ export function EmployeeList() {
   const reactivateMutation = useReactivateEmployee()
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null)
-  const [assigningEmployee, setAssigningEmployee] = useState<Employee | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [employeeToDeactivate, setEmployeeToDeactivate] = useState<Employee | null>(null)
 
@@ -96,10 +62,6 @@ export function EmployeeList() {
   const handleEdit = (emp: Employee) => {
     setSelectedEmployee(emp)
     setIsModalOpen(true)
-  }
-
-  const handleAssignPositions = (emp: Employee) => {
-    setAssigningEmployee(emp)
   }
 
   const handleDeactivate = (emp: Employee) => {
@@ -193,9 +155,11 @@ export function EmployeeList() {
         )
       case 'positions':
         return (
-          <>
-            <EmployeeJobBadges employeeId={emp.id} />
-          </>
+          <EmployeePositionSelector
+            employeeId={emp.id}
+            employeeName={`${emp.firstName} ${emp.lastName}`}
+            canEdit={!isArchived}
+          />
         )
       case 'hireDate':
         return (
@@ -255,21 +219,7 @@ export function EmployeeList() {
                 onEdit={() => handleEdit(emp)}
                 onArchive={() => handleDeactivate(emp)}
                 isPending={deactivateMutation.isPending}
-              >
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  className="h-8 min-w-8 shrink-0 px-2 pointer-coarse:h-11 pointer-coarse:min-w-11 sm:px-3"
-                  onClick={() => handleAssignPositions(emp)}
-                  title="Assign Roles"
-                  aria-label="Assign Roles"
-                  disabled={deactivateMutation.isPending}
-                >
-                  <Briefcase aria-hidden="true" />
-                  <span className="hidden sm:inline">Assign Roles</span>
-                </Button>
-              </DataTableActions>
+              />
             )}
           </>
         )
@@ -422,13 +372,6 @@ export function EmployeeList() {
         employee={selectedEmployee}
         open={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-      />
-
-      {/* Position Assignment Modal */}
-      <PositionAssignModal
-        employee={assigningEmployee}
-        open={!!assigningEmployee}
-        onClose={() => setAssigningEmployee(null)}
       />
 
       {/* Themed Deactivation / Archive Modal */}

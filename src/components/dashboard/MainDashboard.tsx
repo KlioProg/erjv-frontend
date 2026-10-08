@@ -21,7 +21,6 @@ import { JobList } from '../staffing/JobList'
 import { OrdersView } from '../orders/OrdersView'
 import { DeliveriesHub, type DeliverySubTab } from '../deliveries/DeliveriesHub'
 import { PurchasesView } from '../purchases/PurchasesView'
-import { RoleGroupingView } from '../staffing/RoleGroupingView'
 import { UserRolesList } from '../staffing/UserRolesList'
 import { useWarehouses } from '@/features/logistics/warehouses.hooks'
 import { useStockItems } from '@/features/logistics/stock-items.hooks'
@@ -63,7 +62,6 @@ export function MainDashboard() {
   const isStaffingTab =
     currentTab === 'employees' ||
     currentTab === 'jobs' ||
-    currentTab === 'grouping' ||
     currentTab === 'users'
 
   // Safety fallback if staff clicks restricted tab
@@ -321,7 +319,6 @@ export function MainDashboard() {
             {effectiveTab === 'clients' && <ClientList />}
             {effectiveTab === 'employees' && <EmployeeList />}
             {effectiveTab === 'jobs' && <JobList />}
-            {effectiveTab === 'grouping' && <RoleGroupingView />}
             {effectiveTab === 'users' && <UserRolesList />}
           </CardContent>
         </Card>

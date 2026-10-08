@@ -6,7 +6,6 @@ import {
   Truck,
   Users,
   Briefcase,
-  Layers,
   Shield,
   LogOut,
   Package,
@@ -45,7 +44,6 @@ export type NavItemKey =
   | 'clients'
   | 'employees'
   | 'jobs'
-  | 'grouping'
   | 'users'
   | 'orders'
 
@@ -94,7 +92,6 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { key: 'employees', label: 'Staff Directory', icon: Users, requiresAdmin: true },
       { key: 'jobs', label: 'Job Positions', icon: Briefcase, requiresAdmin: true },
-      { key: 'grouping', label: 'Grouped by Role', icon: Layers, requiresAdmin: true },
       { key: 'users', label: 'User Roles & Access', icon: Shield, requiresAdmin: true },
     ],
   },
