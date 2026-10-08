@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect, type FormEvent } from 'react'
+import { useState, useMemo, useRef, type FormEvent } from 'react'
 import {
   ClipboardList,
   Minus,
@@ -11,7 +11,6 @@ import {
   CheckCircle2,
   Truck,
   Loader2,
-  Search,
 } from 'lucide-react'
 import {
   Dialog,
@@ -25,13 +24,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+import { SearchableDropdown } from '@/components/ui/SearchableDropdown'
 import {
   Select,
   SelectContent,
@@ -80,6 +73,13 @@ type OrderModalProps = {
   onNavigateToPurchases?: () => void
   onNavigateToDeliveries?: () => void
   onNavigateToInventory?: () => void
+}
+
+type CustomerOption = {
+  value: string
+  label: string
+  searchText: string
+  details?: string
 }
 
 export type OrderLine = {
@@ -136,16 +136,6 @@ export function OrderModal({
   )
   const [customerName, setCustomerName] = useState(order?.clientName || '')
   const [selectedProductId, setSelectedProductId] = useState('none')
-  const [productSearch, setProductSearch] = useState('')
-  const [isProductPickerOpen, setIsProductPickerOpen] = useState(false)
-  const productSearchRef = useRef<HTMLInputElement>(null)
-  const [customerSearch, setCustomerSearch] = useState('')
-  const [isCustomerPickerOpen, setIsCustomerPickerOpen] = useState(false)
-  const customerSearchRef = useRef<HTMLInputElement>(null)
-  useEffect(() => {
-    if (isProductPickerOpen) productSearchRef.current?.focus()
-    if (isCustomerPickerOpen) customerSearchRef.current?.focus()
-  }, [isProductPickerOpen, isCustomerPickerOpen])
   const [lines, setLines] = useState<OrderLine[]>(order?.lines || [])
   const [quantityDrafts, setQuantityDrafts] = useState<Record<number, string>>({})
   const [discountType, setDiscountType] = useState<'peso' | 'percentage'>(
@@ -199,32 +189,27 @@ export function OrderModal({
     return products.find((product) => String(product.id) === selectedProductId) || null
   }, [selectedProductId, products])
 
-  const filteredProducts = useMemo(() => {
-    const query = productSearch.trim().toLocaleLowerCase()
-    return products.filter(
-      (product) =>
-        product.isActive &&
-        (!query ||
-          product.name.toLocaleLowerCase().includes(query) ||
-          product.variety?.toLocaleLowerCase().includes(query)),
-    )
-  }, [products, productSearch])
-
-  const activeClients = useMemo(
-    () => clients.filter((client) => client.isActive),
+  const activeProducts = useMemo(() => products.filter((product) => product.isActive), [products])
+  const customerOptions = useMemo<CustomerOption[]>(
+    () => [
+      {
+        value: 'walk-in',
+        label: 'Walk-in customer',
+        searchText: 'walk-in customer',
+      },
+      ...clients
+        .filter((client) => client.isActive)
+        .map((client) => ({
+          value: `client:${client.id}`,
+          label: client.name,
+          searchText: [client.name, client.contactPerson, client.email, client.phone]
+            .filter(Boolean)
+            .join(' '),
+          details: [client.contactPerson, client.email, client.phone].filter(Boolean).join(' · '),
+        })),
+    ],
     [clients],
   )
-  const filteredClients = useMemo(() => {
-    const query = customerSearch.trim().toLocaleLowerCase()
-    return activeClients.filter((client) =>
-      [client.name, client.contactPerson, client.email, client.phone]
-        .filter(Boolean)
-        .some((value) => value?.toLocaleLowerCase().includes(query)),
-    )
-  }, [activeClients, customerSearch])
-  const selectedClient = customerType.startsWith('client:')
-    ? clients.find((client) => `client:${client.id}` === customerType)
-    : null
 
   const selectedProductStats = useMemo(() => {
     if (!selectedProduct) return null
@@ -533,91 +518,30 @@ export function OrderModal({
               >
                 Customer <span className="text-primary">*</span>
               </Label>
-              <DropdownMenu
-                open={isCustomerPickerOpen}
-                onOpenChange={(open) => {
-                  setIsCustomerPickerOpen(open)
-                  if (open) setCustomerSearch('')
-                }}
-              >
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    id="order-customer-type"
-                    type="button"
-                    variant="outline"
-                    className="h-10 w-full justify-between bg-background text-xs font-normal sm:h-8"
-                    aria-label="Search and choose a customer or walk-in"
-                  >
-                    <span className="truncate">
-                      {customerType === 'walk-in'
-                        ? 'Walk-in customer'
-                        : selectedClient?.name || 'Search customers'}
-                    </span>
-                    <Search aria-hidden="true" className="size-3.5 shrink-0 text-muted-foreground" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent
-                  align="start"
-                  className="w-[min(24rem,calc(100vw-2rem))] overflow-hidden p-2"
-                >
-                  <div className="relative pb-2">
-                    <Search
-                      aria-hidden="true"
-                      className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
-                    />
-                    <Input
-                      ref={customerSearchRef}
-                      type="search"
-                      value={customerSearch}
-                      onChange={(event) => setCustomerSearch(event.target.value)}
-                      onKeyDown={(event) => event.stopPropagation()}
-                      placeholder="Search name, contact, email, or phone..."
-                      aria-label="Search customers"
-                      className="h-10 pl-8 text-xs"
-                    />
-                  </div>
-                  <div
-                    className="max-h-[min(55vh,24rem)] overflow-y-auto overscroll-contain"
-                    aria-label="Customers"
-                  >
-                    <DropdownMenuGroup>
-                      <DropdownMenuItem
-                        onSelect={() => handleCustomerChange('walk-in')}
-                        className="min-h-11"
-                      >
-                        Walk-in customer
-                      </DropdownMenuItem>
-                    </DropdownMenuGroup>
-                    {filteredClients.length > 0 && (
-                      <DropdownMenuGroup>
-                        {filteredClients.map((client) => (
-                          <DropdownMenuItem
-                            key={client.id}
-                            onSelect={() => handleCustomerChange(`client:${client.id}`)}
-                            className="flex min-h-11 flex-col items-start justify-center gap-0.5"
-                          >
-                            <span className="w-full truncate font-medium">{client.name}</span>
-                            {(client.contactPerson || client.email || client.phone) && (
-                              <span className="w-full truncate text-[11px] text-muted-foreground">
-                                {[client.contactPerson, client.email, client.phone]
-                                  .filter(Boolean)
-                                  .join(' · ')}
-                              </span>
-                            )}
-                          </DropdownMenuItem>
-                        ))}
-                      </DropdownMenuGroup>
+              <SearchableDropdown
+                id="order-customer-type"
+                options={customerOptions}
+                value={customerType}
+                onValueChange={(value) => handleCustomerChange(value)}
+                getOptionValue={(option) => option.value}
+                getOptionLabel={(option) => option.label}
+                getOptionSearchText={(option) => option.searchText}
+                renderOption={(option) => (
+                  <span className="flex min-w-0 flex-col">
+                    <span className="truncate font-medium">{option.label}</span>
+                    {option.details && (
+                      <span className="truncate text-[11px] text-muted-foreground">
+                        {option.details}
+                      </span>
                     )}
-                    {filteredClients.length === 0 && (
-                      <p className="px-2.5 py-4 text-center text-xs text-muted-foreground">
-                        {customerSearch
-                          ? `No customers match “${customerSearch}”.`
-                          : 'No active customers.'}
-                      </p>
-                    )}
-                  </div>
-                </DropdownMenuContent>
-              </DropdownMenu>
+                  </span>
+                )}
+                placeholder="Search customers"
+                searchPlaceholder="Search name, contact, email, or phone..."
+                emptyMessage="No active customers found."
+                ariaLabel="Search and choose a customer or walk-in"
+                className="h-10 bg-background sm:h-8"
+              />
             </div>
 
             <div className="flex flex-col gap-1">
@@ -690,101 +614,53 @@ export function OrderModal({
               </div>
 
               <div className="flex items-center gap-2">
-                <DropdownMenu
-                  open={isProductPickerOpen}
-                  onOpenChange={(open) => {
-                    setIsProductPickerOpen(open)
-                    if (open) setProductSearch('')
+                <SearchableDropdown
+                  options={activeProducts}
+                  value={selectedProductId === 'none' ? '' : selectedProductId}
+                  onValueChange={(productId) => {
+                    setSelectedProductId(productId)
+                    setErrorMessage('')
+                    handleAddProduct(productId)
                   }}
-                >
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="h-10 w-full justify-between text-xs font-normal sm:h-8 sm:w-64"
-                      aria-label="Search and choose an inventory item to add"
-                    >
-                      <span className="truncate">
-                        {selectedProduct && selectedProductId !== 'none'
-                          ? `${selectedProduct.name}${selectedProduct.variety ? ` (${selectedProduct.variety})` : ''}`
-                          : 'Search inventory items'}
+                  getOptionValue={(product) => String(product.id)}
+                  getOptionLabel={(product) =>
+                    `${product.name}${product.variety ? ` (${product.variety})` : ''}`
+                  }
+                  getOptionSearchText={(product) =>
+                    [product.name, product.variety].filter(Boolean).join(' ')
+                  }
+                  renderOption={(product) => {
+                    const totalAvail = getTotalAvailableStock(product.id)
+                    const isOut = totalAvail <= 0
+                    return (
+                      <span className="flex min-w-0 items-center justify-between gap-3">
+                        <span className="flex min-w-0 flex-col">
+                          <span className="truncate font-medium">{product.name}</span>
+                          {product.variety && (
+                            <span className="truncate text-[11px] text-muted-foreground">
+                              {product.variety}
+                            </span>
+                          )}
+                        </span>
+                        <span
+                          className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-semibold ${
+                            isOut
+                              ? 'border-destructive/20 bg-destructive/10 text-destructive'
+                              : 'border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                          }`}
+                        >
+                          {isOut ? 'Out of stock' : `${totalAvail} ${product.unit || 'units'}`}
+                        </span>
                       </span>
-                      <Search aria-hidden="true" className="size-3.5 shrink-0 text-muted-foreground" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent
-                    align="end"
-                    className="w-[min(24rem,calc(100vw-2rem))] overflow-hidden p-2"
-                  >
-                    <div className="relative pb-2">
-                      <Search
-                        aria-hidden="true"
-                        className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
-                      />
-                      <Input
-                        ref={productSearchRef}
-                        type="search"
-                        value={productSearch}
-                        onChange={(event) => setProductSearch(event.target.value)}
-                        placeholder="Search by item or variety..."
-                        aria-label="Search inventory items"
-                        className="h-10 pl-8 text-xs"
-                      />
-                    </div>
-                    <div
-                      className="max-h-[min(55vh,24rem)] overflow-y-auto overscroll-contain"
-                      aria-label="Inventory items"
-                    >
-                      {filteredProducts.length === 0 ? (
-                        <p className="px-2.5 py-4 text-center text-xs text-muted-foreground">
-                          {productSearch
-                            ? `No items match “${productSearch}”.`
-                            : 'No active inventory items.'}
-                        </p>
-                      ) : (
-                        <DropdownMenuGroup>
-                          {filteredProducts.map((product) => {
-                            const totalAvail = getTotalAvailableStock(product.id)
-                            const isOut = totalAvail <= 0
-
-                            return (
-                              <DropdownMenuItem
-                                key={product.id}
-                                onSelect={() => {
-                                  const productId = String(product.id)
-                                  setSelectedProductId(productId)
-                                  setErrorMessage('')
-                                  handleAddProduct(productId)
-                                }}
-                                className="flex min-h-11 items-center justify-between gap-3"
-                              >
-                                <span className="flex min-w-0 flex-col">
-                                  <span className="truncate font-medium">{product.name}</span>
-                                  {product.variety && (
-                                    <span className="truncate text-[11px] text-muted-foreground">
-                                      {product.variety}
-                                    </span>
-                                  )}
-                                </span>
-                                <span
-                                  className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-semibold ${
-                                    isOut
-                                      ? 'border-destructive/20 bg-destructive/10 text-destructive'
-                                      : 'border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
-                                  }`}
-                                >
-                                  {isOut
-                                    ? 'Out of stock'
-                                    : `${totalAvail} ${product.unit || 'units'}`}
-                                </span>
-                              </DropdownMenuItem>
-                            )
-                          })}
-                        </DropdownMenuGroup>
-                      )}
-                    </div>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                    )
+                  }}
+                  placeholder="Search inventory items"
+                  searchPlaceholder="Search by item or variety..."
+                  emptyMessage="No active inventory items found."
+                  ariaLabel="Search and choose an inventory item to add"
+                  className="h-10 sm:h-8 sm:w-64"
+                  align="end"
+                />
               </div>
             </div>
 
