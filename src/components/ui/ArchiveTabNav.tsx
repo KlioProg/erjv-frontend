@@ -42,22 +42,13 @@ export function ArchiveTabNav({
           <button
             type="button"
             aria-pressed={!isArchiveSelected}
+            data-state={!isArchiveSelected ? 'active' : 'inactive'}
             onClick={() => onTabChange('ACTIVE')}
-            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-md text-xs font-bold transition-all duration-150 active:scale-95 cursor-pointer select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
-              !isArchiveSelected
-                ? 'bg-primary-selected text-primary shadow-2xs border border-primary/30'
-                : 'text-muted-foreground hover:text-foreground hover:bg-background/40'
-            }`}
+            className="navigation-tab flex items-center gap-2 px-3.5 py-1.5 rounded-md text-xs font-bold transition-all duration-150 active:scale-95 cursor-pointer select-none data-[state=active]:shadow-2xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             {activeIcon}
             <span>{activeLabel}</span>
-            <span
-              className={`ml-0.5 px-2 py-0.5 rounded-full text-[11px] font-extrabold transition-colors ${
-                !isArchiveSelected
-                  ? 'bg-primary-subtle text-primary'
-                  : 'bg-muted text-muted-foreground'
-              }`}
-            >
+            <span className="ml-0.5 px-2 py-0.5 rounded-full bg-muted text-foreground text-[11px] font-extrabold transition-colors">
               {activeCount}
             </span>
           </button>
@@ -66,17 +57,14 @@ export function ArchiveTabNav({
           <button
             type="button"
             aria-pressed={isArchiveSelected}
+            data-state={isArchiveSelected ? 'active' : 'inactive'}
             onClick={() => onTabChange('ARCHIVED')}
-            className={`group flex items-center gap-2 px-3.5 py-1.5 rounded-md text-xs font-bold transition-all duration-150 active:scale-95 cursor-pointer select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
-              isArchiveSelected
-                ? 'bg-primary-selected text-primary shadow-2xs border border-primary/30'
-                : 'text-muted-foreground hover:text-foreground hover:bg-background/40'
-            }`}
+            className="navigation-tab group flex items-center gap-2 px-3.5 py-1.5 rounded-md text-xs font-bold transition-all duration-150 active:scale-95 cursor-pointer select-none data-[state=active]:shadow-2xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <span
               className={
                 isArchiveSelected
-                  ? 'text-primary'
+                  ? 'text-foreground'
                   : archivedCount > 0
                     ? 'text-muted-foreground group-hover:scale-110 transition-transform'
                     : 'text-muted-foreground'
@@ -85,13 +73,7 @@ export function ArchiveTabNav({
               {archivedIcon}
             </span>
             <span>{archivedLabel}</span>
-            <span
-              className={`ml-0.5 px-2 py-0.5 rounded-full text-[11px] font-extrabold transition-colors ${
-                isArchiveSelected
-                  ? 'bg-primary-subtle text-primary'
-                  : 'bg-muted text-muted-foreground'
-              }`}
-            >
+            <span className="ml-0.5 px-2 py-0.5 rounded-full bg-muted text-foreground text-[11px] font-extrabold transition-colors">
               {archivedCount}
             </span>
           </button>

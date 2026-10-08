@@ -97,7 +97,7 @@ const NAV_GROUPS: NavGroup[] = [
       { key: 'grouping', label: 'Grouped by Role', icon: Layers, requiresAdmin: true },
       { key: 'users', label: 'User Roles & Access', icon: Shield, requiresAdmin: true },
     ],
-  }
+  },
 ]
 
 export function DashboardLayout({ currentTab, onSelectTab, children }: DashboardLayoutProps) {
@@ -208,7 +208,7 @@ export function DashboardLayout({ currentTab, onSelectTab, children }: Dashboard
                         }}
                         className={`group relative flex w-full items-center justify-between rounded-md px-3 py-2.5 text-xs font-semibold transition-all duration-150 cursor-pointer select-none active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                           isActive
-                            ? 'bg-primary-selected text-primary shadow-sm'
+                            ? 'bg-accent text-foreground'
                             : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
                         }`}
                       >
@@ -223,9 +223,7 @@ export function DashboardLayout({ currentTab, onSelectTab, children }: Dashboard
                           <span>{item.label}</span>
                         </div>
 
-                        {isActive && (
-                          <ChevronRight className="size-3.5 text-primary" />
-                        )}
+                        {isActive && <ChevronRight className="size-3.5 text-muted-foreground" />}
                       </button>
                     )
                   })}
@@ -241,7 +239,7 @@ export function DashboardLayout({ currentTab, onSelectTab, children }: Dashboard
             <DropdownMenuTrigger asChild>
               <div className="flex items-center justify-between gap-2.5 p-2 rounded-xl bg-card border border-border/70 cursor-pointer hover:bg-muted transition-colors">
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <Avatar className="size-9 border border-primary/20 bg-primary/10 shrink-0">
+                  <Avatar className="size-9 border border-border bg-muted shrink-0">
                     {user?.avatarUrl && (
                       <AvatarImage
                         src={user.avatarUrl}
@@ -249,7 +247,7 @@ export function DashboardLayout({ currentTab, onSelectTab, children }: Dashboard
                         className="object-cover"
                       />
                     )}
-                    <AvatarFallback className="bg-primary/10 text-primary font-extrabold text-xs">
+                    <AvatarFallback className="bg-muted text-foreground font-extrabold text-xs">
                       {userInitial}
                     </AvatarFallback>
                   </Avatar>

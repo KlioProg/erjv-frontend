@@ -570,9 +570,9 @@ export function PurchasesView({
           />
 
           {activeStatus === 'Active' && (
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 rounded-xl border border-primary/20 bg-primary/5 px-3.5 py-2.5 text-xs text-muted-foreground">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 rounded-xl border border-border bg-background/60 px-3.5 py-2.5 text-xs text-muted-foreground">
               <div className="flex items-center gap-2">
-                <Info className="size-4 text-primary shrink-0" />
+                <Info className="size-4 text-muted-foreground shrink-0" />
                 <span>
                   Delivered shipments are scheduled and received in{' '}
                   <strong className="text-foreground font-semibold">Deliveries → Incoming</strong>.

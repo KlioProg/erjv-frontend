@@ -28,7 +28,7 @@
   --color-primary-disabled-foreground: var(--primary-disabled-foreground);
   /* Text needs a darker shade than the brand fill on light surfaces. */
   --text-color-primary: var(--primary-text);
-  /* The red POS signature stays independent of action and status colors. */
+  /* The POS signature follows the primary CTA brand color. */
   --color-logo-pos: var(--logo-pos);
 
   --color-secondary: var(--secondary);
@@ -80,7 +80,7 @@
   /* Compact controls and text-heavy actions can use this AA white-text fill. */
   --primary-contrast: #507410;
   --primary-text: color-mix(in srgb, var(--primary) 50%, black);
-  --logo-pos: #c2474c;
+  --logo-pos: var(--primary);
   --secondary: #f0ebe4;
   --secondary-foreground: #292524;
   --muted: #eae3d9;
@@ -112,7 +112,6 @@
   --popover: #1c1a18;
   --popover-foreground: #fafaf9;
   --primary-text: var(--primary);
-  --logo-pos: #d85c62;
   --secondary: #292522;
   --secondary-foreground: #f5f5f4;
   --muted: #262320;
@@ -150,6 +149,38 @@
 @layer base {
   * {
     border-color: var(--border);
+  }
+}
+
+/* Shared selection treatment for feature navigation and Radix tabs. */
+@utility navigation-tab {
+  position: relative;
+  color: var(--muted-foreground);
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset-inline: 0.75rem;
+    bottom: 0;
+    height: 2px;
+    border-radius: 999px;
+    background-color: var(--primary-contrast);
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  &:hover {
+    color: var(--foreground);
+    background-color: color-mix(in srgb, var(--background) 40%, transparent);
+  }
+
+  &[data-state='active'] {
+    color: var(--foreground);
+    background-color: var(--card);
+  }
+
+  &[data-state='active']::after {
+    opacity: 1;
   }
 }
 

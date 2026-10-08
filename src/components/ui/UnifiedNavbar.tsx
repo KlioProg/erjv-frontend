@@ -63,19 +63,17 @@ export function UnifiedNavbar<T extends string>({
                     type="button"
                     title={tab.title}
                     aria-pressed={isSelected}
+                    data-state={isSelected ? 'active' : 'inactive'}
                     onClick={() => group.onChange(tab.value)}
                     className={cn(
-                      'flex items-center gap-2 px-3.5 py-1.5 rounded-md text-xs font-bold transition-all duration-150 active:scale-95 cursor-pointer select-none whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                      isSelected
-                        ? 'bg-primary-selected text-primary shadow-2xs border border-primary/30'
-                        : 'text-muted-foreground hover:text-foreground hover:bg-background/40',
+                      'navigation-tab flex items-center gap-2 px-3.5 py-1.5 rounded-md text-xs font-bold transition-all duration-150 active:scale-95 cursor-pointer select-none whitespace-nowrap data-[state=active]:shadow-2xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                     )}
                   >
                     {tab.icon && (
                       <span
                         className={cn(
                           'shrink-0 transition-colors',
-                          isSelected ? 'text-primary' : 'text-muted-foreground',
+                          isSelected ? 'text-foreground' : 'text-muted-foreground',
                         )}
                       >
                         {tab.icon}
@@ -85,19 +83,7 @@ export function UnifiedNavbar<T extends string>({
                     <span>{tab.label}</span>
 
                     {tab.count !== undefined && (
-                      <span
-                        className={cn(
-                          'ml-0.5 px-2 py-0.5 rounded-full text-[11px] font-extrabold transition-colors',
-                          tab.badgeVariant === 'destructive'
-                            ? 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30'
-                            : tab.badgeVariant === 'amber'
-                              ? 'bg-amber-500/15 text-amber-600 dark:text-[#ffb627] border border-amber-500/30'
-                              : isSelected
-                                ? 'bg-primary-subtle text-primary'
-                                : 'bg-muted text-muted-foreground',
-                          tab.badgeClassName,
-                        )}
-                      >
+                      <span className="ml-0.5 px-2 py-0.5 rounded-full bg-muted text-foreground text-[11px] font-extrabold transition-colors">
                         {tab.count}
                       </span>
                     )}
