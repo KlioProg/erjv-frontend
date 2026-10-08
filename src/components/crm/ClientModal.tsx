@@ -304,7 +304,7 @@ function ClientFormContent({ client, onClose }: { client: Client | null; onClose
               type="button"
               onClick={handleRestoreFoundClient}
               disabled={isPending}
-              className="group gap-2 font-bold shadow-xs bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer transition-all duration-300 animate-in fade-in-0 zoom-in-95"
+              className="group gap-2 font-bold shadow-xs cursor-pointer transition-all duration-300 animate-in fade-in-0 zoom-in-95"
             >
               {reactivateMutation.isPending ? (
                 <>

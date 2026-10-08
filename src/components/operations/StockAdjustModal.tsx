@@ -427,7 +427,7 @@ function StockAdjustContent({
             }
             className={`text-xs font-bold h-9 rounded-xl cursor-pointer shadow-xs ${
               isExistingStock && effectiveMode === 'increase'
-                ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                ? ''
                 : isExistingStock && effectiveMode === 'decrease'
                   ? 'bg-amber-600 hover:bg-amber-700 text-white'
                   : ''

@@ -76,7 +76,7 @@ export function DeliveryDetailModal({ deliveryId, open, onClose }: DeliveryDetai
             {/* Customer & Destination Card */}
             {order && (
               <div className="flex items-start gap-3 p-3.5 rounded-xl bg-muted/30 border border-border/80 text-xs">
-                <MapPin className="size-4 text-rose-500 shrink-0 mt-0.5" />
+                <MapPin className="size-4 text-primary shrink-0 mt-0.5" />
                 <div className="flex flex-col min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="font-bold text-foreground text-sm">

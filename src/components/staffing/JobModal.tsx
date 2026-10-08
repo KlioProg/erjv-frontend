@@ -172,15 +172,16 @@ function JobFormContent({ job, onClose }: { job: Job | null; onClose: () => void
         </div>
 
         <DialogFooter className="gap-2 mt-4 pt-3 border-t">
-          <Button type="button" variant="outline" onClick={onClose} disabled={isPending}>
+          <Button type="button" variant="outline" size="sm" onClick={onClose} disabled={isPending}>
             Cancel
           </Button>
           {deactivatedJobMatch ? (
             <Button
               type="button"
+              size="sm"
               onClick={handleRestoreFoundJob}
               disabled={isPending}
-              className="group gap-2 font-bold shadow-xs bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer transition-all duration-300 animate-in fade-in-0 zoom-in-95"
+              className="group gap-2 font-bold shadow-xs cursor-pointer transition-all duration-300 animate-in fade-in-0 zoom-in-95"
             >
               {reactivateMutation.isPending ? (
                 <>
@@ -197,6 +198,7 @@ function JobFormContent({ job, onClose }: { job: Job | null; onClose: () => void
           ) : (
             <Button
               type="submit"
+              size="sm"
               disabled={isPending}
               className="font-semibold shadow-xs cursor-pointer transition-all duration-300"
             >

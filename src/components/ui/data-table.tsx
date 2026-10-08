@@ -641,13 +641,13 @@ export function DataTable<T>({
                   return (
                     <Button
                       key={pageNum}
-                      variant={isCurrent ? 'default' : 'ghost'}
+                      variant={isCurrent ? 'primary-contrast' : 'ghost'}
                       size="sm"
                       onClick={() => handlePageSelect(pageNum as number)}
                       className={cn(
                         'size-7.5 p-0 text-xs font-bold rounded-md cursor-pointer transition-all',
                         isCurrent
-                          ? 'bg-primary text-primary-foreground shadow-2xs font-extrabold'
+                          ? 'shadow-2xs font-extrabold'
                           : 'text-muted-foreground hover:text-foreground hover:bg-muted',
                       )}
                     >

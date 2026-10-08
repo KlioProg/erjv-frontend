@@ -162,7 +162,7 @@ export function DashboardLayout({ currentTab, onSelectTab, children }: Dashboard
       {/* Sidebar Navigation */}
       <aside
         data-sidebar
-        className={`fixed inset-y-0 left-0 z-50 flex w-60 flex-col justify-between border-r border-border/80 bg-card/95 backdrop-blur-md transition-transform duration-300 lg:sticky lg:top-0 lg:h-screen lg:shrink-0 ${
+        className={`fixed inset-y-0 left-0 z-50 flex w-60 flex-col justify-between border-r border-border/80 bg-card backdrop-blur-md transition-transform duration-300 lg:sticky lg:top-0 lg:h-screen lg:shrink-0 ${
           isMobileOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full lg:translate-x-0'
         }`}
       >
@@ -201,13 +201,14 @@ export function DashboardLayout({ currentTab, onSelectTab, children }: Dashboard
                     return (
                       <button
                         key={item.key}
+                        aria-current={isActive ? 'page' : undefined}
                         onClick={() => {
                           handleSelectTab(item.key)
                           setIsMobileOpen(false)
                         }}
-                        className={`group relative flex w-full items-center justify-between rounded-md px-3 py-2.5 text-xs font-semibold transition-all duration-150 cursor-pointer select-none active:scale-[0.98] ${
+                        className={`group relative flex w-full items-center justify-between rounded-md px-3 py-2.5 text-xs font-semibold transition-all duration-150 cursor-pointer select-none active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                           isActive
-                            ? 'bg-primary text-primary-foreground shadow-sm shadow-primary/25'
+                            ? 'bg-primary-selected text-primary shadow-sm'
                             : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
                         }`}
                       >
@@ -215,7 +216,7 @@ export function DashboardLayout({ currentTab, onSelectTab, children }: Dashboard
                           <Icon
                             className={`size-4 shrink-0 transition-transform group-hover:scale-110 ${
                               isActive
-                                ? 'text-primary-foreground'
+                                ? 'text-primary'
                                 : 'text-muted-foreground group-hover:text-foreground'
                             }`}
                           />
@@ -223,7 +224,7 @@ export function DashboardLayout({ currentTab, onSelectTab, children }: Dashboard
                         </div>
 
                         {isActive && (
-                          <ChevronRight className="size-3.5 text-primary-foreground/80" />
+                          <ChevronRight className="size-3.5 text-primary" />
                         )}
                       </button>
                     )
@@ -238,7 +239,7 @@ export function DashboardLayout({ currentTab, onSelectTab, children }: Dashboard
         <div className="p-3 bg-card shrink-0">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <div className="flex items-center justify-between gap-2.5 p-2 rounded-xl bg-white border border-border/70 cursor-pointer hover:bg-[#f2f2f2] transition-colors">
+              <div className="flex items-center justify-between gap-2.5 p-2 rounded-xl bg-card border border-border/70 cursor-pointer hover:bg-muted transition-colors">
                 <div className="flex items-center gap-2.5 min-w-0">
                   <Avatar className="size-9 border border-primary/20 bg-primary/10 shrink-0">
                     {user?.avatarUrl && (
@@ -300,7 +301,7 @@ export function DashboardLayout({ currentTab, onSelectTab, children }: Dashboard
               <DropdownMenuGroup>
                 <DropdownMenuItem
                   onClick={logout}
-                  className="text-destructive gap-2 text-xs cursor-pointer font-semibold py-2 hover:bg-[#f2f2f2] focus:bg-[#f2f2f2] focus:text-destructive"
+                  className="text-destructive gap-2 text-xs cursor-pointer font-semibold py-2 hover:bg-muted focus:bg-muted focus:text-destructive"
                 >
                   <LogOut className="size-3.5" />
                   Sign Out

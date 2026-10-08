@@ -260,20 +260,17 @@ export function WarehouseList({ initialWarehouseId }: { initialWarehouseId?: num
         </Badge>
       ),
     },
-    {
+  ]
+
+  if (canManage) {
+    columns.push({
       id: 'actions',
       header: 'Actions',
       align: 'right',
-      className: canManage
-        ? 'w-32 whitespace-nowrap pointer-coarse:w-40 lg:w-56 lg:pointer-coarse:w-64'
-        : 'w-14 whitespace-nowrap pointer-coarse:w-16 lg:w-40',
-      headerClassName: canManage
-        ? 'w-32 pointer-coarse:w-40 lg:w-56 lg:pointer-coarse:w-64'
-        : 'w-14 pointer-coarse:w-16 lg:w-40',
+      className: 'w-24 whitespace-nowrap pointer-coarse:w-28',
+      headerClassName: 'w-24 pointer-coarse:w-28',
       cell: ({ row }) => (
         <DataTableActions
-          onView={() => setSelectedWarehouseId(row.id)}
-          viewLabel={row.isActive === false ? 'View Details' : 'View Inventory'}
           onEdit={
             canManage && row.isActive !== false
               ? () => {
@@ -295,8 +292,8 @@ export function WarehouseList({ initialWarehouseId }: { initialWarehouseId?: num
           isPending={deactivateMutation.isPending || reactivateMutation.isPending}
         />
       ),
-    },
-  ]
+    })
+  }
 
   if (selectedWarehouse)
     return (
@@ -359,6 +356,7 @@ export function WarehouseList({ initialWarehouseId }: { initialWarehouseId?: num
       <DataTable
         data={filteredWarehouses}
         columns={columns}
+        onRowClick={(warehouse) => setSelectedWarehouseId(warehouse.id)}
         rowClassName={() => 'hover:bg-primary/5 focus-within:bg-primary/5'}
         isLoading={warehousesQuery.isLoading || stockQuery.isLoading}
         loadingMessage="Loading warehouses..."

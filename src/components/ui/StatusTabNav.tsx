@@ -18,11 +18,11 @@ type StatusTabNavProps = {
 }
 
 const selectedClasses: Record<StatusTabAccent, string> = {
-  green: 'bg-background text-emerald-600 border-emerald-500/30 ring-1 ring-emerald-500/20',
-  blue: 'bg-background text-blue-600 border-blue-500/30 ring-1 ring-blue-500/20',
+  green: 'bg-primary-selected text-primary border-primary/30 ring-1 ring-primary/20',
+  blue: 'bg-primary-selected text-primary border-primary/30 ring-1 ring-primary/20',
   red: 'bg-background text-rose-600 border-rose-500/30 ring-1 ring-rose-500/20',
   amber: 'bg-background text-amber-600 border-amber-500/30 ring-1 ring-amber-500/20',
-  primary: 'bg-background text-foreground border-border/60',
+  primary: 'bg-primary-selected text-primary border-primary/30',
 }
 
 const countClasses: Record<StatusTabAccent, string> = {
@@ -30,7 +30,7 @@ const countClasses: Record<StatusTabAccent, string> = {
   blue: 'bg-blue-500/15 text-blue-600 border border-blue-500/25',
   red: 'bg-rose-500/15 text-rose-600 border border-rose-500/25',
   amber: 'bg-amber-500/15 text-amber-600 border border-amber-500/25',
-  primary: 'bg-primary/10 text-primary',
+  primary: 'bg-primary-subtle text-primary',
 }
 
 export function StatusTabNav({ tabs, activeTab, onTabChange, className = '' }: StatusTabNavProps) {
@@ -45,8 +45,9 @@ export function StatusTabNav({ tabs, activeTab, onTabChange, className = '' }: S
             <button
               key={tab.value}
               type="button"
+              aria-pressed={isSelected}
               onClick={() => onTabChange(tab.value)}
-              className={`flex cursor-pointer select-none items-center gap-2 rounded-md px-3.5 py-1.5 text-xs font-bold transition-all duration-150 active:scale-95 ${
+              className={`flex cursor-pointer select-none items-center gap-2 rounded-md px-3.5 py-1.5 text-xs font-bold transition-all duration-150 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                 isSelected
                   ? `${selectedClasses[accent]} border shadow-2xs`
                   : 'text-muted-foreground hover:bg-background/40 hover:text-foreground'

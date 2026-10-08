@@ -125,7 +125,11 @@ export function JobList() {
         </div>
 
         {activeTab === 'ACTIVE' && (
-          <Button onClick={handleCreate} className="font-semibold shadow-xs cursor-pointer">
+          <Button
+            size="sm"
+            onClick={handleCreate}
+            className="font-semibold shadow-xs cursor-pointer"
+          >
             <Plus data-icon="inline-start" className="size-4" />
             Create Job Position
           </Button>
@@ -260,7 +264,7 @@ export function JobList() {
                           <Button
                             variant="secondary"
                             size="sm"
-                            className="group h-8.5 px-3.5 text-xs font-bold text-emerald-600 dark:text-emerald-600 bg-emerald-500/15 hover:bg-emerald-500/25 active:scale-95 border border-emerald-500/30 rounded-xl gap-2 shadow-2xs cursor-pointer transition-all duration-150"
+                            className="group font-bold text-emerald-600 dark:text-emerald-600 bg-emerald-500/15 hover:bg-emerald-500/25 active:scale-95 border border-emerald-500/30 rounded-xl gap-2 shadow-2xs cursor-pointer transition-all duration-150"
                             onClick={() => handleReactivate(job)}
                             disabled={isReactivatingThis}
                           >
@@ -280,7 +284,7 @@ export function JobList() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="h-7 text-xs px-2 cursor-pointer active:scale-95 transition-transform"
+                          className="cursor-pointer active:scale-95 transition-transform"
                           onClick={() => handleEdit(job)}
                         >
                           <Edit2 className="size-3 mr-1" />
@@ -289,7 +293,7 @@ export function JobList() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="h-7 text-xs px-2 text-destructive hover:text-destructive hover:bg-destructive/10 cursor-pointer active:scale-95 transition-transform"
+                          className="text-destructive hover:text-destructive hover:bg-destructive/10 cursor-pointer active:scale-95 transition-transform"
                           onClick={() => handleDeactivate(job)}
                         >
                           <Archive className="size-3 mr-1" />

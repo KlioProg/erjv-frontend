@@ -425,7 +425,7 @@ export function ScheduleDeliveryModal({
           {selectedOrder && (
             <div className="flex items-center justify-between px-2.5 py-1 rounded-md bg-muted/40 border border-border/70 text-[11px] shrink-0">
               <div className="flex items-center gap-2 truncate">
-                <MapPin className="size-3.5 text-rose-500 shrink-0" />
+                <MapPin className="size-3.5 text-primary shrink-0" />
                 <span className="font-semibold text-foreground truncate">
                   {clients.find((c) => c.id === selectedOrder.clientId)?.name ||
                     `Client #${selectedOrder.clientId}`}

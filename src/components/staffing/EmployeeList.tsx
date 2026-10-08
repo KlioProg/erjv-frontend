@@ -239,7 +239,7 @@ export function EmployeeList() {
                     size="sm"
                     onClick={() => handleReactivate(emp)}
                     disabled={isReactivatingThis}
-                    className="group h-8.5 px-3.5 gap-2 text-xs font-bold text-emerald-600 dark:text-emerald-600 bg-emerald-500/15 hover:bg-emerald-500/25 active:scale-95 border border-emerald-500/30 rounded-xl shadow-2xs cursor-pointer transition-all duration-150"
+                    className="group gap-2 font-bold text-emerald-600 dark:text-emerald-600 bg-emerald-500/15 hover:bg-emerald-500/25 active:scale-95 border border-emerald-500/30 rounded-xl shadow-2xs cursor-pointer transition-all duration-150"
                   >
                     {isReactivatingThis ? (
                       <Spinner className="size-3.5 text-emerald-600 dark:text-emerald-600 animate-spin" />
@@ -332,7 +332,11 @@ export function EmployeeList() {
           />
         </div>
         {activeTab === 'ACTIVE' && (
-          <Button onClick={handleCreate} className="shadow-sm font-semibold cursor-pointer">
+          <Button
+            size="sm"
+            onClick={handleCreate}
+            className="shadow-sm font-semibold cursor-pointer"
+          >
             <UserPlus data-icon="inline-start" className="size-4" />
             Register Employee
           </Button>

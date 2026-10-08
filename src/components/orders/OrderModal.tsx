@@ -150,7 +150,7 @@ export function OrderModal({
   const numericDiscountValue = Number(discountValue) || 0
   const discountAmount =
     discountType === 'percentage'
-      ? grossTotal * (numericDiscountValue / 100)
+      ? grossTotal * (numericDiscountValue / 100) 
       : Math.min(numericDiscountValue, grossTotal)
   const totalAfterDiscount = Math.max(0, grossTotal - discountAmount)
 
@@ -684,12 +684,12 @@ export function OrderModal({
                   }
                   className="h-8 text-xs font-semibold shrink-0 gap-1"
                 >
-                  <Plus className="size-3" />
+                  <Plus className="size-2" />
                   {selectedProductId !== 'none' && selectedProductTotalAvailable <= 0
                     ? 'Out of Stock'
                     : isSelectedProductFullyAdded
                       ? 'All Added'
-                      : '+ Add'}
+                      : ''}
                 </Button>
               </div>
             </div>
@@ -736,7 +736,7 @@ export function OrderModal({
                         Reserved: <strong>{selectedProductStats.totalReserved}</strong>
                       </span>
                       <span className="text-muted-foreground">|</span>
-                      <span title="Ready to sell to customers" className="text-rose-600 font-bold">
+                      <span title="Ready to sell to customers" className="text-primary font-bold">
                         Avail: 0
                       </span>
                     </div>

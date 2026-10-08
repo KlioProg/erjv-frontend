@@ -134,7 +134,7 @@ export function DispatchDeliveryModal({ delivery, open, onClose }: DispatchDeliv
 
         {delivery && (
           <div className="flex items-start gap-3 p-3.5 rounded-xl bg-muted/30 border border-border/70 text-xs">
-            <MapPin className="size-4 text-rose-500 shrink-0 mt-0.5" />
+            <MapPin className="size-4 text-primary shrink-0 mt-0.5" />
             <div className="flex flex-col min-w-0">
               <div className="flex items-center gap-2">
                 <span className="font-bold text-foreground text-sm">
@@ -291,7 +291,7 @@ export function DispatchDeliveryModal({ delivery, open, onClose }: DispatchDeliv
             <Button
               type="submit"
               disabled={dispatchMutation.isPending || !selectedVehicleId || !selectedDriverId}
-              className="font-semibold gap-1.5 bg-amber-600 hover:bg-amber-700 text-white"
+              className="font-semibold gap-1.5"
             >
               <Send className="size-3.5" />
               {dispatchMutation.isPending ? 'Dispatching...' : 'Dispatch Shipment'}

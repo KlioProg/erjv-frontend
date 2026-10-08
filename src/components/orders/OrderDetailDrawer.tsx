@@ -378,7 +378,7 @@ export function OrderDetailDrawer({
                     size="sm"
                     onClick={handleConfirmOrder}
                     disabled={confirmMutation.isPending}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs shadow-xs"
+                    className="font-semibold text-xs shadow-xs"
                   >
                     {confirmMutation.isPending ? (
                       'Confirming...'
@@ -443,7 +443,7 @@ export function OrderDetailDrawer({
                     <Button
                       size="sm"
                       onClick={() => setIsDispatchModalOpen(true)}
-                      className="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs shadow-xs"
+                      className="font-semibold text-xs shadow-xs"
                     >
                       <span className="flex items-center gap-1.5">
                         <Truck className="size-3.5" />
@@ -495,7 +495,7 @@ export function OrderDetailDrawer({
                     size="sm"
                     onClick={handleConfirmCustomerDelivery}
                     disabled={isCompletingDelivery}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs shadow-xs"
+                    className="font-semibold text-xs shadow-xs"
                   >
                     {isCompletingDelivery ? (
                       'Completing...'

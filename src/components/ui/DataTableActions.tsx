@@ -10,6 +10,7 @@ type DataTableActionsProps = {
   onView?: () => void
   onRestore?: () => void
   viewLabel?: string
+  viewVariant?: 'default' | 'ghost'
   restoreLabel?: string
   isPending?: boolean
 }
@@ -22,6 +23,7 @@ export function DataTableActions({
   onView,
   onRestore,
   viewLabel = 'View',
+  viewVariant = 'ghost',
   restoreLabel = 'Restore',
   isPending = false,
 }: DataTableActionsProps) {
@@ -57,7 +59,7 @@ export function DataTableActions({
       {onView && (
         <Button
           type="button"
-          variant="secondary"
+          variant={viewVariant}
           size="sm"
           className="h-8 min-w-8 shrink-0 px-2 pointer-coarse:h-11 pointer-coarse:min-w-11 lg:px-3"
           onClick={onView}

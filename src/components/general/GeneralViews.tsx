@@ -10,7 +10,7 @@ export function SettingsView() {
       <Card className="border-border/80">
         <CardHeader>
           <div className="flex items-center gap-2">
-            <SettingsIcon className="size-5 text-rose-600" />
+            <SettingsIcon className="size-5 text-primary" />
             <CardTitle className="text-base font-bold">System & POS Configuration</CardTitle>
           </div>
           <CardDescription className="text-xs">
@@ -47,7 +47,7 @@ export function SettingsView() {
           <div className="pt-2">
             <Button
               size="sm"
-              className="bg-primary hover:bg-primary/90 text-primary-foreground text-xs"
+              className="text-xs"
             >
               Save Settings
             </Button>
@@ -63,7 +63,7 @@ export function FeedbackView() {
     <div className="flex flex-col gap-5 max-w-2xl">
       <Card className="border-border/80 text-center p-8">
         <CardContent className="flex flex-col items-center justify-center gap-4">
-          <div className="flex size-14 items-center justify-center rounded-lg bg-rose-50 text-rose-600">
+          <div className="flex size-14 items-center justify-center rounded-lg bg-primary-subtle text-primary">
             ⭐
           </div>
           <h3 className="text-lg font-bold text-foreground">Rate your ERJVPOS Experience</h3>
@@ -78,7 +78,7 @@ export function FeedbackView() {
             <span>⭐</span>
             <span>⭐</span>
           </div>
-          <Button size="sm" className="bg-rose-600 hover:bg-rose-700 text-white mt-2">
+          <Button size="sm" className="mt-2">
             Submit Rating
           </Button>
         </CardContent>

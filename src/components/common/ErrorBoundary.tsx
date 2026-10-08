@@ -93,7 +93,7 @@ export class ErrorBoundary extends Component<Props, State> {
               <Button
                 size="sm"
                 onClick={this.handleReload}
-                className="text-xs bg-primary text-primary-foreground hover:bg-primary/90 shadow-xs"
+                className="text-xs shadow-xs"
               >
                 <RefreshCw className="size-3.5 mr-1.5" />
                 Reload Application

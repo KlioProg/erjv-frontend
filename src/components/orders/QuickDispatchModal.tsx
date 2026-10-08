@@ -356,7 +356,7 @@ export function QuickDispatchModal({
               type="submit"
               size="sm"
               disabled={isSubmitting || availableVehicles.length === 0}
-              className="bg-blue-600 hover:bg-blue-700 text-white font-semibold"
+              className="font-semibold"
             >
               {isSubmitting ? (
                 'Dispatching...'

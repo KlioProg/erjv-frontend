@@ -343,7 +343,7 @@ export function RoleGroupingView() {
             variant={viewMode === 'SYSTEM_ROLE' ? 'secondary' : 'ghost'}
             size="sm"
             onClick={() => setViewMode('SYSTEM_ROLE')}
-            className="h-7 text-xs font-bold gap-1.5 cursor-pointer"
+            className="font-bold gap-1.5 cursor-pointer"
           >
             <Shield className="size-3 text-primary" />
             System Roles ({users.length})
@@ -352,7 +352,7 @@ export function RoleGroupingView() {
             variant={viewMode === 'JOB_POSITION' ? 'secondary' : 'ghost'}
             size="sm"
             onClick={() => setViewMode('JOB_POSITION')}
-            className="h-7 text-xs font-bold gap-1.5 cursor-pointer"
+            className="font-bold gap-1.5 cursor-pointer"
           >
             <Briefcase className="size-3 text-primary" />
             Job Positions ({jobs.length})

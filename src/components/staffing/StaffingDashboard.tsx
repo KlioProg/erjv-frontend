@@ -62,7 +62,7 @@ export function StaffingDashboard({ onSwitchToOperations }: StaffingDashboardPro
               <Button
                 variant="outline"
                 size="sm"
-                className="text-xs font-semibold h-8.5 gap-1.5 shadow-2xs border-primary/30 text-primary hover:bg-primary/10"
+                className="font-semibold gap-1.5 shadow-2xs border-primary/30 text-primary hover:bg-primary/10"
                 onClick={onSwitchToOperations}
               >
                 <Layers className="size-3.5" />
@@ -74,7 +74,7 @@ export function StaffingDashboard({ onSwitchToOperations }: StaffingDashboardPro
             <Button
               variant="outline"
               size="sm"
-              className="text-xs font-semibold h-8.5 gap-1.5 shadow-xs"
+              className="font-semibold gap-1.5 shadow-xs"
               onClick={() => setIsProductsModalOpen(true)}
             >
               <Package className="size-3.5 text-primary" />

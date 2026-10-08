@@ -1,9 +1,10 @@
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=DM+Sans:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 @import 'tailwindcss';
 
-@theme {
-  --font-sans: 'Plus Jakarta Sans', 'DM Sans', system-ui, -apple-system, sans-serif;
-  --font-mono: 'Space Mono', Consolas, monospace;
+@theme inline {
+  --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  /* Legacy data/code utilities use the same family as the rest of the UI. */
+  --font-mono: var(--font-sans);
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -16,6 +17,19 @@
 
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-active: var(--primary-active);
+  --color-primary-contrast: var(--primary-contrast);
+  --color-primary-contrast-hover: var(--primary-contrast-hover);
+  --color-primary-contrast-active: var(--primary-contrast-active);
+  --color-primary-subtle: var(--primary-subtle);
+  --color-primary-selected: var(--primary-selected);
+  --color-primary-disabled: var(--primary-disabled);
+  --color-primary-disabled-foreground: var(--primary-disabled-foreground);
+  /* Text needs a darker shade than the brand fill on light surfaces. */
+  --text-color-primary: var(--primary-text);
+  /* The red POS signature stays independent of action and status colors. */
+  --color-logo-pos: var(--logo-pos);
 
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
@@ -28,6 +42,9 @@
 
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
+  --color-destructive-hover: var(--destructive-hover);
+  --color-destructive-active: var(--destructive-active);
+  --text-color-destructive: var(--destructive-text);
 
   --color-border: var(--border);
   --color-input: var(--input);
@@ -57,8 +74,13 @@
   --card-foreground: #1c1917;
   --popover: #ffffff;
   --popover-foreground: #1c1917;
-  --primary: #c2474c;
+  /* Preferred CTA palette: white on the base green is not WCAG AA text contrast. */
+  --primary: #80b918;
   --primary-foreground: #ffffff;
+  /* Compact controls and text-heavy actions can use this AA white-text fill. */
+  --primary-contrast: #507410;
+  --primary-text: color-mix(in srgb, var(--primary) 50%, black);
+  --logo-pos: #c2474c;
   --secondary: #f0ebe4;
   --secondary-foreground: #292524;
   --muted: #eae3d9;
@@ -66,10 +88,13 @@
   --accent: #f5efe8;
   --accent-foreground: #1c1917;
   --destructive: #dc2626;
-  --destructive-foreground: #fef2f2;
+  --destructive-foreground: #ffffff;
+  --destructive-text: color-mix(in srgb, var(--destructive) 85%, black);
+  --destructive-hover: color-mix(in srgb, var(--destructive) 90%, black);
+  --destructive-active: color-mix(in srgb, var(--destructive) 80%, black);
   --border: #e7dfd5;
   --input: #ded5c8;
-  --ring: #c2474c;
+  --ring: var(--primary-text);
   --status-info: #edf2f8;
   --status-info-foreground: #385e85;
   --status-warning: #fbf2e3;
@@ -86,8 +111,8 @@
   --card-foreground: #fafaf9;
   --popover: #1c1a18;
   --popover-foreground: #fafaf9;
-  --primary: #d85c62;
-  --primary-foreground: #ffffff;
+  --primary-text: var(--primary);
+  --logo-pos: #d85c62;
   --secondary: #292522;
   --secondary-foreground: #f5f5f4;
   --muted: #262320;
@@ -95,10 +120,13 @@
   --accent: #292522;
   --accent-foreground: #fafaf9;
   --destructive: #ef4444;
-  --destructive-foreground: #fef2f2;
+  --destructive-foreground: #1c1917;
+  --destructive-text: var(--destructive-hover);
+  --destructive-hover: color-mix(in srgb, var(--destructive) 90%, white);
+  --destructive-active: color-mix(in srgb, var(--destructive) 80%, white);
   --border: #332e2a;
   --input: #3b3632;
-  --ring: #d85c62;
+  --ring: var(--primary-text);
   --status-info: #212c38;
   --status-info-foreground: #a9c5e2;
   --status-warning: #342b1d;
@@ -107,8 +135,22 @@
   --status-success-foreground: #a6ceb4;
 }
 
-* {
-  border-color: var(--border);
+:root,
+.dark {
+  --primary-hover: #6fa315;
+  --primary-active: color-mix(in srgb, var(--primary) 80%, black);
+  --primary-contrast-hover: color-mix(in srgb, var(--primary-contrast) 90%, black);
+  --primary-contrast-active: color-mix(in srgb, var(--primary-contrast) 80%, black);
+  --primary-subtle: color-mix(in srgb, var(--primary) 10%, var(--card));
+  --primary-selected: color-mix(in srgb, var(--primary) 16%, var(--card));
+  --primary-disabled: color-mix(in srgb, var(--primary) 30%, var(--muted));
+  --primary-disabled-foreground: color-mix(in srgb, var(--foreground) 70%, var(--muted));
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
 }
 
 /* Global Interactive Cursor Pointer Rules */
@@ -160,8 +202,13 @@ body {
 }
 
 ::selection {
-  background-color: rgba(194, 71, 76, 0.2);
+  background-color: var(--primary-selected);
   color: var(--foreground);
+}
+
+input[type='checkbox'],
+input[type='radio'] {
+  accent-color: var(--primary);
 }
 
 /* Native scrolling stays intact; only the scrollbar's visual prominence changes. */

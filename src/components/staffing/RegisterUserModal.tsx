@@ -367,7 +367,7 @@ export function RegisterUserModal({ open, onClose }: RegisterUserModalProps) {
               size="sm"
               onClick={handleClose}
               disabled={registerMutation.isPending}
-              className="text-xs h-8.5 cursor-pointer"
+              className="cursor-pointer"
             >
               Cancel
             </Button>
@@ -375,7 +375,7 @@ export function RegisterUserModal({ open, onClose }: RegisterUserModalProps) {
               type="submit"
               size="sm"
               disabled={registerMutation.isPending}
-              className="text-xs h-8.5 gap-1.5 font-semibold cursor-pointer shadow-xs"
+              className="gap-1.5 font-semibold cursor-pointer shadow-xs"
             >
               {registerMutation.isPending ? (
                 <>

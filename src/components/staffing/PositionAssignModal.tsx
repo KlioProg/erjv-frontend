@@ -130,10 +130,10 @@ function PositionAssignContent({ employee, onClose }: { employee: Employee; onCl
       </div>
 
       <DialogFooter className="gap-2">
-        <Button variant="outline" onClick={onClose} disabled={isPending}>
+        <Button variant="outline" size="sm" onClick={onClose} disabled={isPending}>
           Cancel
         </Button>
-        <Button onClick={handleSave} disabled={isPending}>
+        <Button size="sm" onClick={handleSave} disabled={isPending}>
           {isPending ? (
             <>
               <Spinner data-icon="inline-start" />

@@ -62,11 +62,12 @@ export function UnifiedNavbar<T extends string>({
                     key={tab.value}
                     type="button"
                     title={tab.title}
+                    aria-pressed={isSelected}
                     onClick={() => group.onChange(tab.value)}
                     className={cn(
-                      'flex items-center gap-2 px-3.5 py-1.5 rounded-md text-xs font-bold transition-all duration-150 active:scale-95 cursor-pointer select-none whitespace-nowrap',
+                      'flex items-center gap-2 px-3.5 py-1.5 rounded-md text-xs font-bold transition-all duration-150 active:scale-95 cursor-pointer select-none whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                       isSelected
-                        ? 'bg-background text-foreground shadow-2xs border border-border/60'
+                        ? 'bg-primary-selected text-primary shadow-2xs border border-primary/30'
                         : 'text-muted-foreground hover:text-foreground hover:bg-background/40',
                     )}
                   >
@@ -92,7 +93,7 @@ export function UnifiedNavbar<T extends string>({
                             : tab.badgeVariant === 'amber'
                               ? 'bg-amber-500/15 text-amber-600 dark:text-[#ffb627] border border-amber-500/30'
                               : isSelected
-                                ? 'bg-primary/10 text-primary'
+                                ? 'bg-primary-subtle text-primary'
                                 : 'bg-muted text-muted-foreground',
                           tab.badgeClassName,
                         )}
