@@ -10,7 +10,6 @@ import useFormValidation from './useFormValidation'
 
 type LoginFormProps = {
   onSubmit: (event: FormEvent<HTMLFormElement>) => void
-  onForgotPasswordClick: () => void
   isSubmitting: boolean
   isSuccess?: boolean
   errorMessage: string
@@ -19,7 +18,6 @@ type LoginFormProps = {
 
 export default function LoginForm({
   onSubmit,
-  onForgotPasswordClick,
   isSubmitting,
   isSuccess = false,
   errorMessage,
@@ -197,16 +195,12 @@ export default function LoginForm({
             htmlFor="rememberMe"
             className="text-xs font-medium text-muted-foreground hover:text-foreground cursor-pointer select-none leading-none transition-colors"
           >
-            Remember me
+            Remember email
           </Label>
         </div>
-        <button
-          type="button"
-          onClick={onForgotPasswordClick}
-          className="text-xs font-medium text-primary transition-colors hover:underline hover:text-primary/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-[4px] cursor-pointer"
-        >
-          Forgot password?
-        </button>
+        <span className="text-xs text-muted-foreground">
+          Need a reset? Contact your administrator.
+        </span>
       </div>
 
       <Button

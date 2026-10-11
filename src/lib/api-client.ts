@@ -1,6 +1,6 @@
 import axios, { type AxiosError } from 'axios'
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api'
+const API_BASE_URL = import.meta.env.DEV ? '/api' : import.meta.env.VITE_API_BASE_URL
 
 export type IncludeInactive = 'true' | 'false' | 'only'
 export type FetchParams = {
@@ -12,7 +12,7 @@ export const apiClient = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 5000,
+  timeout: 30000,
 })
 
 // Attach JWT access token to outgoing requests if present

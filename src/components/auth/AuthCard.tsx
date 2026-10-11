@@ -11,7 +11,6 @@ import {
 import { Tabs, TabsContent } from '@/components/ui/tabs'
 import { Separator } from '@/components/ui/separator'
 import { ErjvPosLogo } from '../ui/ErjvPosLogo'
-import ForgotPasswordModal from './ForgotPasswordModal'
 import LoginForm from './LoginForm'
 import { useAuth } from '@/features/auth/AuthContext'
 import { getErrorMessage } from '@/lib/api-client'
@@ -28,7 +27,6 @@ export function AuthCard({ mode, onModeChange }: AuthCardProps) {
   const [isSuccess, setIsSuccess] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
   const [successMessage, setSuccessMessage] = useState('')
-  const [isForgotPasswordOpen, setIsForgotPasswordOpen] = useState(false)
 
   async function handleLoginSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -87,7 +85,6 @@ export function AuthCard({ mode, onModeChange }: AuthCardProps) {
             >
               <LoginForm
                 onSubmit={handleLoginSubmit}
-                onForgotPasswordClick={() => setIsForgotPasswordOpen(true)}
                 isSubmitting={isSubmitting}
                 isSuccess={isSuccess}
                 errorMessage={errorMessage}
@@ -104,15 +101,6 @@ export function AuthCard({ mode, onModeChange }: AuthCardProps) {
           <span>Encrypted 256-bit SSL connection</span>
         </CardFooter>
       </Card>
-
-      <ForgotPasswordModal
-        open={isForgotPasswordOpen}
-        onClose={() => setIsForgotPasswordOpen(false)}
-        onSuccessReset={(email) => {
-          setSuccessMessage(`Password updated for ${email}. Please log in with your new password.`)
-          onModeChange('login')
-        }}
-      />
     </div>
   )
 }
