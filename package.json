@@ -11,7 +11,7 @@
     "format": "prettier . --write",
     "format:check": "prettier . --check",
     "test:components": "vitest run",
-    "test:unit": "node --test src/lib/order-amounts.test.mjs src/features/crm/sales-orders.presentation.test.mjs src/features/products/products.catalog.test.mjs src/features/logistics/stock-display.test.mjs src/features/logistics/vehicle-assignment.test.mjs",
+    "test:unit": "node --test src/lib/order-amounts.test.mjs src/features/crm/sales-orders.presentation.test.mjs src/features/products/products.catalog.test.mjs src/features/logistics/stock-display.test.mjs src/features/logistics/vehicle-assignment.test.mjs src/features/logistics/stock-warnings.test.mjs",
     "test": "npm run test:unit && npm run test:components"
   },
   "dependencies": {

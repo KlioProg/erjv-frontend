@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
 import { AlertTriangle, Trash2 } from 'lucide-react'
 import {
   Dialog,
@@ -10,6 +10,8 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { getErrorMessage } from '@/lib/api-client'
 
 export type ConfirmDeleteModalProps = {
   open: boolean
@@ -39,13 +41,21 @@ export function ConfirmDeleteModal({
   icon,
 }: ConfirmDeleteModalProps) {
   const [isProcessing, setIsProcessing] = useState(false)
+  const [error, setError] = useState('')
+  const pending = useRef(false)
 
   const handleConfirm = async () => {
+    if (pending.current) return
+    pending.current = true
     setIsProcessing(true)
+    setError('')
     try {
       await onConfirm()
       onClose()
+    } catch (err) {
+      setError(getErrorMessage(err))
     } finally {
+      pending.current = false
       setIsProcessing(false)
     }
   }
@@ -54,7 +64,7 @@ export function ConfirmDeleteModal({
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && !isProcessing && onClose()}>
-      <DialogContent className="sm:max-w-[440px] p-6">
+      <DialogContent className="sm:max-w-[440px] p-6" closeDisabled={isProcessing}>
         <DialogHeader className="gap-2">
           <div
             className={`flex size-12 items-center justify-center rounded-2xl ${
@@ -78,6 +88,11 @@ export function ConfirmDeleteModal({
           </DialogDescription>
         </DialogHeader>
 
+        {error && (
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
         {/* Item Context Card */}
         {(itemName || itemDetails) && (
           <div className="my-2 p-3.5 rounded-xl bg-muted/50 border border-border/80 text-xs flex flex-col gap-1">
