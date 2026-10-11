@@ -8,20 +8,33 @@ type OverflowValueProps = {
   fullValue?: unknown
   className?: string
   tooltipSuffix?: string
+  showFullValueOnHover?: boolean
   onActivate?: () => void
 }
 
-/** Keeps the full value in the DOM and reveals it on hover, focus, or touch when clipped. */
-export function OverflowValue({ value, fullValue, className, tooltipSuffix, onActivate }: OverflowValueProps) {
+/** Reveals clipped text or optional alternate details on hover, focus, or touch. */
+export function OverflowValue({
+  value,
+  fullValue,
+  className,
+  tooltipSuffix,
+  showFullValueOnHover = false,
+  onActivate,
+}: OverflowValueProps) {
   const text = value == null || value === '' ? '—' : String(value)
   const fullText = fullValue == null || fullValue === '' ? text : String(fullValue)
   const hasHiddenOriginal = text === '—' && fullText !== text
+  const hasAlternateValue = fullText !== text
   const tooltipText = tooltipSuffix ? `${fullText} ${tooltipSuffix}` : fullText
   const ref = useRef<HTMLElement | null>(null)
   const id = useId()
   const [clipped, setClipped] = useState(false)
   const [open, setOpen] = useState(false)
-  const [position, setPosition] = useState<{ left: number; top?: number; bottom?: number }>({ left: 8, top: 8 })
+  const [position, setPosition] = useState<{ left: number; top?: number; bottom?: number }>({
+    left: 8,
+    top: 8,
+  })
+  const canReveal = clipped || hasHiddenOriginal || (showFullValueOnHover && hasAlternateValue)
 
   useLayoutEffect(() => {
     const element = ref.current
@@ -50,13 +63,15 @@ export function OverflowValue({ value, fullValue, className, tooltipSuffix, onAc
 
   const show = () => {
     const element = ref.current
-    if (!element || (!clipped && !hasHiddenOriginal)) return
+    if (!element || !canReveal) return
     const rect = element.getBoundingClientRect()
     const width = Math.min(448, window.innerWidth - 16)
     const left = Math.min(Math.max(rect.left, 8), window.innerWidth - width - 8)
-    setPosition(rect.bottom + 80 < window.innerHeight
-      ? { left, top: rect.bottom + 8 }
-      : { left, bottom: window.innerHeight - rect.top + 8 })
+    setPosition(
+      rect.bottom + 80 < window.innerHeight
+        ? { left, top: rect.bottom + 8 }
+        : { left, bottom: window.innerHeight - rect.top + 8 },
+    )
     setOpen(true)
   }
 
@@ -78,7 +93,9 @@ export function OverflowValue({ value, fullValue, className, tooltipSuffix, onAc
     <>
       {onActivate ? (
         <Button
-          ref={(element) => { ref.current = element }}
+          ref={(element) => {
+            ref.current = element
+          }}
           type="button"
           variant="link"
           onClick={onActivate}
@@ -90,26 +107,39 @@ export function OverflowValue({ value, fullValue, className, tooltipSuffix, onAc
         </Button>
       ) : (
         <span
-          ref={(element) => { ref.current = element }}
-          tabIndex={clipped || hasHiddenOriginal ? 0 : undefined}
-          aria-label={clipped || hasHiddenOriginal ? tooltipText : undefined}
-          className={cn(textClass, (clipped || hasHiddenOriginal) && 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2')}
+          ref={(element) => {
+            ref.current = element
+          }}
+          tabIndex={canReveal ? 0 : undefined}
+          aria-label={canReveal ? tooltipText : undefined}
+          className={cn(
+            textClass,
+            canReveal &&
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+          )}
           {...common}
         >
           {text}
         </span>
       )}
-      {open && (clipped || hasHiddenOriginal) && typeof document !== 'undefined' && createPortal(
-        <div
-          id={id}
-          role="tooltip"
-          className="pointer-events-none fixed z-[100] max-h-[50vh] max-w-[calc(100vw-1rem)] overflow-y-auto break-all rounded-lg border border-border bg-popover px-3 py-2 text-xs text-popover-foreground shadow-lg"
-          style={{ ...position, width: 'max-content', maxWidth: 'min(28rem, calc(100vw - 1rem))' }}
-        >
-          {tooltipText}
-        </div>,
-        document.body,
-      )}
+      {open &&
+        canReveal &&
+        typeof document !== 'undefined' &&
+        createPortal(
+          <div
+            id={id}
+            role="tooltip"
+            className="pointer-events-none fixed z-[100] max-h-[50vh] max-w-[calc(100vw-1rem)] overflow-y-auto break-all rounded-lg border border-border bg-popover px-3 py-2 text-xs text-popover-foreground shadow-lg"
+            style={{
+              ...position,
+              width: 'max-content',
+              maxWidth: 'min(28rem, calc(100vw - 1rem))',
+            }}
+          >
+            {tooltipText}
+          </div>,
+          document.body,
+        )}
     </>
   )
 }

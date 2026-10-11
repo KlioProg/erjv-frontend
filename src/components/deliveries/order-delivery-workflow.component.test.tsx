@@ -499,6 +499,91 @@ describe.each(['Sales', 'Purchase'])('%s composer confirmation', (kind) => {
 })
 
 describe('order to delivery workflow', () => {
+  it('keeps sales-order rows to order identity and delivery status', async () => {
+    outgoing = [outgoingFixture(6, 'SCHEDULED')]
+    mount(<OrdersView />)
+
+    const orderRow = (await screen.findByText('SO-TEST')).closest('tr')
+    expect(orderRow).toBeTruthy()
+    expect(orderRow?.textContent).toContain('Test Customer')
+    expect(orderRow?.textContent).toContain('Test Address')
+    expect(within(orderRow!).getByText('Scheduled')).toBeTruthy()
+    expect(orderRow?.textContent).not.toContain('Oct 1, 2026')
+    expect(orderRow?.textContent).not.toContain('Oct 11')
+    expect(orderRow?.textContent).not.toContain('Delivery draft')
+  })
+
+  it('keeps purchase rows compact while retaining expected and detail dates', async () => {
+    mount(<PurchasesView />)
+
+    const orderRow = (await screen.findByText('PO-TEST')).closest('tr')
+    expect(orderRow).toBeTruthy()
+    expect(screen.getByRole('columnheader', { name: 'Order' })).toBeTruthy()
+    expect(screen.queryByRole('columnheader', { name: 'Order Number' })).toBeNull()
+    const orderCell = orderRow?.querySelector('td')
+    expect(orderCell?.querySelector('svg')).toBeNull()
+    expect(within(orderCell!).getByText('PO-TEST').className).toContain(
+      'font-mono text-xs font-semibold text-foreground',
+    )
+    expect(within(orderRow!).getByText('Draft')).toBeTruthy()
+    expect(
+      within(orderRow!).getByText('Draft').closest('[data-slot="badge"]')?.querySelector('svg'),
+    ).toBeNull()
+    expect(orderRow?.textContent).not.toContain('Oct 1, 2026')
+    expect(screen.getByRole('columnheader', { name: 'Expected Date' })).toBeTruthy()
+    expect(
+      within(orderRow!).getByText(
+        new Date(purchaseFixture.expectedAt!).toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric',
+        }),
+      ),
+    ).toBeTruthy()
+
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('button', { name: 'More actions for PO-TEST' }))
+    await user.click(screen.getByRole('menuitem', { name: 'View Order' }))
+    expect(screen.getByText('Ordered Date', { selector: 'dt' })).toBeTruthy()
+    expect(screen.getByText('Expected Date', { selector: 'dt' })).toBeTruthy()
+    expect(screen.getByText(new Date(purchaseFixture.orderedAt).toLocaleDateString())).toBeTruthy()
+  })
+
+  it('reveals the complete item list for multi-item sales orders', async () => {
+    sales[0].items.push({
+      ...sales[0].items[0],
+      id: 12,
+      lineNumber: 2,
+      quantity: '0.75',
+      allocations: [],
+    })
+    const user = userEvent.setup()
+    mount(<OrdersView />)
+
+    const itemCount = await screen.findByText('2 items')
+    await user.hover(itemCount)
+    expect((await screen.findByRole('tooltip')).textContent).toContain(
+      'Test Mango ×1.25, Test Mango ×0.75',
+    )
+  })
+
+  it('reveals the complete item list for multi-item purchase orders', async () => {
+    purchases[0].items.push({
+      ...purchases[0].items[0],
+      id: 21,
+      lineNumber: 2,
+      quantity: '0.75',
+    })
+    const user = userEvent.setup()
+    mount(<PurchasesView />)
+
+    const itemCount = await screen.findByText('2 items')
+    await user.hover(itemCount)
+    expect((await screen.findByRole('tooltip')).textContent).toContain(
+      'Test Mango (x1.25), Test Mango (x0.75)',
+    )
+  })
+
   it.each(['list', 'details'] as const)(
     'reviews sales cancellation from %s, supports dismiss and retains errors for retry',
     async (source) => {
@@ -653,6 +738,24 @@ describe('order to delivery workflow', () => {
     expect(navigate).not.toHaveBeenCalled()
     expect(requests.filter((request) => request.method === 'post')).toHaveLength(0)
     expect(screen.queryByRole('button', { name: /Edit Order/ })).toBeNull()
+  })
+
+  it('shows a concise confirmed-order summary with the existing actions', async () => {
+    sales[0].status = 'CONFIRMED'
+    outgoing = []
+    const user = userEvent.setup()
+    mount(<OrdersView />)
+
+    await user.click(await screen.findByRole('button', { name: 'More actions for SO-TEST' }))
+    await user.click(screen.getByRole('menuitem', { name: 'View Order' }))
+
+    expect(screen.getByText('Order confirmed')).toBeTruthy()
+    expect(screen.getByText('Stock is reserved and ready for delivery.')).toBeTruthy()
+    expect(screen.queryByText('What just happened?')).toBeNull()
+    expect(screen.queryByText('What is its current state?')).toBeNull()
+    expect(screen.queryByText('What should you do next?')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Cancel Order' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Arrange Delivery' })).toBeTruthy()
   })
 
   it('returns from sales details after confirmation and navigates to outgoing on request', async () => {
@@ -901,6 +1004,32 @@ describe('order to delivery workflow', () => {
     )
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
     expect(screen.queryByRole('button', { name: 'View delivery IN-22' })).toBeNull()
+  })
+
+  it('opens the associated sales order from delivery history in read-only mode', async () => {
+    sales[0].status = 'DELIVERED'
+    const user = userEvent.setup()
+    mount(<DeliveriesHub initialTab="history" />)
+    const viewOrderButtons = await screen.findAllByRole('button', { name: 'View order SO-TEST' })
+    await user.click(viewOrderButtons[0])
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByText('Test Customer')).toBeTruthy()
+    expect(within(dialog).getByText('Test Mango')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Cancel Order' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Arrange Delivery' })).toBeNull()
+    expect(mutations()).toHaveLength(0)
+  })
+
+  it('opens the associated purchase order from delivery history without management actions', async () => {
+    purchases[0].status = 'RECEIVED'
+    const user = userEvent.setup()
+    mount(<DeliveriesHub initialTab="history" />)
+    await user.click((await screen.findAllByRole('button', { name: 'View order PO-TEST' }))[0])
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByText('Test Supplier')).toBeTruthy()
+    expect(within(dialog).getByText('Test Mango')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Confirm Purchase Order' })).toBeNull()
+    expect(mutations()).toHaveLength(0)
   })
 
   it('keeps staff delivery access read-only with accessible detail references', async () => {

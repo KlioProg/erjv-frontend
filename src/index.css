@@ -2,7 +2,7 @@
 
 @theme inline {
   --text-ui: 0.8125rem;
-  --font-sans: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-sans: 'Segoe UI', system-ui, -apple-system, sans-serif;
   /* Legacy data/code utilities use the same family as the rest of the UI. */
   --font-mono: var(--font-sans);
 

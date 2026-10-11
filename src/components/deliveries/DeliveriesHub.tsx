@@ -14,6 +14,9 @@ import {
 import { useEffect, useState } from 'react'
 import { ArrowDownToLine, Plus, Search } from 'lucide-react'
 import { DeliveryTable } from './DeliveryTable'
+import { OrderDetailDrawer } from '@/components/orders/OrderDetailDrawer'
+import { PurchaseOrderDetailModal } from '@/components/purchases/PurchaseOrderDetailModal'
+import { Badge } from '@/components/ui/badge'
 import { useAuth } from '@/features/auth/AuthContext'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -49,6 +52,8 @@ import { useSuppliers } from '@/features/logistics/suppliers.hooks'
 import { useAllWarehouses } from '@/features/logistics/warehouses.hooks'
 import { useAllProducts } from '@/features/products/products.hooks'
 import { useEmployees } from '@/features/staffing/staffing.hooks'
+import { useStockItems } from '@/features/logistics/stock-items.hooks'
+import type { PurchaseOrderStatus } from '@/features/logistics/purchase-orders.types'
 import type { CreateIncomingDeliveryPayload } from '@/features/logistics/incoming-deliveries.types'
 import { ScheduleIncomingDeliveryModal } from './ScheduleIncomingDeliveryModal'
 import { ScheduleDeliveryModal } from './ScheduleDeliveryModal'
@@ -126,6 +131,9 @@ export function DeliveriesHub({
   )
   const [viewIncomingId, setViewIncomingId] = useState<number | null>(null)
   const [viewOutgoingId, setViewOutgoingId] = useState<number | null>(null)
+  const [viewOrder, setViewOrder] = useState<{ type: 'Incoming' | 'Outgoing'; id: number } | null>(
+    null,
+  )
   const [dispatchId, setDispatchId] = useState<number | null>(null)
   const [confirmation, setConfirmation] = useState<{
     row: DeliveryRow
@@ -143,6 +151,7 @@ export function DeliveriesHub({
   const { data: vehicles = [] } = useAllDeliveryVehicles()
   const { data: employees = [] } = useEmployees({ includeInactive: 'true' })
   const { data: products = [] } = useAllProducts()
+  const { data: stockItems = [] } = useStockItems()
   const createIncoming = useCreateIncomingDelivery()
   const scheduleIncoming = useScheduleIncomingDelivery()
   const completeIncoming = useCompleteIncomingDelivery()
@@ -189,6 +198,14 @@ export function DeliveriesHub({
     ].some((value) => value.toLowerCase().includes(search.trim().toLowerCase()))
   })
   const viewRow = rows.find((row) => row.type === 'Incoming' && row.record.id === viewIncomingId)
+  const purchaseOrderToView =
+    viewOrder?.type === 'Incoming'
+      ? (purchaseOrders.find((order) => order.id === viewOrder.id) ?? null)
+      : null
+  const salesOrderToView =
+    viewOrder?.type === 'Outgoing'
+      ? (salesOrders.find((order) => order.id === viewOrder.id) ?? null)
+      : null
   const availableStatuses = Object.entries(DELIVERY_STATUS_LABELS).filter(([value]) =>
     view === 'history'
       ? ['COMPLETED', 'DELIVERED', 'CANCELLED'].includes(value)
@@ -435,6 +452,7 @@ export function DeliveriesHub({
             ? setViewIncomingId(row.record.id)
             : setViewOutgoingId(row.record.id)
         }
+        onViewOrder={(row) => setViewOrder({ type: row.type, id: row.orderId })}
         onAction={handleAction}
       />
       {canManage && createType === 'Incoming' && (
@@ -474,6 +492,32 @@ export function DeliveriesHub({
         purchaseOrders={purchaseOrders}
         products={products}
         onClose={() => setViewIncomingId(null)}
+      />
+      {purchaseOrderToView && (
+        <PurchaseOrderDetailModal
+          order={purchaseOrderToView}
+          supplier={suppliers.find((supplier) => supplier.id === purchaseOrderToView.supplierId)}
+          products={products}
+          warehouses={warehouses}
+          incomingDeliveries={incoming}
+          statusBadge={
+            <Badge variant="outline">{purchaseOrderStatusLabels[purchaseOrderToView.status]}</Badge>
+          }
+          onClose={() => setViewOrder(null)}
+        />
+      )}
+      <OrderDetailDrawer
+        open={salesOrderToView !== null}
+        readOnly
+        onClose={() => setViewOrder(null)}
+        order={salesOrderToView}
+        clients={clients}
+        products={products}
+        warehouses={warehouses}
+        vehicles={vehicles}
+        employees={employees}
+        stockItems={stockItems}
+        outgoingDeliveries={outgoing}
       />
       <ConfirmDeleteModal
         key={
@@ -516,4 +560,12 @@ export function DeliveriesHub({
       />
     </div>
   )
+}
+
+const purchaseOrderStatusLabels: Record<PurchaseOrderStatus, string> = {
+  DRAFT: 'Draft',
+  CONFIRMED: 'Confirmed',
+  PARTIALLY_RECEIVED: 'Partially Received',
+  RECEIVED: 'Received',
+  CANCELLED: 'Cancelled',
 }

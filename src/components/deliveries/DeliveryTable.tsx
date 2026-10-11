@@ -1,4 +1,4 @@
-import { CalendarCheck, Check, PackageCheck, Send, X } from 'lucide-react'
+import { CalendarCheck, Check, Eye, PackageCheck, Send, X } from 'lucide-react'
 import { DataTable, type ColumnDef } from '@/components/ui/data-table'
 import { DataTableActions } from '@/components/ui/DataTableActions'
 import { Button } from '@/components/ui/button'
@@ -27,6 +27,7 @@ export function DeliveryTable({
   canManage,
   pending,
   onView,
+  onViewOrder,
   onAction,
 }: {
   rows: DeliveryRow[]
@@ -35,6 +36,7 @@ export function DeliveryTable({
   canManage: boolean
   pending: boolean
   onView: (row: DeliveryRow) => void
+  onViewOrder: (row: DeliveryRow) => void
   onAction: (row: DeliveryRow, action: DeliveryAction) => void
 }) {
   const columns: ColumnDef<DeliveryRow>[] = [
@@ -124,6 +126,19 @@ export function DeliveryTable({
       align: 'right',
       cell: ({ row }) => (
         <DataTableActions>
+          {view === 'history' && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="size-8 shrink-0 pointer-coarse:size-11"
+              title={`View order ${row.relatedOrder}`}
+              aria-label={`View order ${row.relatedOrder}`}
+              onClick={() => onViewOrder(row)}
+            >
+              <Eye aria-hidden="true" />
+            </Button>
+          )}
           {canManage &&
             getDeliveryActions(row).map((action) => {
               const { label, Icon } = actions[action]

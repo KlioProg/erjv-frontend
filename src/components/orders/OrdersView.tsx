@@ -39,6 +39,7 @@ import { getSalesOrderDeliveryDisplay } from '@/features/crm/sales-orders.presen
 import { getErrorMessage } from '@/lib/api-client'
 import { cn } from '@/lib/utils'
 import { DataTable, type ColumnDef } from '@/components/ui/data-table'
+import { OverflowValue } from '@/components/ui/OverflowValue'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -242,11 +243,6 @@ export function OrdersView({
         parseFloat(item.totalAmount) || parseFloat(item.unitPrice) * parseFloat(item.quantity) || 0
       return sum + itemTotal
     }, 0)
-    const orderDate = new Date(order.orderedAt || order.createdAt).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    })
     const activeDelivery = outgoingDeliveries.find(
       (delivery) => delivery.salesOrderId === order.id && delivery.status !== 'CANCELLED',
     )
@@ -258,7 +254,6 @@ export function OrdersView({
       itemSummary,
       itemLabel,
       orderTotal,
-      orderDate,
       activeDelivery,
       deliveryDisplay,
     }
@@ -303,13 +298,10 @@ export function OrdersView({
       header: 'Order',
       width: 145,
       className: 'min-w-[145px]',
-      cell: ({ row: { order, orderDate } }) => (
-        <div className="flex flex-col gap-1">
-          <span className="whitespace-nowrap font-mono text-xs font-semibold text-foreground">
-            {order.orderNumber}
-          </span>
-          <span className="text-[11px] text-muted-foreground">{orderDate}</span>
-        </div>
+      cell: ({ row: { order } }) => (
+        <span className="whitespace-nowrap font-mono text-xs font-semibold text-foreground">
+          {order.orderNumber}
+        </span>
       ),
     },
     {
@@ -345,6 +337,16 @@ export function OrdersView({
         const itemName = item
           ? productMap.get(item.inventoryItemId)?.name || `Product #${item.inventoryItemId}`
           : itemLabel || 'No items'
+        if ((order.items?.length ?? 0) > 1) {
+          return (
+            <OverflowValue
+              value={itemName}
+              fullValue={itemSummary}
+              showFullValueOnHover
+              className="text-foreground"
+            />
+          )
+        }
         return (
           <span className="block truncate text-foreground" title={itemSummary}>
             {itemName}
@@ -368,19 +370,12 @@ export function OrdersView({
       width: 155,
       className: 'whitespace-nowrap',
       cell: ({ row: { deliveryDisplay } }) => (
-        <div className="flex items-start flex-col gap-1">
-          <Badge
-            variant="outline"
-            className={cn('whitespace-nowrap px-2', deliveryDisplay.badgeClassName)}
-          >
-            {deliveryDisplay.label}
-          </Badge>
-          {deliveryDisplay.supportingText && (
-            <span className="text-[11px] text-muted-foreground">
-              {deliveryDisplay.supportingText}
-            </span>
-          )}
-        </div>
+        <Badge
+          variant="outline"
+          className={cn('whitespace-nowrap px-2', deliveryDisplay.badgeClassName)}
+        >
+          {deliveryDisplay.label}
+        </Badge>
       ),
     },
     {

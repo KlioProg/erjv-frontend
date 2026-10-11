@@ -12,7 +12,6 @@ import {
   Package,
   Plus,
   Search,
-  Truck,
   XCircle,
 } from 'lucide-react'
 import { Card } from '@/components/ui/card'
@@ -50,6 +49,7 @@ import { useIncomingDeliveries } from '@/features/logistics/incoming-deliveries.
 import { DataTable, type ColumnDef } from '@/components/ui/data-table'
 import { OverflowValue } from '@/components/ui/OverflowValue'
 import { DataTableActions } from '@/components/ui/DataTableActions'
+import { cn } from '@/lib/utils'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -66,6 +66,15 @@ export type PurchaseSection = 'orders' | 'suppliers'
 type PurchasesViewProps = {
   section?: PurchaseSection
   onNavigateToDeliveries?: (purchaseOrderId?: number, arrange?: boolean) => void
+}
+
+const purchaseStatusBadgeClassNames: Record<PurchaseOrderRecord['status'], string> = {
+  DRAFT: 'border-border/70! bg-muted/20 text-muted-foreground',
+  CONFIRMED: 'border-status-info-foreground/15! bg-status-info text-status-info-foreground',
+  PARTIALLY_RECEIVED:
+    'border-status-warning-foreground/15! bg-status-warning text-status-warning-foreground',
+  RECEIVED: 'border-status-success-foreground/15! bg-status-success text-status-success-foreground',
+  CANCELLED: 'border-destructive/15! bg-destructive/5 text-destructive',
 }
 
 export function PurchasesView({
@@ -222,62 +231,37 @@ export function PurchasesView({
     setSelectedSupplier(null)
   }
 
-  const renderStatusBadge = (status: string) => {
+  const renderStatusBadge = (status: PurchaseOrderRecord['status']) => {
+    const className = cn('whitespace-nowrap px-2', purchaseStatusBadgeClassNames[status])
     switch (status) {
       case 'DRAFT':
         return (
-          <Badge
-            variant="outline"
-            className="rounded-full bg-amber-500/10 text-amber-600 border-amber-500/20 px-2 py-0.5 text-[10px] font-semibold inline-flex items-center gap-1"
-          >
-            <Clock className="size-3" />
+          <Badge variant="outline" className={className}>
             Draft
           </Badge>
         )
       case 'CONFIRMED':
         return (
-          <Badge
-            variant="outline"
-            className="rounded-full bg-blue-500/10 text-blue-600 border-blue-500/20 px-2 py-0.5 text-[10px] font-semibold inline-flex items-center gap-1"
-          >
-            <CheckCircle2 className="size-3" />
+          <Badge variant="outline" className={className}>
             Confirmed
           </Badge>
         )
       case 'PARTIALLY_RECEIVED':
         return (
-          <Badge
-            variant="outline"
-            className="rounded-full bg-indigo-500/10 text-indigo-600 border-indigo-500/20 px-2 py-0.5 text-[10px] font-semibold inline-flex items-center gap-1"
-          >
-            <Truck className="size-3" />
+          <Badge variant="outline" className={className}>
             Partially Received
           </Badge>
         )
       case 'RECEIVED':
         return (
-          <Badge
-            variant="outline"
-            className="rounded-full bg-emerald-500/10 text-emerald-600 border-emerald-500/20 px-2 py-0.5 text-[10px] font-semibold inline-flex items-center gap-1"
-          >
-            <CheckCircle2 className="size-3" />
+          <Badge variant="outline" className={className}>
             Received
           </Badge>
         )
       case 'CANCELLED':
         return (
-          <Badge
-            variant="outline"
-            className="rounded-full bg-rose-500/10 text-rose-600 border-rose-500/20 px-2 py-0.5 text-[10px] font-semibold inline-flex items-center gap-1"
-          >
-            <XCircle className="size-3" />
+          <Badge variant="outline" className={className}>
             Cancelled
-          </Badge>
-        )
-      default:
-        return (
-          <Badge variant="outline" className="text-[10px]">
-            {status}
           </Badge>
         )
     }
@@ -300,12 +284,6 @@ export function PurchasesView({
       })
       .join(', ')
 
-    const orderDate = new Date(po.orderedAt).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    })
-
     const expectedDate = po.expectedAt
       ? new Date(po.expectedAt).toLocaleDateString('en-US', {
           year: 'numeric',
@@ -314,62 +292,74 @@ export function PurchasesView({
         })
       : 'Not set'
 
-    return { po, supplierName, total, itemSummary, orderDate, expectedDate }
+    return { po, supplierName, total, itemSummary, expectedDate }
   })
 
   const orderColumns: ColumnDef<(typeof orderRows)[number]>[] = [
     {
       id: 'number',
-      header: 'Order Number',
-      className: 'font-mono text-xs font-bold text-foreground',
-      cell: ({ row: { po, orderDate } }) => (
-        <>
-          <div className="flex items-center gap-1.5">
-            <Package className="size-3.5 text-primary" />
-            <span>{po.orderNumber}</span>
-          </div>
-          <span className="text-[10px] text-muted-foreground font-sans block mt-0.5">
-            {orderDate}
-          </span>
-        </>
+      header: 'Order',
+      width: 145,
+      className: 'min-w-[145px]',
+      cell: ({ row: { po } }) => (
+        <span className="whitespace-nowrap font-mono text-xs font-semibold text-foreground">
+          {po.orderNumber}
+        </span>
       ),
     },
     {
       id: 'supplier',
       header: 'Supplier',
-      className: 'text-xs font-semibold text-foreground',
+      width: 190,
+      className: 'min-w-[160px] max-w-[230px]',
       cell: ({ row: { po, supplierName } }) => (
-        <>
-          <div>{supplierName}</div>
+        <div className="flex min-w-0 flex-col gap-1">
+          <span className="truncate font-semibold text-foreground" title={supplierName}>
+            {supplierName}
+          </span>
           {po.externalReference && (
-            <div className="text-[10px] text-muted-foreground font-normal">
+            <span
+              className="truncate text-[11px] text-muted-foreground"
+              title={po.externalReference}
+            >
               Ref: {po.externalReference}
-            </div>
+            </span>
           )}
-        </>
+        </div>
       ),
     },
     {
       id: 'items',
-      header: 'Ordered Materials',
-      className: 'text-xs text-foreground/90 max-w-[240px] truncate',
-      cell: ({ row: { itemSummary } }) => (
-        <>
-          <span title={itemSummary}>{itemSummary || 'No items listed'}</span>
-        </>
-      ),
+      header: 'Items',
+      width: 190,
+      className: 'max-w-[240px]',
+      cell: ({ row: { po, itemSummary } }) =>
+        (po.items?.length ?? 0) > 1 ? (
+          <OverflowValue
+            value={`${po.items?.length ?? 0} items`}
+            fullValue={itemSummary}
+            showFullValueOnHover
+            className="text-foreground"
+          />
+        ) : (
+          <span className="block truncate text-foreground" title={itemSummary}>
+            {itemSummary || 'No items listed'}
+          </span>
+        ),
     },
     {
       id: 'date',
       header: 'Expected Date',
-      className: 'text-xs text-muted-foreground',
-      cell: ({ row: { expectedDate } }) => <>{expectedDate}</>,
+      width: 135,
+      className: 'whitespace-nowrap tabular-nums text-foreground',
+      cell: ({ row: { expectedDate } }) => expectedDate,
     },
     {
       id: 'total',
-      header: 'Total Amount',
+      header: 'Total',
+      width: 115,
       align: 'right',
-      className: 'text-xs font-bold text-foreground text-right font-mono',
+      className: 'whitespace-nowrap font-semibold tabular-nums text-foreground',
       cell: ({ row: { total } }) => (
         <>₱{total.toLocaleString('en-US', { minimumFractionDigits: 2 })}</>
       ),
@@ -377,15 +367,16 @@ export function PurchasesView({
     {
       id: 'status',
       header: 'Status',
-      align: 'center',
-      className: 'text-center',
+      width: 155,
+      className: 'whitespace-nowrap',
       cell: ({ row: { po } }) => <>{renderStatusBadge(po.status)}</>,
     },
     {
       id: 'actions',
       header: 'Actions',
+      width: 190,
       align: 'right',
-      className: 'text-right',
+      className: 'whitespace-nowrap',
       cell: ({ row: { po } }) => (
         <div
           className="flex items-center justify-end gap-1"
@@ -620,6 +611,7 @@ export function PurchasesView({
               getRowKey={({ po }) => po.id}
               pageSize={10}
               pageSizeOptions={[10, 25, 50, 100]}
+              tableClassName="table-fixed min-w-[1040px] xl:min-w-[1120px]"
             />
           )}
         </div>

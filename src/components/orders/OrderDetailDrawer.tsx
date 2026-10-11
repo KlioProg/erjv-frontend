@@ -48,6 +48,7 @@ import { getErrorMessage } from '@/lib/api-client'
 
 interface OrderDetailDrawerProps {
   open: boolean
+  readOnly?: boolean
   onClose: () => void
   order: SalesOrderRecord | null
   clients: Client[]
@@ -64,6 +65,7 @@ interface OrderDetailDrawerProps {
 
 export function OrderDetailDrawer({
   open,
+  readOnly = false,
   onClose,
   order,
   clients,
@@ -79,7 +81,7 @@ export function OrderDetailDrawer({
 }: OrderDetailDrawerProps) {
   const queryClient = useQueryClient()
   const { isAdmin, isManager } = useAuth()
-  const canManage = isAdmin || isManager
+  const canManage = !readOnly && (isAdmin || isManager)
   const [isDispatchModalOpen, setIsDispatchModalOpen] = useState(false)
   const [isCompletingDelivery, setIsCompletingDelivery] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
@@ -380,33 +382,35 @@ export function OrderDetailDrawer({
                   </div>
                 </div>
 
-                <div className="flex items-center justify-end gap-2 border-t border-amber-500/20 pt-3">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleCancelOrder}
-                    disabled={!canManage || cancelMutation.isPending}
-                    className="text-xs text-rose-600 hover:bg-rose-500/10 border-rose-500/30"
-                  >
-                    <X className="size-3 mr-1" />
-                    Cancel Order
-                  </Button>
-                  <Button
-                    size="sm"
-                    onClick={handleConfirmOrder}
-                    disabled={!canManage || confirmMutation.isPending}
-                    className="font-semibold text-xs shadow-xs"
-                  >
-                    {confirmMutation.isPending ? (
-                      'Confirming...'
-                    ) : (
-                      <span className="flex items-center gap-1.5">
-                        <ShieldCheck className="size-3.5" />
-                        Confirm Order & Reserve Stock
-                      </span>
-                    )}
-                  </Button>
-                </div>
+                {!readOnly && (
+                  <div className="flex items-center justify-end gap-2 border-t border-amber-500/20 pt-3">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleCancelOrder}
+                      disabled={!canManage || cancelMutation.isPending}
+                      className="text-xs text-rose-600 hover:bg-rose-500/10 border-rose-500/30"
+                    >
+                      <X className="size-3 mr-1" />
+                      Cancel Order
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={handleConfirmOrder}
+                      disabled={!canManage || confirmMutation.isPending}
+                      className="font-semibold text-xs shadow-xs"
+                    >
+                      {confirmMutation.isPending ? (
+                        'Confirming...'
+                      ) : (
+                        <span className="flex items-center gap-1.5">
+                          <ShieldCheck className="size-3.5" />
+                          Confirm Order & Reserve Stock
+                        </span>
+                      )}
+                    </Button>
+                  </div>
+                )}
               </div>
             )}
 
@@ -416,69 +420,50 @@ export function OrderDetailDrawer({
               </Button>
             )}
             {order.status === 'CONFIRMED' && (
-              <div className="rounded-2xl border border-blue-500/30 bg-blue-500/10 p-4 flex flex-col gap-3">
-                <div className="flex items-start gap-3">
-                  <div className="size-9 rounded-xl bg-blue-500/20 text-blue-600 flex items-center justify-center shrink-0 mt-0.5">
+              <div className="flex flex-col gap-3 rounded-xl border border-blue-500/20 bg-blue-500/5 px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex min-w-0 items-center gap-2.5">
+                  <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-blue-500/10 text-blue-600">
                     <ShieldCheck className="size-4" />
                   </div>
-                  <div className="flex-1 text-xs">
-                    <p className="font-bold text-blue-950 dark:text-blue-200">
-                      What just happened?
-                    </p>
+                  <div className="min-w-0 text-xs">
+                    <p className="font-semibold text-foreground">Order confirmed</p>
                     <p className="text-muted-foreground">
-                      Order confirmed! Inventory stock is now{' '}
-                      <span className="font-semibold text-blue-600">securely reserved</span> in the
-                      warehouse.
-                    </p>
-                    <p className="font-bold text-blue-950 dark:text-blue-200 mt-2">
-                      What is its current state?
-                    </p>
-                    <p className="text-muted-foreground">
-                      <span className="font-semibold text-blue-600">Confirmed & Ready</span> — Ready
-                      for outgoing fulfillment.
-                    </p>
-                    <p className="font-bold text-blue-950 dark:text-blue-200 mt-2">
-                      What should you do next?
-                    </p>
-                    <p className="text-muted-foreground">
-                      Prepare an outgoing delivery for customer{' '}
-                      <span className="font-semibold text-foreground">
-                        {client?.name || 'Customer'}
-                      </span>
-                      .
+                      Stock is reserved and ready for delivery.
                     </p>
                   </div>
                 </div>
 
-                <div className="flex items-center justify-end gap-2 border-t border-blue-500/20 pt-3">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleCancelOrder}
-                    disabled={!canManage || cancelMutation.isPending}
-                    className="text-xs text-rose-600 hover:bg-rose-500/10 border-rose-500/30"
-                  >
-                    <X className="size-3 mr-1" />
-                    Cancel Order
-                  </Button>
-                  {(!activeDelivery || activeDelivery.status === 'DELIVERED') && (
+                {!readOnly && (
+                  <div className="flex items-center justify-end gap-2 border-t border-blue-500/15 pt-3 sm:shrink-0 sm:border-0 sm:pt-0">
                     <Button
+                      variant="outline"
                       size="sm"
-                      disabled={!canManage}
-                      onClick={() =>
-                        onArrangeDelivery
-                          ? onArrangeDelivery(order.id)
-                          : setIsDispatchModalOpen(true)
-                      }
-                      className="font-semibold text-xs shadow-xs"
+                      onClick={handleCancelOrder}
+                      disabled={!canManage || cancelMutation.isPending}
+                      className="text-xs text-rose-600 hover:bg-rose-500/10 border-rose-500/30"
                     >
-                      <span className="flex items-center gap-1.5">
-                        <Truck className="size-3.5" />
-                        Arrange Delivery
-                      </span>
+                      <X className="size-3 mr-1" />
+                      Cancel Order
                     </Button>
-                  )}
-                </div>
+                    {(!activeDelivery || activeDelivery.status === 'DELIVERED') && (
+                      <Button
+                        size="sm"
+                        disabled={!canManage}
+                        onClick={() =>
+                          onArrangeDelivery
+                            ? onArrangeDelivery(order.id)
+                            : setIsDispatchModalOpen(true)
+                        }
+                        className="font-semibold text-xs shadow-xs"
+                      >
+                        <span className="flex items-center gap-1.5">
+                          <Truck className="size-3.5" />
+                          Arrange Delivery
+                        </span>
+                      </Button>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 
@@ -516,23 +501,25 @@ export function OrderDetailDrawer({
                   </div>
                 </div>
 
-                <div className="flex items-center justify-end gap-2 border-t border-indigo-500/20 pt-3">
-                  <Button
-                    size="sm"
-                    onClick={handleConfirmCustomerDelivery}
-                    disabled={!canManage || isCompletingDelivery}
-                    className="font-semibold text-xs shadow-xs"
-                  >
-                    {isCompletingDelivery ? (
-                      'Completing...'
-                    ) : (
-                      <span className="flex items-center gap-1.5">
-                        <CheckCircle2 className="size-3.5" />
-                        Confirm Customer Delivery / Complete
-                      </span>
-                    )}
-                  </Button>
-                </div>
+                {!readOnly && (
+                  <div className="flex items-center justify-end gap-2 border-t border-indigo-500/20 pt-3">
+                    <Button
+                      size="sm"
+                      onClick={handleConfirmCustomerDelivery}
+                      disabled={!canManage || isCompletingDelivery}
+                      className="font-semibold text-xs shadow-xs"
+                    >
+                      {isCompletingDelivery ? (
+                        'Completing...'
+                      ) : (
+                        <span className="flex items-center gap-1.5">
+                          <CheckCircle2 className="size-3.5" />
+                          Confirm Customer Delivery / Complete
+                        </span>
+                      )}
+                    </Button>
+                  </div>
+                )}
               </div>
             )}
 
@@ -553,30 +540,29 @@ export function OrderDetailDrawer({
               </div>
             )}
 
-            {/* Customer & Destination Card */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-              <div className="rounded-xl border border-border/80 bg-card p-3.5 space-y-1.5">
-                <div className="flex items-center gap-1.5 text-muted-foreground font-semibold">
-                  <Building2 className="size-3.5 text-primary" />
+            <div className="grid grid-cols-1 gap-4 text-xs sm:grid-cols-2 sm:gap-6">
+              <div className="min-w-0 space-y-1.5">
+                <div className="flex items-center gap-1.5 font-medium text-muted-foreground">
+                  <Building2 className="size-3.5" aria-hidden="true" />
                   Customer
                 </div>
-                <div className="font-bold text-foreground text-sm">
+                <div className="text-sm font-semibold text-foreground">
                   {client?.name || `Customer #${order.clientId}`}
                 </div>
                 <div className="text-muted-foreground">{client?.phone || 'No phone recorded'}</div>
                 <div className="text-muted-foreground">{client?.email || ''}</div>
               </div>
 
-              <div className="rounded-xl border border-border/80 bg-card p-3.5 space-y-1.5">
-                <div className="flex items-center gap-1.5 text-muted-foreground font-semibold">
-                  <MapPin className="size-3.5 text-primary" />
+              <div className="min-w-0 space-y-1.5">
+                <div className="flex items-center gap-1.5 font-medium text-muted-foreground">
+                  <MapPin className="size-3.5" aria-hidden="true" />
                   Destination Address
                 </div>
                 <div className="font-medium text-foreground">
                   {order.deliveryAddress || 'Store Counter / Direct Pick-up'}
                 </div>
                 {order.notes && (
-                  <div className="text-[11px] text-muted-foreground pt-1 border-t border-border/60">
+                  <div className="pt-1 text-[11px] text-muted-foreground">
                     Note: {order.notes}
                   </div>
                 )}
