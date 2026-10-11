@@ -342,8 +342,8 @@ export function ScheduleDeliveryModal({
         )}
 
         {deliverableOrders.length === 0 && (
-          <Alert className="py-1.5 px-3 text-xs shrink-0 border-blue-500/30 bg-blue-500/10 text-blue-900 dark:text-blue-200 flex items-center gap-2">
-            <Info className="size-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
+          <Alert className="py-1.5 px-3 text-xs shrink-0 border-blue-500/30 bg-blue-500/10 text-blue-900 flex items-center gap-2">
+            <Info className="size-3.5 text-blue-600 shrink-0" />
             <AlertDescription>
               All confirmed customer orders have already been scheduled. Confirm a new order in
               Sales Orders to create another delivery.

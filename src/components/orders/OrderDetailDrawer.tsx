@@ -400,7 +400,7 @@ export function OrderDetailDrawer({
                     <ShieldCheck className="size-4" />
                   </div>
                   <div className="flex-1 text-xs">
-                    <p className="font-bold text-blue-950 dark:text-blue-200">
+                    <p className="font-bold text-blue-950 ">
                       What just happened?
                     </p>
                     <p className="text-muted-foreground">
@@ -408,14 +408,14 @@ export function OrderDetailDrawer({
                       <span className="font-semibold text-blue-600">securely reserved</span> in the
                       warehouse.
                     </p>
-                    <p className="font-bold text-blue-950 dark:text-blue-200 mt-2">
+                    <p className="font-bold text-blue-950  mt-2">
                       What is its current state?
                     </p>
                     <p className="text-muted-foreground">
                       <span className="font-semibold text-blue-600">Confirmed & Ready</span> — Ready
                       for outgoing fulfillment.
                     </p>
-                    <p className="font-bold text-blue-950 dark:text-blue-200 mt-2">
+                    <p className="font-bold text-blue-950 mt-2">
                       What should you do next?
                     </p>
                     <p className="text-muted-foreground">

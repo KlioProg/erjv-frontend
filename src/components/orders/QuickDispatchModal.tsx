@@ -211,13 +211,13 @@ export function QuickDispatchModal({
           {/* Dispatch Overview Box */}
           <div className="rounded-xl border border-blue-500/20 bg-blue-500/5 p-3.5 text-xs flex flex-col gap-2">
             <div className="flex items-center justify-between">
-              <span className="font-semibold text-blue-900 dark:text-blue-200">
+              <span className="font-semibold text-blue-950 ">
                 Fulfilling Warehouse:
               </span>
               <span className="font-bold text-foreground">{warehouseName}</span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="font-semibold text-blue-900 dark:text-blue-200">Cargo Items:</span>
+              <span className="font-semibold text-blue-950 ">Cargo Items:</span>
               <span className="font-medium text-foreground text-right max-w-[260px] truncate">
                 {(order?.items || [])
                   .map((i) => `Item #${i.inventoryItemId} (x${i.quantity})`)
@@ -225,7 +225,7 @@ export function QuickDispatchModal({
               </span>
             </div>
             <div className="flex items-center justify-between border-t border-blue-500/15 pt-2">
-              <span className="font-semibold text-blue-900 dark:text-blue-200">
+              <span className="font-semibold text-blue-950 ">
                 Total Order Value:
               </span>
               <span className="font-extrabold text-foreground">
