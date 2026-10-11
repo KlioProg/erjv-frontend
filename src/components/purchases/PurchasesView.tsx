@@ -1,20 +1,18 @@
+import { PageHeader, PageToolbar } from '@/components/ui/ManagementPage'
 import { toast } from 'sonner'
 import { useState, useMemo } from 'react'
 import {
   Archive,
-  ArrowDownToLine,
   Building2,
   Check,
   CheckCircle2,
-  ChevronRight,
   Clock,
   Eye,
-  Info,
+  MoreHorizontal,
   Package,
   Plus,
   Search,
   Truck,
-  X,
   XCircle,
 } from 'lucide-react'
 import { Card } from '@/components/ui/card'
@@ -50,8 +48,16 @@ import type { CreatePurchaseOrderPayload } from '@/features/logistics/purchase-o
 import { useWarehouses } from '@/features/logistics/warehouses.hooks'
 import { useIncomingDeliveries } from '@/features/logistics/incoming-deliveries.hooks'
 import { DataTable, type ColumnDef } from '@/components/ui/data-table'
-import { DirectoryStatusBadge } from '@/components/ui/DirectoryRowControls'
+import { OverflowValue } from '@/components/ui/OverflowValue'
 import { DataTableActions } from '@/components/ui/DataTableActions'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 
 export type PurchaseTabFilter = 'Active' | 'Completed' | 'Cancelled'
 
@@ -382,14 +388,14 @@ export function PurchasesView({
       className: 'text-right',
       cell: ({ row: { po } }) => (
         <div
-          className="inline-grid grid-cols-[auto_2rem_2rem] items-center gap-1 pointer-coarse:grid-cols-[auto_2.75rem_2.75rem]"
+          className="flex items-center justify-end gap-1"
           onClick={(event) => event.stopPropagation()}
         >
           {po.status === 'DRAFT' && canManage && (
             <Button
               type="button"
               size="sm"
-              className="col-start-1 justify-self-end pointer-coarse:min-h-11"
+              className="pointer-coarse:min-h-11"
               disabled={confirmPOMutation.isPending}
               onClick={() => void confirmPurchaseOrder(po.id)}
               title="Confirm Purchase Order"
@@ -402,39 +408,47 @@ export function PurchasesView({
             <Button
               type="button"
               size="sm"
-              className="col-start-1 justify-self-end pointer-coarse:min-h-11"
+              className="pointer-coarse:min-h-11"
               onClick={() => onNavigateToDeliveries(po.id)}
               title="Open Incoming Deliveries for this purchase order"
             >
-              <ArrowDownToLine aria-hidden="true" data-icon="inline-start" />
               Incoming Deliveries
             </Button>
           )}
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="col-start-2 size-8 pointer-coarse:size-11"
-            aria-label={`View purchase order ${po.orderNumber}`}
-            title="View Purchase Order"
-            onClick={() => setSelectedOrderId(po.id)}
-          >
-            <Eye aria-hidden="true" />
-          </Button>
-          {canManage && ['DRAFT', 'CONFIRMED'].includes(po.status) && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="col-start-3 size-8 text-destructive hover:bg-destructive/10 hover:text-destructive pointer-coarse:size-11"
-              aria-label={`Cancel purchase order ${po.orderNumber}`}
-              title="Cancel Purchase Order"
-              onClick={() => setOrderToCancel(po)}
-              disabled={cancelPOMutation.isPending}
-            >
-              <X aria-hidden="true" />
-            </Button>
-          )}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="size-8 text-muted-foreground pointer-coarse:size-11"
+                aria-label={`More actions for ${po.orderNumber}`}
+                title="More actions"
+              >
+                <MoreHorizontal aria-hidden="true" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-44">
+              <DropdownMenuGroup>
+                <DropdownMenuItem onSelect={() => setSelectedOrderId(po.id)}>
+                  <Eye aria-hidden="true" className="mr-2 size-3.5" />
+                  View Order
+                </DropdownMenuItem>
+                {canManage && ['DRAFT', 'CONFIRMED'].includes(po.status) && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      disabled={cancelPOMutation.isPending}
+                      onSelect={() => setOrderToCancel(po)}
+                      className="text-destructive focus:text-destructive"
+                    >
+                      Cancel Order
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       ),
     },
@@ -444,50 +458,50 @@ export function PurchasesView({
     {
       id: 'supplier-0',
       header: 'Code',
+      width: '12%',
+      sortable: true,
+      sortKey: 'code',
       className: 'font-mono text-xs font-bold text-foreground',
       cell: ({ row: supplier }) => <>{supplier.code}</>,
     },
     {
       id: 'supplier-1',
       header: 'Company Name',
+      width: '22%',
+      sortable: true,
+      sortKey: 'name',
       className: 'text-xs font-semibold text-foreground',
-      cell: ({ row: supplier }) => <>{supplier.name}</>,
+      cell: ({ row: supplier }) => <OverflowValue value={supplier.name} />,
     },
     {
       id: 'supplier-2',
       header: 'Contact Person',
+      width: '15%',
+      sortable: true,
+      sortKey: (supplier) => supplier.contactPerson || '',
       className: 'text-xs text-foreground/90',
       cell: ({ row: supplier }) => <>{supplier.contactPerson || '—'}</>,
     },
     {
       id: 'supplier-3',
       header: 'Phone & Email',
+      width: '23%',
       className: 'text-xs text-muted-foreground',
       cell: ({ row: supplier }) => (
         <>
-          <div>{supplier.phone || '—'}</div>
-          {supplier.email && <div className="text-[10px] text-primary">{supplier.email}</div>}
+          <OverflowValue value={supplier.phone} />
+          {supplier.email && <OverflowValue value={supplier.email} className="text-[11px]" />}
         </>
       ),
     },
     {
       id: 'supplier-4',
       header: 'Address',
-      className: 'text-xs text-muted-foreground max-w-[200px] truncate',
-      cell: ({ row: supplier }) => (
-        <>
-          <span title={supplier.address || ''}>{supplier.address || '—'}</span>
-        </>
-      ),
-    },
-    {
-      id: 'supplier-5',
-      header: 'Status',
-      align: 'center',
-      className: 'text-center',
-      cell: ({ row: supplier }) => (
-        <DirectoryStatusBadge isActive={supplier.isActive !== false} inactiveLabel="Archived" />
-      ),
+      width: '20%',
+      sortable: true,
+      sortKey: (supplier) => supplier.address || '',
+      className: 'text-xs text-muted-foreground max-w-[280px]',
+      cell: ({ row: supplier }) => <OverflowValue value={supplier.address} />,
     },
     {
       id: 'supplier-6',
@@ -519,9 +533,10 @@ export function PurchasesView({
   ]
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex min-w-0 flex-col gap-4">
       {section === 'orders' ? (
-        <div className="flex flex-col gap-5">
+        <div className="flex flex-col gap-4">
+          <PageHeader>Purchase Orders</PageHeader>
           <StatusTabNav
             activeTab={activeStatus}
             onTabChange={(tab) => setActiveStatus(tab as PurchaseTabFilter)}
@@ -550,33 +565,11 @@ export function PurchasesView({
             ]}
           />
 
-          {activeStatus === 'Active' && (
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 rounded-xl border border-border bg-background/60 px-3.5 py-2.5 text-xs text-muted-foreground">
-              <div className="flex items-center gap-2">
-                <Info className="size-4 text-muted-foreground shrink-0" />
-                <span>
-                  Delivered shipments are scheduled and received in{' '}
-                  <strong className="text-foreground font-semibold">Deliveries → Incoming</strong>.
-                </span>
-              </div>
-              {onNavigateToDeliveries && (
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={() => onNavigateToDeliveries()}
-                  className="shrink-0"
-                >
-                  Go to Incoming Deliveries
-                  <ChevronRight className="size-3.5" />
-                </Button>
-              )}
-            </div>
-          )}
-
-          <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
+          <PageToolbar>
             <div className="relative w-full sm:w-80">
               <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
+                aria-label="Search purchase orders"
                 placeholder="Search order number, supplier, reference..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -592,7 +585,7 @@ export function PurchasesView({
               <Plus className="size-4" />
               Create Purchase Order
             </Button>
-          </div>
+          </PageToolbar>
 
           {isLoadingPOs ? (
             <Card className="flex min-h-[300px] items-center justify-center p-8">
@@ -621,15 +614,18 @@ export function PurchasesView({
             </Card>
           ) : (
             <DataTable
+              appearance="management"
               data={orderRows}
               columns={orderColumns}
               getRowKey={({ po }) => po.id}
-              pagination={false}
+              pageSize={10}
+              pageSizeOptions={[10, 25, 50, 100]}
             />
           )}
         </div>
       ) : (
-        <div className="flex flex-col gap-5">
+        <div className="flex min-w-0 flex-col gap-4">
+          <PageHeader>Suppliers</PageHeader>
           <ArchiveTabNav
             activeTab={supplierView}
             onTabChange={setSupplierView}
@@ -640,7 +636,7 @@ export function PurchasesView({
             activeIcon={<Building2 className="size-3.5" />}
             bannerDescription="Archived suppliers remain in past purchase orders and receiving records. Restore them to use them in new orders."
           />
-          <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
+          <PageToolbar>
             <div className="relative w-full sm:w-80">
               <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -662,17 +658,19 @@ export function PurchasesView({
               <Plus className="size-4" />
               Add Supplier
             </Button>
-          </div>
+          </PageToolbar>
 
           <DataTable
+            appearance="management"
             data={filteredSuppliers}
             columns={supplierColumns}
             getRowKey={(supplier) => supplier.id}
             isLoading={isLoadingSuppliers}
             loadingMessage="Loading supplier directory..."
-            pagination={false}
+            tableClassName="min-w-[800px]"
+            pageSizeOptions={[10, 25, 50, 100]}
             emptyContent={
-              <Card className="flex min-h-[340px] items-center justify-center border-dashed bg-muted/20 shadow-xs">
+              <div className="flex min-h-64 items-center justify-center px-4 py-12">
                 <div className="flex flex-col items-center justify-center text-center">
                   <Building2 className="size-8 text-muted-foreground/40 mb-2" />
                   <span className="text-sm font-semibold text-foreground">
@@ -688,7 +686,7 @@ export function PurchasesView({
                       : 'Archived suppliers will appear here and can be restored.'}
                   </p>
                 </div>
-              </Card>
+              </div>
             }
           />
         </div>

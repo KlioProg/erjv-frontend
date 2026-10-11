@@ -1,3 +1,4 @@
+import { formatProductUnit } from '@/lib/product-unit'
 import { ChevronDown, Plus, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
@@ -28,9 +29,9 @@ export function SalesOrderSourceSummary({ line, warehouses, form }: SourceProps)
   const warehouse = warehouses.find((item) => item.id === stock?.warehouseId)
   const summary =
     sources.length > 1
-      ? `${sources.length} warehouses · ${decimalString(allocatedQuantity(line))} ${line.unit ?? ''}`
+      ? `${sources.length} warehouses · ${decimalString(allocatedQuantity(line))} ${formatProductUnit(line.unit)}`
       : warehouse
-        ? `${warehouse.name} · ${line.quantity} ${line.unit ?? ''}`
+        ? `${warehouse.name} · ${line.quantity} ${formatProductUnit(line.unit)}`
         : 'Set stock source'
   return (
     <Button
@@ -75,7 +76,7 @@ export function SalesOrderSourceEditor({ line, warehouses, form }: SourceProps) 
           {split
             ? `Allocated ${decimalString(allocatedQuantity(line))} / ${line.quantity}`
             : `Ordered ${line.quantity}`}{' '}
-          {line.unit}
+          {formatProductUnit(line.unit)}
         </span>
       </div>
       {sources.map((source, index) => {
@@ -116,7 +117,8 @@ export function SalesOrderSourceEditor({ line, warehouses, form }: SourceProps) 
                         )}
                       >
                         {warehouses.find((warehouse) => warehouse.id === stock.warehouseId)?.name} ·{' '}
-                        {decimalString(availableStock(stock))} {line.unit} available
+                        {decimalString(availableStock(stock))} {formatProductUnit(line.unit)}{' '}
+                        available
                       </SelectItem>
                     ))}
                   </SelectGroup>

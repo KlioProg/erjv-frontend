@@ -3,6 +3,7 @@ import { Input } from '@/components/ui/input'
 import { ProductIdentity } from '@/components/order-entry/OrderEntryFields'
 import { deliveryQuantityError } from '@/features/logistics/delivery-quantities'
 import { formatStockCents, parseStockCents } from '@/features/logistics/stock-display'
+import { deliveryFormStyles } from './shared/delivery-form.styles'
 
 export type DeliveryQuantityRow = {
   id: number
@@ -80,7 +81,7 @@ export function DeliveryQuantityTable({
               disabled={disabled || unavailable}
               aria-invalid={!!issue}
               aria-describedby={issue ? `delivery-quantity-error-${row.id}` : undefined}
-              className="h-9 w-24 text-right text-xs tabular-nums pointer-coarse:h-11"
+              className={`${deliveryFormStyles.control} w-24 text-right tabular-nums`}
             />
             {issue && (
               <span
@@ -105,7 +106,7 @@ export function DeliveryQuantityTable({
       }
       getRowKey={(row) => row.id}
       pagination={false}
-      tableClassName={compact ? 'min-w-[460px]' : 'min-w-[580px]'}
+      tableClassName={`${compact ? 'min-w-[460px]' : 'min-w-[580px]'} [&_td]:text-[13px]`}
     />
   )
 }

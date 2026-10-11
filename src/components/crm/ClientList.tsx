@@ -1,3 +1,4 @@
+import { PageHeader, PageToolbar } from '@/components/ui/ManagementPage'
 import { useState } from 'react'
 import { Archive, Plus, Search, Users } from 'lucide-react'
 import { ArchiveTabNav } from '@/components/ui/ArchiveTabNav'
@@ -5,7 +6,6 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { DataTable, type ColumnDef } from '@/components/ui/data-table'
-import { DirectoryStatusBadge } from '@/components/ui/DirectoryRowControls'
 import { DataTableActions } from '@/components/ui/DataTableActions'
 import {
   useAllClients,
@@ -98,16 +98,8 @@ export function ClientList() {
       id: 'customer-address',
       header: 'Address',
       accessorKey: 'address',
-      className: 'max-w-[200px] truncate text-xs text-muted-foreground',
+      className: 'max-w-[280px] truncate text-xs text-muted-foreground',
       cell: ({ row }) => <span title={row.address}>{row.address || '—'}</span>,
-    },
-    {
-      id: 'customer-status',
-      header: 'Status',
-      align: 'center',
-      cell: ({ row }) => (
-        <DirectoryStatusBadge isActive={row.isActive !== false} inactiveLabel="Archived" />
-      ),
     },
     {
       id: 'customer-actions',
@@ -129,7 +121,8 @@ export function ClientList() {
   ]
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex min-w-0 flex-col gap-4">
+      <PageHeader>Customers</PageHeader>
       <ArchiveTabNav
         activeTab={activeTab}
         onTabChange={setActiveTab}
@@ -141,7 +134,7 @@ export function ClientList() {
         bannerDescription="Showing deactivated commercial customers. Past orders, invoices, and contact data remain safely preserved and can be reactivated anytime."
       />
 
-      <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
+      <PageToolbar>
         <div className="relative w-full sm:w-80">
           <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -158,17 +151,18 @@ export function ClientList() {
             Register New Customer
           </Button>
         )}
-      </div>
+      </PageToolbar>
 
       <DataTable
+        appearance="management"
         data={filteredClients}
         columns={customerColumns}
         getRowKey={(client) => client.id}
         isLoading={isLoading}
         loadingMessage="Loading customers..."
-        tableClassName="min-w-[850px]"
+        tableClassName="min-w-[760px]"
         emptyContent={
-          <Card className="border-dashed bg-muted/20">
+          <Card className="border-0 bg-transparent shadow-none">
             <CardContent className="flex flex-col items-center justify-center py-12 text-center">
               <Users className="mb-3 size-10 text-muted-foreground/50" />
               <h3 className="text-sm font-semibold text-foreground">

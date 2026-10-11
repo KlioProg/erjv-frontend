@@ -1,3 +1,4 @@
+import { PageHeader, PageToolbar } from '@/components/ui/ManagementPage'
 import { useState } from 'react'
 import {
   Plus,
@@ -11,7 +12,6 @@ import {
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Badge } from '@/components/ui/badge'
 import { Spinner } from '@/components/ui/spinner'
 import { DataTable, type ColumnDef } from '@/components/ui/data-table'
 import { DataTableActions } from '@/components/ui/DataTableActions'
@@ -121,36 +121,14 @@ export function JobList() {
       sortKey: (job) => job.description || '',
       className: 'min-w-64 max-w-xl text-muted-foreground',
       cell: ({ row }) => (
-        <span className="line-clamp-2">
-          {row.description || 'No description specified.'}
-        </span>
+        <span className="line-clamp-2">{row.description || 'No description specified.'}</span>
       ),
     },
     {
       id: 'staff',
       header: 'Assigned Staff',
       className: 'min-w-40',
-      cell: ({ row }) => (
-        <JobStaffCount jobId={row.id} isArchived={row.isActive === false} />
-      ),
-    },
-    {
-      id: 'status',
-      header: 'Status',
-      accessorKey: 'isActive',
-      sortable: true,
-      cell: ({ row }) =>
-        row.isActive === false ? (
-          <Badge variant="outline" className="gap-1 border-amber-500/30 bg-amber-500/10 text-amber-700">
-            <Archive aria-hidden="true" className="size-3" />
-            Archived
-          </Badge>
-        ) : (
-          <Badge variant="outline" className="gap-1 border-emerald-500/25 bg-emerald-500/10 text-emerald-700">
-            <CheckCircle2 aria-hidden="true" className="size-3" />
-            Active
-          </Badge>
-        ),
+      cell: ({ row }) => <JobStaffCount jobId={row.id} isArchived={row.isActive === false} />,
     },
     {
       id: 'actions',
@@ -185,6 +163,7 @@ export function JobList() {
 
   return (
     <div className="flex flex-col gap-4">
+      <PageHeader>Job Positions</PageHeader>
       {/* Position Archive / Active Tabs */}
       <ArchiveTabNav
         activeTab={activeTab}
@@ -198,10 +177,11 @@ export function JobList() {
       />
 
       {/* Header and Controls */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+      <PageToolbar>
         <div className="relative w-full sm:w-80">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
           <Input
+            aria-label="Search job positions"
             placeholder="Search positions by title or duties..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -219,7 +199,7 @@ export function JobList() {
             Create Job Position
           </Button>
         )}
-      </div>
+      </PageToolbar>
 
       {error ? (
         <div className="flex flex-col items-center justify-center py-14 px-4 text-center border rounded-2xl bg-card">
@@ -243,6 +223,7 @@ export function JobList() {
         </div>
       ) : (
         <DataTable
+          appearance="management"
           data={filteredJobList}
           columns={jobColumns}
           getRowKey={(job) => job.id}
@@ -250,7 +231,7 @@ export function JobList() {
           loadingMessage="Loading job positions..."
           defaultSort={{ key: 'name', direction: 'asc' }}
           emptyContent={
-            <Card className="flex min-h-64 flex-col items-center justify-center border-dashed bg-muted/20 px-4 py-12 text-center shadow-none">
+            <Card className="flex min-h-64 flex-col items-center justify-center border-0 bg-transparent px-4 py-12 text-center shadow-none">
               <Briefcase aria-hidden="true" className="mb-3 size-8 text-muted-foreground/50" />
               <p className="text-sm font-medium text-foreground">
                 {searchTerm

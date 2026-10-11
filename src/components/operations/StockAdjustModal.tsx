@@ -1,3 +1,4 @@
+import { formatProductUnit } from '@/lib/product-unit'
 import { useState, useMemo, type FormEvent } from 'react'
 import {
   Boxes,
@@ -133,7 +134,7 @@ function StockAdjustContent({
 
     if (isDecreaseExceeding) {
       setErrorMsg(
-        `Cannot reduce stock by ${parsedVal.toLocaleString()} units because available inventory is only ${currentQty.toLocaleString()} units.`,
+        `Cannot reduce stock by ${parsedVal.toLocaleString()} ${formatProductUnit(inventoryItem?.unit || stockItem?.inventoryItem?.unit, 'units')} because available inventory is only ${currentQty.toLocaleString()} ${formatProductUnit(inventoryItem?.unit || stockItem?.inventoryItem?.unit, 'units')}.`,
       )
       return
     }
@@ -369,7 +370,8 @@ function StockAdjustContent({
                 Current Units
               </span>
               <span className="text-xs font-semibold text-foreground">
-                {currentQty.toLocaleString()} units
+                {currentQty.toLocaleString()}{' '}
+                {formatProductUnit(inventoryItem?.unit || stockItem?.inventoryItem?.unit, 'units')}
               </span>
             </div>
 
@@ -399,7 +401,7 @@ function StockAdjustContent({
               >
                 {calculatedNewQty < 0
                   ? 'Invalid (< 0)'
-                  : `${calculatedNewQty.toLocaleString()} units`}
+                  : `${calculatedNewQty.toLocaleString()} ${formatProductUnit(inventoryItem?.unit || stockItem?.inventoryItem?.unit, 'units')}`}
               </span>
             </div>
           </div>

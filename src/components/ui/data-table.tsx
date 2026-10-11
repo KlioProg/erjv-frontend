@@ -154,7 +154,7 @@ export interface DataTableProps<T> {
 
   // --- Container & Table Styling ---
   /** Opt-in lighter separators, roomier cells and clearer neutral row hover. */
-  appearance?: 'default' | 'subtle'
+  appearance?: 'default' | 'subtle' | 'management'
   className?: string
   tableClassName?: string
 }
@@ -422,7 +422,8 @@ export function DataTable<T>({
   return (
     <div
       className={cn(
-        'rounded-lg border border-border/80 overflow-hidden shadow-xs bg-card flex flex-col',
+        'ui-typography rounded-lg border border-border/80 overflow-hidden shadow-xs bg-card flex flex-col',
+        appearance === 'management' && 'management-table shadow-none',
         className,
       )}
     >
@@ -465,7 +466,7 @@ export function DataTable<T>({
                         type="button"
                         onClick={() => handleSortToggle(column)}
                         className={cn(
-                          'inline-flex items-center gap-1.5 hover:text-foreground/80 cursor-pointer transition-colors focus:outline-hidden group',
+                          'inline-flex items-center gap-1.5 hover:text-foreground/80 cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-sm group',
                           justifyClass,
                           column.align === 'right' && 'w-full',
                         )}

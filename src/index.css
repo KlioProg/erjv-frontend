@@ -2,6 +2,7 @@
 @import 'tailwindcss';
 
 @theme inline {
+  --text-ui: 0.8125rem;
   --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
   /* Legacy data/code utilities use the same family as the rest of the UI. */
   --font-mono: var(--font-sans);
@@ -17,6 +18,7 @@
 
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
+  --color-primary-button-foreground: var(--primary-button-foreground);
   --color-primary-hover: var(--primary-hover);
   --color-primary-active: var(--primary-active);
   --color-primary-contrast: var(--primary-contrast);
@@ -74,17 +76,18 @@
   --card-foreground: #1c1917;
   --popover: #ffffff;
   --popover-foreground: #1c1917;
-  /* Preferred CTA palette: white on the base green is not WCAG AA text contrast. */
+  /* Green buttons use white text and icons. */
   --primary: #80b918;
   --primary-foreground: #ffffff;
+  --primary-button-foreground: var(--primary-foreground);
   /* Compact controls and text-heavy actions can use this AA white-text fill. */
   --primary-contrast: #507410;
   --primary-text: color-mix(in srgb, var(--primary) 50%, black);
-  --logo-pos: var(--primary);
+  --logo-pos: var(--primary-contrast);
   --secondary: #f0ebe4;
   --secondary-foreground: #292524;
   --muted: #eae3d9;
-  --muted-foreground: #78716c;
+  --muted-foreground: #6b645e;
   --accent: #f5efe8;
   --accent-foreground: #1c1917;
   --destructive: #dc2626;
@@ -112,6 +115,7 @@
   --popover: #1c1a18;
   --popover-foreground: #fafaf9;
   --primary-text: var(--primary);
+  --logo-pos: var(--primary);
   --secondary: #292522;
   --secondary-foreground: #f5f5f4;
   --muted: #262320;
@@ -297,4 +301,67 @@ input[type='radio'] {
 .animate-auth-roll-down {
   animation: authRollDown 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   will-change: opacity, transform;
+}
+/* Opt-in management surfaces. Composer and detail tables retain their own density. */
+.management-toolbar > :first-child {
+  width: 100%;
+  min-width: 0;
+  max-width: 24rem;
+}
+.management-toolbar input,
+.management-toolbar button {
+  min-height: 2.25rem;
+  font-size: var(--text-ui);
+  box-shadow: none;
+}
+.management-toolbar input {
+  height: 2.25rem;
+}
+@media (min-width: 640px) {
+  .management-toolbar > button:last-child,
+  .management-toolbar > div:last-child:has(> button) {
+    margin-left: auto;
+  }
+}
+.management-table th {
+  height: 2.75rem;
+  font-size: var(--text-ui);
+  font-weight: 500;
+}
+.management-table tbody > tr:not(:has(td[colspan])) {
+  height: 3.5rem;
+}
+.management-table td {
+  font-size: var(--text-ui);
+  line-height: 1.5;
+  padding-block: 0.875rem;
+  font-variant-numeric: tabular-nums;
+}
+.management-table td :is(.text-sm, .text-xs, .text-\[13px\]):not(button):not([data-slot='badge']) {
+  font-size: var(--text-ui);
+}
+.management-table td :is(.text-muted-foreground, .text-\[11px\]) {
+  font-size: var(--text-ui);
+}
+.management-table button:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+/* One body size across shared operational surfaces; headings retain their hierarchy. */
+.ui-typography,
+.ui-text,
+.ui-typography
+  :where(div, p, span, label, input, textarea, select, button, th, td, dt, dd, summary, a) {
+  font-size: var(--text-ui);
+}
+@media (pointer: coarse) {
+  .management-toolbar input,
+  .management-toolbar button,
+  .management-table button,
+  .management-table select {
+    min-height: 2.75rem;
+  }
+  .management-table button {
+    min-width: 2.75rem;
+  }
 }

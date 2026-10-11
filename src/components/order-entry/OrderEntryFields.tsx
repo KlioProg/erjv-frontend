@@ -1,3 +1,4 @@
+import { formatProductUnit } from '@/lib/product-unit'
 import { forwardRef, type ComponentProps, type ReactNode } from 'react'
 import { Trash2 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
@@ -86,7 +87,9 @@ export function ProductIdentity({
   unit?: string | null
 }) {
   const showVariety = variety && !name.toLocaleLowerCase().includes(variety.toLocaleLowerCase())
-  const secondary = [showVariety ? variety : null, unit].filter(Boolean).join(' · ')
+  const secondary = [showVariety ? variety : null, formatProductUnit(unit)]
+    .filter(Boolean)
+    .join(' · ')
   return (
     <div className="min-w-0 whitespace-normal">
       <p title={name} className="text-sm font-medium leading-5 wrap-break-word">
@@ -112,7 +115,7 @@ export function ProductPickerOption({
 }) {
   const secondary = [
     variety && !name.toLocaleLowerCase().includes(variety.toLocaleLowerCase()) ? variety : null,
-    unit,
+    formatProductUnit(unit),
     description,
     availability,
   ]

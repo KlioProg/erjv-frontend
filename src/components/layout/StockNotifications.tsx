@@ -1,3 +1,4 @@
+import { formatProductUnit } from '@/lib/product-unit'
 import { AlertTriangle, Bell, CircleAlert } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -98,7 +99,7 @@ export function StockNotifications({
                   })
                 }
                 className="items-start gap-3 py-3 pointer-coarse:min-h-11"
-                aria-label={`${warning.severity === 'OUT' ? 'Out of stock' : 'Low stock'}: ${warning.productName}, ${warning.locationName}, ${formatStockCents(warning.quantityCents)} ${warning.unit}. Open inventory location`}
+                aria-label={`${warning.severity === 'OUT' ? 'Out of stock' : 'Low stock'}: ${warning.productName}, ${warning.locationName}, ${formatStockCents(warning.quantityCents)} ${formatProductUnit(warning.unit)}. Open inventory location`}
               >
                 {warning.severity === 'OUT' ? (
                   <CircleAlert
@@ -115,7 +116,7 @@ export function StockNotifications({
                   <span className="font-semibold break-words">{warning.productName}</span>
                   <span className="text-xs text-muted-foreground break-words">
                     {warning.locationName} · {formatStockCents(warning.quantityCents)}{' '}
-                    {warning.unit} remaining
+                    {formatProductUnit(warning.unit)} remaining
                   </span>
                   <span
                     className={

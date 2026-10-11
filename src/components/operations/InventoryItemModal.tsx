@@ -1,11 +1,6 @@
+import { formatProductUnit } from '@/lib/product-unit'
 import { useState, type FormEvent } from 'react'
-import {
-  Package,
-  Tag,
-  FileText,
-  Sparkles,
-  RotateCcw,
-} from 'lucide-react'
+import { Package, Tag, FileText, Sparkles, RotateCcw } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -116,7 +111,9 @@ function ItemFormContent({
 
     const priceCents = parseStockCents(unitPrice)
     if (priceCents === null || priceCents > 999_999_999_999n) {
-      setErrorMsg('Enter a non-negative price with up to 2 decimals and 10 digits before the decimal point.')
+      setErrorMsg(
+        'Enter a non-negative price with up to 2 decimals and 10 digits before the decimal point.',
+      )
       return
     }
 
@@ -137,7 +134,6 @@ function ItemFormContent({
             unitPrice: unitPrice.trim(),
           })
         }
-
       } else {
         await createMutation.mutateAsync({
           name: name.trim(),
@@ -145,7 +141,6 @@ function ItemFormContent({
           unitPrice: unitPrice.trim(),
           description: description.trim() || null,
         })
-
       }
       onClose()
     } catch (err) {
@@ -161,9 +156,7 @@ function ItemFormContent({
   }
 
   const isPending =
-    createMutation.isPending ||
-    updateMutation.isPending ||
-    reactivateMutation.isPending
+    createMutation.isPending || updateMutation.isPending || reactivateMutation.isPending
 
   return (
     <>
@@ -369,7 +362,7 @@ function ItemFormContent({
           title="Delete Product from Active Catalog"
           description="Are you sure you want to remove this product from the active catalog? It will no longer be available for point of sale billing."
           itemName={item.name}
-          itemDetails={`₱${Number(item.unitPrice || 0).toFixed(2)} / unit`}
+          itemDetails={`₱${Number(item.unitPrice || 0).toFixed(2)} / ${formatProductUnit(item.unit, 'unit')}`}
           confirmText="Delete Product"
           variant="destructive"
         />

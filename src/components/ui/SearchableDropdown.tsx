@@ -80,7 +80,10 @@ export function SearchableDropdown<T>({
           id={id}
           type="button"
           variant="outline"
-          className={cn('h-10 w-full justify-between text-xs font-normal sm:h-9', className)}
+          className={cn(
+            'h-10 w-full justify-between text-[13px] font-normal pointer-coarse:min-h-11',
+            className,
+          )}
           aria-label={ariaLabel}
         >
           <span className="truncate">
@@ -114,10 +117,7 @@ export function SearchableDropdown<T>({
             className="h-10 pl-8 text-xs"
           />
         </div>
-        <div
-          className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
-          aria-label={ariaLabel}
-        >
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain" aria-label={ariaLabel}>
           {filteredOptions.length === 0 ? (
             <p className="px-2.5 py-4 text-center text-xs text-muted-foreground">{emptyMessage}</p>
           ) : (

@@ -674,7 +674,8 @@ describe('order to delivery workflow', () => {
     const user = userEvent.setup()
     const navigate = vi.fn()
     mount(<PurchasesView onNavigateToDeliveries={navigate} />)
-    await user.click(await screen.findByRole('button', { name: 'View purchase order PO-TEST' }))
+    await user.click(await screen.findByRole('button', { name: 'More actions for PO-TEST' }))
+    await user.click(screen.getByRole('menuitem', { name: 'View Order' }))
     failConfirmation = true
     await user.click(screen.getByRole('button', { name: 'Confirm Purchase Order' }))
     await waitFor(() =>
@@ -701,11 +702,16 @@ describe('order to delivery workflow', () => {
       const incomingButton = await screen.findByRole('button', { name: 'Incoming Deliveries' })
       expect(incomingButton.className).toContain('bg-primary')
       expect(incomingButton.className).toContain('h-8')
+      expect(incomingButton.querySelector('svg')).toBeNull()
       expect(screen.queryByRole('button', { name: 'View Incoming' })).toBeNull()
       await user.click(incomingButton)
       expect(navigate).toHaveBeenCalledWith(2)
       expect(mutations()).toHaveLength(0)
-      await user.click(screen.getByRole('button', { name: 'View purchase order PO-TEST' }))
+      await user.click(screen.getByRole('button', { name: 'More actions for PO-TEST' }))
+      expect(screen.queryByRole('menuitem', { name: 'Cancel Order' }) !== null).toBe(
+        status === 'CONFIRMED',
+      )
+      await user.click(screen.getByRole('menuitem', { name: 'View Order' }))
       expect(
         within(screen.getByRole('dialog')).getByRole('button', { name: 'Incoming Deliveries' })
           .className,

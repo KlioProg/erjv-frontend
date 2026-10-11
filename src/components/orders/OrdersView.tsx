@@ -1,3 +1,4 @@
+import { PageHeader, PageToolbar } from '@/components/ui/ManagementPage'
 import { SalesOrderCancelModal } from './SalesOrderCancelModal'
 import { useState, useMemo } from 'react'
 import { CheckCircle2, Eye, MoreHorizontal, Plus, Receipt, Search, XCircle } from 'lucide-react'
@@ -480,8 +481,8 @@ export function OrdersView({
   ]
 
   return (
-    <div className="flex flex-col gap-5">
-      <h1 className="text-lg font-bold tracking-tight text-foreground">Sales Orders</h1>
+    <div className="flex min-w-0 flex-col gap-4">
+      <PageHeader>Sales Orders</PageHeader>
       <StatusTabNav
         activeTab={activeStatus}
         onTabChange={(tab) => setActiveStatus(tab as OrderTabFilter)}
@@ -511,7 +512,7 @@ export function OrdersView({
       />
 
       {/* Top Controls */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+      <PageToolbar>
         <div className="relative w-full sm:w-80">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
           <Input
@@ -534,7 +535,7 @@ export function OrdersView({
           <Plus className="size-4" />
           Create Sales Order
         </Button>
-      </div>
+      </PageToolbar>
 
       {/* Orders Table */}
       {isLoadingOrders ? (
@@ -566,18 +567,14 @@ export function OrdersView({
         </Card>
       ) : (
         <DataTable
+          appearance="management"
           data={orderRows}
           columns={salesOrderColumns}
           getRowKey={({ order }) => order.id}
-          pagination={false}
-          appearance="subtle"
+          pageSize={10}
+          pageSizeOptions={[10, 25, 50, 100]}
+
           onRowClick={({ order }) => openOrderDetails(order)}
-          rowClassName={({ deliveryDisplay }) =>
-            cn(
-              '[&_td:first-child]:border-l-2 [&_td:first-child]:border-l-transparent!',
-              deliveryDisplay.rowClassName,
-            )
-          }
           tableClassName="table-fixed min-w-[760px] lg:min-w-[960px]"
         />
       )}

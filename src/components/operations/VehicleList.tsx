@@ -1,3 +1,4 @@
+import { PageHeader, PageToolbar } from '@/components/ui/ManagementPage'
 import { VehicleDetailModal } from '@/components/deliveries/shared/VehicleDetailModal'
 import {
   VEHICLE_CONDITION_LABELS as CONDITIONS,
@@ -275,28 +276,11 @@ export function VehicleList() {
     },
   ]
   return (
-    <div className="flex flex-col gap-5">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-bold tracking-tight">Vehicles</h1>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            Manage ERJV vehicles, their condition, and delivery assignments.
-          </p>
-        </div>
-        {canManage && activeTab === 'ACTIVE' && (
-          <Button
-            size="sm"
-            onClick={() => {
-              setEditVehicleId(null)
-              setIsModalOpen(true)
-            }}
-          >
-            <Plus data-icon="inline-start" />
-            Add Vehicle
-          </Button>
-        )}
-      </div>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+    <div className="flex min-w-0 flex-col gap-4">
+      <PageHeader description="Manage ERJV vehicles, their condition, and delivery assignments.">
+        Vehicles
+      </PageHeader>
+      <div className="flex flex-wrap gap-x-5 gap-y-2">
         {[
           ['Total', active.length],
           ['Available', active.filter((row) => row.status === 'AVAILABLE').length],
@@ -304,12 +288,9 @@ export function VehicleList() {
           ['Maintenance', active.filter((row) => row.status === 'MAINTENANCE').length],
           ['Out of Service', active.filter((row) => row.status === 'OUT_OF_SERVICE').length],
         ].map(([label, count]) => (
-          <div
-            key={label}
-            className="flex items-center justify-between gap-2 rounded-lg border border-border/80 bg-muted/20 p-3"
-          >
+          <div key={label} className="flex items-center gap-2">
             <span className="text-xs font-medium text-muted-foreground">{label}</span>
-            <span className="font-mono text-lg font-bold">{count}</span>
+            <span className="text-sm font-semibold tabular-nums">{count}</span>
           </div>
         ))}
       </div>
@@ -323,7 +304,7 @@ export function VehicleList() {
         activeIcon={<Truck className="size-3.5" />}
         bannerDescription="Archived ERJV vehicles remain linked to their historical deliveries and can be restored."
       />
-      <div className="flex flex-col gap-3 sm:flex-row">
+      <PageToolbar>
         <div className="relative flex-1 sm:max-w-sm">
           <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -353,7 +334,19 @@ export function VehicleList() {
             </SelectContent>
           </Select>
         )}
-      </div>
+        {canManage && activeTab === 'ACTIVE' && (
+          <Button
+            size="sm"
+            onClick={() => {
+              setEditVehicleId(null)
+              setIsModalOpen(true)
+            }}
+          >
+            <Plus data-icon="inline-start" />
+            Add Vehicle
+          </Button>
+        )}
+      </PageToolbar>
       {(vehicleQuery.isError || deliveryQuery.isError) && (
         <Alert variant="destructive">
           <AlertDescription>
@@ -372,6 +365,7 @@ export function VehicleList() {
         </Alert>
       )}
       <DataTable
+        appearance="management"
         data={filtered}
         columns={columns}
         getRowKey={(row) => row.vehicle.id}

@@ -1,3 +1,4 @@
+import { formatProductUnit } from '@/lib/product-unit'
 import { useMemo, useState } from 'react'
 import {
   ArrowLeft,
@@ -19,6 +20,12 @@ import { formatStockCents, parseStockCents, stockSortKey } from '@/features/logi
 import type { StockItemWithInventoryItem } from '@/features/logistics/stock-items.types'
 import type { Warehouse } from '@/features/logistics/warehouses.types'
 import { getErrorMessage } from '@/lib/api-client'
+import { stockCondition, stockConditionRank } from '@/features/logistics/stock-warnings'
+import { StockIndicator } from '@/components/inventory/StockIndicator'
+import { cn } from '@/lib/utils'
+
+// Retain this screen's existing display cutoff; this is not an API reorder policy.
+const WAREHOUSE_LOW_STOCK_CENTS = 2000n
 
 type StockRow = {
   stock: StockItemWithInventoryItem
@@ -36,16 +43,25 @@ export function WarehouseInventory({
   const [search, setSearch] = useState('')
   const rows = useMemo<StockRow[]>(
     () =>
-      (stockQuery.data ?? []).map((stock) => ({
-        stock,
-        quantityCents: parseStockCents(stock.quantity),
-      })),
+      (stockQuery.data ?? [])
+        .map((stock) => ({ stock, quantityCents: parseStockCents(stock.quantity) }))
+        .sort(
+          (a, b) =>
+            stockConditionRank[stockCondition(a.quantityCents, WAREHOUSE_LOW_STOCK_CENTS)] -
+              stockConditionRank[stockCondition(b.quantityCents, WAREHOUSE_LOW_STOCK_CENTS)] ||
+            (a.stock.inventoryItem?.name ?? '').localeCompare(b.stock.inventoryItem?.name ?? '') ||
+            a.stock.id - b.stock.id,
+        ),
     [stockQuery.data],
   )
   const filteredRows = useMemo(() => {
     const term = search.trim().toLowerCase()
     return term
-      ? rows.filter(({ stock }) => String(stock.inventoryItem?.name ?? '').toLowerCase().includes(term))
+      ? rows.filter(({ stock }) =>
+          String(stock.inventoryItem?.name ?? '')
+            .toLowerCase()
+            .includes(term),
+        )
       : rows
   }, [rows, search])
   const totalStockCents = rows.some((row) => row.quantityCents === null)
@@ -61,7 +77,7 @@ export function WarehouseInventory({
       {
         id: 'product',
         header: 'Product',
-        width: '40%',
+        width: '55%',
         sortable: true,
         sortKey: (row) => row.stock.inventoryItem?.name ?? '',
         cell: ({ row }) => (
@@ -77,63 +93,70 @@ export function WarehouseInventory({
         sortable: true,
         sortKey: (row) => row.stock.inventoryItem?.unit ?? '',
         cell: ({ row }) => (
-          <OverflowValue value={row.stock.inventoryItem?.unit} className="text-xs text-muted-foreground" />
-        ),
-      },
-      {
-        id: 'quantity',
-        header: <><span className="sm:hidden">Qty</span><span className="hidden sm:inline">Quantity</span></>,
-        width: '20%',
-        align: 'right',
-        sortable: true,
-        sortKey: (row) => stockSortKey(row.quantityCents),
-        cell: ({ row }) => (
           <OverflowValue
-            value={formatStockCents(row.quantityCents)}
-            fullValue={row.quantityCents === null ? row.stock.quantity : undefined}
-            tooltipSuffix="units"
-            className="text-right text-xs font-bold tabular-nums"
+            value={formatProductUnit(row.stock.inventoryItem?.unit)}
+            className="text-xs text-muted-foreground"
           />
         ),
       },
       {
-        id: 'status',
-        header: 'Status',
-        width: '20%',
-        align: 'center',
-        sortable: true,
-        sortKey: (row) => (row.quantityCents === null ? -1 : row.quantityCents <= 0n ? 0 : row.quantityCents <= 2000n ? 1 : 2),
-        cell: ({ row }) => (
-          <Badge
-            variant="outline"
-            className={
-              row.quantityCents === null
-                ? 'text-muted-foreground border-border'
-                : row.quantityCents <= 0n
-                ? 'text-rose-600 border-rose-500/30'
-                : row.quantityCents <= 2000n
-                  ? 'text-amber-600 border-amber-500/30'
-                  : 'text-emerald-600 border-emerald-500/30'
-            }
-          >
-            <span className="sm:hidden">
-              {row.quantityCents === null ? 'N/A' : row.quantityCents <= 0n ? 'Out' : row.quantityCents <= 2000n ? 'Low' : 'In'}
-            </span>
-            <span className="hidden sm:inline">
-              {row.quantityCents === null ? 'Unknown' : row.quantityCents <= 0n ? 'Out of Stock' : row.quantityCents <= 2000n ? 'Low Stock' : 'In Stock'}
-            </span>
-          </Badge>
+        id: 'quantity',
+        header: (
+          <>
+            <span className="sm:hidden">Qty</span>
+            <span className="hidden sm:inline">Quantity</span>
+          </>
         ),
+        width: '25%',
+        align: 'right',
+        sortable: true,
+        sortKey: (row) => stockSortKey(row.quantityCents),
+        cell: ({ row }) => {
+          const condition = stockCondition(row.quantityCents, WAREHOUSE_LOW_STOCK_CENTS)
+          const warning =
+            condition === 'OUT' ? 'Out of stock' : condition === 'LOW' ? 'Low stock' : null
+          return (
+            <div
+              className={cn(
+                'flex min-w-0 flex-col items-end gap-0.5',
+                condition === 'OUT' && 'text-destructive',
+                condition === 'LOW' && 'text-status-warning-foreground',
+              )}
+            >
+              <div className="flex max-w-full items-center justify-end gap-1.5">
+                <StockIndicator
+                  condition={condition}
+                  label={`${warning}: ${row.stock.inventoryItem?.name ?? 'Product'} in ${warehouse.name}`}
+                />
+                <OverflowValue
+                  value={formatStockCents(row.quantityCents)}
+                  fullValue={row.quantityCents === null ? row.stock.quantity : undefined}
+                  tooltipSuffix={formatProductUnit(row.stock.inventoryItem?.unit, 'units')}
+                  className="text-right text-xs font-bold tabular-nums"
+                />
+              </div>
+              {warning && <span className="text-[11px] font-medium">{warning}</span>}
+            </div>
+          )
+        },
       },
     ],
-    [],
+    [warehouse.name],
   )
 
   return (
     <div className="flex flex-col gap-5">
       <header>
-        <nav aria-label="Breadcrumb" className="mb-2 flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
-          <Button variant="ghost" size="sm" onClick={onBack} className="-ml-2 h-7 gap-1 px-2 text-xs">
+        <nav
+          aria-label="Breadcrumb"
+          className="mb-2 flex min-w-0 items-center gap-1 text-xs text-muted-foreground"
+        >
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onBack}
+            className="-ml-2 h-7 gap-1 px-2 text-xs"
+          >
             <ArrowLeft className="size-4" />
             Warehouses
           </Button>
@@ -149,9 +172,11 @@ export function WarehouseInventory({
               </h2>
               <Badge
                 variant="outline"
-                className={warehouse.isActive === false
-                  ? 'border-amber-500/30 text-amber-600'
-                  : 'border-emerald-500/30 text-emerald-600'}
+                className={
+                  warehouse.isActive === false
+                    ? 'border-amber-500/30 text-amber-600'
+                    : 'border-emerald-500/30 text-emerald-600'
+                }
               >
                 {warehouse.isActive === false ? 'Archived · View only' : 'Active'}
               </Badge>
@@ -171,13 +196,19 @@ export function WarehouseInventory({
           </div>
           <section aria-label="Warehouse stock summary" className="grid grid-cols-2 gap-3">
             {summaryMetrics.map(({ label, value, unit, icon: Icon }) => (
-              <div key={label} className="min-w-0 rounded-xl border border-border/80 bg-muted/20 px-4 py-3 lg:w-44">
+              <div
+                key={label}
+                className="min-w-0 rounded-xl border border-border/80 bg-muted/20 px-4 py-3 lg:w-44"
+              >
                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                   <Icon className="size-3.5 shrink-0 text-primary" />
                   <span>{label}</span>
                 </div>
                 <p className="mt-1 flex min-w-0 items-center text-lg font-bold tabular-nums leading-none">
-                  <OverflowValue value={stockQuery.isLoading || stockQuery.isError ? '—' : value} tooltipSuffix={unit} />
+                  <OverflowValue
+                    value={stockQuery.isLoading || stockQuery.isError ? '—' : value}
+                    tooltipSuffix={unit}
+                  />
                   <span className="ml-1 text-[11px] font-normal text-muted-foreground">{unit}</span>
                 </p>
               </div>
@@ -186,7 +217,10 @@ export function WarehouseInventory({
         </div>
       </header>
 
-      <section aria-label={`Inventory in ${warehouse.name}`} className="overflow-hidden rounded-2xl border border-border/80 bg-card shadow-xs">
+      <section
+        aria-label={`Inventory in ${warehouse.name}`}
+        className="overflow-hidden rounded-2xl border border-border/80 bg-card shadow-xs"
+      >
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/70 px-4 py-3">
           <h3 className="flex min-w-0 max-w-full items-center gap-1 text-sm font-bold">
             <span className="shrink-0">Inventory in</span>
@@ -206,18 +240,30 @@ export function WarehouseInventory({
         {stockQuery.isError ? (
           <div role="alert" className="p-4 text-xs text-destructive">
             Warehouse stock could not be loaded: {getErrorMessage(stockQuery.error)}
-            <Button variant="link" size="sm" onClick={() => void stockQuery.refetch()}>Retry</Button>
+            <Button variant="link" size="sm" onClick={() => void stockQuery.refetch()}>
+              Retry
+            </Button>
           </div>
         ) : (
           <DataTable
             data={filteredRows}
             columns={columns}
             getRowKey={(row) => row.stock.id}
+            rowClassName={(row) => {
+              const condition = stockCondition(row.quantityCents, WAREHOUSE_LOW_STOCK_CENTS)
+              return condition === 'OUT'
+                ? 'bg-destructive/5 hover:bg-destructive/10'
+                : condition === 'LOW'
+                  ? 'bg-status-warning/50 hover:bg-status-warning'
+                  : ''
+            }}
             isLoading={stockQuery.isLoading}
             loadingMessage="Loading warehouse inventory..."
             emptyContent={
               <div className="px-4 py-12 text-center text-xs text-muted-foreground">
-                {search ? 'No products match your search.' : 'No stock records for this warehouse yet.'}
+                {search
+                  ? 'No products match your search.'
+                  : 'No stock records for this warehouse yet.'}
               </div>
             }
             pageSizeOptions={[10, 25, 50, 100]}

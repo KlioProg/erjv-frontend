@@ -149,6 +149,7 @@ export function DeliveryTable({
   ]
   return (
     <DataTable
+      appearance="management"
       data={rows}
       columns={columns}
       getRowKey={(row) => row.key}

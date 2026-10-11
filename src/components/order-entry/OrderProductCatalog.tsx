@@ -1,3 +1,4 @@
+import { formatProductUnit } from '@/lib/product-unit'
 import { useMemo, useState } from 'react'
 import { Plus, Search } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -117,13 +118,13 @@ export function OrderProductCatalog({
             <span>
               {unknown
                 ? '—'
-                : `${formatStockCents(stock ? (sales ? stock.availableCents : stock.totalCents) : 0n)}${row.unit ? ` ${row.unit}` : ''}`}
+                : `${formatStockCents(stock ? (sales ? stock.availableCents : stock.totalCents) : 0n)}${row.unit ? ` ${formatProductUnit(row.unit)}` : ''}`}
             </span>
             {sales && (
               <span className="text-muted-foreground">
                 {unknown
                   ? 'Stock unavailable'
-                  : `${formatStockCents(stock ? stock.totalCents : 0n)}${row.unit ? ` ${row.unit}` : ''} on hand`}
+                  : `${formatStockCents(stock ? stock.totalCents : 0n)}${row.unit ? ` ${formatProductUnit(row.unit)}` : ''} on hand`}
               </span>
             )}
           </div>

@@ -1,3 +1,4 @@
+import { PageHeader, PageToolbar } from '@/components/ui/ManagementPage'
 import { IncomingDeliveryDetailModal } from './shared/IncomingDeliveryDetailModal'
 import {
   buildDeliveryRows,
@@ -80,7 +81,7 @@ function DeliveryFilter({
         {label}
       </Label>
       <Select value={value} onValueChange={onChange}>
-        <SelectTrigger id={`delivery-filter-${label}`} className="h-9 text-xs">
+        <SelectTrigger id={`delivery-filter-${label}`} className="h-9 text-[13px]">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -231,58 +232,22 @@ export function DeliveriesHub({
       ).mutateAsync(row.record.id)
   }
   return (
-    <div className="flex flex-col gap-5">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-xl font-bold tracking-tight">
-            {view === 'history'
-              ? 'Delivery History'
-              : view === 'incoming'
-                ? 'Incoming Deliveries'
-                : 'Outgoing Deliveries'}
-          </h1>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            {view === 'history'
-              ? 'Completed and cancelled deliveries remain available for review.'
-              : view === 'incoming'
-                ? 'Arrange supplier shipments and receive goods into a destination warehouse.'
-                : 'Arrange customer shipments from confirmed order allocations.'}
-          </p>
-        </div>
-        {canManage && view !== 'history' && (
-          <div className="flex flex-wrap gap-2">
-            {view === 'incoming' && (
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={
-                  !purchaseOrders.some((order) =>
-                    ['CONFIRMED', 'PARTIALLY_RECEIVED'].includes(order.status),
-                  )
-                }
-                onClick={() => setCreateType('Incoming')}
-              >
-                <ArrowDownToLine data-icon="inline-start" />
-                Schedule Incoming
-              </Button>
-            )}
-            {view === 'outgoing' && (
-              <Button
-                size="sm"
-                disabled={
-                  !salesOrders.some((order) =>
-                    ['CONFIRMED', 'PARTIALLY_DELIVERED'].includes(order.status),
-                  )
-                }
-                onClick={() => setCreateType('Outgoing')}
-              >
-                <Plus data-icon="inline-start" />
-                Schedule Outgoing
-              </Button>
-            )}
-          </div>
-        )}
-      </div>
+    <div className="flex min-w-0 flex-col gap-4">
+      <PageHeader
+        description={
+          view === 'history'
+            ? 'Completed and cancelled deliveries remain available for review.'
+            : view === 'incoming'
+              ? 'Arrange supplier shipments and receive goods into a destination warehouse.'
+              : 'Arrange customer shipments from confirmed order allocations.'
+        }
+      >
+        {view === 'history'
+          ? 'Delivery History'
+          : view === 'incoming'
+            ? 'Incoming Deliveries'
+            : 'Outgoing Deliveries'}
+      </PageHeader>
       <p className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-muted-foreground">
         <span>{rows.filter((row) => deliveryBelongsToView(row, view)).length} deliveries</span>
         {view !== 'history' && (
@@ -333,7 +298,7 @@ export function DeliveriesHub({
           ]}
         />
       </div>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+      <PageToolbar>
         <div className="relative flex-1">
           <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -386,7 +351,40 @@ export function DeliveriesHub({
         >
           Clear Filters
         </Button>
-      </div>
+        {canManage && view !== 'history' && (
+          <div className="flex flex-wrap gap-2">
+            {view === 'incoming' && (
+              <Button
+                size="sm"
+                variant="default"
+                disabled={
+                  !purchaseOrders.some((order) =>
+                    ['CONFIRMED', 'PARTIALLY_RECEIVED'].includes(order.status),
+                  )
+                }
+                onClick={() => setCreateType('Incoming')}
+              >
+                <ArrowDownToLine data-icon="inline-start" />
+                Schedule Incoming
+              </Button>
+            )}
+            {view === 'outgoing' && (
+              <Button
+                size="sm"
+                disabled={
+                  !salesOrders.some((order) =>
+                    ['CONFIRMED', 'PARTIALLY_DELIVERED'].includes(order.status),
+                  )
+                }
+                onClick={() => setCreateType('Outgoing')}
+              >
+                <Plus data-icon="inline-start" />
+                Schedule Outgoing
+              </Button>
+            )}
+          </div>
+        )}
+      </PageToolbar>
       {orderScope !== null && (
         <p className="text-xs text-muted-foreground">
           {view === 'incoming' ? 'Incoming' : 'Outgoing'} deliveries for{' '}

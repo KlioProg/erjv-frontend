@@ -1,3 +1,4 @@
+import { formatProductUnit } from '@/lib/product-unit'
 import { SalesOrderCancelModal } from './SalesOrderCancelModal'
 import { useState, useMemo } from 'react'
 import {
@@ -682,8 +683,10 @@ export function OrderDetailDrawer({
                           <div className="text-[11px] text-muted-foreground flex items-center gap-1.5 mt-0.5">
                             <span>
                               Qty:{' '}
-                              <span className="font-bold text-foreground">{item.quantity}</span> @ ₱
-                              {parseFloat(item.unitPrice || '0').toFixed(2)}
+                              <span className="font-bold text-foreground">
+                                {item.quantity} {formatProductUnit(product?.unit)}
+                              </span>{' '}
+                              @ ₱{parseFloat(item.unitPrice || '0').toFixed(2)}
                             </span>
                             {warehouse ? (
                               <span className="text-muted-foreground/70">

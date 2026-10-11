@@ -1,11 +1,11 @@
+import { formatProductUnit } from '@/lib/product-unit'
+import { PageToolbar } from '@/components/ui/ManagementPage'
 import { useState, useMemo, useEffect, useRef } from 'react'
 import {
   Package,
   Plus,
   Search,
   Tag,
-  CircleAlert,
-  AlertTriangle,
   ArrowRight,
   ChevronDown,
   Warehouse as WarehouseIcon,
@@ -14,9 +14,10 @@ import {
   stockCondition,
   stockConditionRank,
   type InventoryFocusTarget,
-  type StockCondition,
 } from '@/features/logistics/stock-warnings'
 import { cn } from '@/lib/utils'
+import { StockIndicator } from './StockIndicator'
+import { InventoryWholesalePrice } from './InventoryWholesalePrice'
 import { ArchiveTabNav } from '@/components/ui/ArchiveTabNav'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -250,20 +251,7 @@ export function InventoryItemCatalog({
       align: 'right',
       sortable: true,
       sortKey: 'unitPrice',
-      cell: ({ row }) => (
-        <div className="min-w-0 text-right">
-          <OverflowValue
-            value={
-              Number.isFinite(Number(row.unitPrice)) && Number(row.unitPrice) >= 0
-                ? `₱${Number(row.unitPrice).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                : '—'
-            }
-            fullValue={row.unitPrice}
-            className="text-right text-xs font-extrabold text-foreground tabular-nums"
-          />
-          <span className="text-[10px] text-muted-foreground block font-medium">per unit</span>
-        </div>
-      ),
+      cell: ({ row }) => <InventoryWholesalePrice product={row} canEdit={isAdmin || isManager} />,
     },
     {
       id: 'totalStock',
@@ -304,7 +292,7 @@ export function InventoryItemCatalog({
               )}
             <OverflowValue
               value={formatStockCents(total)}
-              tooltipSuffix={row.unit || 'units'}
+              tooltipSuffix={formatProductUnit(row.unit, 'units')}
               className={
                 total === 0n
                   ? 'text-center font-extrabold tabular-nums text-destructive'
@@ -312,7 +300,7 @@ export function InventoryItemCatalog({
               }
             />
             <span className="hidden shrink-0 text-[10px] font-normal text-muted-foreground xl:inline">
-              {row.unit || 'units'}
+              {formatProductUnit(row.unit, 'units')}
             </span>
           </div>
         )
@@ -431,11 +419,11 @@ export function InventoryItemCatalog({
                     fullValue={
                       parseStockCents(stock.quantity) === null ? stock.quantity : undefined
                     }
-                    tooltipSuffix={product.unit || 'units'}
+                    tooltipSuffix={formatProductUnit(product.unit, 'units')}
                     className="text-xs font-bold tabular-nums sm:max-w-44 sm:text-right"
                   />
                   <span className="shrink-0 text-xs text-muted-foreground">
-                    {product.unit || 'units'}
+                    {formatProductUnit(product.unit, 'units')}
                   </span>
                   {onOpenWarehouse && (
                     <Button
@@ -456,10 +444,10 @@ export function InventoryItemCatalog({
           <span className="shrink-0">Total:</span>
           <OverflowValue
             value={formatStockCents(stockData.totalCents)}
-            tooltipSuffix={product.unit || 'units'}
+            tooltipSuffix={formatProductUnit(product.unit, 'units')}
             className="text-right tabular-nums"
           />
-          <span className="shrink-0">{product.unit || 'units'}</span>
+          <span className="shrink-0">{formatProductUnit(product.unit, 'units')}</span>
         </div>
       </div>
     )
@@ -482,7 +470,7 @@ export function InventoryItemCatalog({
       )}
 
       {/* Header controls and Search */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+      <PageToolbar>
         <div className="relative flex-1 w-full sm:max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
           <Input
@@ -507,7 +495,7 @@ export function InventoryItemCatalog({
             Register Product
           </Button>
         )}
-      </div>
+      </PageToolbar>
 
       {(productsQuery.isError || stockQuery.isError) && (
         <div
@@ -541,6 +529,7 @@ export function InventoryItemCatalog({
       {/* Reusable DataTable Component */}
       {!productsQuery.isError && !stockQuery.isError && (
         <DataTable
+          appearance="management"
           data={filteredProducts}
           columns={columns}
           renderExpandedRow={renderProductLocations}
@@ -595,27 +584,5 @@ export function InventoryItemCatalog({
         variant="destructive"
       />
     </div>
-  )
-}
-
-function StockIndicator({ condition, label }: { condition: StockCondition; label: string }) {
-  if (condition !== 'OUT' && condition !== 'LOW') return null
-  return (
-    <span
-      role="img"
-      aria-label={label}
-      title={label}
-      className={
-        condition === 'OUT'
-          ? 'shrink-0 text-destructive'
-          : 'shrink-0 text-status-warning-foreground'
-      }
-    >
-      {condition === 'OUT' ? (
-        <CircleAlert aria-hidden="true" className="size-3.5" />
-      ) : (
-        <AlertTriangle aria-hidden="true" className="size-3.5" />
-      )}
-    </span>
   )
 }

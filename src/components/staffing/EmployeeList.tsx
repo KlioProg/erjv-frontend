@@ -1,3 +1,4 @@
+import { PageHeader, PageToolbar } from '@/components/ui/ManagementPage'
 import { DataTable, type ColumnDef } from '@/components/ui/data-table'
 import { useState } from 'react'
 import {
@@ -80,8 +81,6 @@ export function EmployeeList() {
     reactivateMutation.mutate(emp)
   }
 
-  const isEmptyState = !isLoading && !error && filteredEmployees.length === 0
-
   const renderEmployeeCell = (
     emp: Employee,
     column: 'employee' | 'contact' | 'positions' | 'hireDate' | 'account' | 'actions',
@@ -114,14 +113,6 @@ export function EmployeeList() {
                   <span className="font-semibold text-foreground text-xs">
                     {emp.firstName} {emp.lastName}
                   </span>
-                  {isArchived && (
-                    <Badge
-                      variant="outline"
-                      className="border-amber-500/30 bg-amber-500/10 text-amber-600 text-[9px] font-bold px-1.5 py-0"
-                    >
-                      Deactivated
-                    </Badge>
-                  )}
                 </div>
                 {emp.address && (
                   <span className="text-[11px] text-muted-foreground truncate max-w-[160px]">
@@ -198,20 +189,11 @@ export function EmployeeList() {
                     : reactivateMutation.variables?.id === emp.id)
 
                 return (
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => handleReactivate(emp)}
-                    disabled={isReactivatingThis}
-                    className="group gap-2 font-bold text-emerald-600 dark:text-emerald-600 bg-emerald-500/15 hover:bg-emerald-500/25 active:scale-95 border border-emerald-500/30 rounded-xl shadow-2xs cursor-pointer transition-all duration-150"
-                  >
-                    {isReactivatingThis ? (
-                      <Spinner className="size-3.5 text-emerald-600 dark:text-emerald-600 animate-spin" />
-                    ) : (
-                      <RotateCcw className="size-3.5 text-emerald-600 dark:text-emerald-600 transition-transform duration-200 group-hover:-rotate-45" />
-                    )}
-                    <span>{isReactivatingThis ? 'Reactivating...' : 'Reactivate Profile'}</span>
-                  </Button>
+                  <DataTableActions
+                    onRestore={() => handleReactivate(emp)}
+                    restoreLabel="Reactivate Profile"
+                    isPending={isReactivatingThis}
+                  />
                 )
               })()
             ) : (
@@ -258,6 +240,7 @@ export function EmployeeList() {
 
   return (
     <div className="flex flex-col gap-4">
+      <PageHeader>Staff Directory</PageHeader>
       {/* Staff Archive / Active Tabs */}
       <ArchiveTabNav
         activeTab={activeTab}
@@ -271,10 +254,11 @@ export function EmployeeList() {
       />
 
       {/* Search and Action Bar */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+      <PageToolbar>
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
           <Input
+            aria-label="Search staff"
             placeholder="Search employees by name, email..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -291,16 +275,10 @@ export function EmployeeList() {
             Register Employee
           </Button>
         )}
-      </div>
+      </PageToolbar>
 
       {/* Employees Table Card */}
-      <div
-        className={`rounded-2xl border shadow-xs overflow-hidden ${
-          isEmptyState
-            ? 'border-dashed bg-muted/20'
-            : 'border-0 bg-transparent shadow-none overflow-visible'
-        }`}
-      >
+      <div className="min-w-0">
         {isLoading ? (
           <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-2">
             <Spinner className="size-6 text-primary" />
@@ -357,10 +335,11 @@ export function EmployeeList() {
           </Card>
         ) : (
           <DataTable
+            appearance="management"
             data={filteredEmployees}
             columns={employeeColumns}
             getRowKey={(row) => row.id}
-            pagination={false}
+            pageSizeOptions={[10, 25, 50, 100]}
             tableClassName="min-w-[980px]"
             rowClassName={(row) => (row.isActive === false ? 'bg-muted/10 opacity-75' : '')}
           />

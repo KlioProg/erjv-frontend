@@ -1,3 +1,4 @@
+import { formatProductUnit } from '@/lib/product-unit'
 import { DataTable } from '@/components/ui/data-table'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -103,6 +104,19 @@ export function IncomingDeliveryDetailModal({
                   header: 'Quantity',
                   accessorKey: 'receivedQuantity',
                   align: 'right',
+                  cell: ({ row }) => {
+                    const poItem = purchaseOrders
+                      .find((order) => order.id === delivery.purchaseOrderId)
+                      ?.items.find((item) => item.id === row.purchaseOrderItemId)
+                    const product = products.find(
+                      (product) => product.id === poItem?.inventoryItemId,
+                    )
+                    return (
+                      <span>
+                        {row.receivedQuantity} {formatProductUnit(product?.unit)}
+                      </span>
+                    )
+                  },
                 },
               ]}
             />

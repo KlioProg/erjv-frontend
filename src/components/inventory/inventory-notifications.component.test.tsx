@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { beforeEach, afterEach, describe, it, expect, vi } from 'vitest'
@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { apiClient } from '@/lib/api-client'
 import { MainDashboard } from '@/components/dashboard/MainDashboard'
 import { InventoryHub } from './InventoryHub'
+import { WarehouseInventory } from '@/components/operations/WarehouseInventory'
 import { StockNotifications } from '@/components/layout/StockNotifications'
 import type { InventoryItemResponse } from '@/features/products/products.types'
 import type { StockItemWithRelations } from '@/features/logistics/stock-items.types'
@@ -46,6 +47,9 @@ let products: InventoryItemResponse[]
 let stocks: StockItemWithRelations[]
 let failStock: boolean
 let failArchive: boolean
+let failPrice: boolean
+let priceGate: Promise<void> | undefined
+let requests: { method: string; url: string; body: Record<string, unknown> }[]
 const originalAdapter = apiClient.defaults.adapter
 const stock = (
   id: number,
@@ -76,6 +80,9 @@ function mount(ui: React.ReactNode) {
   }
 }
 beforeEach(() => {
+  failPrice = false
+  priceGate = undefined
+  requests = []
   auth.isAdmin = true
   auth.isStaff = false
   auth.logout.mockClear()
@@ -103,9 +110,10 @@ beforeEach(() => {
     const url = config.url || ''
     const method = config.method || 'get'
     const body = typeof config.data === 'string' ? JSON.parse(config.data) : config.data || {}
+    requests.push({ method, url, body })
     let data: unknown = []
     if (method === 'get') {
-      if (url === '/stock-items' && failStock)
+      if ((url === '/stock-items' || url.startsWith('/stock-items/warehouses/')) && failStock)
         throw {
           isAxiosError: true,
           response: { status: 503, data: { message: 'Stock unavailable' } },
@@ -115,9 +123,11 @@ beforeEach(() => {
           ? products.filter((p) => config.params?.includeInactive === 'true' || p.isActive)
           : url === '/stock-items'
             ? stocks
-            : url === '/warehouses'
-              ? warehouses.filter((w) => w.isActive)
-              : []
+            : url.startsWith('/stock-items/warehouses/')
+              ? stocks.filter((s) => s.warehouseId === Number(url.split('/')[3]))
+              : url === '/warehouses'
+                ? warehouses.filter((w) => w.isActive)
+                : []
     } else if (url.startsWith('/inventory-items/') && method === 'delete') {
       if (failArchive)
         throw { isAxiosError: true, response: { status: 409, data: { message: 'Archive failed' } } }
@@ -133,6 +143,14 @@ beforeEach(() => {
       products = [...products, added]
       data = added
     } else if (url.endsWith('/details') || url.endsWith('/unit-price')) {
+      if (url.endsWith('/unit-price')) {
+        if (priceGate) await priceGate
+        if (failPrice)
+          throw {
+            isAxiosError: true,
+            response: { status: 409, data: { message: 'Price update rejected' } },
+          }
+      }
       const id = Number(url.split('/')[2])
       products = products.map((p) => (p.id === id ? { ...p, ...body } : p))
       data = products.find((p) => p.id === id)
@@ -146,6 +164,172 @@ afterEach(() => {
 })
 
 describe('inventory and global stock warnings', () => {
+  it('edits only the wholesale price inline, validates decimals and saves exact zero with Enter', async () => {
+    const user = userEvent.setup()
+    products[0].unit = 'piece'
+    mount(<InventoryHub />)
+    const edit = await screen.findByRole('button', { name: 'Edit wholesale price for Alpha Empty' })
+    expect(screen.queryByText(/per\s+piece\(s\)/i)).toBeNull()
+    await user.click(edit)
+    const input = screen.getByRole('textbox', { name: 'Wholesale price for Alpha Empty' })
+    const save = screen.getByRole('button', { name: 'Save wholesale price for Alpha Empty' })
+    for (const invalid of ['', '-1', '1.234', '10000000000']) {
+      fireEvent.change(input, { target: { value: invalid } })
+      await user.click(save)
+      expect(screen.getByRole('alert').textContent).toContain('Enter a non-negative price')
+    }
+    expect(requests.filter((request) => request.method === 'patch')).toHaveLength(0)
+    await user.clear(input)
+    await user.type(input, '0.00{Enter}')
+    await waitFor(() =>
+      expect(screen.queryByRole('textbox', { name: 'Wholesale price for Alpha Empty' })).toBeNull(),
+    )
+    expect(requests.filter((request) => request.method === 'patch')).toEqual([
+      { method: 'patch', url: '/inventory-items/1/unit-price', body: { unitPrice: '0.00' } },
+    ])
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'Edit wholesale price for Alpha Empty' }).textContent,
+      ).toContain('₱0.00'),
+    )
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('retains an inline price on API failure, retries once and blocks duplicate pending submits', async () => {
+    const user = userEvent.setup()
+    mount(<InventoryHub />)
+    await user.click(
+      await screen.findByRole('button', { name: 'Edit wholesale price for Alpha Empty' }),
+    )
+    const input = screen.getByRole('textbox', { name: 'Wholesale price for Alpha Empty' })
+    await user.clear(input)
+    await user.type(input, '92.75')
+    failPrice = true
+    await user.click(screen.getByRole('button', { name: 'Save wholesale price for Alpha Empty' }))
+    await screen.findByText('Price update rejected.')
+    expect((input as HTMLInputElement).value).toBe('92.75')
+    failPrice = false
+    let finish!: () => void
+    priceGate = new Promise<void>((resolve) => {
+      finish = resolve
+    })
+    const form = input.closest('form')!
+    fireEvent.submit(form)
+    fireEvent.submit(form)
+    await waitFor(() => expect(input.matches(':disabled')).toBe(true))
+    expect(
+      screen
+        .getByRole('button', { name: 'Cancel price edit for Alpha Empty' })
+        .matches(':disabled'),
+    ).toBe(true)
+    await waitFor(() =>
+      expect(
+        requests.filter((request) => request.url === '/inventory-items/1/unit-price'),
+      ).toHaveLength(2),
+    )
+    await act(async () => {
+      finish()
+    })
+    await waitFor(() =>
+      expect(screen.queryByRole('textbox', { name: 'Wholesale price for Alpha Empty' })).toBeNull(),
+    )
+    expect(
+      requests.filter((request) => request.url === '/inventory-items/1/unit-price'),
+    ).toHaveLength(2)
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'Edit wholesale price for Alpha Empty' }).textContent,
+      ).toContain('₱92.75'),
+    )
+  })
+
+  it('cancels price edits with Escape and keeps archived or staff prices read-only', async () => {
+    const user = userEvent.setup()
+    const view = mount(<InventoryHub />)
+    await user.click(
+      await screen.findByRole('button', { name: 'Edit wholesale price for Alpha Empty' }),
+    )
+    await user.clear(screen.getByRole('textbox', { name: 'Wholesale price for Alpha Empty' }))
+    await user.keyboard('45{Escape}')
+    await waitFor(() =>
+      expect(document.activeElement?.getAttribute('aria-label')).toBe(
+        'Edit wholesale price for Alpha Empty',
+      ),
+    )
+    expect(requests.filter((request) => request.method === 'patch')).toHaveLength(0)
+    await user.click(screen.getByRole('button', { name: /Archived/ }))
+    await screen.findByText('Archived Product')
+    expect(screen.queryByRole('button', { name: /Edit wholesale price/ })).toBeNull()
+    view.unmount()
+    auth.isAdmin = false
+    auth.isManager = false
+    auth.isStaff = true
+    mount(<InventoryHub />)
+    await screen.findByText('Alpha Empty')
+    expect(screen.queryByRole('button', { name: /Edit wholesale price/ })).toBeNull()
+  })
+
+  it('prioritizes empty and low warehouse stock before pagination without a status column', async () => {
+    const user = userEvent.setup()
+    const onBack = vi.fn()
+    products = [
+      product(1, 'Alpha Healthy'),
+      product(2, 'Zulu Empty'),
+      product(3, 'Yield Low'),
+      product(4, 'Omega Fractional'),
+      product(5, 'Delta Unknown'),
+      ...Array.from({ length: 11 }, (_, i) => product(i + 6, `Healthy ${i}`)),
+    ]
+    stocks = [
+      stock(1, 1, 1, '20.01'),
+      stock(2, 2, 1, '0'),
+      stock(3, 3, 1, '20'),
+      stock(4, 4, 1, '0.05'),
+      stock(5, 5, 1, 'bad'),
+      ...Array.from({ length: 11 }, (_, i) => stock(i + 6, i + 6, 1, '100')),
+    ]
+    mount(<WarehouseInventory warehouse={warehouses[0]} onBack={onBack} />)
+    await screen.findByText('Zulu Empty')
+    const table = screen.getByRole('table')
+    const visibleRows = () => within(table).getAllByRole('row').slice(1)
+    expect(within(table).getAllByRole('columnheader')).toHaveLength(3)
+    expect(screen.queryByRole('columnheader', { name: 'Status' })).toBeNull()
+    expect(visibleRows()).toHaveLength(10)
+    expect(
+      visibleRows()
+        .slice(0, 4)
+        .map((row) => within(row).getAllByRole('cell')[0].textContent),
+    ).toEqual(['Zulu Empty', 'Omega Fractional', 'Yield Low', 'Alpha Healthy'])
+    expect(screen.getByRole('img', { name: 'Out of stock: Zulu Empty in Store' })).toBeTruthy()
+    expect(screen.getByRole('img', { name: 'Low stock: Yield Low in Store' })).toBeTruthy()
+    expect(within(visibleRows()[1]).getByText('0.05')).toBeTruthy()
+    expect(within(visibleRows()[3]).queryByRole('img')).toBeNull()
+    expect(screen.queryByText('In Stock')).toBeNull()
+
+    const search = screen.getByRole('textbox', { name: 'Search warehouse products' })
+    await user.type(search, 'Delta Unknown')
+    expect(visibleRows()).toHaveLength(1)
+    expect(within(visibleRows()[0]).queryByRole('img')).toBeNull()
+    await user.clear(search)
+    await user.click(within(table).getByRole('button', { name: 'Product' }))
+    expect(within(visibleRows()[0]).getByText('Alpha Healthy')).toBeTruthy()
+    await user.click(screen.getByRole('button', { name: 'Warehouses' }))
+    expect(onBack).toHaveBeenCalledOnce()
+  })
+
+  it('keeps warehouse stock failures recoverable rather than showing empty-stock warnings', async () => {
+    failStock = true
+    const user = userEvent.setup()
+    mount(<WarehouseInventory warehouse={warehouses[0]} onBack={vi.fn()} />)
+    expect((await screen.findByRole('alert')).textContent).toContain(
+      'Warehouse stock could not be loaded:',
+    )
+    expect(screen.queryByRole('img', { name: /Out of stock/ })).toBeNull()
+    failStock = false
+    await user.click(screen.getByRole('button', { name: 'Retry' }))
+    expect(await screen.findByText('Alpha Empty')).toBeTruthy()
+  })
+
   it('registers and edits products through the existing services and refreshes the table', async () => {
     const user = userEvent.setup()
     mount(<InventoryHub />)

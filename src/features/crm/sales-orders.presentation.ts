@@ -8,14 +8,14 @@ const warningBadge =
 const successBadge =
   'border-status-success-foreground/15! bg-status-success text-status-success-foreground'
 
-function formatDeliveryDate(value: string | null | undefined, includeTime = false) {
+function formatDeliveryDate(value: string | null | undefined) {
   if (!value) return undefined
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return undefined
-  return date.toLocaleString('en-US', {
+  return date.toLocaleDateString('en-US', {
+    year: 'numeric',
     month: 'short',
     day: 'numeric',
-    ...(includeTime ? { hour: 'numeric', minute: '2-digit' } : {}),
   })
 }
 
@@ -35,7 +35,6 @@ export function getSalesOrderDeliveryDisplay(
       label: 'Cancelled',
       supportingText: date ? `Cancelled ${date}` : undefined,
       badgeClassName: 'border-destructive/15! bg-destructive/5 text-destructive',
-      rowClassName: '[&_td:first-child]:border-l-destructive/25!',
     }
   }
 
@@ -50,7 +49,6 @@ export function getSalesOrderDeliveryDisplay(
       label: 'Delivered',
       supportingText: date ? `Completed ${date}` : undefined,
       badgeClassName: successBadge,
-      rowClassName: '[&_td:first-child]:border-l-status-success-foreground/35!',
     }
   }
 
@@ -59,15 +57,13 @@ export function getSalesOrderDeliveryDisplay(
       label: 'In Transit',
       supportingText: 'On the way',
       badgeClassName: infoBadge,
-      rowClassName: '[&_td:first-child]:border-l-status-info-foreground/35!',
     }
 
   if (delivery?.status === 'SCHEDULED')
     return {
       label: 'Scheduled',
-      supportingText: formatDeliveryDate(delivery.scheduledAt, true),
+      supportingText: formatDeliveryDate(delivery.scheduledAt),
       badgeClassName: infoBadge,
-      rowClassName: '[&_td:first-child]:border-l-status-info-foreground/35!',
     }
 
   if (delivery?.status === 'DRAFT')
@@ -75,7 +71,6 @@ export function getSalesOrderDeliveryDisplay(
       label: 'Preparing',
       supportingText: 'Delivery draft',
       badgeClassName: neutralBadge,
-      rowClassName: '',
     }
 
   if (order.status === 'PARTIALLY_DELIVERED') {
@@ -91,7 +86,6 @@ export function getSalesOrderDeliveryDisplay(
             : `${completedCount} ${completedCount === 1 ? 'delivery' : 'deliveries'} completed`
           : 'More items to deliver',
       badgeClassName: warningBadge,
-      rowClassName: '[&_td:first-child]:border-l-status-warning-foreground/35!',
     }
   }
 
@@ -99,6 +93,5 @@ export function getSalesOrderDeliveryDisplay(
     label: 'Not Prepared',
     supportingText: order.status === 'CONFIRMED' ? 'Ready for delivery' : 'No delivery yet',
     badgeClassName: neutralBadge,
-    rowClassName: '',
   }
 }

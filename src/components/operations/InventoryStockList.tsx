@@ -1,3 +1,4 @@
+import { formatProductUnit } from '@/lib/product-unit'
 import { useState, useMemo } from 'react'
 import {
   Package,
@@ -41,7 +42,10 @@ import { useAuth } from '@/features/auth/AuthContext'
 import { InventoryItemModal } from './InventoryItemModal'
 import { StockAdjustModal } from './StockAdjustModal'
 import type { InventoryItemResponse } from '@/features/products/products.types'
-import type { StockItemWithRelations, WarehouseSummary } from '@/features/logistics/stock-items.types'
+import type {
+  StockItemWithRelations,
+  WarehouseSummary,
+} from '@/features/logistics/stock-items.types'
 import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal'
 
 export interface InventoryStockListProps {
@@ -145,8 +149,14 @@ export function InventoryStockList({
     return map
   }, [stockItems])
 
-  const activeProducts = useMemo(() => allProducts.filter((p) => p.isActive !== false), [allProducts])
-  const archivedProducts = useMemo(() => allProducts.filter((p) => p.isActive === false), [allProducts])
+  const activeProducts = useMemo(
+    () => allProducts.filter((p) => p.isActive !== false),
+    [allProducts],
+  )
+  const archivedProducts = useMemo(
+    () => allProducts.filter((p) => p.isActive === false),
+    [allProducts],
+  )
   const currentProductList = activeTab === 'ACTIVE' ? activeProducts : archivedProducts
   const currentProductIdSet = useMemo(
     () => new Set(currentProductList.map((p) => p.id)),
@@ -218,7 +228,14 @@ export function InventoryStockList({
         const whName = item.warehouse?.name?.toLowerCase() || ''
         return prodName.includes(term) || prodVariety.includes(term) || whName.includes(term)
       })
-  }, [stockItems, currentProductIdSet, selectedWarehouseFilter, allProducts, warehouses, searchTerm])
+  }, [
+    stockItems,
+    currentProductIdSet,
+    selectedWarehouseFilter,
+    allProducts,
+    warehouses,
+    searchTerm,
+  ])
 
   const handleCreateProduct = () => {
     setSelectedProductForEdit(null)
@@ -306,7 +323,8 @@ export function InventoryStockList({
               </div>
               {row.product?.unitPrice && (
                 <span className="text-[11px] text-muted-foreground mt-0.5">
-                  ₱{Number(row.product.unitPrice).toFixed(2)} / unit
+                  ₱{Number(row.product.unitPrice).toFixed(2)} /{' '}
+                  {formatProductUnit(row.product?.unit, 'unit')}
                 </span>
               )}
             </div>
@@ -349,7 +367,9 @@ export function InventoryStockList({
             >
               {row.availableUnits.toLocaleString()}
             </span>
-            <span className="text-[10px] text-muted-foreground block">units</span>
+            <span className="text-[10px] text-muted-foreground block">
+              {formatProductUnit(row.product?.unit, 'units')}
+            </span>
           </div>
         ),
       },
@@ -364,7 +384,9 @@ export function InventoryStockList({
             <span className="text-xs font-semibold text-muted-foreground">
               {row.allocatedUnits.toLocaleString()}
             </span>
-            <span className="text-[10px] text-muted-foreground/70 block">units</span>
+            <span className="text-[10px] text-muted-foreground/70 block">
+              {formatProductUnit(row.product?.unit, 'units')}
+            </span>
           </div>
         ),
       },
@@ -390,7 +412,9 @@ export function InventoryStockList({
                 {row.totalUnits.toLocaleString()}
               </span>
             </div>
-            <span className="text-[10px] text-muted-foreground block">units</span>
+            <span className="text-[10px] text-muted-foreground block">
+              {formatProductUnit(row.product?.unit, 'units')}
+            </span>
           </div>
         ),
       },
@@ -400,7 +424,7 @@ export function InventoryStockList({
         align: 'center',
         cell: ({ row }) => (
           <Badge variant="secondary" className="text-[10px] px-2 py-0.5 rounded-lg">
-            {row.reorderLevel} units
+            {row.reorderLevel} {formatProductUnit(row.product?.unit, 'units')}
           </Badge>
         ),
       },
@@ -708,7 +732,9 @@ export function InventoryStockList({
                               }
                             >
                               {totalStockUnits.toLocaleString()}{' '}
-                              <span className="text-xs font-normal text-muted-foreground">units</span>
+                              <span className="text-xs font-normal text-muted-foreground">
+                                {formatProductUnit(prod.unit, 'units')}
+                              </span>
                             </span>
                           </div>
                         </div>
@@ -874,7 +900,7 @@ export function InventoryStockList({
                                     {qtyNum.toLocaleString()}
                                   </span>
                                   <span className="text-[11px] font-medium text-muted-foreground">
-                                    units
+                                    {formatProductUnit(prod.unit, 'units')}
                                   </span>
                                 </div>
                               </div>
@@ -945,7 +971,7 @@ export function InventoryStockList({
         itemName={productToDelete?.name}
         itemDetails={
           productToDelete
-            ? `₱${Number(productToDelete.unitPrice || 0).toFixed(2)} / unit`
+            ? `₱${Number(productToDelete.unitPrice || 0).toFixed(2)} / ${formatProductUnit(productToDelete.unit, 'unit')}`
             : undefined
         }
         confirmText="Archive Product"

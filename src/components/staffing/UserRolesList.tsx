@@ -1,3 +1,4 @@
+import { PageHeader, PageToolbar } from '@/components/ui/ManagementPage'
 import type { UserAccount } from '@/features/staffing/staffing.types'
 import { DataTable, type ColumnDef } from '@/components/ui/data-table'
 import { useState, forwardRef } from 'react'
@@ -167,8 +168,6 @@ export function UserRolesList() {
   const handleReactivate = (user: (typeof users)[0]) => {
     reactivateUser.mutate(user)
   }
-
-  const isEmptyState = !isLoading && !error && filteredUsers.length === 0
 
   const renderUserCell = (
     u: UserAccount,
@@ -393,7 +392,8 @@ export function UserRolesList() {
   ]
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex min-w-0 flex-col gap-4">
+      <PageHeader>User Roles &amp; Access</PageHeader>
       {/* Archive / Active Tabs */}
       <ArchiveTabNav
         activeTab={activeTab}
@@ -407,10 +407,11 @@ export function UserRolesList() {
       />
 
       {/* Search and Authority Bar (4x spacing: gap-4, px-4, py-2) */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+      <PageToolbar>
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
           <Input
+            aria-label="Search user accounts"
             placeholder="Search accounts by name or email..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -418,10 +419,10 @@ export function UserRolesList() {
           />
         </div>
 
-        <div className="flex items-center gap-2 self-end sm:self-center">
+        <div className="flex max-w-full flex-wrap items-center gap-2 self-end sm:self-center">
           <Badge
             variant="outline"
-            className="text-xs py-1 px-3 bg-muted/40 border-border/80 gap-2 text-muted-foreground font-medium shadow-2xs"
+            className="whitespace-normal text-xs py-1 px-3 border-border/80 gap-2 text-muted-foreground font-medium"
           >
             <Shield className="size-3 text-primary" />
             {isAdmin
@@ -440,16 +441,10 @@ export function UserRolesList() {
             </Button>
           )}
         </div>
-      </div>
+      </PageToolbar>
 
       {/* Users Table */}
-      <div
-        className={`rounded-2xl border shadow-xs overflow-hidden ${
-          isEmptyState
-            ? 'border-dashed bg-muted/20'
-            : 'border-0 bg-transparent shadow-none overflow-visible'
-        }`}
-      >
+      <div className="min-w-0">
         {isLoading ? (
           <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-2">
             <Spinner className="size-6 text-primary" />
@@ -521,10 +516,12 @@ export function UserRolesList() {
           </div>
         ) : (
           <DataTable
+            appearance="management"
             data={filteredUsers}
             columns={userColumns}
             getRowKey={(row) => row.id}
-            pagination={false}
+            pageSize={10}
+            pageSizeOptions={[10, 25, 50, 100]}
             tableClassName="min-w-[980px]"
             rowClassName={(row) => (row.isActive === false ? 'bg-muted/10 opacity-80' : '')}
           />

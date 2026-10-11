@@ -1,12 +1,8 @@
 import { useMemo, useRef, useState, type FormEvent } from 'react'
 import { toast } from 'sonner'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+import { DeliveryFormDialog, DeliveryFormFooter } from './shared/DeliveryFormDialog'
+import { deliveryFormStyles } from './shared/delivery-form.styles'
+import { Spinner } from '@/components/ui/spinner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -389,72 +385,85 @@ export function ScheduleDeliveryModal({
         : 'Selected driver'
 
   return (
-    <Dialog open={open} onOpenChange={(next) => !next && dismiss()}>
-      <DialogContent
-        closeDisabled={busy}
-        className="flex max-h-[90dvh] w-[calc(100vw-2rem)] flex-col gap-4 overflow-hidden p-5 sm:max-w-3xl sm:p-6"
-      >
-        <DialogHeader className="shrink-0 pr-6">
-          <DialogTitle className="text-lg">Schedule Outgoing Delivery</DialogTitle>
-          <DialogDescription className="text-sm">
-            Choose an order, review shipment quantities, then set its source and schedule.
-          </DialogDescription>
-        </DialogHeader>
-        {completed ? (
-          <div className="flex flex-col gap-4">
-            <div role="status">
-              <p className="font-semibold">
-                {completed === 'SCHEDULED' ? 'Delivery scheduled' : 'Delivery draft saved'}
-              </p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {savedDraft?.number} is available in Outgoing Deliveries.{' '}
-                {completed === 'SCHEDULED'
-                  ? 'Dispatch remains a separate action.'
-                  : 'Schedule it when you are ready.'}
-              </p>
-            </div>
-            <div className="flex justify-end">
-              <Button onClick={dismiss} disabled={busy} className="pointer-coarse:min-h-11">
-                Done
-              </Button>
-            </div>
+    <DeliveryFormDialog
+      open={open}
+      onClose={dismiss}
+      busy={busy}
+      title="Schedule Outgoing Delivery"
+      description="Choose a sales order, review shipment quantities, and set the source and schedule."
+    >
+      {completed ? (
+        <div className={deliveryFormStyles.form}>
+          <div role="status" className={deliveryFormStyles.body}>
+            <p className="font-semibold">
+              {completed === 'SCHEDULED' ? 'Delivery scheduled' : 'Delivery draft saved'}
+            </p>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">
+              {savedDraft?.number} is available in Outgoing Deliveries.{' '}
+              {completed === 'SCHEDULED'
+                ? 'Dispatch remains a separate action.'
+                : 'Schedule it when you are ready.'}
+            </p>
           </div>
-        ) : (
-          <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col gap-4">
-            <div className="min-h-0 overflow-y-auto overscroll-contain pr-1">
-              {unavailable && (
-                <div
-                  role={loadFailed ? 'alert' : 'status'}
-                  className="mb-4 text-sm text-muted-foreground"
-                >
-                  {loadFailed
-                    ? 'Order quantities or source stock could not be loaded.'
-                    : 'Loading orders and shipment balances...'}
-                  {loadFailed && (
-                    <Button variant="link" type="button" onClick={() => void refresh()}>
-                      Retry loading
-                    </Button>
-                  )}
-                </div>
-              )}
-              {errors.request && (
-                <p role="alert" className="mb-4 text-sm text-destructive">
-                  {errors.request}
-                </p>
-              )}
-              {savedDraft && (
-                <p role="status" className="mb-4 text-sm text-muted-foreground">
-                  Draft {savedDraft.number} was saved. Retry Schedule uses this draft; closing
-                  leaves it in Outgoing Deliveries.
-                </p>
-              )}
-              <fieldset disabled={readOnly} className="flex min-w-0 flex-col gap-5">
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="delivery-sales-order">
+          <DeliveryFormFooter>
+            <Button
+              variant="primary-contrast"
+              onClick={dismiss}
+              disabled={busy}
+              className={deliveryFormStyles.button}
+            >
+              Done
+            </Button>
+          </DeliveryFormFooter>
+        </div>
+      ) : (
+        <form onSubmit={handleSubmit} className={deliveryFormStyles.form}>
+          <div className={deliveryFormStyles.body}>
+            {unavailable && (
+              <div
+                role={loadFailed ? 'alert' : 'status'}
+                className={`${deliveryFormStyles.message} ${loadFailed ? 'text-destructive' : 'text-muted-foreground'}`}
+              >
+                {!loadFailed && <Spinner aria-hidden="true" className="mr-2 inline-block size-4" />}
+                {loadFailed
+                  ? 'Order quantities or source stock could not be loaded.'
+                  : 'Loading orders and shipment balances...'}
+                {loadFailed && (
+                  <Button
+                    variant="link"
+                    type="button"
+                    className={deliveryFormStyles.retry}
+                    onClick={() => void refresh()}
+                  >
+                    Retry loading
+                  </Button>
+                )}
+              </div>
+            )}
+            {errors.request && (
+              <p role="alert" className={`${deliveryFormStyles.message} text-destructive`}>
+                {errors.request}
+              </p>
+            )}
+            {savedDraft && (
+              <p role="status" className={`${deliveryFormStyles.message} text-muted-foreground`}>
+                Draft {savedDraft.number} was saved. Retry Schedule uses this draft; closing leaves
+                it in Outgoing Deliveries.
+              </p>
+            )}
+            <fieldset disabled={readOnly} className={deliveryFormStyles.fields}>
+              <div className={deliveryFormStyles.grid}>
+                <div className={deliveryFormStyles.field}>
+                  <Label htmlFor="delivery-sales-order" className={deliveryFormStyles.label}>
                     Sales Order to Fulfill <span className="text-primary">*</span>
                   </Label>
                   {savedDraft && selectedOrder ? (
-                    <Input id="delivery-sales-order" value={orderLabel(selectedOrder)} readOnly />
+                    <Input
+                      id="delivery-sales-order"
+                      value={orderLabel(selectedOrder)}
+                      readOnly
+                      className={deliveryFormStyles.control}
+                    />
                   ) : (
                     <SearchableDropdown
                       id="delivery-sales-order"
@@ -469,7 +478,7 @@ export function ScheduleDeliveryModal({
                       }}
                       getOptionValue={(order) => String(order.id)}
                       getOptionLabel={orderLabel}
-                      className="pointer-coarse:min-h-11"
+                      className={deliveryFormStyles.control}
                       renderOption={(order) => (
                         <div className="flex flex-col gap-1">
                           <span className="text-sm font-medium">{orderLabel(order)}</span>
@@ -490,7 +499,7 @@ export function ScheduleDeliveryModal({
                   )}
                   {fieldError('sales-order')}
                   {!savedDraft && !unavailable && eligibleOrders.length === 0 && (
-                    <p className="text-sm text-muted-foreground">
+                    <p className="text-xs leading-5 text-muted-foreground">
                       No Sales Orders awaiting scheduling. Confirmed orders with remaining
                       quantities will appear here.
                     </p>
@@ -499,303 +508,326 @@ export function ScheduleDeliveryModal({
                     <p role="status" className="text-xs text-muted-foreground">
                       Some order balances are unavailable. Reload to check their scheduling
                       eligibility.{' '}
-                      <Button type="button" variant="link" size="sm" onClick={() => void refresh()}>
+                      <Button
+                        type="button"
+                        variant="link"
+                        size="sm"
+                        className={deliveryFormStyles.retry}
+                        onClick={() => void refresh()}
+                      >
                         Reload balances
                       </Button>
                     </p>
                   )}
                   {selectedOrder && !selectedEligible && !unavailable && !savedDraft && (
-                    <p role="status" className="text-sm text-muted-foreground">
+                    <p role="status" className="text-xs leading-5 text-muted-foreground">
                       {selectedOrder.orderNumber} has no available scheduling quantities or is no
                       longer eligible. Its existing deliveries remain available.
                     </p>
                   )}
                   {selectedOrder && (
-                    <p className="text-sm text-muted-foreground">{selectedOrder.deliveryAddress}</p>
+                    <p className="text-xs leading-5 text-muted-foreground">
+                      {selectedOrder.deliveryAddress}
+                    </p>
                   )}
                 </div>
                 {selectedOrder && (selectedEligible || savedDraft) && (
-                  <>
-                    <section
-                      aria-label="Shipment quantities"
-                      className="flex min-w-0 flex-col gap-2"
-                    >
-                      <h2 className="text-sm font-semibold">Shipment quantities</h2>
-                      <DeliveryQuantityTable
-                        compact
-                        direction="Outgoing"
-                        disabled={readOnly}
-                        rows={remainingItems.map((balance) => {
-                          const product = products.find(
-                            (candidate) => candidate.id === balance.item.inventoryItemId,
-                          )
-                          const capacity = savedDraft
-                            ? savedDraft.capacities[balance.item.id]
-                            : warehouseId
-                              ? outgoingSourceCapacity(
-                                  balance,
-                                  Number(warehouseId),
-                                  stocks,
-                                  warehouses,
-                                )
-                              : balance.remaining
-                          return {
-                            id: balance.item.id,
-                            name: product?.name || `Product #${balance.item.inventoryItemId}`,
-                            variety: product?.variety,
-                            unit: product?.unit || 'units',
-                            ordered: balance.item.quantity,
-                            committed: balance.committed ?? '',
-                            remaining: balance.remaining,
-                            quantityLimit: capacity,
-                            quantity: quantityFor(balance, capacity),
-                            detail: `Ordered ${formatQuantity(balance.item.quantity)} · Arranged ${formatQuantity(balance.committed)}${warehouseId ? ` · From this source: ${formatQuantity(capacity)}` : ''}`,
-                          }
-                        })}
-                        onChange={(id, quantity) =>
-                          setQuantities((previous) => ({ ...previous, [id]: quantity }))
-                        }
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        Enter 0 to skip a product. Quantities are limited by the selected source.
-                      </p>
-                    </section>
-                    <div className="flex flex-col gap-1.5">
-                      <Label htmlFor="delivery-warehouse">
-                        Source Warehouse <span className="text-primary">*</span>
-                      </Label>
-                      {savedDraft ? (
-                        <Input id="delivery-warehouse" readOnly value={savedDraft.warehouseName} />
-                      ) : (
-                        <Select
-                          value={warehouseId}
-                          onValueChange={(id) => {
-                            if (id) {
-                              setWarehouseId(id)
-                              setErrors({})
-                            }
-                          }}
-                        >
-                          <SelectTrigger
-                            id="delivery-warehouse"
-                            aria-invalid={!!errors.warehouse}
-                            aria-describedby={
-                              errors.warehouse ? 'delivery-warehouse-error' : undefined
-                            }
-                            className="h-9 pointer-coarse:h-11"
-                          >
-                            <SelectValue placeholder="Choose a source warehouse" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {sourceWarehouses.map((warehouse) => (
-                              <SelectItem
-                                key={warehouse.id}
-                                value={String(warehouse.id)}
-                                className="min-h-11"
-                              >
-                                {warehouse.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      )}
-                      {fieldError('warehouse')}
-                      {!savedDraft &&
-                        (sourceWarehouses.length === 0 ? (
-                          <p role="status" className="text-xs text-destructive">
-                            No eligible source stock is available. Review the order's saved sources
-                            and current warehouse stock.
-                          </p>
-                        ) : (
-                          <p className="text-xs text-muted-foreground">
-                            One warehouse per delivery. Choose from this order's available stock
-                            sources.
-                          </p>
-                        ))}
-                    </div>
-                    <div className="flex flex-col gap-1.5 sm:max-w-sm">
-                      <Label htmlFor="delivery-scheduled-at">Scheduled Date & Time</Label>
+                  <div className={deliveryFormStyles.field}>
+                    <Label htmlFor="delivery-warehouse" className={deliveryFormStyles.label}>
+                      Source Warehouse <span className="text-primary">*</span>
+                    </Label>
+                    {savedDraft ? (
                       <Input
-                        id="delivery-scheduled-at"
-                        type="datetime-local"
-                        value={scheduledAt}
-                        onChange={(event) => setScheduledAt(event.target.value)}
-                        aria-invalid={!!errors['scheduled-at']}
-                        aria-describedby={
-                          errors['scheduled-at'] ? 'delivery-scheduled-at-error' : undefined
-                        }
-                        className="h-9 text-sm pointer-coarse:h-11"
+                        id="delivery-warehouse"
+                        readOnly
+                        value={savedDraft.warehouseName}
+                        className={deliveryFormStyles.control}
                       />
-                      {fieldError('scheduled-at')}
-                    </div>
-                    <div className="flex flex-col gap-4 border-t pt-4">
-                      <details
-                        open={assignmentsOpen || !!errors.vehicle || !!errors.driver}
-                        onToggle={(event) => setAssignmentsOpen(event.currentTarget.open)}
+                    ) : (
+                      <Select
+                        value={warehouseId}
+                        onValueChange={(id) => {
+                          if (id) {
+                            setWarehouseId(id)
+                            setErrors({})
+                          }
+                        }}
                       >
-                        <summary className="cursor-pointer rounded-sm py-2 text-sm font-medium pointer-coarse:min-h-11 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring">
-                          Vehicle & Driver (Optional)
-                        </summary>
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          {[vehicleSummary, driverSummary].filter(Boolean).join(' · ') ||
-                            'Assign later at dispatch'}
-                        </p>
-                        <div
-                          hidden={!assignmentsOpen && !errors.vehicle && !errors.driver}
-                          className="mt-3 grid gap-3 sm:grid-cols-2"
+                        <SelectTrigger
+                          id="delivery-warehouse"
+                          aria-invalid={!!errors.warehouse}
+                          aria-describedby={
+                            errors.warehouse ? 'delivery-warehouse-error' : undefined
+                          }
+                          className={deliveryFormStyles.control}
                         >
-                          <div className="flex flex-col gap-1.5">
-                            <Label htmlFor="delivery-vehicle">Assign Vehicle (Optional)</Label>
-                            <Select value={vehicleId} onValueChange={setVehicleId}>
-                              <SelectTrigger
-                                id="delivery-vehicle"
-                                aria-invalid={!!errors.vehicle}
-                                aria-describedby={
-                                  errors.vehicle ? 'delivery-vehicle-error' : undefined
-                                }
-                                className="h-9 pointer-coarse:h-11"
-                              >
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="none">Assign Later at Dispatch</SelectItem>
-                                {vehicles.map((vehicle) => (
-                                  <SelectItem
-                                    key={vehicle.id}
-                                    value={String(vehicle.id)}
-                                    disabled={
-                                      !DeliveryUtils.getVehicleAvailability(vehicle, deliveries)
-                                        .isAvailable
-                                    }
-                                    className="min-h-11"
-                                  >
-                                    {vehicle.plateNumber}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            {fieldError('vehicle')}
-                          </div>
-                          <div className="flex flex-col gap-1.5">
-                            <Label htmlFor="delivery-driver">Assign Driver (Optional)</Label>
-                            <Select value={driverId} onValueChange={setDriverId}>
-                              <SelectTrigger
-                                id="delivery-driver"
-                                aria-invalid={!!errors.driver}
-                                aria-describedby={
-                                  errors.driver ? 'delivery-driver-error' : undefined
-                                }
-                                className="h-9 pointer-coarse:h-11"
-                              >
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="none">Assign Later at Dispatch</SelectItem>
-                                {employees.map((employee) => (
-                                  <SelectItem
-                                    key={employee.id}
-                                    value={String(employee.id)}
-                                    disabled={
-                                      !DeliveryUtils.getDriverAvailability(employee, deliveries)
-                                        .isAvailable
-                                    }
-                                    className="min-h-11"
-                                  >
-                                    {employee.firstName} {employee.lastName}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            {fieldError('driver')}
-                          </div>
-                          {(vehiclesQuery.isError || employeesQuery.isError) && (
-                            <p role="alert" className="text-xs text-destructive sm:col-span-2">
-                              Vehicle or driver choices could not be loaded. Assign later, or{' '}
-                              <Button
-                                type="button"
-                                variant="link"
-                                size="sm"
-                                onClick={() => {
-                                  void vehiclesQuery.refetch()
-                                  void employeesQuery.refetch()
-                                }}
-                              >
-                                Retry choices
-                              </Button>
-                            </p>
-                          )}
-                        </div>
-                      </details>
-                      <details
-                        open={notesOpen}
-                        onToggle={(event) => setNotesOpen(event.currentTarget.open)}
+                          <SelectValue placeholder="Choose a source warehouse" />
+                        </SelectTrigger>
+                        <SelectContent className={deliveryFormStyles.popover}>
+                          {sourceWarehouses.map((warehouse) => (
+                            <SelectItem
+                              key={warehouse.id}
+                              value={String(warehouse.id)}
+                              className={deliveryFormStyles.option}
+                            >
+                              {warehouse.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                    {fieldError('warehouse')}
+                    {!savedDraft &&
+                      (sourceWarehouses.length === 0 ? (
+                        <p role="status" className="text-xs text-destructive">
+                          No eligible source stock is available. Review the order's saved sources
+                          and current warehouse stock.
+                        </p>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">
+                          One warehouse per delivery. Choose from this order's available stock
+                          sources.
+                        </p>
+                      ))}
+                  </div>
+                )}
+              </div>
+              {!selectedOrder && !unavailable && (
+                <p role="status" className={deliveryFormStyles.empty}>
+                  Select an order to view its remaining quantities.
+                </p>
+              )}
+              {selectedOrder && (selectedEligible || savedDraft) && (
+                <>
+                  <section aria-label="Shipment quantities" className="flex min-w-0 flex-col gap-2">
+                    <h2 className={deliveryFormStyles.sectionTitle}>Shipment quantities</h2>
+                    <DeliveryQuantityTable
+                      compact
+                      direction="Outgoing"
+                      disabled={readOnly}
+                      rows={remainingItems.map((balance) => {
+                        const product = products.find(
+                          (candidate) => candidate.id === balance.item.inventoryItemId,
+                        )
+                        const capacity = savedDraft
+                          ? savedDraft.capacities[balance.item.id]
+                          : warehouseId
+                            ? outgoingSourceCapacity(
+                                balance,
+                                Number(warehouseId),
+                                stocks,
+                                warehouses,
+                              )
+                            : balance.remaining
+                        return {
+                          id: balance.item.id,
+                          name: product?.name || `Product #${balance.item.inventoryItemId}`,
+                          variety: product?.variety,
+                          unit: product?.unit || 'units',
+                          ordered: balance.item.quantity,
+                          committed: balance.committed ?? '',
+                          remaining: balance.remaining,
+                          quantityLimit: capacity,
+                          quantity: quantityFor(balance, capacity),
+                          detail: `Ordered ${formatQuantity(balance.item.quantity)} · Arranged ${formatQuantity(balance.committed)}${warehouseId ? ` · From this source: ${formatQuantity(capacity)}` : ''}`,
+                        }
+                      })}
+                      onChange={(id, quantity) =>
+                        setQuantities((previous) => ({ ...previous, [id]: quantity }))
+                      }
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Enter 0 to skip a product. Quantities are limited by the selected source.
+                    </p>
+                  </section>
+                  <div className={`${deliveryFormStyles.field} sm:max-w-sm`}>
+                    <Label htmlFor="delivery-scheduled-at" className={deliveryFormStyles.label}>
+                      Scheduled Date & Time
+                    </Label>
+                    <Input
+                      id="delivery-scheduled-at"
+                      type="datetime-local"
+                      value={scheduledAt}
+                      onChange={(event) => setScheduledAt(event.target.value)}
+                      aria-invalid={!!errors['scheduled-at']}
+                      aria-describedby={
+                        errors['scheduled-at'] ? 'delivery-scheduled-at-error' : undefined
+                      }
+                      className={deliveryFormStyles.control}
+                    />
+                    {fieldError('scheduled-at')}
+                  </div>
+                  <div className="flex flex-col gap-4 border-t pt-4">
+                    <details
+                      open={assignmentsOpen || !!errors.vehicle || !!errors.driver}
+                      onToggle={(event) => setAssignmentsOpen(event.currentTarget.open)}
+                    >
+                      <summary className={deliveryFormStyles.summary}>
+                        Vehicle & Driver (Optional)
+                      </summary>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {[vehicleSummary, driverSummary].filter(Boolean).join(' · ') ||
+                          'Assign later at dispatch'}
+                      </p>
+                      <div
+                        hidden={!assignmentsOpen && !errors.vehicle && !errors.driver}
+                        className={`mt-3 ${deliveryFormStyles.grid}`}
                       >
-                        <summary className="cursor-pointer rounded-sm py-2 text-sm font-medium pointer-coarse:min-h-11 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring">
-                          Delivery instructions (Optional)
-                        </summary>
-                        <div hidden={!notesOpen} className="mt-3 flex flex-col gap-1.5">
-                          <Label htmlFor="delivery-notes">Delivery Notes / Instructions</Label>
-                          <Input
-                            id="delivery-notes"
-                            value={notes}
-                            onChange={(event) => setNotes(event.target.value)}
-                            placeholder="Loading instructions or gate code..."
-                            className="h-9 text-sm pointer-coarse:h-11"
-                          />
+                        <div className={deliveryFormStyles.field}>
+                          <Label htmlFor="delivery-vehicle" className={deliveryFormStyles.label}>
+                            Assign Vehicle (Optional)
+                          </Label>
+                          <Select value={vehicleId} onValueChange={setVehicleId}>
+                            <SelectTrigger
+                              id="delivery-vehicle"
+                              aria-invalid={!!errors.vehicle}
+                              aria-describedby={
+                                errors.vehicle ? 'delivery-vehicle-error' : undefined
+                              }
+                              className={deliveryFormStyles.control}
+                            >
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent className={deliveryFormStyles.popover}>
+                              <SelectItem value="none">Assign Later at Dispatch</SelectItem>
+                              {vehicles.map((vehicle) => (
+                                <SelectItem
+                                  key={vehicle.id}
+                                  value={String(vehicle.id)}
+                                  disabled={
+                                    !DeliveryUtils.getVehicleAvailability(vehicle, deliveries)
+                                      .isAvailable
+                                  }
+                                  className={deliveryFormStyles.option}
+                                >
+                                  {vehicle.plateNumber}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          {fieldError('vehicle')}
                         </div>
-                        {!notesOpen && notes && (
-                          <p className="mt-1 truncate text-xs text-muted-foreground" title={notes}>
-                            {notes}
+                        <div className={deliveryFormStyles.field}>
+                          <Label htmlFor="delivery-driver" className={deliveryFormStyles.label}>
+                            Assign Driver (Optional)
+                          </Label>
+                          <Select value={driverId} onValueChange={setDriverId}>
+                            <SelectTrigger
+                              id="delivery-driver"
+                              aria-invalid={!!errors.driver}
+                              aria-describedby={errors.driver ? 'delivery-driver-error' : undefined}
+                              className={deliveryFormStyles.control}
+                            >
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent className={deliveryFormStyles.popover}>
+                              <SelectItem value="none">Assign Later at Dispatch</SelectItem>
+                              {employees.map((employee) => (
+                                <SelectItem
+                                  key={employee.id}
+                                  value={String(employee.id)}
+                                  disabled={
+                                    !DeliveryUtils.getDriverAvailability(employee, deliveries)
+                                      .isAvailable
+                                  }
+                                  className={deliveryFormStyles.option}
+                                >
+                                  {employee.firstName} {employee.lastName}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          {fieldError('driver')}
+                        </div>
+                        {(vehiclesQuery.isError || employeesQuery.isError) && (
+                          <p role="alert" className="text-xs text-destructive sm:col-span-2">
+                            Vehicle or driver choices could not be loaded. Assign later, or{' '}
+                            <Button
+                              type="button"
+                              variant="link"
+                              size="sm"
+                              className={deliveryFormStyles.retry}
+                              onClick={() => {
+                                void vehiclesQuery.refetch()
+                                void employeesQuery.refetch()
+                              }}
+                            >
+                              Retry choices
+                            </Button>
                           </p>
                         )}
-                      </details>
-                    </div>
-                  </>
-                )}
-              </fieldset>
-            </div>
-            <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t pt-4">
+                      </div>
+                    </details>
+                    <details
+                      open={notesOpen}
+                      onToggle={(event) => setNotesOpen(event.currentTarget.open)}
+                    >
+                      <summary className={deliveryFormStyles.summary}>
+                        Delivery instructions (Optional)
+                      </summary>
+                      <div hidden={!notesOpen} className="mt-3 flex flex-col gap-1.5">
+                        <Label htmlFor="delivery-notes" className={deliveryFormStyles.label}>
+                          Delivery Notes / Instructions
+                        </Label>
+                        <Input
+                          id="delivery-notes"
+                          value={notes}
+                          onChange={(event) => setNotes(event.target.value)}
+                          placeholder="Loading instructions or gate code..."
+                          className={deliveryFormStyles.control}
+                        />
+                      </div>
+                      {!notesOpen && notes && (
+                        <p className="mt-1 truncate text-xs text-muted-foreground" title={notes}>
+                          {notes}
+                        </p>
+                      )}
+                    </details>
+                  </div>
+                </>
+              )}
+            </fieldset>
+          </div>
+          <DeliveryFormFooter>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={busy}
+              onClick={dismiss}
+              className={deliveryFormStyles.button}
+            >
+              {savedDraft ? 'Close' : 'Cancel'}
+            </Button>
+            {!savedDraft && (
               <Button
                 type="button"
-                variant="outline"
-                disabled={busy}
-                onClick={dismiss}
-                className="pointer-coarse:min-h-11"
+                variant="secondary"
+                disabled={busy || unavailable || !selectedEligible || !warehouseId}
+                onClick={() => void submit('draft')}
+                className={deliveryFormStyles.button}
               >
-                {savedDraft ? 'Close' : 'Cancel'}
+                Save Draft
               </Button>
-              {!savedDraft && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={busy || unavailable || !selectedEligible || !warehouseId}
-                  onClick={() => void submit('draft')}
-                  className="pointer-coarse:min-h-11"
-                >
-                  Save Draft
-                </Button>
-              )}
-              <Button
-                type="submit"
-                className="pointer-coarse:min-h-11"
-                disabled={
-                  busy || (!savedDraft && (unavailable || !selectedEligible || !warehouseId))
-                }
-              >
-                {phase === 'checking'
-                  ? 'Checking quantities...'
-                  : phase === 'creating'
-                    ? 'Saving...'
-                    : phase === 'scheduling'
-                      ? 'Scheduling...'
-                      : savedDraft
-                        ? 'Retry Schedule'
-                        : 'Schedule Delivery'}
-              </Button>
-            </div>
-          </form>
-        )}
-      </DialogContent>
-    </Dialog>
+            )}
+            <Button
+              type="submit"
+              variant="primary-contrast"
+              className={deliveryFormStyles.button}
+              disabled={busy || (!savedDraft && (unavailable || !selectedEligible || !warehouseId))}
+            >
+              {phase === 'checking'
+                ? 'Checking quantities...'
+                : phase === 'creating'
+                  ? 'Saving...'
+                  : phase === 'scheduling'
+                    ? 'Scheduling...'
+                    : savedDraft
+                      ? 'Retry Schedule'
+                      : 'Schedule Delivery'}
+            </Button>
+          </DeliveryFormFooter>
+        </form>
+      )}
+    </DeliveryFormDialog>
   )
 }

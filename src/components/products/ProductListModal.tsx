@@ -1,3 +1,4 @@
+import { formatProductUnit } from '@/lib/product-unit'
 import { useState } from 'react'
 import { Package, Plus, Search, Tag } from 'lucide-react'
 import {
@@ -77,7 +78,7 @@ export function ProductListModal({ open, onClose }: ProductListModalProps) {
             ₱{Number(row.unitPrice).toLocaleString('en-US', { minimumFractionDigits: 2 })}
           </span>
           <span className="block text-[10px] font-semibold text-muted-foreground">
-            / {row.unit || 'unit'}
+            / {formatProductUnit(row.unit, 'unit')}
           </span>
         </div>
       ),

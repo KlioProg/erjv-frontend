@@ -19,10 +19,10 @@ test('distinguishes an unconfirmed order from one ready for delivery', () => {
   )
 })
 
-test('shows the recorded schedule and omits absent or invalid dates', () => {
+test('shows the recorded schedule with the year and without time', () => {
   const display = getSalesOrderDeliveryDisplay(order, delivery, [delivery])
   assert.equal(display.label, 'Scheduled')
-  assert.match(display.supportingText, /Oct 5.*9:00 AM/)
+  assert.equal(display.supportingText, 'Oct 5, 2026')
   for (const scheduledAt of [null, 'invalid']) {
     assert.equal(
       getSalesOrderDeliveryDisplay(order, { ...delivery, scheduledAt }, []).supportingText,
@@ -67,7 +67,7 @@ test('uses order completion or the latest recorded delivery, without inventing d
   const later = { ...completed, id: 2, deliveredAt: '2026-10-03T12:00:00' }
   assert.equal(
     getSalesOrderDeliveryDisplay(completedOrder, completed, [completed, later]).supportingText,
-    'Completed Oct 3',
+    'Completed Oct 3, 2026',
   )
   assert.equal(
     getSalesOrderDeliveryDisplay(
@@ -75,7 +75,7 @@ test('uses order completion or the latest recorded delivery, without inventing d
       completed,
       [completed, later],
     ).supportingText,
-    'Completed Oct 4',
+    'Completed Oct 4, 2026',
   )
   assert.equal(
     getSalesOrderDeliveryDisplay(completedOrder, undefined, []).supportingText,
@@ -92,6 +92,6 @@ test('completed and cancelled orders take precedence over active delivery record
   assert.equal(getSalesOrderDeliveryDisplay(cancelled, delivery, []).label, 'Cancelled')
   assert.equal(
     getSalesOrderDeliveryDisplay(cancelled, delivery, []).supportingText,
-    'Cancelled Oct 2',
+    'Cancelled Oct 2, 2026',
   )
 })

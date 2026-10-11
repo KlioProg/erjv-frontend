@@ -1,3 +1,4 @@
+import { PageHeader, PageToolbar } from '@/components/ui/ManagementPage'
 import { useMemo, useRef, useState } from 'react'
 import {
   AlertTriangle,
@@ -11,7 +12,6 @@ import {
 import { ArchiveTabNav } from '@/components/ui/ArchiveTabNav'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Badge } from '@/components/ui/badge'
 import { DataTable, type ColumnDef } from '@/components/ui/data-table'
 import { OverflowValue } from '@/components/ui/OverflowValue'
 import { DataTableActions } from '@/components/ui/DataTableActions'
@@ -70,7 +70,9 @@ export function WarehouseList({ initialWarehouseId }: { initialWarehouseId?: num
   const { isAdmin, isManager } = useAuth()
   const canManage = isAdmin || isManager
   const [searchTerm, setSearchTerm] = useState('')
-  const [selectedWarehouseId, setSelectedWarehouseId] = useState<number | null>(initialWarehouseId ?? null)
+  const [selectedWarehouseId, setSelectedWarehouseId] = useState<number | null>(
+    initialWarehouseId ?? null,
+  )
   const [editingWarehouse, setEditingWarehouse] = useState<Warehouse | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [warehouseToArchive, setWarehouseToArchive] = useState<Warehouse | null>(null)
@@ -101,17 +103,22 @@ export function WarehouseList({ initialWarehouseId }: { initialWarehouseId?: num
     }
     return totals
   }, [stockItems])
-  const getWarehouseUnits = (id: number): bigint | null => warehouseTotals.get(id)?.units === undefined
-    ? 0n
-    : warehouseTotals.get(id)!.units
+  const getWarehouseUnits = (id: number): bigint | null =>
+    warehouseTotals.get(id)?.units === undefined ? 0n : warehouseTotals.get(id)!.units
   const filteredWarehouses = useMemo(() => {
     const term = searchTerm.trim().toLowerCase()
     return (activeTab === 'ACTIVE' ? activeWarehouses : archivedWarehouses).filter(
       (warehouse) =>
         !term ||
-        String(warehouse.name ?? '').toLowerCase().includes(term) ||
-        String(warehouse.address ?? '').toLowerCase().includes(term) ||
-        String(warehouse.contactNumber ?? '').toLowerCase().includes(term),
+        String(warehouse.name ?? '')
+          .toLowerCase()
+          .includes(term) ||
+        String(warehouse.address ?? '')
+          .toLowerCase()
+          .includes(term) ||
+        String(warehouse.contactNumber ?? '')
+          .toLowerCase()
+          .includes(term),
     )
   }, [activeTab, activeWarehouses, archivedWarehouses, searchTerm])
 
@@ -165,7 +172,7 @@ export function WarehouseList({ initialWarehouseId }: { initialWarehouseId?: num
     {
       id: 'name',
       header: 'Warehouse',
-      width: '32%',
+      width: '36%',
       sortable: true,
       sortKey: 'name',
       cell: ({ row }) => (
@@ -184,9 +191,6 @@ export function WarehouseList({ initialWarehouseId }: { initialWarehouseId?: num
               tooltipSuffix="units"
               className="max-w-[55%] font-semibold tabular-nums"
             />
-            <Badge variant="outline" className="shrink-0 px-1.5 py-0 text-[10px]">
-              {row.isActive === false ? 'Archived' : 'Active'}
-            </Badge>
           </div>
         </div>
       ),
@@ -194,7 +198,7 @@ export function WarehouseList({ initialWarehouseId }: { initialWarehouseId?: num
     {
       id: 'location',
       header: 'Location',
-      width: '28%',
+      width: '32%',
       className: 'hidden lg:table-cell',
       headerClassName: 'hidden lg:table-cell',
       sortable: true,
@@ -217,7 +221,10 @@ export function WarehouseList({ initialWarehouseId }: { initialWarehouseId?: num
       sortKey: (row) => warehouseTotals.get(row.id)?.products || 0,
       cell: ({ row }) => (
         <div className="flex min-w-0 items-center justify-end gap-1 text-xs font-semibold">
-          <OverflowValue value={(warehouseTotals.get(row.id)?.products ?? 0).toLocaleString()} className="text-right tabular-nums" />
+          <OverflowValue
+            value={(warehouseTotals.get(row.id)?.products ?? 0).toLocaleString()}
+            className="text-right tabular-nums"
+          />
           <span className="shrink-0">products</span>
         </div>
       ),
@@ -233,31 +240,13 @@ export function WarehouseList({ initialWarehouseId }: { initialWarehouseId?: num
       sortKey: (row) => stockSortKey(getWarehouseUnits(row.id)),
       cell: ({ row }) => (
         <div className="flex min-w-0 items-center justify-end gap-1 text-xs font-semibold">
-          <OverflowValue value={formatStockCents(getWarehouseUnits(row.id))} tooltipSuffix="units" className="text-right tabular-nums" />
+          <OverflowValue
+            value={formatStockCents(getWarehouseUnits(row.id))}
+            tooltipSuffix="units"
+            className="text-right tabular-nums"
+          />
           <span className="hidden shrink-0 xl:inline">units</span>
         </div>
-      ),
-    },
-    {
-      id: 'status',
-      header: 'Status',
-      width: '8%',
-      className: 'hidden sm:table-cell',
-      headerClassName: 'hidden sm:table-cell',
-      align: 'center',
-      sortable: true,
-      sortKey: 'isActive',
-      cell: ({ row }) => (
-        <Badge
-          variant="outline"
-          className={
-            row.isActive === false
-              ? 'text-amber-600 border-amber-500/30'
-              : 'text-emerald-600 border-emerald-500/30'
-          }
-        >
-          {row.isActive === false ? 'Archived' : 'Active'}
-        </Badge>
       ),
     },
   ]
@@ -305,17 +294,28 @@ export function WarehouseList({ initialWarehouseId }: { initialWarehouseId?: num
 
   if (warehousesQuery.isError || stockQuery.isError)
     return (
-      <div role="alert" className="rounded-lg border border-destructive/30 p-3 text-xs text-destructive">
-        Warehouses and stock could not be loaded: {getErrorMessage(warehousesQuery.error ?? stockQuery.error)}
-        <Button variant="link" size="sm" onClick={() => {
-          if (warehousesQuery.isError) void warehousesQuery.refetch()
-          if (stockQuery.isError) void stockQuery.refetch()
-        }}>Retry</Button>
+      <div
+        role="alert"
+        className="rounded-lg border border-destructive/30 p-3 text-xs text-destructive"
+      >
+        Warehouses and stock could not be loaded:{' '}
+        {getErrorMessage(warehousesQuery.error ?? stockQuery.error)}
+        <Button
+          variant="link"
+          size="sm"
+          onClick={() => {
+            if (warehousesQuery.isError) void warehousesQuery.refetch()
+            if (stockQuery.isError) void stockQuery.refetch()
+          }}
+        >
+          Retry
+        </Button>
       </div>
     )
 
   return (
     <div className="flex flex-col gap-4">
+      <PageHeader>Warehouses</PageHeader>
       <div className="min-w-0 overflow-x-auto">
         <ArchiveTabNav
           activeTab={activeTab}
@@ -328,7 +328,7 @@ export function WarehouseList({ initialWarehouseId }: { initialWarehouseId?: num
           bannerDescription="Archived warehouses retain their inventory records and can be restored."
         />
       </div>
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <PageToolbar>
         <div className="relative w-full sm:max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
           <Input
@@ -352,8 +352,9 @@ export function WarehouseList({ initialWarehouseId }: { initialWarehouseId?: num
             Register Warehouse
           </Button>
         )}
-      </div>
+      </PageToolbar>
       <DataTable
+        appearance="management"
         data={filteredWarehouses}
         columns={columns}
         onRowClick={(warehouse) => setSelectedWarehouseId(warehouse.id)}

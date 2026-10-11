@@ -1,23 +1,11 @@
 import { useState, useMemo, type FormEvent } from 'react'
-import {
-  ArrowDownToLine,
-  Calendar,
-  Info,
-  RotateCcw,
-  Warehouse as WarehouseIcon,
-} from 'lucide-react'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+import { Calendar, RotateCcw, Warehouse as WarehouseIcon } from 'lucide-react'
+import { DeliveryFormDialog, DeliveryFormFooter } from './shared/DeliveryFormDialog'
+import { deliveryFormStyles } from './shared/delivery-form.styles'
+import { Spinner } from '@/components/ui/spinner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   Select,
   SelectContent,
@@ -260,27 +248,24 @@ export function ScheduleIncomingDeliveryModal({
     : 'No supplier'
 
   return (
-    <Dialog open={open} onOpenChange={(isOpen) => !isOpen && !isSubmitting && onClose()}>
-      <DialogContent
-        closeDisabled={isSubmitting}
-        className="max-h-[min(880px,calc(100vh-2rem))] overflow-y-auto sm:max-w-2xl gap-5 p-6"
-      >
-        <DialogHeader className="pb-1">
-          <div className="mb-2 flex size-11 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-600 shadow-2xs">
-            <ArrowDownToLine className="size-5" />
-          </div>
-          <DialogTitle className="text-xl font-bold tracking-tight">
-            Schedule Incoming Delivery
-          </DialogTitle>
-          <DialogDescription className="text-xs leading-relaxed">
-            Choose a purchase order, confirm the remaining quantities, and select the destination
-            warehouse.
-          </DialogDescription>
-        </DialogHeader>
+    <DeliveryFormDialog
+      open={open}
+      onClose={onClose}
+      busy={isSubmitting}
+      title="Schedule Incoming Delivery"
+      description="Choose a purchase order, review quantities, and select the receiving location."
+    >
+      <form onSubmit={handleSubmit} className={deliveryFormStyles.form}>
+        <div className={deliveryFormStyles.body}>
+          {unavailable && (
+            <div
+              role={incomingQuery.isError ? 'alert' : 'status'}
+              className={`${deliveryFormStyles.message} ${incomingQuery.isError ? 'text-destructive' : 'text-muted-foreground'}`}
+            >
+              {!incomingQuery.isError && (
+                <Spinner aria-hidden="true" className="mr-2 inline-block size-4" />
+              )}
 
-        {unavailable && (
-          <Alert variant={incomingQuery.isError ? 'destructive' : 'default'}>
-            <AlertDescription>
               {incomingQuery.isError
                 ? 'Incoming delivery balances could not be loaded.'
                 : 'Loading incoming delivery balances...'}
@@ -289,25 +274,24 @@ export function ScheduleIncomingDeliveryModal({
                   type="button"
                   variant="link"
                   size="sm"
+                  className={deliveryFormStyles.retry}
                   onClick={() => void incomingQuery.refetch()}
                 >
                   Retry
                 </Button>
               )}
-            </AlertDescription>
-          </Alert>
-        )}
-        {errorMessage && (
-          <Alert variant="destructive">
-            <AlertDescription>{errorMessage}</AlertDescription>
-          </Alert>
-        )}
+            </div>
+          )}
+          {errorMessage && (
+            <p role="alert" className={`${deliveryFormStyles.message} text-destructive`}>
+              {errorMessage}
+            </p>
+          )}
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <fieldset disabled={isSubmitting || unavailable} className="flex min-w-0 flex-col gap-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="incoming-purchase-order" className="text-xs font-semibold">
+          <fieldset disabled={isSubmitting || unavailable} className={deliveryFormStyles.fields}>
+            <div className={deliveryFormStyles.grid}>
+              <div className={deliveryFormStyles.field}>
+                <Label htmlFor="incoming-purchase-order" className={deliveryFormStyles.label}>
                   Purchase Order <span className="text-primary">*</span>
                 </Label>
                 <Select
@@ -315,21 +299,28 @@ export function ScheduleIncomingDeliveryModal({
                   onValueChange={handlePOChange}
                   disabled={isSubmitting || unavailable || eligiblePOs.length === 0}
                 >
-                  <SelectTrigger id="incoming-purchase-order" className="h-9 text-xs">
+                  <SelectTrigger
+                    id="incoming-purchase-order"
+                    className={deliveryFormStyles.control}
+                  >
                     <SelectValue placeholder="Select purchase order..." />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className={deliveryFormStyles.popover}>
                     <SelectGroup>
                       {eligiblePOs.map(({ po, remaining }) => {
                         const sup = supplierMap.get(po.supplierId)
 
                         return (
-                          <SelectItem key={po.id} value={String(po.id)}>
-                            <span className="flex items-center justify-between gap-3 w-full">
-                              <span>
+                          <SelectItem
+                            key={po.id}
+                            value={String(po.id)}
+                            className={deliveryFormStyles.option}
+                          >
+                            <span className="flex min-w-0 items-center justify-between gap-3">
+                              <span className="min-w-0 whitespace-normal [overflow-wrap:anywhere]">
                                 {po.orderNumber} — {sup ? sup.name : `Supplier #${po.supplierId}`}
                               </span>
-                              <span className="text-[10px] font-mono text-muted-foreground">
+                              <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
                                 {remaining === null
                                   ? 'Balance unavailable'
                                   : `${remaining} remaining`}
@@ -343,19 +334,23 @@ export function ScheduleIncomingDeliveryModal({
                 </Select>
               </div>
 
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="incoming-warehouse" className="text-xs font-semibold">
+              <div className={deliveryFormStyles.field}>
+                <Label htmlFor="incoming-warehouse" className={deliveryFormStyles.label}>
                   Target Warehouse <span className="text-primary">*</span>
                 </Label>
                 <Select value={selectedWarehouseId} onValueChange={setSelectedWarehouseId}>
-                  <SelectTrigger id="incoming-warehouse" className="h-9 text-xs">
+                  <SelectTrigger id="incoming-warehouse" className={deliveryFormStyles.control}>
                     <SelectValue placeholder="Select intake warehouse..." />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className={deliveryFormStyles.popover}>
                     {warehouses
                       .filter((w) => w.isActive)
                       .map((w) => (
-                        <SelectItem key={w.id} value={String(w.id)}>
+                        <SelectItem
+                          key={w.id}
+                          value={String(w.id)}
+                          className={deliveryFormStyles.option}
+                        >
                           <span className="flex items-center gap-1.5">
                             <WarehouseIcon className="size-3.5 text-muted-foreground" />
                             {w.name}
@@ -367,9 +362,9 @@ export function ScheduleIncomingDeliveryModal({
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="sched-date" className="text-xs font-semibold">
+            <div className={deliveryFormStyles.grid}>
+              <div className={deliveryFormStyles.field}>
+                <Label htmlFor="sched-date" className={deliveryFormStyles.label}>
                   Expected Arrival Date & Time
                 </Label>
                 <div className="relative">
@@ -379,13 +374,13 @@ export function ScheduleIncomingDeliveryModal({
                     type="datetime-local"
                     value={scheduledAt}
                     onChange={(e) => setScheduledAt(e.target.value)}
-                    className="h-9 pl-9 text-xs"
+                    className={`${deliveryFormStyles.control} pl-9`}
                   />
                 </div>
               </div>
 
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="supplier-ref" className="text-xs font-semibold">
+              <div className={deliveryFormStyles.field}>
+                <Label htmlFor="supplier-ref" className={deliveryFormStyles.label}>
                   Supplier Delivery Receipt / Waybill #
                 </Label>
                 <Input
@@ -393,19 +388,17 @@ export function ScheduleIncomingDeliveryModal({
                   value={supplierRef}
                   onChange={(e) => setSupplierRef(e.target.value)}
                   placeholder="e.g. DR-2026-9810"
-                  className="h-9 text-xs"
+                  className={deliveryFormStyles.control}
                 />
               </div>
             </div>
 
             {/* PO Materials Intake Breakdown */}
-            <section className="overflow-hidden rounded-xl border border-border/80 bg-muted/10">
-              <div className="border-b border-border/70 p-3 bg-muted/20 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <section aria-label="Shipment quantities" className="flex min-w-0 flex-col gap-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
-                  <p className="text-xs font-bold uppercase tracking-[0.08em] text-muted-foreground">
-                    Expected Cargo & Balances
-                  </p>
-                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                  <p className={deliveryFormStyles.sectionTitle}>Shipment quantities</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
                     Supplier:{' '}
                     <span className="font-semibold text-foreground">{selectedSupplierName}</span>
                   </p>
@@ -417,26 +410,23 @@ export function ScheduleIncomingDeliveryModal({
                     variant="outline"
                     size="sm"
                     onClick={handleResetToRemaining}
-                    className="h-7 text-[11px] gap-1 shrink-0"
+                    className="h-8 shrink-0 text-xs pointer-coarse:min-h-11"
                   >
-                    <RotateCcw className="size-3" />
+                    <RotateCcw className="size-4" />
                     Auto-fill Remaining
                   </Button>
                 )}
               </div>
 
               {lines.length === 0 ? (
-                <div
-                  role="status"
-                  className="flex min-h-20 items-center justify-center p-4 text-center text-xs text-muted-foreground"
-                >
+                <div role="status" className={deliveryFormStyles.empty}>
                   {unavailable
                     ? 'Incoming delivery balances are unavailable.'
                     : eligiblePOs.length === 0
                       ? 'No purchase orders have remaining quantities to arrange. Review existing Incoming Deliveries.'
                       : selectedPOId
                         ? 'This purchase order is no longer available to arrange. Choose another purchase order.'
-                        : 'Select a purchase order above to inspect cargo line items.'}
+                        : 'Select an order to view its remaining quantities.'}
                 </div>
               ) : (
                 <DeliveryQuantityTable
@@ -457,23 +447,23 @@ export function ScheduleIncomingDeliveryModal({
               )}
 
               {(parseOrderDecimal(totalRemainingAcrossPO ?? '') ?? 0n) > 0n && (
-                <div className="border-t border-border/70 bg-background/60 px-4 py-2.5 flex items-center justify-between text-xs">
+                <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
                   <div className="flex items-center gap-1.5 text-muted-foreground">
-                    <Info className="size-3.5 text-primary" />
                     <span>
                       Choose quantities within the remaining order balance. Use 0 to skip an item.
                     </span>
                   </div>
                   <div className="font-semibold text-foreground">
                     Receiving Now:{' '}
-                    <span className="font-mono text-primary">{totalReceivingNow}</span> units
+                    <span className="tabular-nums text-primary-text">{totalReceivingNow}</span>{' '}
+                    units
                   </div>
                 </div>
               )}
             </section>
 
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="intake-notes" className="text-xs font-semibold">
+            <div className={deliveryFormStyles.field}>
+              <Label htmlFor="intake-notes" className={deliveryFormStyles.label}>
                 Dock Notes / Inspection Remarks
               </Label>
               <Input
@@ -481,39 +471,40 @@ export function ScheduleIncomingDeliveryModal({
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 placeholder="e.g. Inspect bags for tearing, check expiration codes, etc."
-                className="h-9 text-xs"
+                className={deliveryFormStyles.control}
               />
             </div>
           </fieldset>
-          <DialogFooter className="mt-2 gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={onClose}
-              disabled={isSubmitting}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              size="sm"
-              disabled={
-                isSubmitting ||
-                unavailable ||
-                !selectedPO ||
-                totalRemainingAcrossPO === null ||
-                totalRemainingAcrossPO === '0.00' ||
-                totalReceivingNow === '0.00'
-              }
-              className="font-semibold"
-            >
-              <ArrowDownToLine className="size-4 mr-1" />
-              {isSubmitting ? 'Scheduling...' : 'Schedule Incoming Delivery'}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+        </div>
+        <DeliveryFormFooter>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={onClose}
+            disabled={isSubmitting}
+            className={deliveryFormStyles.button}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            variant="primary-contrast"
+            size="sm"
+            disabled={
+              isSubmitting ||
+              unavailable ||
+              !selectedPO ||
+              totalRemainingAcrossPO === null ||
+              totalRemainingAcrossPO === '0.00' ||
+              totalReceivingNow === '0.00'
+            }
+            className={deliveryFormStyles.button}
+          >
+            {isSubmitting ? 'Scheduling...' : 'Schedule Incoming Delivery'}
+          </Button>
+        </DeliveryFormFooter>
+      </form>
+    </DeliveryFormDialog>
   )
 }

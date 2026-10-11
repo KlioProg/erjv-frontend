@@ -1,3 +1,4 @@
+import { formatProductUnit } from '@/lib/product-unit'
 import type { ReactNode } from 'react'
 import {
   Dialog,
@@ -68,7 +69,17 @@ export function PurchaseOrderDetailModal({
         </span>
       ),
     },
-    { accessorKey: 'quantity', header: 'Quantity', align: 'right' },
+    {
+      accessorKey: 'quantity',
+      header: 'Quantity',
+      align: 'right',
+      cell: ({ row }) => (
+        <span>
+          {row.quantity}{' '}
+          {formatProductUnit(products.find((product) => product.id === row.inventoryItemId)?.unit)}
+        </span>
+      ),
+    },
     {
       accessorKey: 'unitPrice',
       header: 'Unit Price',
