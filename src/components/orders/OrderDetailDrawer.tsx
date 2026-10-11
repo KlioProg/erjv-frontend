@@ -1,3 +1,4 @@
+import { SalesOrderCancelModal } from './SalesOrderCancelModal'
 import { useState, useMemo } from 'react'
 import {
   CheckCircle2,
@@ -38,8 +39,10 @@ import {
 } from '@/features/crm/sales-orders.hooks'
 import { completeOutgoingDeliveryApi } from '@/features/logistics/outgoing-deliveries.api'
 import { DELIVERIES_QUERY_KEY } from '@/features/logistics/outgoing-deliveries.hooks'
+import { STOCK_ITEMS_QUERY_KEY } from '@/features/logistics/stock-items.hooks'
 import { VEHICLES_QUERY_KEY } from '@/features/logistics/delivery-vehicles.hooks'
 import { QuickDispatchModal } from './QuickDispatchModal'
+import { useAuth } from '@/features/auth/AuthContext'
 import { getErrorMessage } from '@/lib/api-client'
 
 interface OrderDetailDrawerProps {
@@ -54,6 +57,8 @@ interface OrderDetailDrawerProps {
   stockItems: StockItem[]
   outgoingDeliveries: OutgoingDeliveryRecord[]
   onViewDelivery?: (id: number) => void
+  onConfirmed?: (order: SalesOrderRecord) => void
+  onArrangeDelivery?: (orderId: number) => void
 }
 
 export function OrderDetailDrawer({
@@ -68,11 +73,16 @@ export function OrderDetailDrawer({
   stockItems,
   outgoingDeliveries,
   onViewDelivery,
+  onConfirmed,
+  onArrangeDelivery,
 }: OrderDetailDrawerProps) {
   const queryClient = useQueryClient()
+  const { isAdmin, isManager } = useAuth()
+  const canManage = isAdmin || isManager
   const [isDispatchModalOpen, setIsDispatchModalOpen] = useState(false)
   const [isCompletingDelivery, setIsCompletingDelivery] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
+  const [orderToCancel, setOrderToCancel] = useState<SalesOrderRecord | null>(null)
 
   const confirmMutation = useConfirmSalesOrder()
   const cancelMutation = useCancelSalesOrder()
@@ -99,7 +109,11 @@ export function OrderDetailDrawer({
     )
   }, [order, outgoingDeliveries])
 
-  const activeDelivery = tiedDeliveries[0] || null
+  const activeDelivery =
+    tiedDeliveries.find((delivery) => delivery.status === 'DISPATCHED') ||
+    tiedDeliveries.find((delivery) => ['DRAFT', 'SCHEDULED'].includes(delivery.status)) ||
+    tiedDeliveries[0] ||
+    null
 
   // Step calculations for lifecycle stepper (1: Draft, 2: Confirmed, 3: In Transit, 4: Delivered, -1: Cancelled)
   const currentStep = useMemo(() => {
@@ -125,7 +139,19 @@ export function OrderDetailDrawer({
 
   // Handle direct customer delivery completion
   const handleConfirmCustomerDelivery = async () => {
-    if (!activeDelivery) return
+    if (
+      !canManage ||
+      !activeDelivery ||
+      activeDelivery.status !== 'DISPATCHED' ||
+      isCompletingDelivery
+    )
+      return
+    if (
+      !window.confirm(
+        'Complete this delivery? This deducts the shipment quantities from stock, updates order progress, and releases its vehicle.',
+      )
+    )
+      return
     try {
       setIsCompletingDelivery(true)
       setErrorMessage('')
@@ -135,10 +161,11 @@ export function OrderDetailDrawer({
         queryClient.invalidateQueries({ queryKey: SALES_ORDERS_QUERY_KEY }),
         queryClient.invalidateQueries({ queryKey: DELIVERIES_QUERY_KEY }),
         queryClient.invalidateQueries({ queryKey: VEHICLES_QUERY_KEY }),
+        queryClient.invalidateQueries({ queryKey: STOCK_ITEMS_QUERY_KEY }),
       ])
 
       toast.success(
-        `Delivery ${activeDelivery.deliveryNumber} confirmed! Order ${order.orderNumber} is now marked as Completed.`,
+        `Delivery ${activeDelivery.deliveryNumber} confirmed! Stock and order progress have been updated.`,
       )
     } catch (err) {
       setErrorMessage(getErrorMessage(err))
@@ -150,29 +177,18 @@ export function OrderDetailDrawer({
   // Handle confirmation
   const handleConfirmOrder = async () => {
     try {
+      if (!canManage || confirmMutation.isPending) return
       setErrorMessage('')
-      await confirmMutation.mutateAsync(order.id)
-      toast.success(`Order ${order.orderNumber} confirmed! Stock reserved in warehouse.`)
+      const confirmed = await confirmMutation.mutateAsync(order.id)
+      onConfirmed?.(confirmed)
     } catch (err) {
       setErrorMessage(getErrorMessage(err))
     }
   }
 
-  // Handle cancellation
-  const handleCancelOrder = async () => {
-    if (
-      !window.confirm(
-        `Are you sure you want to cancel ${order.orderNumber}? This will release any reserved stock.`,
-      )
-    )
-      return
-    try {
-      setErrorMessage('')
-      await cancelMutation.mutateAsync(order.id)
-      toast.info(`Order ${order.orderNumber} has been cancelled.`)
-    } catch (err) {
-      setErrorMessage(getErrorMessage(err))
-    }
+  // Keep the selected identity stable while cancellation is reviewed.
+  const handleCancelOrder = () => {
+    if (canManage && !cancelMutation.isPending) setOrderToCancel(order)
   }
 
   return (
@@ -368,7 +384,7 @@ export function OrderDetailDrawer({
                     variant="outline"
                     size="sm"
                     onClick={handleCancelOrder}
-                    disabled={cancelMutation.isPending}
+                    disabled={!canManage || cancelMutation.isPending}
                     className="text-xs text-rose-600 hover:bg-rose-500/10 border-rose-500/30"
                   >
                     <X className="size-3 mr-1" />
@@ -377,7 +393,7 @@ export function OrderDetailDrawer({
                   <Button
                     size="sm"
                     onClick={handleConfirmOrder}
-                    disabled={confirmMutation.isPending}
+                    disabled={!canManage || confirmMutation.isPending}
                     className="font-semibold text-xs shadow-xs"
                   >
                     {confirmMutation.isPending ? (
@@ -393,6 +409,11 @@ export function OrderDetailDrawer({
               </div>
             )}
 
+            {order.status === 'PARTIALLY_DELIVERED' && canManage && onArrangeDelivery && (
+              <Button variant="outline" size="sm" onClick={() => onArrangeDelivery(order.id)}>
+                Arrange Remaining Delivery
+              </Button>
+            )}
             {order.status === 'CONFIRMED' && (
               <div className="rounded-2xl border border-blue-500/30 bg-blue-500/10 p-4 flex flex-col gap-3">
                 <div className="flex items-start gap-3">
@@ -433,7 +454,7 @@ export function OrderDetailDrawer({
                     variant="outline"
                     size="sm"
                     onClick={handleCancelOrder}
-                    disabled={cancelMutation.isPending}
+                    disabled={!canManage || cancelMutation.isPending}
                     className="text-xs text-rose-600 hover:bg-rose-500/10 border-rose-500/30"
                   >
                     <X className="size-3 mr-1" />
@@ -442,12 +463,17 @@ export function OrderDetailDrawer({
                   {(!activeDelivery || activeDelivery.status === 'DELIVERED') && (
                     <Button
                       size="sm"
-                      onClick={() => setIsDispatchModalOpen(true)}
+                      disabled={!canManage}
+                      onClick={() =>
+                        onArrangeDelivery
+                          ? onArrangeDelivery(order.id)
+                          : setIsDispatchModalOpen(true)
+                      }
                       className="font-semibold text-xs shadow-xs"
                     >
                       <span className="flex items-center gap-1.5">
                         <Truck className="size-3.5" />
-                        Prepare Delivery
+                        Arrange Delivery
                       </span>
                     </Button>
                   )}
@@ -455,8 +481,7 @@ export function OrderDetailDrawer({
               </div>
             )}
 
-            {(order.status === 'PARTIALLY_DELIVERED' ||
-              activeDelivery?.status === 'DISPATCHED') && (
+            {activeDelivery?.status === 'DISPATCHED' && (
               <div className="rounded-2xl border border-indigo-500/30 bg-indigo-500/10 p-4 flex flex-col gap-3">
                 <div className="flex items-start gap-3">
                   <div className="size-9 rounded-xl bg-indigo-500/20 text-indigo-600 flex items-center justify-center shrink-0 mt-0.5">
@@ -494,7 +519,7 @@ export function OrderDetailDrawer({
                   <Button
                     size="sm"
                     onClick={handleConfirmCustomerDelivery}
-                    disabled={isCompletingDelivery}
+                    disabled={!canManage || isCompletingDelivery}
                     className="font-semibold text-xs shadow-xs"
                   >
                     {isCompletingDelivery ? (
@@ -686,6 +711,17 @@ export function OrderDetailDrawer({
           </div>
         </DialogContent>
       </Dialog>
+
+      {orderToCancel && (
+        <SalesOrderCancelModal
+          order={orderToCancel}
+          onClose={() => setOrderToCancel(null)}
+          onConfirm={(id) => {
+            if (!canManage) throw new Error('You do not have permission to cancel orders.')
+            return cancelMutation.mutateAsync(id)
+          }}
+        />
+      )}
 
       {/* Quick Dispatch Modal */}
       {isDispatchModalOpen && order && (

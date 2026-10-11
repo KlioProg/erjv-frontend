@@ -25,6 +25,8 @@ type Props = {
   incomingDeliveries: IncomingDeliveryRecord[]
   statusBadge: ReactNode
   onClose: () => void
+  onConfirm?: () => void
+  confirming?: boolean
   onNavigateToDeliveries?: (purchaseOrderId?: number) => void
 }
 
@@ -39,6 +41,8 @@ export function PurchaseOrderDetailModal({
   incomingDeliveries,
   statusBadge,
   onClose,
+  onConfirm,
+  confirming,
   onNavigateToDeliveries,
 }: Props) {
   const linkedDeliveries = incomingDeliveries.filter(
@@ -137,8 +141,8 @@ export function PurchaseOrderDetailModal({
           {currency((order.items || []).reduce((sum, item) => sum + Number(item.totalAmount), 0))}
         </p>
         <p className="text-xs text-muted-foreground">
-          Choose the destination warehouse when scheduling an incoming delivery. Incoming deliveries use the items
-          from this purchase order.
+          Choose the destination warehouse when scheduling an incoming delivery. Incoming deliveries
+          use the items from this purchase order.
         </p>
         {linkedDeliveries.length > 0 && (
           <p className="text-xs text-muted-foreground">
@@ -146,9 +150,14 @@ export function PurchaseOrderDetailModal({
             {linkedDeliveries.map((delivery) => delivery.deliveryNumber).join(', ')}
           </p>
         )}
+        {onConfirm && order.status === 'DRAFT' && (
+          <Button size="sm" disabled={confirming} onClick={onConfirm}>
+            {confirming ? 'Confirming...' : 'Confirm Purchase Order'}
+          </Button>
+        )}
         {onNavigateToDeliveries && ['CONFIRMED', 'PARTIALLY_RECEIVED'].includes(order.status) && (
-          <Button variant="outline" size="sm" onClick={() => onNavigateToDeliveries(order.id)}>
-            View Incoming Deliveries
+          <Button size="sm" onClick={() => onNavigateToDeliveries(order.id)}>
+            Incoming Deliveries
           </Button>
         )}
       </DialogContent>

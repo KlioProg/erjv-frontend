@@ -42,7 +42,7 @@ export function useSalesOrderByNumber(orderNumber?: string) {
   })
 }
 
-export function useCreateSalesOrder() {
+export function useCreateSalesOrder({ notifySuccess = true }: { notifySuccess?: boolean } = {}) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (payload: CreateSalesOrderPayload) => createSalesOrderApi(payload),
@@ -53,7 +53,7 @@ export function useCreateSalesOrder() {
         (orders = []) => [order, ...orders.filter((existing) => existing.id !== order.id)],
       )
       void queryClient.invalidateQueries({ queryKey: SALES_ORDERS_QUERY_KEY })
-      toast.success(`Sales Order "${order.orderNumber}" created successfully`)
+      if (notifySuccess) toast.success(`Sales Order "${order.orderNumber}" created successfully`)
     },
     onError: (err) => {
       toast.error(getErrorMessage(err))
@@ -65,10 +65,13 @@ export function useConfirmSalesOrder() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (id: number) => confirmSalesOrderApi(id),
-    onSuccess: (order) => {
+    onSuccess: (order, id) => {
       void queryClient.invalidateQueries({ queryKey: SALES_ORDERS_QUERY_KEY })
       void queryClient.invalidateQueries({ queryKey: STOCK_ITEMS_QUERY_KEY })
-      toast.success(`Sales Order "${order.orderNumber}" confirmed and reserved`)
+      if (order.id === id && order.status === 'CONFIRMED')
+        toast.success('Order confirmed', {
+          description: `Sales order ${order.orderNumber}. Prepare it in Outgoing Deliveries.`,
+        })
     },
     onError: (err) => {
       toast.error(getErrorMessage(err))
