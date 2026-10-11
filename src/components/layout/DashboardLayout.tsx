@@ -28,17 +28,21 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { DeliveryNavigation } from './DeliveryNavigation'
 import { ErjvPosLogo } from '@/components/ui/ErjvPosLogo'
 import { useAuth } from '@/features/auth/AuthContext'
 import { USER_ROLES, ROLE_DETAILS } from '@/features/auth/roles'
-import { useProducts } from '@/features/products/products.hooks'
-import { ProductListModal } from '../products/ProductListModal'
+import { StockNotifications } from './StockNotifications'
+import type { InventoryFocusTarget } from '@/features/logistics/stock-warnings'
 
 export type NavItemKey =
   | 'inventory'
   | 'warehouses'
   | 'fleet'
   | 'deliveries'
+  | 'incoming-deliveries'
+  | 'outgoing-deliveries'
+  | 'delivery-history'
   | 'purchases'
   | 'suppliers'
   | 'clients'
@@ -51,6 +55,7 @@ type DashboardLayoutProps = {
   currentTab: NavItemKey
   onSelectTab: (tab: NavItemKey) => void
   children: React.ReactNode
+  onOpenInventory: (target: InventoryFocusTarget) => void
 }
 
 type NavGroup = {
@@ -97,14 +102,17 @@ const NAV_GROUPS: NavGroup[] = [
   },
 ]
 
-export function DashboardLayout({ currentTab, onSelectTab, children }: DashboardLayoutProps) {
+export function DashboardLayout({
+  currentTab,
+  onSelectTab,
+  children,
+  onOpenInventory,
+}: DashboardLayoutProps) {
   const queryClient = useQueryClient()
   const { user, logout, isAdmin, isManager } = useAuth()
   const roleConfig =
     ROLE_DETAILS[user?.role || USER_ROLES.UNKNOWN] || ROLE_DETAILS[USER_ROLES.UNKNOWN]
-  const { data: products = [] } = useProducts()
   const [isMobileOpen, setIsMobileOpen] = useState(false)
-  const [isProductsModalOpen, setIsProductsModalOpen] = useState(false)
   const [isSidebarScrolling, setIsSidebarScrolling] = useState(false)
   const sidebarScrollTimeout = useRef<number | null>(null)
 
@@ -141,9 +149,21 @@ export function DashboardLayout({ currentTab, onSelectTab, children }: Dashboard
     items: group.items.filter((item) => !item.requiresAdmin || isAdmin || isManager),
   })).filter((group) => group.items.length > 0)
 
+  const deliveryView =
+    currentTab === 'incoming-deliveries'
+      ? 'incoming'
+      : currentTab === 'delivery-history'
+        ? 'history'
+        : currentTab === 'outgoing-deliveries' || currentTab === 'deliveries'
+          ? 'outgoing'
+          : null
   // Determine current section info
-  const currentGroup = NAV_GROUPS.find((g) => g.items.some((item) => item.key === currentTab))
-  const currentItem = currentGroup?.items.find((item) => item.key === currentTab)
+  const currentGroup = NAV_GROUPS.find((g) =>
+    g.items.some((item) => item.key === (deliveryView ? 'deliveries' : currentTab)),
+  )
+  const currentItem = currentGroup?.items.find(
+    (item) => item.key === (deliveryView ? 'deliveries' : currentTab),
+  )
 
   return (
     <div className="min-h-svh w-full bg-background flex text-foreground antialiased selection:bg-primary/20">
@@ -192,6 +212,23 @@ export function DashboardLayout({ currentTab, onSelectTab, children }: Dashboard
                 </div>
                 <div className="flex flex-col gap-0.5">
                   {group.items.map((item) => {
+                    if (item.key === 'deliveries')
+                      return (
+                        <DeliveryNavigation
+                          key={item.key}
+                          view={deliveryView}
+                          onSelect={(view) => {
+                            handleSelectTab(
+                              view === 'incoming'
+                                ? 'incoming-deliveries'
+                                : view === 'history'
+                                  ? 'delivery-history'
+                                  : 'outgoing-deliveries',
+                            )
+                            setIsMobileOpen(false)
+                          }}
+                        />
+                      )
                     const Icon = item.icon
                     const isActive = currentTab === item.key
 
@@ -203,7 +240,7 @@ export function DashboardLayout({ currentTab, onSelectTab, children }: Dashboard
                           handleSelectTab(item.key)
                           setIsMobileOpen(false)
                         }}
-                        className={`group relative flex w-full items-center justify-between rounded-md px-3 py-2.5 text-xs font-semibold transition-all duration-150 cursor-pointer select-none active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                        className={`group relative flex h-9 w-full items-center justify-between rounded-md px-3 py-2 text-xs font-semibold transition-all duration-150 cursor-pointer select-none active:scale-[0.98] pointer-coarse:min-h-11 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                           isActive
                             ? 'bg-accent text-foreground'
                             : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
@@ -220,7 +257,9 @@ export function DashboardLayout({ currentTab, onSelectTab, children }: Dashboard
                           <span>{item.label}</span>
                         </div>
 
-                        {isActive && <ChevronRight className="size-3.5 text-muted-foreground" />}
+                        {isActive && item.key !== 'inventory' && (
+                          <ChevronRight className="size-3.5 text-muted-foreground" />
+                        )}
                       </button>
                     )
                   })}
@@ -234,7 +273,11 @@ export function DashboardLayout({ currentTab, onSelectTab, children }: Dashboard
         <div className="p-3 bg-card shrink-0">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <div className="flex items-center justify-between gap-2.5 p-2 rounded-xl bg-card border border-border/70 cursor-pointer hover:bg-muted transition-colors">
+              <button
+                type="button"
+                aria-label="Account menu"
+                className="flex w-full items-center justify-between gap-2.5 p-2 rounded-xl bg-card border border-border/70 cursor-pointer hover:bg-muted transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
                 <div className="flex items-center gap-2.5 min-w-0">
                   <Avatar className="size-9 border border-border bg-muted shrink-0">
                     {user?.avatarUrl && (
@@ -274,7 +317,7 @@ export function DashboardLayout({ currentTab, onSelectTab, children }: Dashboard
                   </div>
                 </div>
                 <ChevronDown className="size-3.5 text-muted-foreground shrink-0" />
-              </div>
+              </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" side="top" className="w-64 mb-2">
               <div className="px-2.5 py-2 text-xs text-muted-foreground flex flex-col gap-1 rounded-xl mx-1">
@@ -325,49 +368,21 @@ export function DashboardLayout({ currentTab, onSelectTab, children }: Dashboard
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <span className="font-medium">{currentGroup?.title}</span>
                 <span>/</span>
-                <span className="font-bold text-foreground">{currentItem?.label}</span>
+                <span className="font-bold text-foreground">
+                  {deliveryView
+                    ? `Deliveries / ${deliveryView === 'incoming' ? 'Incoming' : deliveryView === 'outgoing' ? 'Outgoing' : 'History'}`
+                    : currentItem?.label}
+                </span>
               </div>
             </div>
           </div>
 
-          {/* Quick Header Actions */}
-          <div className="flex items-center gap-2.5">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setIsProductsModalOpen(true)}
-              className="text-xs font-semibold h-8.5 gap-1.5 shadow-2xs cursor-pointer"
-            >
-              <Package className="size-3.5 text-primary" />
-              <span className="hidden sm:inline">Product Catalog</span> ({products.length})
-            </Button>
-
-            <Badge
-              variant="outline"
-              className={`hidden sm:flex text-[11px] font-medium gap-1.5 ${
-                roleConfig.role === USER_ROLES.ADMIN
-                  ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20'
-                  : roleConfig.role === USER_ROLES.MANAGER
-                    ? 'bg-blue-500/10 text-blue-600 border-blue-500/20'
-                    : roleConfig.role === USER_ROLES.STAFF
-                      ? 'bg-muted/80 text-muted-foreground border-border'
-                      : 'bg-rose-500/10 text-rose-600 border-rose-500/20'
-              }`}
-            >
-              <span
-                className={`size-1.5 rounded-full ${
-                  roleConfig.role === USER_ROLES.ADMIN
-                    ? 'bg-emerald-500'
-                    : roleConfig.role === USER_ROLES.MANAGER
-                      ? 'bg-blue-500'
-                      : roleConfig.role === USER_ROLES.STAFF
-                        ? 'bg-muted-foreground'
-                        : 'bg-rose-500'
-                } animate-pulse`}
-              />
-              {roleConfig.label} Mode
-            </Badge>
-          </div>
+          <StockNotifications
+            onOpenInventory={(target) => {
+              onOpenInventory(target)
+              setIsMobileOpen(false)
+            }}
+          />
         </header>
 
         {/* Dynamic Main Body Content */}
@@ -387,9 +402,6 @@ export function DashboardLayout({ currentTab, onSelectTab, children }: Dashboard
           </div>
         </footer>
       </div>
-
-      {/* Global Product Catalog Modal */}
-      <ProductListModal open={isProductsModalOpen} onClose={() => setIsProductsModalOpen(false)} />
     </div>
   )
 }

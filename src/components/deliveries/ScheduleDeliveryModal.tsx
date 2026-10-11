@@ -1,4 +1,5 @@
-import { useState, useMemo, type FormEvent } from 'react'
+import { useMemo, useRef, useState, type FormEvent } from 'react'
+import { toast } from 'sonner'
 import {
   Dialog,
   DialogContent,
@@ -9,7 +10,6 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   Select,
   SelectContent,
@@ -17,16 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import {
-  Truck,
-  Warehouse as WarehouseIcon,
-  User,
-  Package,
-  Plus,
-  Minus,
-  MapPin,
-  Info,
-} from 'lucide-react'
+import { SearchableDropdown } from '@/components/ui/SearchableDropdown'
 import {
   useCreateOutgoingDelivery,
   useScheduleOutgoingDelivery,
@@ -40,848 +31,770 @@ import { useClients } from '@/features/crm/clients.hooks'
 import { useStockItems } from '@/features/logistics/stock-items.hooks'
 import { useProducts } from '@/features/products/products.hooks'
 import { DeliveryUtils } from '@/features/logistics/delivery-utils'
+import { deliveryQuantityError } from '@/features/logistics/delivery-quantities'
+import {
+  canPrepareOutgoing,
+  outgoingOrderBalances,
+  remainingOutgoingItemCount,
+  outgoingSourceCapacity,
+  outgoingLinesForQuantity,
+  type OutgoingItemBalance,
+} from '@/features/logistics/outgoing-order-balance'
+import { parseOrderDecimal } from '@/lib/order-amounts'
+import { formatStockCents, parseStockCents } from '@/features/logistics/stock-display'
+import { getErrorMessage } from '@/lib/api-client'
+import { DeliveryQuantityTable } from './DeliveryQuantityTable'
 
 interface ScheduleDeliveryModalProps {
   open: boolean
   onClose: () => void
   preselectedOrderId?: number
 }
-
 function getInitialScheduledAt(): string {
-  const d = new Date()
-  d.setDate(d.getDate() + 1)
-  return DeliveryUtils.toDateTimeInput(d)
+  const date = new Date()
+  date.setDate(date.getDate() + 1)
+  return DeliveryUtils.toDateTimeInput(date)
 }
-
-function formatCount(val: string | number): string {
-  const num = typeof val === 'string' ? parseFloat(val) : val
-  if (isNaN(num)) return '0'
-  return num % 1 === 0 ? String(Math.round(num)) : String(num)
-}
-
-interface AllocationRow {
-  allocationId: number
-  stockItemId: number
-  productId: number
-  productName: string
-  variety: string | null
-  unit: string
-  warehouseId: number
-  warehouseName: string
-  warehouseOnHand: string
-  allocatedQuantity: string
-  alreadyScheduledQuantity: number
-  remainingQuantity: number
-  deliverQuantity: string
-  selected: boolean
-}
+const formatQuantity = (value: string | null) => formatStockCents(parseStockCents(value))
 
 export function ScheduleDeliveryModal({
   open,
   onClose,
   preselectedOrderId,
 }: ScheduleDeliveryModalProps) {
-  const { data: salesOrders = [] } = useSalesOrders()
-  const { data: clients = [] } = useClients()
-  const { data: warehouses = [] } = useWarehouses()
-  const { data: vehicles = [] } = useDeliveryVehicles()
-  const { data: employees = [] } = useEmployees()
-  const { data: stockItems = [] } = useStockItems()
-  const { data: products = [] } = useProducts()
-  const { data: deliveries = [] } = useOutgoingDeliveries()
-
-  const createDelivery = useCreateOutgoingDelivery()
+  const ordersQuery = useSalesOrders()
+  const clientsQuery = useClients()
+  const warehousesQuery = useWarehouses()
+  const vehiclesQuery = useDeliveryVehicles()
+  const employeesQuery = useEmployees()
+  const stocksQuery = useStockItems()
+  const productsQuery = useProducts()
+  const deliveriesQuery = useOutgoingDeliveries()
+  const orders = useMemo(() => ordersQuery.data ?? [], [ordersQuery.data])
+  const clients = clientsQuery.data ?? []
+  const warehouses = warehousesQuery.data ?? []
+  const stocks = stocksQuery.data ?? []
+  const deliveries = useMemo(() => deliveriesQuery.data ?? [], [deliveriesQuery.data])
+  const vehicles = vehiclesQuery.data ?? []
+  const employees = employeesQuery.data ?? []
+  const products = productsQuery.data ?? []
+  const sourceQueries = [ordersQuery, warehousesQuery, stocksQuery, deliveriesQuery]
+  const unavailable = sourceQueries.some((query) => query.isLoading || query.isError)
+  const loadFailed = sourceQueries.some((query) => query.isError)
+  const refresh = () =>
+    Promise.all([
+      ordersQuery.refetch(),
+      warehousesQuery.refetch(),
+      stocksQuery.refetch(),
+      deliveriesQuery.refetch(),
+    ] as const)
+  const createDelivery = useCreateOutgoingDelivery({ notifySuccess: false })
   const scheduleDelivery = useScheduleOutgoingDelivery()
-
-  // Deliverable orders: CONFIRMED or PARTIALLY_DELIVERED
-  const deliverableOrders = useMemo(
-    () => salesOrders.filter((o) => o.status === 'CONFIRMED' || o.status === 'PARTIALLY_DELIVERED'),
-    [salesOrders],
-  )
-
-  const [selectedOrderId, setSelectedOrderId] = useState<string>(
+  const [selectedOrderId, setSelectedOrderId] = useState(
     preselectedOrderId ? String(preselectedOrderId) : '',
   )
-  const [selectedWarehouseId, setSelectedWarehouseId] = useState<string>('')
-  const [selectedVehicleId, setSelectedVehicleId] = useState<string>('none')
-  const [selectedDriverId, setSelectedDriverId] = useState<string>('none')
-  const [scheduledAt, setScheduledAt] = useState<string>(getInitialScheduledAt)
-  const [notes, setNotes] = useState<string>('')
-  const [errorMessage, setErrorMessage] = useState<string>('')
-  const [autoSchedule, setAutoSchedule] = useState<boolean>(true)
-
-  const effectiveOrderId =
-    selectedOrderId ||
-    (preselectedOrderId
-      ? String(preselectedOrderId)
-      : deliverableOrders[0]?.id
-        ? String(deliverableOrders[0].id)
-        : '')
-
-  const defaultWarehouseId = useMemo(() => {
-    const order = salesOrders.find((o) => String(o.id) === effectiveOrderId)
-    if (order && (order.items || []).length > 0) {
-      const firstAlloc = (order.items || []).flatMap((i) => i.allocations || [])[0]
-      if (firstAlloc) {
-        const stock = stockItems.find((s) => s.id === firstAlloc.stockItemId)
-        if (stock) {
-          return String(stock.warehouseId)
-        }
-      }
-    }
-    return ''
-  }, [salesOrders, effectiveOrderId, stockItems])
-
-  const effectiveWarehouseId = selectedWarehouseId || defaultWarehouseId
-
-  // Helper to switch order and auto-populate fulfillment warehouse
-  const handleOrderChange = (orderIdStr: string) => {
-    setSelectedOrderId(orderIdStr)
-    setSelectedWarehouseId('')
-    setErrorMessage('')
+  const [warehouseId, setWarehouseId] = useState('')
+  const [vehicleId, setVehicleId] = useState('none')
+  const [driverId, setDriverId] = useState('none')
+  const [scheduledAt, setScheduledAt] = useState(getInitialScheduledAt)
+  const [notes, setNotes] = useState('')
+  const [quantities, setQuantities] = useState<Record<number, string>>({})
+  const [errors, setErrors] = useState<Record<string, string>>({})
+  const [assignmentsOpen, setAssignmentsOpen] = useState(false)
+  const [notesOpen, setNotesOpen] = useState(false)
+  const [savedDraft, setSavedDraft] = useState<{
+    id: number
+    number: string
+    balances: OutgoingItemBalance[]
+    capacities: Record<number, string | null>
+    warehouseName: string
+  } | null>(null)
+  const [completed, setCompleted] = useState<'DRAFT' | 'SCHEDULED' | null>(null)
+  const [phase, setPhase] = useState<'checking' | 'creating' | 'scheduling' | null>(null)
+  const lock = useRef(false)
+  const busy = phase !== null || createDelivery.isPending || scheduleDelivery.isPending
+  const dismiss = () => {
+    if (!busy && !lock.current) onClose()
   }
-
-  // Map allocations for selected sales order
-  const selectedOrder = useMemo(
-    () => salesOrders.find((o) => String(o.id) === effectiveOrderId),
-    [salesOrders, effectiveOrderId],
+  const readOnly = busy || unavailable || !!savedDraft
+  const balancesByOrder = useMemo(
+    () => new Map(orders.map((order) => [order.id, outgoingOrderBalances(order, deliveries)])),
+    [orders, deliveries],
   )
-
-  // Derive allocation rows
-  const [allocationQuantities, setAllocationQuantities] = useState<Record<number, string>>({})
-
-  const availableAllocations = useMemo<AllocationRow[]>(() => {
-    if (!selectedOrder) return []
-
-    const rows: AllocationRow[] = []
-    for (const item of selectedOrder.items || []) {
-      const prod = products.find((p) => p.id === item.inventoryItemId)
-      for (const alloc of item.allocations || []) {
-        const stock = stockItems.find((s) => s.id === alloc.stockItemId)
-        const wh = warehouses.find((w) => w.id === stock?.warehouseId)
-
-        // Calculate quantities already reserved or shipped in non-cancelled deliveries
-        const alreadyScheduled = deliveries
-          .filter((d) => d.status !== 'CANCELLED')
-          .flatMap((d) => d.items)
-          .filter((line) => line.salesOrderAllocationId === alloc.id)
-          .reduce((sum, line) => sum + (parseFloat(line.quantity) || 0), 0)
-
-        const totalAlloc = parseFloat(alloc.quantity) || 0
-        const remaining = Math.max(0, totalAlloc - alreadyScheduled)
-        const intRemaining = Math.floor(remaining)
-
-        rows.push({
-          allocationId: alloc.id,
-          stockItemId: alloc.stockItemId,
-          productId: item.inventoryItemId,
-          productName: prod?.name || `Product #${item.inventoryItemId}`,
-          variety: prod?.variety || null,
-          unit: prod?.unit || 'units',
-          warehouseId: stock?.warehouseId || 0,
-          warehouseName: wh?.name || `Warehouse #${stock?.warehouseId || 0}`,
-          warehouseOnHand: stock?.quantity || '0',
-          allocatedQuantity: alloc.quantity,
-          alreadyScheduledQuantity: alreadyScheduled,
-          remainingQuantity: remaining,
-          deliverQuantity:
-            allocationQuantities[alloc.id] !== undefined
-              ? allocationQuantities[alloc.id]
-              : intRemaining > 0
-                ? String(intRemaining)
-                : '0',
-          selected: intRemaining > 0,
-        })
-      }
-    }
-    return rows
-  }, [selectedOrder, products, stockItems, warehouses, deliveries, allocationQuantities])
-
-  // Filter allocation rows by selected warehouse if one is chosen
-  const filteredAllocations = useMemo(() => {
-    if (!effectiveWarehouseId) return availableAllocations
-    const whId = parseInt(effectiveWarehouseId, 10)
-    return availableAllocations.filter((a) => a.warehouseId === whId || a.warehouseId === 0)
-  }, [availableAllocations, effectiveWarehouseId])
-
-  const isOrderFullyScheduled = useMemo(() => {
-    if (!selectedOrder || availableAllocations.length === 0) return false
-    return availableAllocations.every((a) => a.remainingQuantity <= 0)
-  }, [selectedOrder, availableAllocations])
-
-  const handleQuantityChange = (allocationId: number, qty: string) => {
-    const cleanQty = qty === '' ? '' : qty.replace(/[^0-9]/g, '')
-    const alloc = availableAllocations.find((a) => a.allocationId === allocationId)
-    const maxQty = alloc ? Math.floor(alloc.remainingQuantity) : 999999
-    const num = parseInt(cleanQty, 10)
-    let finalQty = cleanQty
-    if (!isNaN(num) && num > maxQty) {
-      finalQty = String(maxQty)
-    }
-    setAllocationQuantities((prev) => ({
-      ...prev,
-      [allocationId]: finalQty,
-    }))
+  const eligibleOrders = orders.filter(
+    (order) =>
+      canPrepareOutgoing(order) &&
+      remainingOutgoingItemCount(balancesByOrder.get(order.id) ?? []) > 0,
+  )
+  const selectedOrder = orders.find((order) => String(order.id) === selectedOrderId)
+  const balances =
+    savedDraft?.balances ?? (selectedOrder ? (balancesByOrder.get(selectedOrder.id) ?? []) : [])
+  const remainingItems = balances.filter(
+    (balance) =>
+      balance.remaining === null ||
+      (parseOrderDecimal(balance.remaining) ?? 0n) > 0n ||
+      (parseOrderDecimal(quantities[balance.item.id] ?? '') ?? 0n) > 0n,
+  )
+  const selectedEligible =
+    !!selectedOrder && eligibleOrders.some((order) => order.id === selectedOrder.id)
+  const uncertainOrders = orders.some(
+    (order) =>
+      canPrepareOutgoing(order) &&
+      (balancesByOrder.get(order.id) ?? []).some((balance) => balance.remaining === null),
+  )
+  const sourceWarehouses = warehouses.filter(
+    (warehouse) =>
+      warehouse.isActive &&
+      balances.some(
+        (balance) =>
+          (parseOrderDecimal(
+            outgoingSourceCapacity(balance, warehouse.id, stocks, warehouses) ?? '',
+          ) ?? 0n) > 0n,
+      ),
+  )
+  const quantityFor = (balance: OutgoingItemBalance, capacity: string | null) =>
+    quantities[balance.item.id] ?? capacity ?? ''
+  const orderLabel = (order: (typeof orders)[number]) =>
+    `${order.orderNumber} · ${clients.find((client) => client.id === order.clientId)?.name || `Customer #${order.clientId}`}`
+  const failField = (field: string, message: string) => {
+    setErrors({ [field]: message })
+    if (field === 'vehicle' || field === 'driver') setAssignmentsOpen(true)
+    requestAnimationFrame(() => document.getElementById(`delivery-${field}`)?.focus())
   }
 
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault()
-    setErrorMessage('')
-
-    const orderIdNum = parseInt(effectiveOrderId, 10)
-    const warehouseIdNum = parseInt(effectiveWarehouseId, 10)
-
-    if (isNaN(orderIdNum) || orderIdNum <= 0) {
-      setErrorMessage('Please choose a confirmed sales order to deliver.')
-      return
-    }
-
-    if (isNaN(warehouseIdNum) || warehouseIdNum <= 0) {
-      setErrorMessage('Please specify the fulfillment source warehouse.')
-      return
-    }
-
-    if (isOrderFullyScheduled) {
-      setErrorMessage(
-        'All cargo items for this sales order have already been scheduled. Track or dispatch them in Deliveries.',
+  const submit = async (intent: 'draft' | 'schedule') => {
+    if (lock.current || completed || (!savedDraft && unavailable)) return
+    lock.current = true
+    setPhase(savedDraft ? 'scheduling' : 'checking')
+    setErrors({})
+    try {
+      if (savedDraft) {
+        const result = await scheduleDelivery.mutateAsync(savedDraft.id)
+        if (result.id !== savedDraft.id || result.status !== 'SCHEDULED')
+          throw new Error(
+            'The server did not confirm scheduling this delivery. Review it in Outgoing Deliveries before retrying.',
+          )
+        setCompleted('SCHEDULED')
+        await refresh()
+        return
+      }
+      if (!selectedOrderId) {
+        failField('sales-order', 'Choose a Sales Order to fulfill.')
+        return
+      }
+      if (!warehouseId) {
+        failField('warehouse', 'Choose the source warehouse for this delivery.')
+        return
+      }
+      if (
+        (intent === 'schedule' && !scheduledAt) ||
+        (scheduledAt && !Number.isFinite(new Date(scheduledAt).getTime()))
+      ) {
+        failField('scheduled-at', 'Enter a valid scheduled date and time.')
+        return
+      }
+      // Retain the displayed plan if the fresh balance changes during submission.
+      setQuantities((previous) => ({
+        ...Object.fromEntries(
+          balances.map((balance) => [
+            balance.item.id,
+            quantityFor(
+              balance,
+              outgoingSourceCapacity(balance, Number(warehouseId), stocks, warehouses),
+            ),
+          ]),
+        ),
+        ...previous,
+      }))
+      // Check the complete current order/delivery/stock response immediately before POST.
+      const [freshOrders, freshWarehouses, freshStocks, freshDeliveries] = await refresh()
+      if (
+        [freshOrders, freshWarehouses, freshStocks, freshDeliveries].some(
+          (query) => query.isError || !query.data,
+        )
       )
-      return
-    }
-
-    // Check if any quantity exceeds remaining unfulfilled allocation
-    for (const alloc of filteredAllocations) {
-      const qty = parseFloat(alloc.deliverQuantity)
-      if (!isNaN(qty) && qty > alloc.remainingQuantity) {
-        setErrorMessage(
-          `Cannot schedule ${qty} units of ${alloc.productName}. Only ${alloc.remainingQuantity} unfulfilled units remain for this order.`,
+        throw new Error(
+          'Current shipment balances could not be checked. Retry loading before saving.',
+        )
+      const order = freshOrders.data!.find((candidate) => String(candidate.id) === selectedOrderId)
+      if (!order || !canPrepareOutgoing(order)) {
+        failField(
+          'sales-order',
+          'This order is no longer available for scheduling. Choose another Sales Order.',
         )
         return
       }
-    }
-
-    const itemsToDeliver = filteredAllocations
-      .filter((alloc) => {
-        const qty = parseFloat(alloc.deliverQuantity)
-        return !isNaN(qty) && qty > 0 && alloc.remainingQuantity > 0
-      })
-      .map((alloc) => ({
-        salesOrderAllocationId: alloc.allocationId,
-        quantity: alloc.deliverQuantity,
-      }))
-
-    if (itemsToDeliver.length === 0) {
-      setErrorMessage(
-        'Please enter a delivery quantity greater than 0 for at least one allocation.',
-      )
-      return
-    }
-
-    const vehicleIdNum = selectedVehicleId !== 'none' ? parseInt(selectedVehicleId, 10) : null
-    const driverIdNum = selectedDriverId !== 'none' ? parseInt(selectedDriverId, 10) : null
-
-    if (vehicleIdNum !== null) {
-      const vehicle = vehicles.find((vehicle) => vehicle.id === vehicleIdNum)
-      if (!vehicle || !DeliveryUtils.getVehicleAvailability(vehicle, deliveries).isAvailable) {
-        setErrorMessage('This vehicle is no longer available. Choose another vehicle or assign it later.')
+      const freshBalances = outgoingOrderBalances(order, freshDeliveries.data!)
+      if (freshBalances.some((balance) => balance.remaining === null)) {
+        failField(
+          'sales-order',
+          'Some remaining quantities are unavailable. Reload the order before saving.',
+        )
         return
       }
-    }
-    if (driverIdNum !== null) {
-      const driver = employees.find((employee) => employee.id === driverIdNum)
-      if (!driver || !DeliveryUtils.getDriverAvailability(driver, deliveries).isAvailable) {
-        setErrorMessage('This driver is no longer available. Choose another driver or assign one later.')
+      if (remainingOutgoingItemCount(freshBalances) === 0) {
+        failField(
+          'sales-order',
+          'All quantities have already been arranged. Review its deliveries or choose another Sales Order.',
+        )
         return
       }
-    }
-
-    try {
+      const selectedWarehouse = Number(warehouseId)
+      const items = []
+      for (const balance of freshBalances) {
+        const capacity = outgoingSourceCapacity(
+          balance,
+          selectedWarehouse,
+          freshStocks.data!,
+          freshWarehouses.data!,
+        )
+        // Use the quantities displayed before refresh; do not silently replace an employee's plan.
+        const displayed = balances.find((candidate) => candidate.item.id === balance.item.id)
+        const oldCapacity = displayed
+          ? outgoingSourceCapacity(displayed, selectedWarehouse, stocks, warehouses)
+          : '0'
+        const quantity = quantities[balance.item.id] ?? oldCapacity ?? ''
+        const issue = deliveryQuantityError(quantity, capacity)
+        if (issue) {
+          setErrors({
+            warehouse:
+              'Shipment balances changed or the quantity exceeds this source. Review the remaining quantities.',
+            [`quantity-${balance.item.id}`]: issue,
+          })
+          requestAnimationFrame(() =>
+            document.getElementById(`delivery-quantity-${balance.item.id}`)?.focus(),
+          )
+          return
+        }
+        items.push(
+          ...outgoingLinesForQuantity(balance, selectedWarehouse, quantity, freshStocks.data!),
+        )
+      }
+      if (!items.length) {
+        failField(
+          'warehouse',
+          'Enter a positive shipment quantity from an eligible source warehouse.',
+        )
+        return
+      }
+      if (vehicleId !== 'none') {
+        const query = await vehiclesQuery.refetch()
+        const vehicle = query.data?.find((candidate) => candidate.id === Number(vehicleId))
+        if (
+          query.isError ||
+          !vehicle ||
+          !DeliveryUtils.getVehicleAvailability(vehicle, freshDeliveries.data!).isAvailable
+        ) {
+          failField(
+            'vehicle',
+            'This vehicle is unavailable. Choose another or assign later at dispatch.',
+          )
+          return
+        }
+      }
+      if (driverId !== 'none') {
+        const query = await employeesQuery.refetch()
+        const driver = query.data?.find((candidate) => candidate.id === Number(driverId))
+        if (
+          query.isError ||
+          !driver ||
+          !DeliveryUtils.getDriverAvailability(driver, freshDeliveries.data!).isAvailable
+        ) {
+          failField(
+            'driver',
+            'This driver is unavailable. Choose another or assign later at dispatch.',
+          )
+          return
+        }
+      }
+      setPhase('creating')
       const created = await createDelivery.mutateAsync({
-        salesOrderId: orderIdNum,
-        warehouseId: warehouseIdNum,
-        deliveryVehicleId: vehicleIdNum,
-        driverEmployeeId: driverIdNum,
+        salesOrderId: order.id,
+        warehouseId: selectedWarehouse,
+        deliveryVehicleId: vehicleId === 'none' ? null : Number(vehicleId),
+        driverEmployeeId: driverId === 'none' ? null : Number(driverId),
         scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
         notes: notes.trim() || null,
-        items: itemsToDeliver,
+        items,
       })
-
-      if (autoSchedule && created.id) {
-        await scheduleDelivery.mutateAsync(created.id)
+      if (!Number.isInteger(created.id) || created.id <= 0)
+        throw new Error(
+          'The server did not return a saved delivery ID. Refresh Outgoing Deliveries before submitting again.',
+        )
+      setSavedDraft({
+        id: created.id,
+        number: created.deliveryNumber,
+        balances: freshBalances,
+        capacities: Object.fromEntries(
+          freshBalances.map((balance) => [
+            balance.item.id,
+            outgoingSourceCapacity(
+              balance,
+              selectedWarehouse,
+              freshStocks.data!,
+              freshWarehouses.data!,
+            ),
+          ]),
+        ),
+        warehouseName:
+          freshWarehouses.data!.find((warehouse) => warehouse.id === selectedWarehouse)?.name ??
+          `Warehouse #${selectedWarehouse}`,
+      })
+      if (intent === 'schedule') {
+        setPhase('scheduling')
+        const result = await scheduleDelivery.mutateAsync(created.id)
+        if (result.id !== created.id || result.status !== 'SCHEDULED')
+          throw new Error(
+            'The server did not confirm scheduling this delivery. Review it in Outgoing Deliveries before retrying.',
+          )
+        setCompleted('SCHEDULED')
+      } else {
+        if (created.status !== 'DRAFT')
+          throw new Error(
+            'The server returned an unexpected delivery status. Review the saved delivery in Outgoing Deliveries.',
+          )
+        toast.success(`Delivery draft "${created.deliveryNumber}" saved`)
+        setCompleted('DRAFT')
       }
-
-      onClose()
-    } catch {
-      // Errors handled by hook toasts
+      await refresh()
+    } catch (error) {
+      setErrors({ request: getErrorMessage(error) })
+      await refresh()
+    } finally {
+      setPhase(null)
+      lock.current = false
     }
   }
+  const handleSubmit = (event: FormEvent) => {
+    event.preventDefault()
+    void submit('schedule')
+  }
+  const fieldError = (field: string) =>
+    errors[field] ? (
+      <p id={`delivery-${field}-error`} role="alert" className="text-xs text-destructive">
+        {errors[field]}
+      </p>
+    ) : null
+  const vehicleSummary =
+    vehicleId === 'none'
+      ? ''
+      : vehicles.find((vehicle) => String(vehicle.id) === vehicleId)?.plateNumber ||
+        'Selected vehicle'
+  const selectedDriver = employees.find((employee) => String(employee.id) === driverId)
+  const driverSummary =
+    driverId === 'none'
+      ? ''
+      : selectedDriver
+        ? `${selectedDriver.firstName} ${selectedDriver.lastName}`
+        : 'Selected driver'
 
   return (
-    <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-      <DialogContent className="w-[94vw] max-w-3xl sm:max-w-4xl max-h-[92vh] min-h-[460px] flex flex-col p-4 sm:p-5 gap-3 overflow-hidden shadow-2xl">
-        <DialogHeader className="pb-0 shrink-0">
-          <div className="flex items-center gap-2">
-            <div className="flex size-6.5 items-center justify-center rounded-lg bg-primary/10 text-primary shrink-0">
-              <Plus className="size-3.5" />
-            </div>
-            <div>
-              <DialogTitle className="text-base font-bold tracking-tight">
-                Schedule Outgoing Delivery
-              </DialogTitle>
-              <DialogDescription className="text-[11px] text-muted-foreground">
-                Assign warehouse stock, fleet vehicle, and driver to dispatch a confirmed customer
-                order.
-              </DialogDescription>
-            </div>
-          </div>
+    <Dialog open={open} onOpenChange={(next) => !next && dismiss()}>
+      <DialogContent
+        closeDisabled={busy}
+        className="flex max-h-[90dvh] w-[calc(100vw-2rem)] flex-col gap-4 overflow-hidden p-5 sm:max-w-3xl sm:p-6"
+      >
+        <DialogHeader className="shrink-0 pr-6">
+          <DialogTitle className="text-lg">Schedule Outgoing Delivery</DialogTitle>
+          <DialogDescription className="text-sm">
+            Choose an order, review shipment quantities, then set its source and schedule.
+          </DialogDescription>
         </DialogHeader>
-
-        {errorMessage && (
-          <Alert variant="destructive" className="py-1.5 px-3 text-xs shrink-0">
-            <AlertDescription>{errorMessage}</AlertDescription>
-          </Alert>
-        )}
-
-        {deliverableOrders.length === 0 && (
-          <Alert className="py-1.5 px-3 text-xs shrink-0 border-blue-500/30 bg-blue-500/10 text-blue-900 dark:text-blue-200 flex items-center gap-2">
-            <Info className="size-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
-            <AlertDescription>
-              All confirmed customer orders have already been scheduled. Confirm a new order in
-              Sales Orders to create another delivery.
-            </AlertDescription>
-          </Alert>
-        )}
-
-        <form
-          onSubmit={handleSubmit}
-          className="flex flex-col gap-3 min-h-0 flex-1 overflow-y-auto pr-1"
-        >
-          {/* Order and Warehouse Row (2-Column Grid) */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 shrink-0">
-            {/* Order Selection */}
-            <div className="flex flex-col gap-1">
-              <Label htmlFor="delivery-sales-order" className="text-xs font-semibold">
-                Sales Order to Fulfill <span className="text-primary">*</span>
-              </Label>
-              <Select value={effectiveOrderId} onValueChange={handleOrderChange}>
-                <SelectTrigger id="delivery-sales-order" className="h-8 text-xs">
-                  <SelectValue placeholder="Choose confirmed sales order" />
-                </SelectTrigger>
-                <SelectContent>
-                  {deliverableOrders.length === 0 ? (
-                    <SelectItem value="none" disabled>
-                      No confirmed deliverable orders available
-                    </SelectItem>
-                  ) : (
-                    deliverableOrders.map((order) => {
-                      const client = clients.find((c) => c.id === order.clientId)
-                      return (
-                        <SelectItem key={order.id} value={String(order.id)}>
-                          <span className="flex items-center gap-2">
-                            <span className="font-bold font-mono">{order.orderNumber}</span>
-                            <span className="text-muted-foreground">
-                              • {client?.name || `Client #${order.clientId}`}
-                            </span>
-                            <span className="text-[10px] text-primary">
-                              ({(order.items || []).length} items)
-                            </span>
-                          </span>
-                        </SelectItem>
-                      )
-                    })
+        {completed ? (
+          <div className="flex flex-col gap-4">
+            <div role="status">
+              <p className="font-semibold">
+                {completed === 'SCHEDULED' ? 'Delivery scheduled' : 'Delivery draft saved'}
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {savedDraft?.number} is available in Outgoing Deliveries.{' '}
+                {completed === 'SCHEDULED'
+                  ? 'Dispatch remains a separate action.'
+                  : 'Schedule it when you are ready.'}
+              </p>
+            </div>
+            <div className="flex justify-end">
+              <Button onClick={dismiss} disabled={busy} className="pointer-coarse:min-h-11">
+                Done
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col gap-4">
+            <div className="min-h-0 overflow-y-auto overscroll-contain pr-1">
+              {unavailable && (
+                <div
+                  role={loadFailed ? 'alert' : 'status'}
+                  className="mb-4 text-sm text-muted-foreground"
+                >
+                  {loadFailed
+                    ? 'Order quantities or source stock could not be loaded.'
+                    : 'Loading orders and shipment balances...'}
+                  {loadFailed && (
+                    <Button variant="link" type="button" onClick={() => void refresh()}>
+                      Retry loading
+                    </Button>
                   )}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Warehouse Selection */}
-            <div className="flex flex-col gap-1">
-              <Label htmlFor="delivery-warehouse" className="text-xs font-semibold">
-                Source Warehouse <span className="text-primary">*</span>
-              </Label>
-              <Select value={effectiveWarehouseId} onValueChange={setSelectedWarehouseId}>
-                <SelectTrigger id="delivery-warehouse" className="h-8 text-xs">
-                  <SelectValue placeholder="Select fulfillment warehouse" />
-                </SelectTrigger>
-                <SelectContent>
-                  {warehouses
-                    .filter((w) => w.isActive)
-                    .map((warehouse) => (
-                      <SelectItem key={warehouse.id} value={String(warehouse.id)}>
-                        <span className="flex items-center gap-2">
-                          <WarehouseIcon className="size-3.5 text-primary" />
-                          <span>{warehouse.name}</span>
-                          <span className="text-muted-foreground text-[10px]">
-                            ({warehouse.address})
-                          </span>
-                        </span>
-                      </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {/* Selected Order & Destination Compact Ribbon */}
-          {selectedOrder && (
-            <div className="flex items-center justify-between px-2.5 py-1 rounded-md bg-muted/40 border border-border/70 text-[11px] shrink-0">
-              <div className="flex items-center gap-2 truncate">
-                <MapPin className="size-3.5 text-primary shrink-0" />
-                <span className="font-semibold text-foreground truncate">
-                  {clients.find((c) => c.id === selectedOrder.clientId)?.name ||
-                    `Client #${selectedOrder.clientId}`}
-                </span>
-                <span className="text-[10px] font-mono text-muted-foreground shrink-0">
-                  (Order #{selectedOrder.orderNumber})
-                </span>
-                <span className="text-[10px] text-muted-foreground truncate">
-                  • {selectedOrder.deliveryAddress}
-                </span>
-              </div>
-              <span className="text-[10px] font-mono text-muted-foreground shrink-0 pl-2">
-                {(selectedOrder.items || []).length} items
-              </span>
-            </div>
-          )}
-
-          {/* Allocation Items Breakdown */}
-          <div className="flex flex-col rounded-lg border border-border/80 overflow-hidden bg-background/50 shrink-0">
-            <div className="bg-muted/30 px-3 py-1.5 border-b border-border/70 flex items-center justify-between">
-              <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                <Package className="size-3.5 text-primary" />
-                Cargo Allocations to Deliver{' '}
-                {selectedOrder ? `(${filteredAllocations.length})` : ''}
-              </span>
-              {selectedOrder && isOrderFullyScheduled && (
-                <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400">
-                  Fully Scheduled
-                </span>
-              )}
-            </div>
-
-            {!selectedOrder ? (
-              <div className="p-6 text-center text-xs text-muted-foreground flex flex-col items-center justify-center gap-1.5 bg-muted/5">
-                <Package className="size-7 text-muted-foreground/35 mb-0.5" />
-                <span className="font-semibold text-foreground text-xs">
-                  {deliverableOrders.length === 0
-                    ? 'No Deliverable Orders Available'
-                    : 'No Sales Order Selected'}
-                </span>
-                <p className="text-[11px] text-muted-foreground max-w-sm">
-                  {deliverableOrders.length === 0
-                    ? 'All confirmed customer orders have already been scheduled. Confirm a new Sales Order to create a delivery.'
-                    : 'Choose a confirmed sales order from the dropdown above to review cargo items, warehouse stock, and assign dispatch quantities.'}
-                </p>
-              </div>
-            ) : isOrderFullyScheduled ? (
-              <div className="p-3 m-2 rounded border border-amber-500/30 bg-amber-500/10 text-amber-900 dark:text-amber-200 text-xs">
-                All cargo allocations for this order have already been scheduled in active
-                shipments. You can view or dispatch these in <strong>Deliveries</strong>
-                .
-              </div>
-            ) : filteredAllocations.length === 0 ? (
-              <div className="p-4 text-center text-xs text-muted-foreground">
-                No allocations found for this order matching the selected warehouse.
-              </div>
-            ) : (
-              <div className="max-h-[190px] overflow-y-auto overflow-x-hidden rounded-md border border-border/60">
-                <table className="w-full table-fixed text-xs">
-                  <thead className="bg-muted/30 text-left text-[10px] font-bold uppercase tracking-wider text-muted-foreground border-b border-border/70 sticky top-0 bg-muted/95 backdrop-blur-xs z-10">
-                    <tr>
-                      <th className="px-3 py-2 w-[32%]">Product Item</th>
-                      <th className="px-2 py-2 text-right w-[14%]">Total Ordered</th>
-                      <th className="px-2 py-2 text-right w-[18%]">Already Sched.</th>
-                      <th className="px-2 py-2 text-right font-semibold text-foreground w-[14%]">
-                        Remaining
-                      </th>
-                      <th className="px-3 py-2 text-right w-[22%]">Qty to Ship</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border/60">
-                    {filteredAllocations.map((alloc) => {
-                      const isDepleted = alloc.remainingQuantity <= 0
-                      const totalOrderedNum = parseFloat(alloc.allocatedQuantity) || 0
-                      const pctFulfilled =
-                        totalOrderedNum > 0
-                          ? Math.min(
-                              100,
-                              Math.round((alloc.alreadyScheduledQuantity / totalOrderedNum) * 100),
-                            )
-                          : 0
-                      const currentQty = parseInt(alloc.deliverQuantity, 10) || 0
-                      const maxQty = Math.floor(alloc.remainingQuantity)
-
-                      return (
-                        <tr
-                          key={alloc.allocationId}
-                          className={isDepleted ? 'bg-muted/20 opacity-75' : 'hover:bg-muted/15'}
-                        >
-                          <td className="px-3 py-2.5">
-                            <div className="flex items-center gap-2 min-w-0">
-                              <div className="flex flex-col min-w-0">
-                                <span className="font-semibold text-foreground text-xs truncate flex items-center gap-1">
-                                  {alloc.productName}
-                                  {alloc.variety && (
-                                    <span className="text-[9px] font-normal px-1 py-0.2 rounded bg-muted text-muted-foreground shrink-0">
-                                      {alloc.variety}
-                                    </span>
-                                  )}
-                                </span>
-                                <span className="text-[10px] text-muted-foreground truncate">
-                                  {alloc.warehouseName} •{' '}
-                                  <span className="font-mono">
-                                    {formatCount(alloc.warehouseOnHand)} {alloc.unit} in stock
-                                  </span>
-                                </span>
-                              </div>
-                            </div>
-                          </td>
-
-                          <td className="px-2 py-2.5 text-right font-mono">
-                            <span className="font-bold text-foreground">
-                              {formatCount(alloc.allocatedQuantity)}
-                            </span>{' '}
-                            <span className="text-[10px] text-muted-foreground font-sans">
-                              {alloc.unit}
-                            </span>
-                          </td>
-
-                          <td className="px-2 py-2.5 text-right font-mono">
-                            <div className="flex flex-col items-end justify-center py-0.5">
-                              <div className="leading-tight">
-                                <span className="text-muted-foreground font-semibold">
-                                  {alloc.alreadyScheduledQuantity > 0
-                                    ? formatCount(alloc.alreadyScheduledQuantity)
-                                    : '0'}
-                                </span>{' '}
-                                <span className="text-[10px] font-sans text-muted-foreground">
-                                  {alloc.unit}
-                                </span>
-                              </div>
-                              {totalOrderedNum > 0 && (
-                                <div className="flex items-center gap-1.5 mt-1 justify-end">
-                                  <div className="w-12 h-1.5 bg-muted rounded-full overflow-hidden">
-                                    <div
-                                      className={`h-full ${
-                                        pctFulfilled >= 100
-                                          ? 'bg-emerald-500'
-                                          : pctFulfilled > 0
-                                            ? 'bg-blue-500'
-                                            : 'bg-transparent'
-                                      }`}
-                                      style={{ width: `${pctFulfilled}%` }}
-                                    />
-                                  </div>
-                                  <span className="text-[9px] font-sans text-muted-foreground">
-                                    {pctFulfilled}%
-                                  </span>
-                                </div>
-                              )}
-                            </div>
-                          </td>
-
-                          <td className="px-2 py-2.5 text-right">
-                            {isDepleted ? (
-                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-muted text-muted-foreground border border-border/80">
-                                0
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/25">
-                                {formatCount(alloc.remainingQuantity)}
-                              </span>
-                            )}
-                          </td>
-
-                          <td className="px-3 py-2.5 text-right">
-                            {isDepleted ? (
-                              <span className="text-[10px] text-muted-foreground italic pr-2">
-                                Scheduled
-                              </span>
-                            ) : (
-                              <div className="inline-flex items-center gap-1 justify-end">
-                                {/* Tactile Integer Stepper */}
-                                <div className="inline-flex items-center rounded border border-input shadow-2xs overflow-hidden bg-background h-6.5">
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      if (currentQty > 0) {
-                                        handleQuantityChange(
-                                          alloc.allocationId,
-                                          String(currentQty - 1),
-                                        )
-                                      }
-                                    }}
-                                    disabled={currentQty <= 0}
-                                    className="size-6 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/50 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-colors"
-                                    title="Decrease quantity by 1"
-                                  >
-                                    <Minus className="size-2.5" />
-                                  </button>
-
-                                  <Input
-                                    type="number"
-                                    step="1"
-                                    min="0"
-                                    max={maxQty}
-                                    value={alloc.deliverQuantity}
-                                    onChange={(e) =>
-                                      handleQuantityChange(alloc.allocationId, e.target.value)
-                                    }
-                                    className="w-8 h-6.5 text-xs text-center font-mono border-0 rounded-none shadow-none focus-visible:ring-0 p-0"
-                                  />
-
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      if (currentQty < maxQty) {
-                                        handleQuantityChange(
-                                          alloc.allocationId,
-                                          String(currentQty + 1),
-                                        )
-                                      }
-                                    }}
-                                    disabled={currentQty >= maxQty}
-                                    className="size-6 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/50 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-colors"
-                                    title="Increase quantity by 1"
-                                  >
-                                    <Plus className="size-2.5" />
-                                  </button>
-                                </div>
-
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    handleQuantityChange(alloc.allocationId, String(maxQty))
-                                  }
-                                  className="h-6.5 px-1.5 rounded border border-border/80 bg-muted/40 hover:bg-muted text-[10px] font-semibold text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
-                                  title="Ship remaining allocation"
-                                >
-                                  Max
-                                </button>
-                              </div>
-                            )}
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-
-                {/* Summary Bar */}
-                <div className="bg-muted/15 px-3 py-1 border-t border-border/60 flex items-center justify-between text-[10px] text-muted-foreground">
-                  <span>
-                    Allocations:{' '}
-                    <strong className="text-foreground">{filteredAllocations.length}</strong>
-                  </span>
-                  <span>
-                    Total to Dispatch:{' '}
-                    <strong className="font-mono text-foreground font-bold">
-                      {filteredAllocations.reduce(
-                        (sum, a) => sum + (parseInt(a.deliverQuantity, 10) || 0),
-                        0,
-                      )}{' '}
-                      units
-                    </strong>
-                  </span>
                 </div>
-              </div>
-            )}
-          </div>
-
-          {/* Vehicle and Driver Assignment Grid (2-Column Grid) */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 shrink-0">
-            <div className="flex flex-col gap-1">
-              <Label htmlFor="delivery-vehicle" className="text-xs font-semibold">
-                Assign Vehicle (Optional)
-              </Label>
-              <Select value={selectedVehicleId} onValueChange={setSelectedVehicleId}>
-                <SelectTrigger id="delivery-vehicle" className="h-8 text-xs">
-                  <SelectValue placeholder="Choose available vehicle" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Assign Later at Dispatch</SelectItem>
-                  {vehicles.map((v) => {
-                    const avail = DeliveryUtils.getVehicleAvailability(v, deliveries)
-                    return (
-                      <SelectItem
-                        key={v.id}
-                        value={String(v.id)}
-                        disabled={!avail.isAvailable}
-                        className={
-                          !avail.isAvailable ? 'opacity-50 cursor-not-allowed bg-muted/20' : ''
-                        }
-                      >
-                        <div className="flex items-center justify-between w-full gap-3">
-                          <span className="flex items-center gap-2 font-mono">
-                            <Truck
-                              className={`size-3.5 ${avail.isAvailable ? 'text-blue-600' : 'text-muted-foreground'}`}
-                            />
-                            <span
-                              className={
-                                avail.isAvailable
-                                  ? 'font-bold text-foreground'
-                                  : 'text-muted-foreground'
-                              }
-                            >
-                              {v.plateNumber}
-                            </span>
-                            <span className="text-muted-foreground font-sans text-[11px]">
-                              ({v.vehicleType}
-                              {v.model ? ` • ${v.model}` : ''})
-                            </span>
+              )}
+              {errors.request && (
+                <p role="alert" className="mb-4 text-sm text-destructive">
+                  {errors.request}
+                </p>
+              )}
+              {savedDraft && (
+                <p role="status" className="mb-4 text-sm text-muted-foreground">
+                  Draft {savedDraft.number} was saved. Retry Schedule uses this draft; closing
+                  leaves it in Outgoing Deliveries.
+                </p>
+              )}
+              <fieldset disabled={readOnly} className="flex min-w-0 flex-col gap-5">
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="delivery-sales-order">
+                    Sales Order to Fulfill <span className="text-primary">*</span>
+                  </Label>
+                  {savedDraft && selectedOrder ? (
+                    <Input id="delivery-sales-order" value={orderLabel(selectedOrder)} readOnly />
+                  ) : (
+                    <SearchableDropdown
+                      id="delivery-sales-order"
+                      ariaLabel="Sales Order to Fulfill"
+                      options={unavailable ? [] : eligibleOrders}
+                      value={selectedEligible ? selectedOrderId : ''}
+                      onValueChange={(id) => {
+                        setSelectedOrderId(id)
+                        setWarehouseId('')
+                        setQuantities({})
+                        setErrors({})
+                      }}
+                      getOptionValue={(order) => String(order.id)}
+                      getOptionLabel={orderLabel}
+                      className="pointer-coarse:min-h-11"
+                      renderOption={(order) => (
+                        <div className="flex flex-col gap-1">
+                          <span className="text-sm font-medium">{orderLabel(order)}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {remainingOutgoingItemCount(balancesByOrder.get(order.id) ?? [])}{' '}
+                            {remainingOutgoingItemCount(balancesByOrder.get(order.id) ?? []) === 1
+                              ? 'item'
+                              : 'items'}{' '}
+                            remaining
                           </span>
-                          {avail.isAvailable ? (
-                            <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1 shrink-0">
-                              <span className="size-1.5 rounded-full bg-emerald-500" />
-                              Ready
-                            </span>
-                          ) : (
-                            <span className="text-[10px] font-medium text-amber-600 dark:text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded shrink-0">
-                              {avail.reason}
-                            </span>
+                        </div>
+                      )}
+                      placeholder="Choose a Sales Order"
+                      searchPlaceholder="Search order or customer..."
+                      emptyMessage="No Sales Orders awaiting scheduling."
+                      contentClassName="w-[min(32rem,calc(100vw-2rem))]"
+                    />
+                  )}
+                  {fieldError('sales-order')}
+                  {!savedDraft && !unavailable && eligibleOrders.length === 0 && (
+                    <p className="text-sm text-muted-foreground">
+                      No Sales Orders awaiting scheduling. Confirmed orders with remaining
+                      quantities will appear here.
+                    </p>
+                  )}
+                  {!savedDraft && !unavailable && uncertainOrders && (
+                    <p role="status" className="text-xs text-muted-foreground">
+                      Some order balances are unavailable. Reload to check their scheduling
+                      eligibility.{' '}
+                      <Button type="button" variant="link" size="sm" onClick={() => void refresh()}>
+                        Reload balances
+                      </Button>
+                    </p>
+                  )}
+                  {selectedOrder && !selectedEligible && !unavailable && !savedDraft && (
+                    <p role="status" className="text-sm text-muted-foreground">
+                      {selectedOrder.orderNumber} has no available scheduling quantities or is no
+                      longer eligible. Its existing deliveries remain available.
+                    </p>
+                  )}
+                  {selectedOrder && (
+                    <p className="text-sm text-muted-foreground">{selectedOrder.deliveryAddress}</p>
+                  )}
+                </div>
+                {selectedOrder && (selectedEligible || savedDraft) && (
+                  <>
+                    <section
+                      aria-label="Shipment quantities"
+                      className="flex min-w-0 flex-col gap-2"
+                    >
+                      <h2 className="text-sm font-semibold">Shipment quantities</h2>
+                      <DeliveryQuantityTable
+                        compact
+                        direction="Outgoing"
+                        disabled={readOnly}
+                        rows={remainingItems.map((balance) => {
+                          const product = products.find(
+                            (candidate) => candidate.id === balance.item.inventoryItemId,
+                          )
+                          const capacity = savedDraft
+                            ? savedDraft.capacities[balance.item.id]
+                            : warehouseId
+                              ? outgoingSourceCapacity(
+                                  balance,
+                                  Number(warehouseId),
+                                  stocks,
+                                  warehouses,
+                                )
+                              : balance.remaining
+                          return {
+                            id: balance.item.id,
+                            name: product?.name || `Product #${balance.item.inventoryItemId}`,
+                            variety: product?.variety,
+                            unit: product?.unit || 'units',
+                            ordered: balance.item.quantity,
+                            committed: balance.committed ?? '',
+                            remaining: balance.remaining,
+                            quantityLimit: capacity,
+                            quantity: quantityFor(balance, capacity),
+                            detail: `Ordered ${formatQuantity(balance.item.quantity)} · Arranged ${formatQuantity(balance.committed)}${warehouseId ? ` · From this source: ${formatQuantity(capacity)}` : ''}`,
+                          }
+                        })}
+                        onChange={(id, quantity) =>
+                          setQuantities((previous) => ({ ...previous, [id]: quantity }))
+                        }
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Enter 0 to skip a product. Quantities are limited by the selected source.
+                      </p>
+                    </section>
+                    <div className="flex flex-col gap-1.5">
+                      <Label htmlFor="delivery-warehouse">
+                        Source Warehouse <span className="text-primary">*</span>
+                      </Label>
+                      {savedDraft ? (
+                        <Input id="delivery-warehouse" readOnly value={savedDraft.warehouseName} />
+                      ) : (
+                        <Select
+                          value={warehouseId}
+                          onValueChange={(id) => {
+                            if (id) {
+                              setWarehouseId(id)
+                              setErrors({})
+                            }
+                          }}
+                        >
+                          <SelectTrigger
+                            id="delivery-warehouse"
+                            aria-invalid={!!errors.warehouse}
+                            aria-describedby={
+                              errors.warehouse ? 'delivery-warehouse-error' : undefined
+                            }
+                            className="h-9 pointer-coarse:h-11"
+                          >
+                            <SelectValue placeholder="Choose a source warehouse" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {sourceWarehouses.map((warehouse) => (
+                              <SelectItem
+                                key={warehouse.id}
+                                value={String(warehouse.id)}
+                                className="min-h-11"
+                              >
+                                {warehouse.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                      {fieldError('warehouse')}
+                      {!savedDraft &&
+                        (sourceWarehouses.length === 0 ? (
+                          <p role="status" className="text-xs text-destructive">
+                            No eligible source stock is available. Review the order's saved sources
+                            and current warehouse stock.
+                          </p>
+                        ) : (
+                          <p className="text-xs text-muted-foreground">
+                            One warehouse per delivery. Choose from this order's available stock
+                            sources.
+                          </p>
+                        ))}
+                    </div>
+                    <div className="flex flex-col gap-1.5 sm:max-w-sm">
+                      <Label htmlFor="delivery-scheduled-at">Scheduled Date & Time</Label>
+                      <Input
+                        id="delivery-scheduled-at"
+                        type="datetime-local"
+                        value={scheduledAt}
+                        onChange={(event) => setScheduledAt(event.target.value)}
+                        aria-invalid={!!errors['scheduled-at']}
+                        aria-describedby={
+                          errors['scheduled-at'] ? 'delivery-scheduled-at-error' : undefined
+                        }
+                        className="h-9 text-sm pointer-coarse:h-11"
+                      />
+                      {fieldError('scheduled-at')}
+                    </div>
+                    <div className="flex flex-col gap-4 border-t pt-4">
+                      <details
+                        open={assignmentsOpen || !!errors.vehicle || !!errors.driver}
+                        onToggle={(event) => setAssignmentsOpen(event.currentTarget.open)}
+                      >
+                        <summary className="cursor-pointer rounded-sm py-2 text-sm font-medium pointer-coarse:min-h-11 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring">
+                          Vehicle & Driver (Optional)
+                        </summary>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {[vehicleSummary, driverSummary].filter(Boolean).join(' · ') ||
+                            'Assign later at dispatch'}
+                        </p>
+                        <div
+                          hidden={!assignmentsOpen && !errors.vehicle && !errors.driver}
+                          className="mt-3 grid gap-3 sm:grid-cols-2"
+                        >
+                          <div className="flex flex-col gap-1.5">
+                            <Label htmlFor="delivery-vehicle">Assign Vehicle (Optional)</Label>
+                            <Select value={vehicleId} onValueChange={setVehicleId}>
+                              <SelectTrigger
+                                id="delivery-vehicle"
+                                aria-invalid={!!errors.vehicle}
+                                aria-describedby={
+                                  errors.vehicle ? 'delivery-vehicle-error' : undefined
+                                }
+                                className="h-9 pointer-coarse:h-11"
+                              >
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">Assign Later at Dispatch</SelectItem>
+                                {vehicles.map((vehicle) => (
+                                  <SelectItem
+                                    key={vehicle.id}
+                                    value={String(vehicle.id)}
+                                    disabled={
+                                      !DeliveryUtils.getVehicleAvailability(vehicle, deliveries)
+                                        .isAvailable
+                                    }
+                                    className="min-h-11"
+                                  >
+                                    {vehicle.plateNumber}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            {fieldError('vehicle')}
+                          </div>
+                          <div className="flex flex-col gap-1.5">
+                            <Label htmlFor="delivery-driver">Assign Driver (Optional)</Label>
+                            <Select value={driverId} onValueChange={setDriverId}>
+                              <SelectTrigger
+                                id="delivery-driver"
+                                aria-invalid={!!errors.driver}
+                                aria-describedby={
+                                  errors.driver ? 'delivery-driver-error' : undefined
+                                }
+                                className="h-9 pointer-coarse:h-11"
+                              >
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">Assign Later at Dispatch</SelectItem>
+                                {employees.map((employee) => (
+                                  <SelectItem
+                                    key={employee.id}
+                                    value={String(employee.id)}
+                                    disabled={
+                                      !DeliveryUtils.getDriverAvailability(employee, deliveries)
+                                        .isAvailable
+                                    }
+                                    className="min-h-11"
+                                  >
+                                    {employee.firstName} {employee.lastName}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            {fieldError('driver')}
+                          </div>
+                          {(vehiclesQuery.isError || employeesQuery.isError) && (
+                            <p role="alert" className="text-xs text-destructive sm:col-span-2">
+                              Vehicle or driver choices could not be loaded. Assign later, or{' '}
+                              <Button
+                                type="button"
+                                variant="link"
+                                size="sm"
+                                onClick={() => {
+                                  void vehiclesQuery.refetch()
+                                  void employeesQuery.refetch()
+                                }}
+                              >
+                                Retry choices
+                              </Button>
+                            </p>
                           )}
                         </div>
-                      </SelectItem>
-                    )
-                  })}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex flex-col gap-1">
-              <Label htmlFor="delivery-driver" className="text-xs font-semibold">
-                Assign Driver (Optional)
-              </Label>
-              <Select value={selectedDriverId} onValueChange={setSelectedDriverId}>
-                <SelectTrigger id="delivery-driver" className="h-8 text-xs">
-                  <SelectValue placeholder="Choose active employee" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Assign Later at Dispatch</SelectItem>
-                  {employees.map((e) => {
-                    const avail = DeliveryUtils.getDriverAvailability(e, deliveries)
-                    return (
-                      <SelectItem
-                        key={e.id}
-                        value={String(e.id)}
-                        disabled={!avail.isAvailable}
-                        className={
-                          !avail.isAvailable ? 'opacity-50 cursor-not-allowed bg-muted/20' : ''
-                        }
+                      </details>
+                      <details
+                        open={notesOpen}
+                        onToggle={(event) => setNotesOpen(event.currentTarget.open)}
                       >
-                        <div className="flex items-center justify-between w-full gap-3">
-                          <span className="flex items-center gap-2">
-                            <User
-                              className={`size-3.5 ${avail.isAvailable ? 'text-purple-600' : 'text-muted-foreground'}`}
-                            />
-                            <span
-                              className={
-                                avail.isAvailable
-                                  ? 'font-semibold text-foreground'
-                                  : 'text-muted-foreground'
-                              }
-                            >
-                              {e.firstName} {e.lastName}
-                            </span>
-                            {e.phone && (
-                              <span className="text-muted-foreground text-[10px]">({e.phone})</span>
-                            )}
-                          </span>
-                          {avail.isAvailable ? (
-                            <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1 shrink-0">
-                              <span className="size-1.5 rounded-full bg-emerald-500" />
-                              Available
-                            </span>
-                          ) : (
-                            <span className="text-[10px] font-medium text-amber-600 dark:text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded shrink-0">
-                              {avail.reason}
-                            </span>
-                          )}
+                        <summary className="cursor-pointer rounded-sm py-2 text-sm font-medium pointer-coarse:min-h-11 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring">
+                          Delivery instructions (Optional)
+                        </summary>
+                        <div hidden={!notesOpen} className="mt-3 flex flex-col gap-1.5">
+                          <Label htmlFor="delivery-notes">Delivery Notes / Instructions</Label>
+                          <Input
+                            id="delivery-notes"
+                            value={notes}
+                            onChange={(event) => setNotes(event.target.value)}
+                            placeholder="Loading instructions or gate code..."
+                            className="h-9 text-sm pointer-coarse:h-11"
+                          />
                         </div>
-                      </SelectItem>
-                    )
-                  })}
-                </SelectContent>
-              </Select>
+                        {!notesOpen && notes && (
+                          <p className="mt-1 truncate text-xs text-muted-foreground" title={notes}>
+                            {notes}
+                          </p>
+                        )}
+                      </details>
+                    </div>
+                  </>
+                )}
+              </fieldset>
             </div>
-          </div>
-
-          {/* Scheduled Date and Notes (2-Column Grid) */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 shrink-0">
-            <div className="flex flex-col gap-1">
-              <Label htmlFor="delivery-scheduled-at" className="text-xs font-semibold">
-                Scheduled Date & Time
-              </Label>
-              <Input
-                id="delivery-scheduled-at"
-                type="datetime-local"
-                value={scheduledAt}
-                onChange={(e) => setScheduledAt(e.target.value)}
-                className="h-8.5 text-xs font-mono px-3"
-              />
-            </div>
-
-            <div className="flex flex-col gap-1">
-              <Label htmlFor="delivery-notes" className="text-xs font-semibold">
-                Delivery Notes / Instructions
-              </Label>
-              <Input
-                id="delivery-notes"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="e.g. Special loading dock pass or gate code..."
-                className="h-8 text-xs"
-              />
-            </div>
-          </div>
-
-          {/* Footer Bar with Checkbox and Actions */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2 border-t border-border/60 shrink-0 mt-0.5">
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                id="auto-schedule-checkbox"
-                checked={autoSchedule}
-                onChange={(e) => setAutoSchedule(e.target.checked)}
-                className="size-3.5 rounded accent-primary cursor-pointer"
-              />
-              <Label
-                htmlFor="auto-schedule-checkbox"
-                className="text-[11px] font-medium cursor-pointer"
-              >
-                Automatically confirm schedule on creation (status: SCHEDULED)
-              </Label>
-            </div>
-
-            <div className="flex items-center justify-end gap-2 shrink-0">
+            <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t pt-4">
               <Button
                 type="button"
                 variant="outline"
-                size="sm"
-                onClick={onClose}
-                disabled={createDelivery.isPending}
-                className="h-7.5 text-xs px-3"
+                disabled={busy}
+                onClick={dismiss}
+                className="pointer-coarse:min-h-11"
               >
-                Cancel
+                {savedDraft ? 'Close' : 'Cancel'}
               </Button>
+              {!savedDraft && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={busy || unavailable || !selectedEligible || !warehouseId}
+                  onClick={() => void submit('draft')}
+                  className="pointer-coarse:min-h-11"
+                >
+                  Save Draft
+                </Button>
+              )}
               <Button
                 type="submit"
-                size="sm"
+                className="pointer-coarse:min-h-11"
                 disabled={
-                  !effectiveOrderId ||
-                  !effectiveWarehouseId ||
-                  filteredAllocations.length === 0 ||
-                  isOrderFullyScheduled ||
-                  createDelivery.isPending ||
-                  scheduleDelivery.isPending
+                  busy || (!savedDraft && (unavailable || !selectedEligible || !warehouseId))
                 }
-                className="h-7.5 text-xs font-semibold gap-1.5 px-3"
               >
-                <Plus className="size-3" />
-                {createDelivery.isPending ? 'Creating...' : 'Schedule Delivery'}
+                {phase === 'checking'
+                  ? 'Checking quantities...'
+                  : phase === 'creating'
+                    ? 'Saving...'
+                    : phase === 'scheduling'
+                      ? 'Scheduling...'
+                      : savedDraft
+                        ? 'Retry Schedule'
+                        : 'Schedule Delivery'}
               </Button>
             </div>
-          </div>
-        </form>
+          </form>
+        )}
       </DialogContent>
     </Dialog>
   )

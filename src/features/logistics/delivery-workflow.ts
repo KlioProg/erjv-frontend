@@ -126,3 +126,43 @@ export function localDeliveryDay(value: string | null): string {
     String(date.getDate()).padStart(2, '0'),
   ].join('-')
 }
+
+export type DeliveryView = 'incoming' | 'outgoing' | 'history'
+export type DeliveryAction = 'schedule' | 'dispatch' | 'receive' | 'complete' | 'cancel'
+
+export function deliveryBelongsToView(
+  row: Pick<DeliveryRow, 'type' | 'status'>,
+  view: DeliveryView,
+): boolean {
+  const terminal = ['COMPLETED', 'DELIVERED', 'CANCELLED'].includes(row.status)
+  return view === 'history' ? terminal : !terminal && row.type.toLowerCase() === view
+}
+
+// These mirror the inspected backend transitions; permissions remain separate.
+export function getDeliveryActions(row: Pick<DeliveryRow, 'type' | 'status'>): DeliveryAction[] {
+  if (row.type === 'Incoming') {
+    if (row.status === 'DRAFT') return ['schedule', 'cancel']
+    if (row.status === 'SCHEDULED') return ['receive', 'cancel']
+  } else {
+    if (row.status === 'DRAFT') return ['schedule', 'cancel']
+    if (row.status === 'SCHEDULED') return ['dispatch', 'cancel']
+    if (row.status === 'DISPATCHED') return ['complete', 'cancel']
+  }
+  return []
+}
+
+export function formatDeliverySchedule(value: string | null, history: boolean, scheduled = true) {
+  const date = value ? new Date(value) : null
+  if (!date || Number.isNaN(date.getTime())) return { date: 'Not scheduled', time: '', title: '' }
+  return {
+    date: date.toLocaleDateString('en-GB', {
+      day: 'numeric',
+      month: 'short',
+      ...(history ? { year: 'numeric' as const } : {}),
+    }),
+    time: scheduled
+      ? date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+      : 'Expected',
+    title: date.toLocaleString('en-GB'),
+  }
+}

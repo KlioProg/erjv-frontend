@@ -1,3 +1,4 @@
+import { SalesOrderCancelModal } from './SalesOrderCancelModal'
 import { useState, useMemo } from 'react'
 import { CheckCircle2, Eye, MoreHorizontal, Plus, Receipt, Search, XCircle } from 'lucide-react'
 import { Card } from '@/components/ui/card'
@@ -7,6 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Spinner } from '@/components/ui/spinner'
 import { StatusTabNav } from '@/components/ui/StatusTabNav'
 import { OrderModal, type OrderFormValues } from './OrderModal'
+import { buildSalesOrderPayload } from '@/features/crm/sales-order-entry.utils'
 import { OrderDetailDrawer } from './OrderDetailDrawer'
 import { QuickDispatchModal } from './QuickDispatchModal'
 import { DeliveryDetailModal } from '@/components/deliveries/shared/DeliveryDetailModal'
@@ -26,6 +28,7 @@ import {
   SALES_ORDERS_QUERY_KEY,
 } from '@/features/crm/sales-orders.hooks'
 import { DELIVERIES_QUERY_KEY } from '@/features/logistics/outgoing-deliveries.hooks'
+import { STOCK_ITEMS_QUERY_KEY } from '@/features/logistics/stock-items.hooks'
 import { VEHICLES_QUERY_KEY } from '@/features/logistics/delivery-vehicles.hooks'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -50,7 +53,9 @@ export type OrderTabFilter = 'Active' | 'Completed' | 'Cancelled'
 export type OrdersViewProps = {
   onNavigateToPurchases?: () => void
   onNavigateToDeliveries?: (
-    tab?: 'schedule' | 'status' | 'completed' | 'incoming' | 'history',
+    tab?: 'schedule' | 'status' | 'completed' | 'incoming' | 'outgoing' | 'history',
+    salesOrderId?: number,
+    arrange?: boolean,
   ) => void
   onNavigateToInventory?: () => void
 }
@@ -90,23 +95,27 @@ export function OrdersView({
   const [isDetailDrawerOpen, setIsDetailDrawerOpen] = useState(false)
   const [dispatchOrder, setDispatchOrder] = useState<SalesOrderRecord | null>(null)
   const [deliveryToView, setDeliveryToView] = useState<number | null>(null)
+  const [orderToCancel, setOrderToCancel] = useState<SalesOrderRecord | null>(null)
 
   // Real backend queries
   const { data: salesOrders = [], isLoading: isLoadingOrders } = useSalesOrders()
   const { data: clients = [] } = useClients()
-  const { data: products = [] } = useProducts()
+  const productsQuery = useProducts()
+  const { data: products = [] } = productsQuery
   const { data: warehouses = [] } = useWarehouses()
-  const { data: stockItems = [] } = useStockItems()
+  const stockQuery = useStockItems()
+  const { data: stockItems = [] } = stockQuery
   const { data: vehicles = [] } = useDeliveryVehicles({ includeInactive: 'true' })
   const { data: employees = [] } = useEmployees({ includeInactive: 'true' })
   const { data: outgoingDeliveries = [] } = useOutgoingDeliveries()
 
   // Mutations
-  const createOrderMutation = useCreateSalesOrder()
+  const createOrderMutation = useCreateSalesOrder({ notifySuccess: false })
   const confirmOrderMutation = useConfirmSalesOrder()
   const cancelOrderMutation = useCancelSalesOrder()
 
-  const { user } = useAuth()
+  const { user, isAdmin, isManager } = useAuth()
+  const canManage = isAdmin || isManager
   const cashier = user?.fullName || user?.email || 'Current User'
 
   // Lookups
@@ -170,25 +179,20 @@ export function OrdersView({
     })
   }, [salesOrders, activeStatus, searchTerm, clientMap, productMap])
 
-  // The modal closes once the backend creates the sales order successfully.
-  const handleSaveOrder = async (values: OrderFormValues) => {
-    await createOrderMutation.mutateAsync({
-      clientId: values.clientId,
-      deliveryAddress: values.deliveryAddress,
-      notes: values.notes,
-      items: values.lines.map((line) => ({
-        inventoryItemId: line.productId,
-        quantity: String(line.quantity),
-        unitPrice: String(line.unitPrice),
-        allocations: line.stockItemId
-          ? [{ stockItemId: line.stockItemId, quantity: String(line.quantity) }]
-          : undefined,
-      })),
-    })
+  // Return the saved identity so the composer can confirm or retry that exact draft.
+  const handleSaveOrder = async (
+    values: OrderFormValues,
+    intent: 'draft' | 'confirm' = 'draft',
+  ) => {
+    const order = await createOrderMutation.mutateAsync(buildSalesOrderPayload(values))
+    if (intent === 'draft')
+      toast.success('Draft saved', { description: `Sales order ${order.orderNumber}.` })
+    return order
   }
 
   // Confirm order action
   const handleConfirmOrder = async (order: SalesOrderRecord) => {
+    if (!canManage || confirmOrderMutation.isPending) return
     try {
       await confirmOrderMutation.mutateAsync(order.id)
     } catch (err) {
@@ -196,30 +200,26 @@ export function OrdersView({
     }
   }
 
-  // Cancel order action
-  const handleCancelOrder = async (order: SalesOrderRecord) => {
-    if (
-      !window.confirm(
-        `Are you sure you want to cancel order ${order.orderNumber}? Any reserved stock allocations will be released.`,
-      )
-    ) {
-      return
-    }
-    try {
-      await cancelOrderMutation.mutateAsync(order.id)
-    } catch (err) {
-      toast.error(getErrorMessage(err))
-    }
+  // Cancellation is reviewed in the application dialog before the API request.
+  const handleCancelOrder = (order: SalesOrderRecord) => {
+    if (canManage && !cancelOrderMutation.isPending) setOrderToCancel(order)
   }
 
   // Direct arrival confirmation
   const handleConfirmArrival = async (deliveryId: number, orderNo: string) => {
+    if (
+      !window.confirm(
+        'Complete this delivery? This deducts shipment quantities from stock and releases its vehicle.',
+      )
+    )
+      return
     try {
       await completeOutgoingDeliveryApi(deliveryId)
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: SALES_ORDERS_QUERY_KEY }),
         queryClient.invalidateQueries({ queryKey: DELIVERIES_QUERY_KEY }),
         queryClient.invalidateQueries({ queryKey: VEHICLES_QUERY_KEY }),
+        queryClient.invalidateQueries({ queryKey: STOCK_ITEMS_QUERY_KEY }),
       ])
       toast.success(`Delivery completed for order ${orderNo}! Physical stock deducted.`)
     } catch (err) {
@@ -279,14 +279,15 @@ export function OrdersView({
         break
       case 'prepare-delivery':
       case 'continue-delivery':
-        setDispatchOrder(order)
+        if (onNavigateToDeliveries) onNavigateToDeliveries('outgoing', order.id)
+        else setDispatchOrder(order)
         break
       case 'view-delivery':
         if (delivery) setDeliveryToView(delivery.id)
         break
       case 'confirm-arrival':
         if (!delivery) break
-        if (onNavigateToDeliveries) onNavigateToDeliveries('completed')
+        if (onNavigateToDeliveries) onNavigateToDeliveries('outgoing', order.id)
         else void handleConfirmArrival(delivery.id, order.orderNumber)
         break
       case 'view-order':
@@ -388,26 +389,30 @@ export function OrdersView({
       align: 'right',
       className: 'whitespace-nowrap',
       cell: ({ row: { order, activeDelivery } }) => {
-        const primaryAction = getSalesOrderPrimaryAction(order, activeDelivery)
+        const primaryAction = canManage
+          ? getSalesOrderPrimaryAction(order, activeDelivery)
+          : 'view-order'
         const primaryLabel: Record<SalesOrderPrimaryAction, string> = {
           confirm: 'Confirm',
-          'prepare-delivery': 'Prepare Delivery',
-          'continue-delivery': 'Continue Delivery',
+          'prepare-delivery': 'Outgoing Deliveries',
+          'continue-delivery': 'Outgoing Deliveries',
           'view-delivery': 'View Delivery',
           'confirm-arrival': 'Confirm Arrival',
           'view-order': 'View',
         }
         const primaryVariant = {
           confirm: 'default',
-          'prepare-delivery': 'outline',
-          'continue-delivery': 'secondary',
+          'prepare-delivery': 'default',
+          'continue-delivery': 'default',
           'view-delivery': 'ghost',
           'confirm-arrival': 'secondary',
           'view-order': 'ghost',
         } as const
         const showViewOrder = primaryAction !== 'view-order'
+        const isViewOrder = primaryAction === 'view-order'
         const showViewDelivery = Boolean(activeDelivery) && primaryAction !== 'view-delivery'
-        const canCancelOrder = order.status === 'DRAFT' || order.status === 'CONFIRMED'
+        const canCancelOrder =
+          canManage && (order.status === 'DRAFT' || order.status === 'CONFIRMED')
 
         return (
           <div
@@ -415,12 +420,15 @@ export function OrdersView({
             onClick={(event) => event.stopPropagation()}
           >
             <Button
-              size="sm"
+              size={isViewOrder ? 'icon' : 'sm'}
               variant={primaryVariant[primaryAction]}
+              className={isViewOrder ? 'size-8 pointer-coarse:size-11' : undefined}
+              aria-label={isViewOrder ? `View sales order ${order.orderNumber}` : undefined}
+              title={isViewOrder ? 'View order' : undefined}
               disabled={primaryAction === 'confirm' && confirmOrderMutation.isPending}
               onClick={() => handlePrimaryAction(primaryAction, order, activeDelivery)}
             >
-              {primaryLabel[primaryAction]}
+              {isViewOrder ? <Eye aria-hidden="true" /> : primaryLabel[primaryAction]}
             </Button>
 
             {(showViewOrder || showViewDelivery || canCancelOrder) && (
@@ -520,6 +528,7 @@ export function OrdersView({
           onClick={() => {
             setIsOrderModalOpen(true)
           }}
+          disabled={!canManage}
           className="gap-1.5 font-semibold text-xs shadow-xs"
         >
           <Plus className="size-4" />
@@ -573,14 +582,36 @@ export function OrdersView({
         />
       )}
 
+      {orderToCancel && (
+        <SalesOrderCancelModal
+          order={orderToCancel}
+          onClose={() => setOrderToCancel(null)}
+          onConfirm={(id) => {
+            if (!canManage) throw new Error('You do not have permission to cancel orders.')
+            return cancelOrderMutation.mutateAsync(id)
+          }}
+        />
+      )}
+
       {/* Order Creation Modal */}
-      {isOrderModalOpen && (
+      {isOrderModalOpen && canManage && (
         <OrderModal
           open
           onClose={() => setIsOrderModalOpen(false)}
           onSubmit={handleSaveOrder}
+          onConfirm={(id) => confirmOrderMutation.mutateAsync(id)}
           clients={clients}
           products={products}
+          catalogState={{
+            productsLoading: productsQuery.isLoading,
+            stockLoading: stockQuery.isLoading,
+            productsError: productsQuery.error ? getErrorMessage(productsQuery.error) : undefined,
+            stockError: stockQuery.error ? getErrorMessage(stockQuery.error) : undefined,
+            onRetry: () => {
+              void productsQuery.refetch()
+              void stockQuery.refetch()
+            },
+          }}
           warehouses={warehouses}
           stockItems={stockItems}
           cashier={cashier}
@@ -605,6 +636,12 @@ export function OrdersView({
         employees={employees}
         stockItems={stockItems}
         outgoingDeliveries={outgoingDeliveries}
+        onConfirmed={() => setIsDetailDrawerOpen(false)}
+        onArrangeDelivery={
+          onNavigateToDeliveries
+            ? (orderId) => onNavigateToDeliveries('outgoing', orderId, true)
+            : undefined
+        }
         onViewDelivery={(id) => {
           setIsDetailDrawerOpen(false)
           setDeliveryToView(id)

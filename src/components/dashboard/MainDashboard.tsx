@@ -2,7 +2,6 @@ import { useState, useMemo } from 'react'
 import {
   Boxes,
   Warehouse as WarehouseIcon,
-  Truck,
   Package,
   Building2,
   Users,
@@ -19,28 +18,31 @@ import { ClientList } from '../crm/ClientList'
 import { EmployeeList } from '../staffing/EmployeeList'
 import { JobList } from '../staffing/JobList'
 import { OrdersView } from '../orders/OrdersView'
-import { DeliveriesHub, type DeliverySubTab } from '../deliveries/DeliveriesHub'
+import { DeliveriesHub } from '../deliveries/DeliveriesHub'
 import { PurchasesView } from '../purchases/PurchasesView'
 import { UserRolesList } from '../staffing/UserRolesList'
 import { useWarehouses } from '@/features/logistics/warehouses.hooks'
 import { useStockItems } from '@/features/logistics/stock-items.hooks'
-import { useDeliveryVehicles } from '@/features/logistics/delivery-vehicles.hooks'
 import { useProducts } from '@/features/products/products.hooks'
 import { useClients } from '@/features/crm/clients.hooks'
 import { useSalesOrders } from '@/features/crm/sales-orders.hooks'
 import { useEmployees, useJobs } from '@/features/staffing/staffing.hooks'
 import { useAuth } from '@/features/auth/AuthContext'
+import type { InventoryFocusTarget } from '@/features/logistics/stock-warnings'
 
 export function MainDashboard() {
   const [currentTab, setCurrentTab] = useState<NavItemKey>('inventory')
   const [warehouseToOpen, setWarehouseToOpen] = useState<number | null>(null)
-  const [deliverySubTab, setDeliverySubTab] = useState<DeliverySubTab | undefined>()
   const [deliveryPurchaseOrderId, setDeliveryPurchaseOrderId] = useState<number | undefined>()
+  const [deliverySalesOrderId, setDeliverySalesOrderId] = useState<number | undefined>()
+  const [arrangeDelivery, setArrangeDelivery] = useState(false)
+  const [inventoryTarget, setInventoryTarget] = useState<
+    (InventoryFocusTarget & { requestId: number }) | undefined
+  >()
   const { isStaff } = useAuth()
 
   const { data: warehouses = [] } = useWarehouses()
   const { data: stockItems = [] } = useStockItems()
-  const { data: vehicles = [] } = useDeliveryVehicles()
   const { data: products = [] } = useProducts()
   const { data: clients = [] } = useClients()
   const { data: salesOrders = [] } = useSalesOrders()
@@ -51,18 +53,12 @@ export function MainDashboard() {
     () => stockItems.reduce((acc, s) => acc + parseFloat(s.quantity || '0'), 0),
     [stockItems],
   )
-  const availableVehiclesCount = useMemo(
-    () => vehicles.filter((v) => v.status === 'AVAILABLE').length,
-    [vehicles],
-  )
   const activeStaffCount = useMemo(() => employees.filter((e) => e.isActive).length, [employees])
 
-  const isOperationsTab = currentTab === 'inventory' || currentTab === 'warehouses'
+  const isOperationsTab = currentTab === 'warehouses'
 
   const isStaffingTab =
-    currentTab === 'employees' ||
-    currentTab === 'jobs' ||
-    currentTab === 'users'
+    currentTab === 'employees' || currentTab === 'jobs' || currentTab === 'users'
 
   // Safety fallback if staff clicks restricted tab
   const effectiveTab = isStaff && isStaffingTab ? 'inventory' : currentTab
@@ -70,17 +66,23 @@ export function MainDashboard() {
   return (
     <DashboardLayout
       currentTab={effectiveTab}
+      onOpenInventory={(target) => {
+        setInventoryTarget((previous) => ({ ...target, requestId: (previous?.requestId ?? 0) + 1 }))
+        setCurrentTab('inventory')
+      }}
       onSelectTab={(tab) => {
+        setInventoryTarget(undefined)
         setWarehouseToOpen(null)
-        setDeliverySubTab(undefined)
+        setDeliverySalesOrderId(undefined)
+        setArrangeDelivery(false)
         setDeliveryPurchaseOrderId(undefined)
         setCurrentTab(tab)
       }}
     >
-      <div className="flex flex-col gap-6">
+      <div className={effectiveTab === 'inventory' ? 'flex flex-col gap-4' : 'flex flex-col gap-6'}>
         {/* KPI Top Bar when inside Operations */}
         {isOperationsTab && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
             <Card className="p-4 bg-card border-border/80 shadow-xs flex flex-col justify-between rounded-2xl">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold text-muted-foreground">
@@ -115,26 +117,6 @@ export function MainDashboard() {
                 <p className="text-[11px] text-muted-foreground mt-0.5">
                   Inventory across storage hubs
                 </p>
-              </div>
-            </Card>
-
-            <Card className="p-4 bg-card border-border/80 shadow-xs flex flex-col justify-between rounded-2xl">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-muted-foreground">
-                  Available Vehicles
-                </span>
-                <div className="p-2 rounded-xl bg-blue-500/10 text-blue-600">
-                  <Truck className="size-4" />
-                </div>
-              </div>
-              <div className="mt-3">
-                <div className="text-2xl font-extrabold text-foreground">
-                  {availableVehiclesCount}{' '}
-                  <span className="text-sm font-normal text-muted-foreground">
-                    / {vehicles.length} vehicles
-                  </span>
-                </div>
-                <p className="text-[11px] text-muted-foreground mt-0.5">Ready for order dispatch</p>
               </div>
             </Card>
 
@@ -273,10 +255,18 @@ export function MainDashboard() {
         )}
 
         {/* Lightweight Main Section Card View */}
-        <Card className="border-border/80 bg-card shadow-xs rounded-2xl overflow-hidden">
-          <CardContent className="p-4 sm:p-6">
+        <Card
+          className={
+            effectiveTab === 'inventory'
+              ? 'border-0 bg-transparent shadow-none'
+              : 'border-border/80 bg-card shadow-xs rounded-2xl overflow-hidden'
+          }
+        >
+          <CardContent className={effectiveTab === 'inventory' ? 'p-0' : 'p-4 sm:p-6'}>
             {effectiveTab === 'inventory' && (
               <InventoryHub
+                key={inventoryTarget?.requestId ?? 'browse'}
+                focusTarget={inventoryTarget}
                 onOpenWarehouse={(id) => {
                   setWarehouseToOpen(id)
                   setCurrentTab('warehouses')
@@ -287,31 +277,52 @@ export function MainDashboard() {
               <WarehouseList key={warehouseToOpen ?? 'list'} initialWarehouseId={warehouseToOpen} />
             )}
             {effectiveTab === 'fleet' && <VehicleList />}
-            {effectiveTab === 'deliveries' && (
+            {[
+              'deliveries',
+              'incoming-deliveries',
+              'outgoing-deliveries',
+              'delivery-history',
+            ].includes(effectiveTab) && (
               <DeliveriesHub
-                key={`${deliverySubTab || 'all'}-${deliveryPurchaseOrderId || 'all'}`}
-                initialTab={deliverySubTab}
+                key={`${effectiveTab}-${deliveryPurchaseOrderId || deliverySalesOrderId || 'all'}`}
+                initialTab={
+                  effectiveTab === 'incoming-deliveries'
+                    ? 'incoming'
+                    : effectiveTab === 'delivery-history'
+                      ? 'history'
+                      : 'outgoing'
+                }
                 purchaseOrderId={deliveryPurchaseOrderId}
+                salesOrderId={deliverySalesOrderId}
+                arrangeOrder={arrangeDelivery}
               />
             )}
             {(effectiveTab === 'purchases' || effectiveTab === 'suppliers') && (
               <PurchasesView
                 key={effectiveTab}
                 section={effectiveTab === 'suppliers' ? 'suppliers' : 'orders'}
-                onNavigateToDeliveries={(purchaseOrderId) => {
+                onNavigateToDeliveries={(purchaseOrderId, arrange) => {
                   setDeliveryPurchaseOrderId(purchaseOrderId)
-                  setDeliverySubTab('incoming')
-                  setCurrentTab('deliveries')
+                  setDeliverySalesOrderId(undefined)
+                  setArrangeDelivery(!!arrange)
+                  setCurrentTab('incoming-deliveries')
                 }}
               />
             )}
             {effectiveTab === 'orders' && (
               <OrdersView
                 onNavigateToPurchases={() => setCurrentTab('purchases')}
-                onNavigateToDeliveries={(tab) => {
+                onNavigateToDeliveries={(tab, salesOrderId, arrange) => {
                   setDeliveryPurchaseOrderId(undefined)
-                  setDeliverySubTab(tab || 'completed')
-                  setCurrentTab('deliveries')
+                  setDeliverySalesOrderId(salesOrderId)
+                  setArrangeDelivery(!!arrange)
+                  setCurrentTab(
+                    tab === 'history'
+                      ? 'delivery-history'
+                      : tab === 'incoming'
+                        ? 'incoming-deliveries'
+                        : 'outgoing-deliveries',
+                  )
                 }}
                 onNavigateToInventory={() => setCurrentTab('inventory')}
               />

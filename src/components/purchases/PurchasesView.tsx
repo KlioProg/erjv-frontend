@@ -1,3 +1,4 @@
+import { toast } from 'sonner'
 import { useState, useMemo } from 'react'
 import {
   Archive,
@@ -23,11 +24,14 @@ import { Badge } from '@/components/ui/badge'
 import { ArchiveTabNav } from '@/components/ui/ArchiveTabNav'
 import { StatusTabNav } from '@/components/ui/StatusTabNav'
 import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal'
+import type { PurchaseOrderRecord } from '@/features/logistics/purchase-orders.types'
 import { PurchaseModal } from './PurchaseModal'
 import { PurchaseOrderDetailModal } from './PurchaseOrderDetailModal'
 import { SupplierModal } from './SupplierModal'
 import { useAuth } from '@/features/auth/AuthContext'
 import { useProducts } from '@/features/products/products.hooks'
+import { useStockItems } from '@/features/logistics/stock-items.hooks'
+import { getErrorMessage } from '@/lib/api-client'
 import {
   usePurchaseOrders,
   useCreatePurchaseOrder,
@@ -55,7 +59,7 @@ export type PurchaseSection = 'orders' | 'suppliers'
 
 type PurchasesViewProps = {
   section?: PurchaseSection
-  onNavigateToDeliveries?: (purchaseOrderId?: number) => void
+  onNavigateToDeliveries?: (purchaseOrderId?: number, arrange?: boolean) => void
 }
 
 export function PurchasesView({
@@ -72,8 +76,10 @@ export function PurchasesView({
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null)
   const [supplierToArchive, setSupplierToArchive] = useState<Supplier | null>(null)
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null)
+  const [orderToCancel, setOrderToCancel] = useState<PurchaseOrderRecord | null>(null)
 
-  const { user } = useAuth()
+  const { user, isAdmin, isManager } = useAuth()
+  const canManage = isAdmin || isManager
   const processedBy = user?.fullName || user?.email || 'Current User'
 
   // Data queries
@@ -81,13 +87,16 @@ export function PurchasesView({
   const { data: suppliers = [], isLoading: isLoadingSuppliers } = useSuppliers({
     includeInactive: 'true',
   })
-  const { data: products = [] } = useProducts()
+  const stockQuery = useStockItems()
+  const { data: stockItems = [] } = stockQuery
+  const productsQuery = useProducts()
+  const { data: products = [] } = productsQuery
   const { data: warehouses = [] } = useWarehouses()
   const { data: incomingDeliveries = [] } = useIncomingDeliveries()
   const selectedOrder = purchaseOrders.find((order) => order.id === selectedOrderId)
 
   // Mutations
-  const createPOMutation = useCreatePurchaseOrder()
+  const createPOMutation = useCreatePurchaseOrder({ notifySuccess: false })
   const confirmPOMutation = useConfirmPurchaseOrder()
   const cancelPOMutation = useCancelPurchaseOrder()
 
@@ -95,6 +104,16 @@ export function PurchasesView({
   const updateSupplierMutation = useUpdateSupplier()
   const deleteSupplierMutation = useDeleteSupplier()
   const reactivateSupplierMutation = useReactivateSupplier()
+
+  const confirmPurchaseOrder = async (id: number) => {
+    if (!canManage || confirmPOMutation.isPending) return
+    try {
+      await confirmPOMutation.mutateAsync(id)
+      setSelectedOrderId(null)
+    } catch {
+      /* The mutation shows the API error; retain the order for retry. */
+    }
+  }
 
   const supplierMap = useMemo(() => {
     return new Map(suppliers.map((s) => [s.id, s]))
@@ -167,9 +186,14 @@ export function PurchasesView({
     )
   }, [activeSuppliers, archivedSuppliers, supplierView, searchTerm])
 
-  const handleCreatePO = async (payload: CreatePurchaseOrderPayload) => {
-    await createPOMutation.mutateAsync(payload)
-    setIsPurchaseModalOpen(false)
+  const handleCreatePO = async (
+    payload: CreatePurchaseOrderPayload,
+    intent: 'draft' | 'confirm' = 'draft',
+  ) => {
+    const order = await createPOMutation.mutateAsync(payload)
+    if (intent === 'draft')
+      toast.success('Draft saved', { description: `Purchase order ${order.orderNumber}.` })
+    return order
   }
 
   const handleSaveSupplier = async (values: {
@@ -357,104 +381,61 @@ export function PurchasesView({
       align: 'right',
       className: 'text-right',
       cell: ({ row: { po } }) => (
-        <>
-          <div className="flex items-center justify-end gap-1">
+        <div
+          className="inline-grid grid-cols-[auto_2rem_2rem] items-center gap-1 pointer-coarse:grid-cols-[auto_2.75rem_2.75rem]"
+          onClick={(event) => event.stopPropagation()}
+        >
+          {po.status === 'DRAFT' && canManage && (
             <Button
+              type="button"
+              size="sm"
+              className="col-start-1 justify-self-end pointer-coarse:min-h-11"
+              disabled={confirmPOMutation.isPending}
+              onClick={() => void confirmPurchaseOrder(po.id)}
+              title="Confirm Purchase Order"
+            >
+              <Check aria-hidden="true" data-icon="inline-start" />
+              Confirm
+            </Button>
+          )}
+          {['CONFIRMED', 'PARTIALLY_RECEIVED'].includes(po.status) && onNavigateToDeliveries && (
+            <Button
+              type="button"
+              size="sm"
+              className="col-start-1 justify-self-end pointer-coarse:min-h-11"
+              onClick={() => onNavigateToDeliveries(po.id)}
+              title="Open Incoming Deliveries for this purchase order"
+            >
+              <ArrowDownToLine aria-hidden="true" data-icon="inline-start" />
+              Incoming Deliveries
+            </Button>
+          )}
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="col-start-2 size-8 pointer-coarse:size-11"
+            aria-label={`View purchase order ${po.orderNumber}`}
+            title="View Purchase Order"
+            onClick={() => setSelectedOrderId(po.id)}
+          >
+            <Eye aria-hidden="true" />
+          </Button>
+          {canManage && ['DRAFT', 'CONFIRMED'].includes(po.status) && (
+            <Button
+              type="button"
               variant="ghost"
               size="icon"
-              aria-label={`View purchase order ${po.orderNumber}`}
-              title="View Purchase Order"
-              onClick={() => setSelectedOrderId(po.id)}
+              className="col-start-3 size-8 text-destructive hover:bg-destructive/10 hover:text-destructive pointer-coarse:size-11"
+              aria-label={`Cancel purchase order ${po.orderNumber}`}
+              title="Cancel Purchase Order"
+              onClick={() => setOrderToCancel(po)}
+              disabled={cancelPOMutation.isPending}
             >
-              <Eye data-icon="inline-start" />
+              <X aria-hidden="true" />
             </Button>
-            {po.status === 'DRAFT' && (
-              <>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-7 px-2 text-[11px] text-emerald-600 border-emerald-500/30 hover:bg-emerald-500/10"
-                  onClick={() => confirmPOMutation.mutate(po.id)}
-                  disabled={confirmPOMutation.isPending}
-                  title="Confirm Purchase Order"
-                >
-                  <Check className="size-3 mr-1" />
-                  Confirm
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 px-2 text-[11px] text-rose-600 hover:bg-rose-500/10"
-                  onClick={() => cancelPOMutation.mutate(po.id)}
-                  disabled={cancelPOMutation.isPending}
-                  title="Cancel Purchase Order"
-                >
-                  <X className="size-3 mr-1" />
-                  Cancel
-                </Button>
-              </>
-            )}
-            {po.status === 'CONFIRMED' && (
-              <div className="flex items-center justify-end gap-1.5">
-                {onNavigateToDeliveries ? (
-                  <button
-                    type="button"
-                    onClick={() => onNavigateToDeliveries(po.id)}
-                    className="group inline-flex items-center gap-1 rounded-md border border-border/80 bg-muted/40 px-2 py-1 text-[10px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted/70 transition-colors"
-                    title="Go to Deliveries → Incoming to schedule and receive materials"
-                  >
-                    <ArrowDownToLine className="size-3 text-primary group-hover:translate-y-0.5 transition-transform" />
-                    <span>Incoming Deliveries</span>
-                    <ChevronRight className="size-2.5 opacity-60" />
-                  </button>
-                ) : (
-                  <span
-                    className="inline-flex items-center gap-1 rounded-md border border-border/80 bg-muted/40 px-2 py-1 text-[10px] font-medium text-muted-foreground"
-                    title="Receive materials via Deliveries → Incoming"
-                  >
-                    <ArrowDownToLine className="size-3 text-primary" />
-                    <span>Incoming Deliveries</span>
-                  </span>
-                )}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 px-2 text-[11px] text-rose-600 hover:bg-rose-500/10"
-                  onClick={() => cancelPOMutation.mutate(po.id)}
-                  disabled={cancelPOMutation.isPending}
-                  title="Cancel Purchase Order"
-                >
-                  <X className="size-3 mr-1" />
-                  Cancel
-                </Button>
-              </div>
-            )}
-            {po.status === 'PARTIALLY_RECEIVED' && (
-              <div className="flex items-center justify-end">
-                {onNavigateToDeliveries ? (
-                  <button
-                    type="button"
-                    onClick={() => onNavigateToDeliveries(po.id)}
-                    className="group inline-flex items-center gap-1 rounded-md border border-border/80 bg-muted/40 px-2 py-1 text-[10px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted/70 transition-colors"
-                    title="Go to Deliveries → Incoming to receive remaining cargo"
-                  >
-                    <ArrowDownToLine className="size-3 text-indigo-500 group-hover:translate-y-0.5 transition-transform" />
-                    <span>View Incoming</span>
-                    <ChevronRight className="size-2.5 opacity-60" />
-                  </button>
-                ) : (
-                  <span
-                    className="inline-flex items-center gap-1 rounded-md border border-border/80 bg-muted/40 px-2 py-1 text-[10px] font-medium text-muted-foreground"
-                    title="Receive remaining materials via Deliveries → Incoming"
-                  >
-                    <ArrowDownToLine className="size-3 text-indigo-500" />
-                    <span>View Incoming</span>
-                  </span>
-                )}
-              </div>
-            )}
-          </div>
-        </>
+          )}
+        </div>
       ),
     },
   ]
@@ -581,10 +562,9 @@ export function PurchasesView({
               {onNavigateToDeliveries && (
                 <Button
                   type="button"
-                  variant="outline"
                   size="sm"
                   onClick={() => onNavigateToDeliveries()}
-                  className="h-7 text-xs font-semibold gap-1 px-2.5 shrink-0 bg-background hover:bg-muted"
+                  className="shrink-0"
                 >
                   Go to Incoming Deliveries
                   <ChevronRight className="size-3.5" />
@@ -607,7 +587,7 @@ export function PurchasesView({
             <Button
               size="sm"
               onClick={() => setIsPurchaseModalOpen(true)}
-              disabled={!suppliers.some((supplier) => supplier.isActive)}
+              disabled={!canManage || !suppliers.some((supplier) => supplier.isActive)}
             >
               <Plus className="size-4" />
               Create Purchase Order
@@ -724,16 +704,30 @@ export function PurchasesView({
           statusBadge={renderStatusBadge(selectedOrder.status)}
           onClose={() => setSelectedOrderId(null)}
           onNavigateToDeliveries={onNavigateToDeliveries}
+          onConfirm={canManage ? () => void confirmPurchaseOrder(selectedOrder.id) : undefined}
+          confirming={confirmPOMutation.isPending}
         />
       )}
 
-      {isPurchaseModalOpen && (
+      {isPurchaseModalOpen && canManage && (
         <PurchaseModal
           open
           onClose={() => setIsPurchaseModalOpen(false)}
           onSubmit={handleCreatePO}
+          onConfirm={(id) => confirmPOMutation.mutateAsync(id)}
           suppliers={suppliers}
           products={products}
+          stockItems={stockItems}
+          catalogState={{
+            productsLoading: productsQuery.isLoading,
+            stockLoading: stockQuery.isLoading,
+            productsError: productsQuery.error ? getErrorMessage(productsQuery.error) : undefined,
+            stockError: stockQuery.error ? getErrorMessage(stockQuery.error) : undefined,
+            onRetry: () => {
+              void productsQuery.refetch()
+              void stockQuery.refetch()
+            },
+          }}
           processedBy={processedBy}
         />
       )}
@@ -750,6 +744,18 @@ export function PurchasesView({
           isSubmitting={createSupplierMutation.isPending || updateSupplierMutation.isPending}
         />
       )}
+      <ConfirmDeleteModal
+        key={orderToCancel?.id ?? 'cancel-order'}
+        open={!!orderToCancel}
+        onClose={() => setOrderToCancel(null)}
+        onConfirm={async () => {
+          if (orderToCancel && canManage) await cancelPOMutation.mutateAsync(orderToCancel.id)
+        }}
+        title="Cancel Purchase Order"
+        description="Cancel this order if it has no stock movements. Physical stock is unchanged."
+        itemName={orderToCancel?.orderNumber}
+        confirmText="Cancel Order"
+      />
       <ConfirmDeleteModal
         open={supplierToArchive !== null}
         onClose={() => setSupplierToArchive(null)}

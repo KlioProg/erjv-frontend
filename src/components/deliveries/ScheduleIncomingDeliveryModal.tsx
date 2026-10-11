@@ -2,9 +2,7 @@ import { useState, useMemo, type FormEvent } from 'react'
 import {
   ArrowDownToLine,
   Calendar,
-  CheckCircle2,
   Info,
-  Package,
   RotateCcw,
   Warehouse as WarehouseIcon,
 } from 'lucide-react'
@@ -19,11 +17,11 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -36,6 +34,14 @@ import type { Supplier } from '@/features/logistics/suppliers.types'
 import type { InventoryItemResponse } from '@/features/products/products.types'
 import type { CreateIncomingDeliveryPayload } from '@/features/logistics/incoming-deliveries.types'
 import { getErrorMessage } from '@/lib/api-client'
+import {
+  remainingDeliveryQuantity,
+  deliveryQuantityError,
+  sumDeliveryQuantities,
+} from '@/features/logistics/delivery-quantities'
+import { parseOrderDecimal } from '@/lib/order-amounts'
+import { incomingOrderRemainingQuantity } from '@/features/logistics/incoming-order-balance'
+import { DeliveryQuantityTable } from './DeliveryQuantityTable'
 
 type ScheduleIncomingDeliveryModalProps = {
   open: boolean
@@ -52,11 +58,12 @@ type DeliveryLineState = {
   purchaseOrderItemId: number
   inventoryItemId: number
   name: string
+  unit?: string
   variety?: string | null
-  orderedQty: number
-  alreadyReceivedQty: number
-  remainingQty: number
-  receivedQty: number
+  orderedQty: string
+  alreadyReceivedQty: string
+  remainingQty: string | null
+  receivedQty: string
 }
 
 export function ScheduleIncomingDeliveryModal({
@@ -69,19 +76,21 @@ export function ScheduleIncomingDeliveryModal({
   products,
   preselectedOrderId,
 }: ScheduleIncomingDeliveryModalProps) {
-  const { data: allIncomingDeliveries = [] } = useIncomingDeliveries()
+  const incomingQuery = useIncomingDeliveries()
+  const { data: allIncomingDeliveries = [] } = incomingQuery
+  const unavailable = incomingQuery.isLoading || incomingQuery.isError
 
-  // Eligible POs: Confirmed or Partially Received
+  // Hide fully arranged orders; unknown balances remain visible for recovery, never as zero.
   const eligiblePOs = useMemo(() => {
-    return purchaseOrders.filter((po) => ['CONFIRMED', 'PARTIALLY_RECEIVED'].includes(po.status))
-  }, [purchaseOrders])
+    if (unavailable) return []
+    return purchaseOrders
+      .filter((po) => ['CONFIRMED', 'PARTIALLY_RECEIVED'].includes(po.status))
+      .map((po) => ({ po, remaining: incomingOrderRemainingQuantity(po, allIncomingDeliveries) }))
+      .filter(({ remaining }) => remaining !== '0.00')
+  }, [purchaseOrders, allIncomingDeliveries, unavailable])
 
   const [selectedPOId, setSelectedPOId] = useState<string>(
-    preselectedOrderId
-      ? String(preselectedOrderId)
-      : eligiblePOs[0]
-        ? String(eligiblePOs[0].id)
-        : '',
+    preselectedOrderId ? String(preselectedOrderId) : '',
   )
   const [selectedWarehouseId, setSelectedWarehouseId] = useState<string>(
     (() => {
@@ -116,10 +125,10 @@ export function ScheduleIncomingDeliveryModal({
   const productMap = useMemo(() => new Map(products.map((p) => [p.id, p])), [products])
 
   const selectedPO = useMemo(() => {
-    return eligiblePOs.find((po) => String(po.id) === selectedPOId)
+    return eligiblePOs.find(({ po }) => String(po.id) === selectedPOId)?.po
   }, [eligiblePOs, selectedPOId])
 
-  const [customQuantities, setCustomQuantities] = useState<Record<number, number>>({})
+  const [customQuantities, setCustomQuantities] = useState<Record<number, string>>({})
 
   // Compute lines purely with useMemo based on selected PO, previous receipts, and any user quantity overrides
   const lines: DeliveryLineState[] = useMemo(() => {
@@ -132,25 +141,26 @@ export function ScheduleIncomingDeliveryModal({
 
     return selectedPO.items.map((item) => {
       const product = productMap.get(item.inventoryItemId)
-      const orderedQty = Number(item.quantity) || 0
+      const orderedQty = item.quantity
 
       // Sum already received from non-cancelled incoming deliveries
       const alreadyReceivedQty = poDeliveries
         .flatMap((d) => d.items)
         .filter((dItem) => dItem.purchaseOrderItemId === item.id)
-        .reduce((sum, dItem) => sum + Number(dItem.receivedQuantity || 0), 0)
+        .map((dItem) => dItem.receivedQuantity)
 
-      const remainingQty = Math.max(0, orderedQty - alreadyReceivedQty)
+      const remainingQty = remainingDeliveryQuantity(orderedQty, alreadyReceivedQty)
       const override = customQuantities[item.id]
-      const receivedQty = override !== undefined ? override : remainingQty
+      const receivedQty = override !== undefined ? override : (remainingQty ?? '')
 
       return {
         purchaseOrderItemId: item.id,
         inventoryItemId: item.inventoryItemId,
         name: product ? product.name : `Item #${item.inventoryItemId}`,
         variety: product?.variety,
+        unit: product?.unit,
         orderedQty,
-        alreadyReceivedQty,
+        alreadyReceivedQty: sumDeliveryQuantities(alreadyReceivedQty) ?? '',
         remainingQty,
         receivedQty,
       }
@@ -158,6 +168,8 @@ export function ScheduleIncomingDeliveryModal({
   }, [selectedPO, allIncomingDeliveries, productMap, customQuantities])
 
   const handlePOChange = (newPOId: string) => {
+    // Radix's form select can emit an empty value when async options change.
+    if (!newPOId) return
     setSelectedPOId(newPOId)
     const linked = allIncomingDeliveries.filter(
       (delivery) => delivery.purchaseOrderId === Number(newPOId) && delivery.status !== 'CANCELLED',
@@ -175,11 +187,8 @@ export function ScheduleIncomingDeliveryModal({
     setErrorMessage('')
   }
 
-  const handleQtyChange = (purchaseOrderItemId: number, qty: number) => {
-    const target = lines.find((l) => l.purchaseOrderItemId === purchaseOrderItemId)
-    const max = target ? target.remainingQty : 0
-    const safeQty = Math.max(0, Math.min(max, qty))
-    setCustomQuantities((prev) => ({ ...prev, [purchaseOrderItemId]: safeQty }))
+  const handleQtyChange = (purchaseOrderItemId: number, qty: string) => {
+    setCustomQuantities((previous) => ({ ...previous, [purchaseOrderItemId]: qty }))
     setErrorMessage('')
   }
 
@@ -188,11 +197,12 @@ export function ScheduleIncomingDeliveryModal({
     setErrorMessage('')
   }
 
-  const totalRemainingAcrossPO = lines.reduce((sum, l) => sum + l.remainingQty, 0)
-  const totalReceivingNow = lines.reduce((sum, l) => sum + l.receivedQty, 0)
+  const totalRemainingAcrossPO = sumDeliveryQuantities(lines.map((line) => line.remainingQty ?? ''))
+  const totalReceivingNow = sumDeliveryQuantities(lines.map((line) => line.receivedQty))
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
+    if (isSubmitting || unavailable) return
     const pId = Number(selectedPOId)
     const wId = Number(selectedWarehouseId)
 
@@ -205,18 +215,17 @@ export function ScheduleIncomingDeliveryModal({
       return
     }
 
-    // Check if any line exceeds remaining
     for (const line of lines) {
-      if (line.receivedQty > line.remainingQty) {
-        setErrorMessage(
-          `Received quantity for "${line.name}" (${line.receivedQty}) exceeds remaining order quantity (${line.remainingQty}).`,
-        )
+      const issue = deliveryQuantityError(line.receivedQty, line.remainingQty)
+      if (issue) {
+        setErrorMessage(line.name + ': ' + issue)
+        document.getElementById('delivery-quantity-' + line.purchaseOrderItemId)?.focus()
         return
       }
     }
 
     const itemsToReceive = lines
-      .filter((l) => l.receivedQty > 0)
+      .filter((l) => (parseOrderDecimal(l.receivedQty) ?? 0n) > 0n)
       .map((l) => ({
         purchaseOrderItemId: l.purchaseOrderItemId,
         receivedQuantity: l.receivedQty,
@@ -251,8 +260,11 @@ export function ScheduleIncomingDeliveryModal({
     : 'No supplier'
 
   return (
-    <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-      <DialogContent className="max-h-[min(880px,calc(100vh-2rem))] overflow-y-auto sm:max-w-2xl gap-5 p-6">
+    <Dialog open={open} onOpenChange={(isOpen) => !isOpen && !isSubmitting && onClose()}>
+      <DialogContent
+        closeDisabled={isSubmitting}
+        className="max-h-[min(880px,calc(100vh-2rem))] overflow-y-auto sm:max-w-2xl gap-5 p-6"
+      >
         <DialogHeader className="pb-1">
           <div className="mb-2 flex size-11 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-600 shadow-2xs">
             <ArrowDownToLine className="size-5" />
@@ -266,6 +278,25 @@ export function ScheduleIncomingDeliveryModal({
           </DialogDescription>
         </DialogHeader>
 
+        {unavailable && (
+          <Alert variant={incomingQuery.isError ? 'destructive' : 'default'}>
+            <AlertDescription>
+              {incomingQuery.isError
+                ? 'Incoming delivery balances could not be loaded.'
+                : 'Loading incoming delivery balances...'}
+              {incomingQuery.isError && (
+                <Button
+                  type="button"
+                  variant="link"
+                  size="sm"
+                  onClick={() => void incomingQuery.refetch()}
+                >
+                  Retry
+                </Button>
+              )}
+            </AlertDescription>
+          </Alert>
+        )}
         {errorMessage && (
           <Alert variant="destructive">
             <AlertDescription>{errorMessage}</AlertDescription>
@@ -273,264 +304,208 @@ export function ScheduleIncomingDeliveryModal({
         )}
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="flex flex-col gap-1.5">
-              <Label className="text-xs font-semibold">
-                Purchase Order <span className="text-primary">*</span>
-              </Label>
-              <Select value={selectedPOId} onValueChange={handlePOChange}>
-                <SelectTrigger className="h-9 text-xs">
-                  <SelectValue placeholder="Select confirmed PO..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {eligiblePOs.map((po) => {
-                    const sup = supplierMap.get(po.supplierId)
-                    const poTotalOrdered = po.items.reduce((s, i) => s + Number(i.quantity || 0), 0)
-                    const poAlreadyRecv = allIncomingDeliveries
-                      .filter((d) => d.purchaseOrderId === po.id && d.status !== 'CANCELLED')
-                      .flatMap((d) => d.items)
-                      .reduce((s, i) => s + Number(i.receivedQuantity || 0), 0)
-                    const poRemaining = Math.max(0, poTotalOrdered - poAlreadyRecv)
+          <fieldset disabled={isSubmitting || unavailable} className="flex min-w-0 flex-col gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="incoming-purchase-order" className="text-xs font-semibold">
+                  Purchase Order <span className="text-primary">*</span>
+                </Label>
+                <Select
+                  value={selectedPO ? String(selectedPO.id) : ''}
+                  onValueChange={handlePOChange}
+                  disabled={isSubmitting || unavailable || eligiblePOs.length === 0}
+                >
+                  <SelectTrigger id="incoming-purchase-order" className="h-9 text-xs">
+                    <SelectValue placeholder="Select purchase order..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      {eligiblePOs.map(({ po, remaining }) => {
+                        const sup = supplierMap.get(po.supplierId)
 
-                    return (
-                      <SelectItem key={po.id} value={String(po.id)}>
-                        <span className="flex items-center justify-between gap-3 w-full">
-                          <span>
-                            {po.orderNumber} — {sup ? sup.name : `Supplier #${po.supplierId}`}
+                        return (
+                          <SelectItem key={po.id} value={String(po.id)}>
+                            <span className="flex items-center justify-between gap-3 w-full">
+                              <span>
+                                {po.orderNumber} — {sup ? sup.name : `Supplier #${po.supplierId}`}
+                              </span>
+                              <span className="text-[10px] font-mono text-muted-foreground">
+                                {remaining === null
+                                  ? 'Balance unavailable'
+                                  : `${remaining} remaining`}
+                              </span>
+                            </span>
+                          </SelectItem>
+                        )
+                      })}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="incoming-warehouse" className="text-xs font-semibold">
+                  Target Warehouse <span className="text-primary">*</span>
+                </Label>
+                <Select value={selectedWarehouseId} onValueChange={setSelectedWarehouseId}>
+                  <SelectTrigger id="incoming-warehouse" className="h-9 text-xs">
+                    <SelectValue placeholder="Select intake warehouse..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {warehouses
+                      .filter((w) => w.isActive)
+                      .map((w) => (
+                        <SelectItem key={w.id} value={String(w.id)}>
+                          <span className="flex items-center gap-1.5">
+                            <WarehouseIcon className="size-3.5 text-muted-foreground" />
+                            {w.name}
                           </span>
-                          <span className="text-[10px] font-mono text-muted-foreground">
-                            {poRemaining > 0 ? `${poRemaining} remaining` : 'Fully Received'}
-                          </span>
-                        </span>
-                      </SelectItem>
-                    )
-                  })}
-                </SelectContent>
-              </Select>
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
-            <div className="flex flex-col gap-1.5">
-              <Label className="text-xs font-semibold">
-                Target Warehouse <span className="text-primary">*</span>
-              </Label>
-              <Select value={selectedWarehouseId} onValueChange={setSelectedWarehouseId}>
-                <SelectTrigger className="h-9 text-xs">
-                  <SelectValue placeholder="Select intake warehouse..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {warehouses
-                    .filter((w) => w.isActive)
-                    .map((w) => (
-                      <SelectItem key={w.id} value={String(w.id)}>
-                        <span className="flex items-center gap-1.5">
-                          <WarehouseIcon className="size-3.5 text-muted-foreground" />
-                          {w.name}
-                        </span>
-                      </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="sched-date" className="text-xs font-semibold">
+                  Expected Arrival Date & Time
+                </Label>
+                <div className="relative">
+                  <Calendar className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    id="sched-date"
+                    type="datetime-local"
+                    value={scheduledAt}
+                    onChange={(e) => setScheduledAt(e.target.value)}
+                    className="h-9 pl-9 text-xs"
+                  />
+                </div>
+              </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="sched-date" className="text-xs font-semibold">
-                Expected Arrival Date & Time
-              </Label>
-              <div className="relative">
-                <Calendar className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="supplier-ref" className="text-xs font-semibold">
+                  Supplier Delivery Receipt / Waybill #
+                </Label>
                 <Input
-                  id="sched-date"
-                  type="datetime-local"
-                  value={scheduledAt}
-                  onChange={(e) => setScheduledAt(e.target.value)}
-                  className="h-9 pl-9 text-xs"
+                  id="supplier-ref"
+                  value={supplierRef}
+                  onChange={(e) => setSupplierRef(e.target.value)}
+                  placeholder="e.g. DR-2026-9810"
+                  className="h-9 text-xs"
                 />
               </div>
             </div>
 
+            {/* PO Materials Intake Breakdown */}
+            <section className="overflow-hidden rounded-xl border border-border/80 bg-muted/10">
+              <div className="border-b border-border/70 p-3 bg-muted/20 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[0.08em] text-muted-foreground">
+                    Expected Cargo & Balances
+                  </p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    Supplier:{' '}
+                    <span className="font-semibold text-foreground">{selectedSupplierName}</span>
+                  </p>
+                </div>
+
+                {(parseOrderDecimal(totalRemainingAcrossPO ?? '') ?? 0n) > 0n && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleResetToRemaining}
+                    className="h-7 text-[11px] gap-1 shrink-0"
+                  >
+                    <RotateCcw className="size-3" />
+                    Auto-fill Remaining
+                  </Button>
+                )}
+              </div>
+
+              {lines.length === 0 ? (
+                <div
+                  role="status"
+                  className="flex min-h-20 items-center justify-center p-4 text-center text-xs text-muted-foreground"
+                >
+                  {unavailable
+                    ? 'Incoming delivery balances are unavailable.'
+                    : eligiblePOs.length === 0
+                      ? 'No purchase orders have remaining quantities to arrange. Review existing Incoming Deliveries.'
+                      : selectedPOId
+                        ? 'This purchase order is no longer available to arrange. Choose another purchase order.'
+                        : 'Select a purchase order above to inspect cargo line items.'}
+                </div>
+              ) : (
+                <DeliveryQuantityTable
+                  direction="Incoming"
+                  disabled={isSubmitting}
+                  rows={lines.map((line) => ({
+                    id: line.purchaseOrderItemId,
+                    name: line.name,
+                    variety: line.variety,
+                    unit: line.unit,
+                    ordered: line.orderedQty,
+                    committed: line.alreadyReceivedQty,
+                    remaining: line.remainingQty,
+                    quantity: line.receivedQty,
+                  }))}
+                  onChange={handleQtyChange}
+                />
+              )}
+
+              {(parseOrderDecimal(totalRemainingAcrossPO ?? '') ?? 0n) > 0n && (
+                <div className="border-t border-border/70 bg-background/60 px-4 py-2.5 flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-1.5 text-muted-foreground">
+                    <Info className="size-3.5 text-primary" />
+                    <span>
+                      Choose quantities within the remaining order balance. Use 0 to skip an item.
+                    </span>
+                  </div>
+                  <div className="font-semibold text-foreground">
+                    Receiving Now:{' '}
+                    <span className="font-mono text-primary">{totalReceivingNow}</span> units
+                  </div>
+                </div>
+              )}
+            </section>
+
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="supplier-ref" className="text-xs font-semibold">
-                Supplier Delivery Receipt / Waybill #
+              <Label htmlFor="intake-notes" className="text-xs font-semibold">
+                Dock Notes / Inspection Remarks
               </Label>
               <Input
-                id="supplier-ref"
-                value={supplierRef}
-                onChange={(e) => setSupplierRef(e.target.value)}
-                placeholder="e.g. DR-2026-9810"
+                id="intake-notes"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="e.g. Inspect bags for tearing, check expiration codes, etc."
                 className="h-9 text-xs"
               />
             </div>
-          </div>
-
-          {/* PO Materials Intake Breakdown */}
-          <section className="overflow-hidden rounded-xl border border-border/80 bg-muted/10">
-            <div className="border-b border-border/70 p-3 bg-muted/20 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-[0.08em] text-muted-foreground">
-                  Expected Cargo & Balances
-                </p>
-                <p className="text-[11px] text-muted-foreground mt-0.5">
-                  Supplier:{' '}
-                  <span className="font-semibold text-foreground">{selectedSupplierName}</span>
-                </p>
-              </div>
-
-              {totalRemainingAcrossPO > 0 && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={handleResetToRemaining}
-                  className="h-7 text-[11px] gap-1 shrink-0"
-                >
-                  <RotateCcw className="size-3" />
-                  Auto-fill Remaining
-                </Button>
-              )}
-            </div>
-
-            {lines.length === 0 ? (
-              <div className="flex min-h-20 items-center justify-center p-4 text-xs text-muted-foreground">
-                Select a purchase order above to inspect cargo line items.
-              </div>
-            ) : totalRemainingAcrossPO === 0 ? (
-              <div className="flex flex-col items-center justify-center p-6 text-center text-xs text-muted-foreground">
-                <CheckCircle2 className="size-6 text-emerald-600 mb-1" />
-                <span className="font-semibold text-foreground">
-                  This purchase order is fully received!
-                </span>
-                <p className="text-[11px] mt-0.5">
-                  All items have already been stocked across completed deliveries.
-                </p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs">
-                  <thead className="bg-muted/40 text-left text-[10px] font-bold uppercase text-muted-foreground">
-                    <tr>
-                      <th className="px-4 py-2.5">Product Item</th>
-                      <th className="px-3 py-2.5 text-center">Ordered</th>
-                      <th className="px-3 py-2.5 text-center">Already Recv.</th>
-                      <th className="px-3 py-2.5 text-center">Remaining</th>
-                      <th className="px-4 py-2.5 text-center">Qty to Receive</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border/60">
-                    {lines.map((line) => {
-                      const isComplete = line.remainingQty === 0
-
-                      return (
-                        <tr
-                          key={line.purchaseOrderItemId}
-                          className={isComplete ? 'bg-muted/30 opacity-60' : ''}
-                        >
-                          <td className="px-4 py-3 font-semibold text-foreground">
-                            <div className="flex items-center gap-2">
-                              <Package className="size-3.5 text-primary shrink-0" />
-                              <span>{line.name}</span>
-                              {line.variety && (
-                                <span className="text-muted-foreground font-normal text-[11px]">
-                                  ({line.variety})
-                                </span>
-                              )}
-                            </div>
-                          </td>
-
-                          <td className="px-3 py-3 text-center font-mono font-medium text-muted-foreground">
-                            {line.orderedQty}
-                          </td>
-
-                          <td className="px-3 py-3 text-center font-mono">
-                            {line.alreadyReceivedQty > 0 ? (
-                              <Badge
-                                variant="outline"
-                                className="bg-blue-500/10 text-blue-600 border-blue-500/20 text-[10px] px-1.5 py-0"
-                              >
-                                {line.alreadyReceivedQty}
-                              </Badge>
-                            ) : (
-                              <span className="text-muted-foreground">0</span>
-                            )}
-                          </td>
-
-                          <td className="px-3 py-3 text-center font-mono font-bold text-foreground">
-                            {line.remainingQty}
-                          </td>
-
-                          <td className="px-4 py-3 text-center">
-                            {isComplete ? (
-                              <Badge
-                                variant="outline"
-                                className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-[10px]"
-                              >
-                                Fully Received
-                              </Badge>
-                            ) : (
-                              <div className="flex items-center justify-center gap-1.5">
-                                <Input
-                                  type="number"
-                                  min="0"
-                                  max={line.remainingQty}
-                                  value={line.receivedQty}
-                                  onChange={(e) =>
-                                    handleQtyChange(
-                                      line.purchaseOrderItemId,
-                                      parseFloat(e.target.value) || 0,
-                                    )
-                                  }
-                                  className="h-8 w-24 text-center font-mono text-xs"
-                                />
-                                <span className="text-[10px] text-muted-foreground font-mono">
-                                  / max {line.remainingQty}
-                                </span>
-                              </div>
-                            )}
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-
-            {totalRemainingAcrossPO > 0 && (
-              <div className="border-t border-border/70 bg-background/60 px-4 py-2.5 flex items-center justify-between text-xs">
-                <div className="flex items-center gap-1.5 text-muted-foreground">
-                  <Info className="size-3.5 text-primary" />
-                  <span>Quantities are capped at the remaining receivable order balance.</span>
-                </div>
-                <div className="font-semibold text-foreground">
-                  Receiving Now: <span className="font-mono text-primary">{totalReceivingNow}</span>{' '}
-                  units
-                </div>
-              </div>
-            )}
-          </section>
-
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="intake-notes" className="text-xs font-semibold">
-              Dock Notes / Inspection Remarks
-            </Label>
-            <Input
-              id="intake-notes"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="e.g. Inspect bags for tearing, check expiration codes, etc."
-              className="h-9 text-xs"
-            />
-          </div>
-
+          </fieldset>
           <DialogFooter className="mt-2 gap-2">
-            <Button type="button" variant="outline" size="sm" onClick={onClose}>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={onClose}
+              disabled={isSubmitting}
+            >
               Cancel
             </Button>
             <Button
               type="submit"
               size="sm"
-              disabled={isSubmitting || totalRemainingAcrossPO === 0 || totalReceivingNow === 0}
+              disabled={
+                isSubmitting ||
+                unavailable ||
+                !selectedPO ||
+                totalRemainingAcrossPO === null ||
+                totalRemainingAcrossPO === '0.00' ||
+                totalReceivingNow === '0.00'
+              }
               className="font-semibold"
             >
               <ArrowDownToLine className="size-4 mr-1" />
