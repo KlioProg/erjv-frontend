@@ -1,4 +1,4 @@
-import { PageHeader } from '@/components/ui/ManagementPage'
+import { PageHeader, PageToolbar } from '@/components/ui/ManagementPage'
 import { useState } from 'react'
 import { Archive, Plus, Search, Users } from 'lucide-react'
 import { ArchiveTabNav } from '@/components/ui/ArchiveTabNav'
@@ -128,124 +128,118 @@ export function ClientList() {
   ]
 
   return (
-    <div className="customer-pilot flex min-w-0 flex-col gap-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <PageHeader description="Manage customer accounts, contact details, and delivery addresses.">
-          Customers
-        </PageHeader>
+    <div className="customer-pilot flex min-w-0 flex-col gap-4">
+      <PageHeader>Customers</PageHeader>
+      <ArchiveTabNav
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        activeLabel="Active Customers"
+        activeCount={activeClients.length}
+        archivedLabel="Archived Customers"
+        archivedCount={archivedClients.length}
+        activeIcon={<Users className="size-3.5" />}
+        showBanner={false}
+        className="customer-filters"
+      />
+      <PageToolbar>
+        <div className="relative w-full sm:w-80">
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            aria-label="Search customers"
+            placeholder="Search name, contact or address..."
+            value={searchTerm}
+            onChange={(event) => setSearchTerm(event.target.value)}
+            className="h-9 pl-9"
+          />
+        </div>
         {canManage && activeTab === 'ACTIVE' && (
           <Button onClick={handleCreate} variant="primary-contrast" className="shrink-0">
             <Plus data-icon="inline-start" />
             Register New Customer
           </Button>
         )}
-      </div>
-      <section aria-label="Customer directory" className="flex min-w-0 flex-col gap-4">
-        <div className="customer-directory-toolbar flex min-w-0 flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <ArchiveTabNav
-            activeTab={activeTab}
-            onTabChange={setActiveTab}
-            activeLabel="Active Customers"
-            activeCount={activeClients.length}
-            archivedLabel="Archived Customers"
-            archivedCount={archivedClients.length}
-            activeIcon={<Users className="size-3.5" />}
-            showBanner={false}
-            className="customer-filters"
-          />
-          <div className="relative w-full lg:w-80">
-            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              aria-label="Search customers"
-              placeholder="Search name, contact or address..."
-              value={searchTerm}
-              onChange={(event) => setSearchTerm(event.target.value)}
-              className="h-9 pl-9"
-            />
-          </div>
-        </div>
-        {activeTab === 'ARCHIVED' && (
-          <p className="rounded-md bg-secondary px-4 py-3 text-xs leading-5 text-muted-foreground">
-            Archived customers keep their contact details and order history. Reactivate an account
-            to use it again.
-          </p>
-        )}
-        {isError ? (
-          <Alert variant="destructive">
-            <AlertTitle>Could not load customers</AlertTitle>
-            <AlertDescription>{getErrorMessage(error)}</AlertDescription>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="mt-3"
-              onClick={() => void refetch()}
-            >
-              Try again
-            </Button>
-          </Alert>
-        ) : (
-          <DataTable
-            appearance="management"
-            className="customer-table"
-            data={filteredClients}
-            columns={customerColumns}
-            getRowKey={(client) => client.id}
-            isLoading={isLoading}
-            loadingMessage="Loading customers..."
-            tableClassName="min-w-[960px]"
-            emptyContent={
-              <div className="flex flex-col items-center justify-center px-4 py-12 text-center">
-                <Users aria-hidden="true" className="mb-3 size-8 text-muted-foreground" />
-                <h3 className="text-sm font-semibold text-foreground">
-                  {query
-                    ? 'No matching customers'
-                    : activeTab === 'ACTIVE'
-                      ? 'No active customers found'
-                      : 'No archived customers found'}
-                </h3>
-                <p className="mt-1 max-w-xs text-xs text-muted-foreground">
-                  {query
-                    ? 'No customer accounts match your search filter.'
-                    : activeTab === 'ACTIVE'
-                      ? archivedClients.length > 0
-                        ? `All customer profiles are currently archived (${archivedClients.length} total).`
-                        : 'Register commercial buyers and supermarket customers to manage wholesale accounts.'
-                      : 'Archived customer profiles will appear here and can be reactivated at any time.'}
-                </p>
-                {query && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="mt-4"
-                    onClick={() => setSearchTerm('')}
-                  >
-                    Clear search
-                  </Button>
-                )}
-                {!query && activeTab === 'ACTIVE' && archivedClients.length > 0 && (
-                  <Button
-                    onClick={() => setActiveTab('ARCHIVED')}
-                    size="sm"
-                    variant="outline"
-                    className="mt-3"
-                  >
-                    <Archive data-icon="inline-start" />
-                    View Archived Customers ({archivedClients.length})
-                  </Button>
-                )}
-                {!query && activeTab === 'ACTIVE' && archivedClients.length === 0 && canManage && (
-                  <Button onClick={handleCreate} size="sm" variant="outline" className="mt-4">
-                    <Plus data-icon="inline-start" />
-                    Register First Customer
-                  </Button>
-                )}
-              </div>
-            }
-          />
-        )}
-      </section>
+      </PageToolbar>
+      {activeTab === 'ARCHIVED' && (
+        <p className="rounded-md bg-secondary px-4 py-3 text-xs leading-5 text-muted-foreground">
+          Archived customers keep their contact details and order history. Reactivate an account to
+          use it again.
+        </p>
+      )}
+      {isError ? (
+        <Alert variant="destructive">
+          <AlertTitle>Could not load customers</AlertTitle>
+          <AlertDescription>{getErrorMessage(error)}</AlertDescription>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="mt-3"
+            onClick={() => void refetch()}
+          >
+            Try again
+          </Button>
+        </Alert>
+      ) : (
+        <DataTable
+          appearance="management"
+          className="customer-table"
+          data={filteredClients}
+          columns={customerColumns}
+          getRowKey={(client) => client.id}
+          isLoading={isLoading}
+          loadingMessage="Loading customers..."
+          tableClassName="min-w-[960px]"
+          emptyContent={
+            <div className="flex flex-col items-center justify-center px-4 py-12 text-center">
+              <Users aria-hidden="true" className="mb-3 size-8 text-muted-foreground" />
+              <h3 className="text-sm font-semibold text-foreground">
+                {query
+                  ? 'No matching customers'
+                  : activeTab === 'ACTIVE'
+                    ? 'No active customers found'
+                    : 'No archived customers found'}
+              </h3>
+              <p className="mt-1 max-w-xs text-xs text-muted-foreground">
+                {query
+                  ? 'No customer accounts match your search filter.'
+                  : activeTab === 'ACTIVE'
+                    ? archivedClients.length > 0
+                      ? `All customer profiles are currently archived (${archivedClients.length} total).`
+                      : 'Register commercial buyers and supermarket customers to manage wholesale accounts.'
+                    : 'Archived customer profiles will appear here and can be reactivated at any time.'}
+              </p>
+              {query && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="mt-4"
+                  onClick={() => setSearchTerm('')}
+                >
+                  Clear search
+                </Button>
+              )}
+              {!query && activeTab === 'ACTIVE' && archivedClients.length > 0 && (
+                <Button
+                  onClick={() => setActiveTab('ARCHIVED')}
+                  size="sm"
+                  variant="outline"
+                  className="mt-3"
+                >
+                  <Archive data-icon="inline-start" />
+                  View Archived Customers ({archivedClients.length})
+                </Button>
+              )}
+              {!query && activeTab === 'ACTIVE' && archivedClients.length === 0 && canManage && (
+                <Button onClick={handleCreate} size="sm" variant="outline" className="mt-4">
+                  <Plus data-icon="inline-start" />
+                  Register First Customer
+                </Button>
+              )}
+            </div>
+          }
+        />
+      )}
 
       <ClientModal
         client={selectedClient}

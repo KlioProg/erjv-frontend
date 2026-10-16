@@ -111,7 +111,7 @@
   --destructive-active: color-mix(in srgb, var(--destructive) 80%, black);
   --border: #d2d9d1;
   --input: #858e85;
-  --ring: var(--primary-text);
+  --ring: var(--muted-foreground);
   --status-info: #edf2f8;
   --status-info-foreground: #385e85;
   --status-warning: #fbf2e3;
@@ -144,7 +144,7 @@
   --destructive-active: color-mix(in srgb, var(--destructive) 80%, white);
   --border: #332e2a;
   --input: #3b3632;
-  --ring: var(--primary-text);
+  --ring: var(--muted-foreground);
   --status-info: #212c38;
   --status-info-foreground: #a9c5e2;
   --status-warning: #342b1d;
