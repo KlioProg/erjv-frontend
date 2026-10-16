@@ -74,7 +74,7 @@ export default function LoginForm({
       errorMessage.toLowerCase().includes('rejected'))
 
   return (
-    <form className="flex flex-col gap-3.5" onSubmit={handleSubmit} noValidate>
+    <form className="flex flex-col gap-4" onSubmit={handleSubmit} noValidate>
       {errorMessage && (
         <Alert
           variant="destructive"
@@ -82,8 +82,8 @@ export default function LoginForm({
         >
           <AlertCircle className="size-4 shrink-0 mt-0.5" />
           <div className="flex flex-col gap-0.5">
-            <span className="font-bold text-xs">Incorrect Email or Password</span>
-            <AlertDescription className="text-xs leading-normal opacity-90">
+            <span className="font-medium text-ui">Incorrect Email or Password</span>
+            <AlertDescription className="text-ui leading-5">
               {errorMessage}
             </AlertDescription>
           </div>
@@ -101,7 +101,7 @@ export default function LoginForm({
         className="flex flex-col gap-1.5"
         data-invalid={emailVal.message || isPasswordRejected ? true : undefined}
       >
-        <Label htmlFor="login-email" className="text-xs font-semibold text-foreground/90">
+        <Label htmlFor="login-email" className="text-ui font-medium text-foreground">
           Email address
         </Label>
         <div className="relative">
@@ -127,7 +127,7 @@ export default function LoginForm({
           />
         </div>
         {(emailVal.message || isPasswordRejected) && (
-          <p className="text-[11px] font-semibold text-destructive flex items-center gap-1.5 animate-in fade-in-50">
+          <p className="text-xs font-medium text-destructive flex items-center gap-2">
             <AlertCircle className="size-3 shrink-0" />
             {emailVal.message || 'Please check your email address'}
           </p>
@@ -139,7 +139,7 @@ export default function LoginForm({
         className="flex flex-col gap-1.5"
         data-invalid={passVal.message || isPasswordRejected ? true : undefined}
       >
-        <Label htmlFor="login-password" className="text-xs font-semibold text-foreground/90">
+        <Label htmlFor="login-password" className="text-ui font-medium text-foreground">
           Password
         </Label>
         <div className="relative">
@@ -166,16 +166,15 @@ export default function LoginForm({
           />
           <button
             type="button"
-            className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-md p-1 text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer"
+            className="absolute right-1 top-1/2 inline-flex size-8 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring pointer-coarse:right-0 pointer-coarse:size-11 cursor-pointer"
             onClick={() => setShowPassword(!showPassword)}
             aria-label={showPassword ? 'Hide password' : 'Show password'}
-            tabIndex={-1}
           >
             {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
           </button>
         </div>
         {(passVal.message || isPasswordRejected) && (
-          <p className="text-[11px] font-semibold text-destructive flex items-center gap-1.5 animate-in fade-in-50">
+          <p className="text-xs font-medium text-destructive flex items-center gap-2">
             <AlertCircle className="size-3 shrink-0" />
             {passVal.message || 'Incorrect password or email address'}
           </p>
@@ -205,8 +204,8 @@ export default function LoginForm({
 
       <Button
         type="submit"
-        className={`mt-1 w-full font-bold shadow-md cursor-pointer transition-all duration-200 active:scale-[0.98] ${
-          isSuccess ? 'bg-emerald-600 hover:bg-emerald-600 text-white' : ''
+        className={`mt-1 w-full font-medium ${
+          isSuccess ? 'bg-status-success-foreground hover:bg-status-success-foreground text-white' : ''
         }`}
         size="lg"
         disabled={isSubmitting || isSuccess}
@@ -218,7 +217,7 @@ export default function LoginForm({
           </>
         ) : isSubmitting ? (
           <>
-            <Spinner className="size-4 animate-spin text-primary-foreground" />
+            <Spinner className="size-4 animate-spin text-primary-button-foreground" />
             <span>Verifying credentials...</span>
           </>
         ) : (

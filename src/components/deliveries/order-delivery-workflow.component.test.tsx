@@ -522,9 +522,7 @@ describe('order to delivery workflow', () => {
     expect(screen.queryByRole('columnheader', { name: 'Order Number' })).toBeNull()
     const orderCell = orderRow?.querySelector('td')
     expect(orderCell?.querySelector('svg')).toBeNull()
-    expect(within(orderCell!).getByText('PO-TEST').className).toContain(
-      'font-mono text-xs font-semibold text-foreground',
-    )
+    expect(orderCell?.textContent).toBe('PO-TEST')
     expect(within(orderRow!).getByText('Draft')).toBeTruthy()
     expect(
       within(orderRow!).getByText('Draft').closest('[data-slot="badge"]')?.querySelector('svg'),

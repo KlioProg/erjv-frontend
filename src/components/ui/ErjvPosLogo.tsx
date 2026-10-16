@@ -5,7 +5,7 @@ type ErjvPosLogoProps = {
 export function ErjvPosLogo({ className = '' }: ErjvPosLogoProps) {
   return (
     <div className={`flex flex-col items-center justify-center text-center ${className}`}>
-      <span className="text-3xl font-bold tracking-tight text-muted-foreground">
+      <span className="text-3xl font-bold tracking-tight text-foreground">
         ERJV<span className="text-logo-pos">POS</span>
       </span>
     </div>

@@ -410,7 +410,7 @@ export function ScheduleIncomingDeliveryModal({
                     variant="outline"
                     size="sm"
                     onClick={handleResetToRemaining}
-                    className="h-8 shrink-0 text-xs pointer-coarse:min-h-11"
+                    className="h-8 shrink-0 text-[13px] pointer-coarse:min-h-11"
                   >
                     <RotateCcw className="size-4" />
                     Auto-fill Remaining

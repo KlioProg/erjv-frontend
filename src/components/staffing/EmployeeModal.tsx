@@ -1,14 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import {
-  UserPlus,
-  UserCheck,
-  Calendar,
-  Mail,
-  Phone,
-  MapPin,
-  User as UserIcon,
-  RotateCcw,
-} from 'lucide-react'
+import { Calendar, Mail, Phone, MapPin, User as UserIcon, RotateCcw } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -152,9 +143,6 @@ function EmployeeFormContent({
   return (
     <>
       <DialogHeader>
-        <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary mb-1">
-          {isEditing ? <UserCheck className="size-5" /> : <UserPlus className="size-5" />}
-        </div>
         <DialogTitle>{isEditing ? 'Edit Employee Profile' : 'Register New Employee'}</DialogTitle>
         <DialogDescription>
           {isEditing
@@ -170,12 +158,10 @@ function EmployeeFormContent({
       )}
 
       {deactivatedEmployeeMatch && (
-        <div className="my-1 p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-950 dark:text-amber-200 flex items-start gap-3 shadow-2xs animate-in fade-in-0 zoom-in-95 slide-in-from-top-2 duration-300">
-          <div className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-amber-500/20 text-amber-700 dark:text-amber-300 mt-0.5">
-            <RotateCcw className="size-4 animate-in spin-in-180 duration-500" />
-          </div>
+        <div className="my-1 flex items-start gap-3 rounded-lg border border-status-warning-foreground/20 bg-status-warning p-4 text-status-warning-foreground">
+          <RotateCcw className="mt-0.5 size-4 shrink-0 text-status-warning-foreground" />
           <div className="flex-1 text-xs">
-            <p className="font-bold text-foreground">Deactivated Employee Found</p>
+            <p className="font-semibold text-foreground">Deactivated Employee Found</p>
             <p className="text-muted-foreground mt-0.5 leading-relaxed">
               An archived profile for{' '}
               <strong className="text-foreground">
@@ -188,10 +174,10 @@ function EmployeeFormContent({
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="flex flex-col gap-3.5 py-1">
-        <div className="grid grid-cols-2 gap-3">
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4 py-1">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="emp-fname" className="text-xs font-medium">
+            <Label htmlFor="emp-fname" className="text-ui font-medium">
               First Name <span className="text-primary">*</span>
             </Label>
             <div className="relative">
@@ -212,7 +198,7 @@ function EmployeeFormContent({
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="emp-lname" className="text-xs font-medium">
+            <Label htmlFor="emp-lname" className="text-ui font-medium">
               Last Name <span className="text-primary">*</span>
             </Label>
             <Input
@@ -229,9 +215,9 @@ function EmployeeFormContent({
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="emp-email" className="text-xs font-medium">
+            <Label htmlFor="emp-email" className="text-ui font-medium">
               Work Email
             </Label>
             <div className="relative">
@@ -253,15 +239,15 @@ function EmployeeFormContent({
 
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center justify-between">
-              <Label htmlFor="emp-phone" className="text-xs font-medium">
+              <Label htmlFor="emp-phone" className="text-ui font-medium">
                 Phone Number
               </Label>
               {phone && (
                 <span
-                  className={`text-[10px] font-semibold ${
+                  className={`text-ui font-medium ${
                     phone.length === 11 && phone.startsWith('09')
-                      ? 'text-emerald-600 dark:text-emerald-400'
-                      : 'text-amber-600 dark:text-amber-400'
+                      ? 'text-status-success-foreground'
+                      : 'text-status-warning-foreground'
                   }`}
                 >
                   {phone.length}/11 digits
@@ -284,7 +270,7 @@ function EmployeeFormContent({
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="emp-address" className="text-xs font-medium">
+          <Label htmlFor="emp-address" className="text-ui font-medium">
             Address / Location
           </Label>
           <div className="relative">
@@ -299,9 +285,9 @@ function EmployeeFormContent({
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="emp-hiredate" className="text-xs font-medium">
+            <Label htmlFor="emp-hiredate" className="text-ui font-medium">
               Hire Date <span className="text-primary">*</span>
             </Label>
             <div className="relative">
@@ -319,7 +305,7 @@ function EmployeeFormContent({
 
           {!isEditing && (
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="emp-user" className="text-xs font-medium">
+              <Label htmlFor="emp-user" className="text-ui font-medium">
                 Link User Account
               </Label>
               <Select value={selectedUserId} onValueChange={setSelectedUserId}>
@@ -351,7 +337,7 @@ function EmployeeFormContent({
               size="sm"
               onClick={handleRestoreFoundEmployee}
               disabled={isPending}
-              className="group gap-2 font-bold shadow-xs cursor-pointer transition-all duration-300 animate-in fade-in-0 zoom-in-95"
+              className="gap-2"
             >
               {reactivateMutation.isPending ? (
                 <>
@@ -360,7 +346,7 @@ function EmployeeFormContent({
                 </>
               ) : (
                 <>
-                  <RotateCcw className="size-4 transition-transform duration-200 group-hover:-rotate-45" />
+                  <RotateCcw className="size-4" />
                   Reactivate Employee Profile
                 </>
               )}
@@ -370,7 +356,7 @@ function EmployeeFormContent({
               type="submit"
               size="sm"
               disabled={isPending}
-              className="font-semibold shadow-xs cursor-pointer transition-all duration-300"
+              className="font-medium cursor-pointer"
             >
               {isPending ? (
                 <>

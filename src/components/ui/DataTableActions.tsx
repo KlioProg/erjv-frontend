@@ -44,7 +44,7 @@ export function DataTableActions({
       onClick: onRestore,
       label: restoreLabel,
       Icon: RotateCcw,
-      className: 'text-emerald-600 hover:bg-emerald-500/10 hover:text-emerald-600',
+      className: 'text-primary hover:bg-primary-subtle hover:text-primary',
     },
   ].filter((action) => action.onClick)
 
@@ -52,7 +52,7 @@ export function DataTableActions({
 
   return (
     <div
-      className="inline-flex shrink-0 items-center justify-end gap-0 align-middle"
+      className="inline-flex shrink-0 items-center justify-end gap-1 align-middle"
       onClick={(event) => event.stopPropagation()}
     >
       {children}

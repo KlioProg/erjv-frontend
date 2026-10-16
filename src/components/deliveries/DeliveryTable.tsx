@@ -48,7 +48,7 @@ export function DeliveryTable({
       cell: ({ row }) => (
         <Button
           variant="link"
-          className="h-auto min-h-8 justify-start p-0 text-xs font-semibold pointer-coarse:min-h-11"
+          className="h-auto min-h-8 justify-start p-0 text-sm font-medium pointer-coarse:min-h-11"
           onClick={() => onView(row)}
           aria-label={`View delivery ${row.reference}`}
         >
@@ -64,7 +64,7 @@ export function DeliveryTable({
       cell: ({ row }) => (
         <div className="flex flex-col gap-1 py-1">
           <span className="font-medium">{row.relatedOrder}</span>
-          <span className="text-[11px] text-muted-foreground">{row.warehouse}</span>
+          <span className="text-xs text-muted-foreground">{row.warehouse}</span>
         </div>
       ),
     },
@@ -78,7 +78,7 @@ export function DeliveryTable({
         <div className="flex flex-col gap-1 py-1">
           <span>{row.party}</span>
           {row.type === 'Outgoing' && (
-            <span className="text-[11px] text-muted-foreground">
+            <span className="text-xs text-muted-foreground">
               {row.vehicle}
               {row.driver !== '—' ? ` · ${row.driver}` : ''}
             </span>
@@ -103,7 +103,7 @@ export function DeliveryTable({
         return (
           <div title={schedule.title} className="flex flex-col gap-1 whitespace-nowrap py-1">
             <span>{schedule.date}</span>
-            <span className="text-[11px] text-muted-foreground">{schedule.time}</span>
+            <span className="text-xs text-muted-foreground">{schedule.time}</span>
           </div>
         )
       },

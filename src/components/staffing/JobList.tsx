@@ -9,7 +9,6 @@ import {
   Search,
   AlertCircle,
 } from 'lucide-react'
-import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
@@ -34,15 +33,15 @@ function JobStaffCount({ jobId, isArchived }: { jobId: number; isArchived?: bool
   }
 
   return (
-    <span className="text-[11px] text-muted-foreground font-medium flex items-center gap-1.5">
+    <span className="text-sm text-muted-foreground flex items-center gap-2">
       {isArchived ? (
         <>
-          <Briefcase className="size-3.5 text-muted-foreground/70" />
+          <Briefcase className="size-3.5 text-muted-foreground" />
           {employeeJobs.length} assigned records
         </>
       ) : (
         <>
-          <CheckCircle2 className="size-3.5 text-emerald-600" />
+          <CheckCircle2 className="size-3.5 text-status-success-foreground" />
           {employeeJobs.length} active staff assigned
         </>
       )}
@@ -105,10 +104,10 @@ export function JobList() {
       header: 'Position',
       accessorKey: 'name',
       sortable: true,
-      className: 'min-w-48 font-semibold',
+      className: 'min-w-48 font-medium',
       cell: ({ row }) => (
         <div className="flex min-w-0 items-center gap-2">
-          <Briefcase aria-hidden="true" className="size-4 shrink-0 text-primary" />
+          <Briefcase aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
           <span className="truncate">{row.name}</span>
         </div>
       ),
@@ -185,16 +184,12 @@ export function JobList() {
             placeholder="Search positions by title or duties..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-9 h-9 text-xs"
+            className="pl-9"
           />
         </div>
 
         {activeTab === 'ACTIVE' && (
-          <Button
-            size="sm"
-            onClick={handleCreate}
-            className="font-semibold shadow-xs cursor-pointer"
-          >
+          <Button size="sm" onClick={handleCreate} className="font-medium cursor-pointer">
             <Plus data-icon="inline-start" className="size-4" />
             Create Job Position
           </Button>
@@ -202,10 +197,8 @@ export function JobList() {
       </PageToolbar>
 
       {error ? (
-        <div className="flex flex-col items-center justify-center py-14 px-4 text-center border rounded-2xl bg-card">
-          <div className="size-12 rounded-2xl bg-destructive/10 border border-destructive/20 flex items-center justify-center text-destructive mb-3 shadow-2xs">
-            <AlertCircle className="size-6" />
-          </div>
+        <div className="flex flex-col items-center justify-center py-14 px-4 text-center">
+          <AlertCircle className="mb-3 size-6 text-destructive" />
           <h3 className="text-sm font-semibold text-foreground">Unable to load job positions</h3>
           <p className="text-xs text-muted-foreground mt-1 max-w-sm">
             We encountered an issue connecting to the service. Please check your network connection
@@ -215,7 +208,7 @@ export function JobList() {
             variant="outline"
             size="sm"
             onClick={() => refetch()}
-            className="mt-4 gap-2 text-xs font-semibold shadow-2xs border-border/80 hover:bg-muted cursor-pointer"
+            className="mt-4 gap-2 text-ui font-medium border-border/80 hover:bg-muted cursor-pointer"
           >
             <RotateCcw className="size-3.5" />
             Try Again
@@ -231,8 +224,8 @@ export function JobList() {
           loadingMessage="Loading job positions..."
           defaultSort={{ key: 'name', direction: 'asc' }}
           emptyContent={
-            <Card className="flex min-h-64 flex-col items-center justify-center border-0 bg-transparent px-4 py-12 text-center shadow-none">
-              <Briefcase aria-hidden="true" className="mb-3 size-8 text-muted-foreground/50" />
+            <div className="flex min-h-64 flex-col items-center justify-center px-4 py-12 text-center">
+              <Briefcase aria-hidden="true" className="mb-3 size-8 text-muted-foreground" />
               <p className="text-sm font-medium text-foreground">
                 {searchTerm
                   ? 'No matching job positions found'
@@ -254,13 +247,13 @@ export function JobList() {
                   variant="outline"
                   size="sm"
                   onClick={() => setActiveTab('ARCHIVED')}
-                  className="mt-3 gap-1.5 text-xs"
+                  className="mt-3 gap-2"
                 >
-                  <Archive aria-hidden="true" className="size-3.5 text-amber-600" />
+                  <Archive aria-hidden="true" className="size-3.5 text-status-warning-foreground" />
                   View Archived Positions ({archivedJobs.length})
                 </Button>
               )}
-            </Card>
+            </div>
           }
           rowClassName={(job) => (job.isActive === false ? 'bg-muted/10 opacity-75' : '')}
           tableClassName="min-w-[760px]"

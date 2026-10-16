@@ -1,5 +1,4 @@
 import { useState, type FormEvent } from 'react'
-import { Building2 } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -72,13 +71,8 @@ export function SupplierModal({
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
       <DialogContent className="sm:max-w-md gap-4 p-6">
         <DialogHeader className="pb-1">
-          <div className="mb-2 flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
-            <Building2 className="size-5" />
-          </div>
-          <DialogTitle className="text-lg font-bold">
-            {supplier ? 'Edit Supplier' : 'Add New Supplier'}
-          </DialogTitle>
-          <DialogDescription className="text-xs">
+          <DialogTitle>{supplier ? 'Edit Supplier' : 'Add New Supplier'}</DialogTitle>
+          <DialogDescription className="text-ui">
             Manage supplier details for buying products and materials.
           </DialogDescription>
         </DialogHeader>
@@ -90,9 +84,9 @@ export function SupplierModal({
         )}
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="supplier-code" className="text-xs font-semibold">
+              <Label htmlFor="supplier-code" className="text-ui font-medium">
                 Supplier Code
               </Label>
               <Input
@@ -100,12 +94,12 @@ export function SupplierModal({
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
                 placeholder="e.g. SUP-001"
-                className="h-9 text-xs font-mono"
+                className="h-9 text-sm"
               />
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="supplier-name" className="text-xs font-semibold">
+              <Label htmlFor="supplier-name" className="text-ui font-medium">
                 Company Name <span className="text-primary">*</span>
               </Label>
               <Input
@@ -113,15 +107,15 @@ export function SupplierModal({
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="e.g. Holcim Philippines"
-                className="h-9 text-xs"
+                className="h-9 text-sm"
                 required
               />
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="supplier-contact" className="text-xs font-semibold">
+              <Label htmlFor="supplier-contact" className="text-ui font-medium">
                 Contact Person
               </Label>
               <Input
@@ -129,12 +123,12 @@ export function SupplierModal({
                 value={contactPerson}
                 onChange={(e) => setContactPerson(e.target.value)}
                 placeholder="e.g. John Doe"
-                className="h-9 text-xs"
+                className="h-9 text-sm"
               />
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="supplier-phone" className="text-xs font-semibold">
+              <Label htmlFor="supplier-phone" className="text-ui font-medium">
                 Phone Number
               </Label>
               <Input
@@ -142,13 +136,13 @@ export function SupplierModal({
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder="e.g. +63 917 123 4567"
-                className="h-9 text-xs"
+                className="h-9 text-sm"
               />
             </div>
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="supplier-email" className="text-xs font-semibold">
+            <Label htmlFor="supplier-email" className="text-ui font-medium">
               Email Address
             </Label>
             <Input
@@ -157,12 +151,12 @@ export function SupplierModal({
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="e.g. sales@vendor.com"
-              className="h-9 text-xs"
+              className="h-9 text-sm"
             />
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="supplier-address" className="text-xs font-semibold">
+            <Label htmlFor="supplier-address" className="text-ui font-medium">
               Warehouse / Plant Address
             </Label>
             <Input
@@ -170,7 +164,7 @@ export function SupplierModal({
               value={address}
               onChange={(e) => setAddress(e.target.value)}
               placeholder="e.g. Km 12 Sasa, Davao City"
-              className="h-9 text-xs"
+              className="h-9 text-sm"
             />
           </div>
 
@@ -178,7 +172,7 @@ export function SupplierModal({
             <Button type="button" variant="outline" size="sm" onClick={onClose}>
               Cancel
             </Button>
-            <Button type="submit" size="sm" disabled={isSubmitting} className="font-semibold">
+            <Button type="submit" size="sm" disabled={isSubmitting} className="font-medium">
               {supplier ? 'Save Changes' : 'Add Supplier'}
             </Button>
           </DialogFooter>

@@ -128,8 +128,8 @@ export function VehicleList() {
       sortable: true,
       cell: ({ row }) => (
         <div className="flex flex-col gap-1">
-          <span className="font-semibold">{row.vehicle.model || row.vehicle.vehicleType}</span>
-          <span className="text-[11px] text-muted-foreground">
+          <span className="font-medium">{row.vehicle.model || row.vehicle.vehicleType}</span>
+          <span className="text-xs text-muted-foreground">
             {row.vehicle.capacity
               ? `${Number(row.vehicle.capacity).toLocaleString()} kg capacity`
               : 'Capacity not specified'}
@@ -142,7 +142,7 @@ export function VehicleList() {
       header: 'Plate Number',
       accessorFn: (row) => row.vehicle.plateNumber,
       sortable: true,
-      cell: ({ row }) => <span className="font-mono font-bold">{row.vehicle.plateNumber}</span>,
+      cell: ({ row }) => <span className="font-medium">{row.vehicle.plateNumber}</span>,
     },
     {
       id: 'type',
@@ -174,7 +174,7 @@ export function VehicleList() {
               key={delivery.id}
               variant="link"
               size="sm"
-              className="justify-start text-xs"
+              className="justify-start text-[13px]"
               onClick={() => setHistoryDeliveryId(delivery.id)}
             >
               {delivery.deliveryNumber}
@@ -276,7 +276,7 @@ export function VehicleList() {
     },
   ]
   return (
-    <div className="flex min-w-0 flex-col gap-4">
+    <div className="flex min-w-0 flex-col gap-6">
       <PageHeader description="Manage ERJV vehicles, their condition, and delivery assignments.">
         Vehicles
       </PageHeader>
@@ -312,12 +312,12 @@ export function VehicleList() {
             placeholder="Search plate, model, type, assignment, or driver..."
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            className="h-9 pl-9 text-xs"
+            className="h-9 pl-9 text-[13px]"
           />
         </div>
         {activeTab === 'ACTIVE' && (
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger aria-label="Vehicle status filter" className="h-9 text-xs sm:w-44">
+            <SelectTrigger aria-label="Vehicle status filter" className="h-9 text-[13px] sm:w-44">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

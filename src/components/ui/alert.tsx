@@ -3,7 +3,7 @@ import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from '@/lib/utils'
 
 const alertVariants = cva(
-  'relative w-full rounded-xl border p-3.5 [&>svg~*]:pl-7 [&>svg+div]:translate-y-[-3px] [&>svg]:absolute [&>svg]:left-3.5 [&>svg]:top-3.5 [&>svg]:text-foreground text-xs',
+  'relative w-full rounded-lg border p-4 [&>svg~*]:pl-7 [&>svg]:absolute [&>svg]:left-4 [&>svg]:top-4 [&>svg]:text-foreground text-ui',
   {
     variants: {
       variant: {
@@ -11,7 +11,7 @@ const alertVariants = cva(
         destructive:
           'border-destructive/30 bg-destructive/10 text-destructive dark:border-destructive [&>svg]:text-destructive',
         success:
-          'border-emerald-500/30 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 dark:border-emerald-500/30 [&>svg]:text-emerald-600 dark:[&>svg]:text-emerald-400',
+          'border-status-success-foreground/30 bg-status-success text-status-success-foreground [&>svg]:text-status-success-foreground',
       },
     },
     defaultVariants: {
@@ -43,7 +43,7 @@ const AlertDescription = React.forwardRef<
   HTMLParagraphElement,
   React.HTMLAttributes<HTMLParagraphElement>
 >(({ className, ...props }, ref) => (
-  <div ref={ref} className={cn('text-xs [&_p]:leading-relaxed', className)} {...props} />
+    <div ref={ref} className={cn('text-ui leading-5 [&_p]:leading-relaxed', className)} {...props} />
 ))
 AlertDescription.displayName = 'AlertDescription'
 

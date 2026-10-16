@@ -19,7 +19,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Card, CardContent } from '@/components/ui/card'
-import { Spinner } from '@/components/ui/spinner'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
 
 export type ColumnAlign = 'left' | 'center' | 'right'
@@ -391,9 +391,16 @@ export function DataTable<T>({
   // Loading View
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-16 text-muted-foreground">
-        <Spinner className="mr-2 size-5" />
-        <span className="text-xs">{loadingMessage}</span>
+      <div role="status" className={cn('overflow-hidden rounded-lg border bg-card', className)}>
+        <span className="sr-only">{loadingMessage}</span>
+        <div aria-hidden="true">
+          <div className="h-11 border-b bg-secondary" />
+          <div className="flex flex-col gap-4 p-4">
+            <Skeleton className="h-8" />
+            <Skeleton className="h-8" />
+            <Skeleton className="h-8" />
+          </div>
+        </div>
       </div>
     )
   }
@@ -401,13 +408,17 @@ export function DataTable<T>({
   // Empty View
   if (sortedData.length === 0) {
     if (emptyContent) {
-      return <>{emptyContent}</>
+      return appearance === 'management' ? (
+        <div className={cn('rounded-lg border bg-card py-4', className)}>{emptyContent}</div>
+      ) : (
+        <>{emptyContent}</>
+      )
     }
 
     return (
-      <Card className="border-dashed bg-muted/20">
+      <Card className="bg-card shadow-none">
         <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-          <Package className="size-10 text-muted-foreground/50 mb-3" />
+          <Package className="size-8 text-muted-foreground mb-3" />
           <h3 className="text-sm font-semibold text-foreground">No records found</h3>
           <p className="text-xs text-muted-foreground mt-1 max-w-xs">
             There are currently no items to display.
@@ -422,7 +433,7 @@ export function DataTable<T>({
   return (
     <div
       className={cn(
-        'ui-typography rounded-lg border border-border/80 overflow-hidden shadow-xs bg-card flex flex-col',
+        'ui-typography rounded-lg border border-border overflow-hidden bg-card flex flex-col',
         appearance === 'management' && 'management-table shadow-none',
         className,
       )}
@@ -430,13 +441,15 @@ export function DataTable<T>({
       <div className="overflow-x-auto">
         <Table
           className={cn(
-            '[&_td]:px-2 [&_th]:px-2 [&_td:first-child]:pl-3 [&_th:first-child]:pl-3 [&_td:last-child]:pr-3 [&_th:last-child]:pr-3',
+            appearance === 'management'
+              ? '[&_td]:px-4 [&_th]:px-4'
+              : '[&_td]:px-2 [&_th]:px-2 [&_td:first-child]:pl-3 [&_th:first-child]:pl-3 [&_td:last-child]:pr-3 [&_th:last-child]:pr-3',
             // Keep controls compact even when feature renderers supply custom typography.
-            '[&_tbody_td_button]:text-xs [&_tbody_td_button]:font-medium [&_tbody_td_button]:leading-4 [&_tbody_[data-slot=badge]]:text-xs [&_tbody_[data-slot=badge]]:font-semibold [&_tbody_[data-slot=badge]]:leading-4 [&_tbody_[data-slot=badge]]:px-2 [&_tbody_[data-slot=badge]]:py-0.5',
+            '[&_tbody_td_button]:text-ui [&_tbody_td_button]:font-medium [&_tbody_td_button]:leading-4 [&_tbody_[data-slot=badge]]:text-xs [&_tbody_[data-slot=badge]]:font-medium [&_tbody_[data-slot=badge]]:leading-4 [&_tbody_[data-slot=badge]]:px-2 [&_tbody_[data-slot=badge]]:py-0.5',
             tableClassName,
           )}
         >
-          <TableHeader className="bg-muted/40">
+          <TableHeader className="bg-secondary">
             <TableRow>
               {resolvedColumns.map((column) => {
                 const alignClass = getAlignmentClass(column.align)
@@ -453,9 +466,19 @@ export function DataTable<T>({
                 return (
                   <TableHead
                     key={column.resolvedId}
+                    scope="col"
+                    aria-sort={
+                      column.sortable
+                        ? isSorted
+                          ? activeSort.direction === 'asc'
+                            ? 'ascending'
+                            : 'descending'
+                          : 'none'
+                        : undefined
+                    }
                     style={widthStyle}
                     className={cn(
-                      'text-xs font-semibold text-foreground select-none',
+                      'text-xs font-medium text-muted-foreground select-none',
                       appearance === 'subtle' && 'text-muted-foreground',
                       alignClass,
                       column.headerClassName,
@@ -485,7 +508,7 @@ export function DataTable<T>({
                           ) : isSorted && activeSort.direction === 'desc' ? (
                             <ArrowDown className="size-3.5 text-primary" />
                           ) : (
-                            <ArrowUpDown className="size-3.5 opacity-30 group-hover:opacity-70 transition-opacity" />
+                            <ArrowUpDown className="size-3.5 text-muted-foreground group-hover:text-foreground transition-colors" />
                           )}
                         </span>
                       </button>
@@ -513,7 +536,7 @@ export function DataTable<T>({
                   <TableRow
                     onClick={onRowClick ? () => onRowClick(row, rowIndex) : undefined}
                     className={cn(
-                      'hover:bg-muted/20 transition-colors',
+                      'hover:bg-accent/70 focus-within:bg-accent/70 transition-colors duration-150',
                       // The unlayered global border rule otherwise overrides Tailwind colors.
                       appearance === 'subtle' && 'border-border/60! hover:bg-muted/40',
                       onRowClick && 'cursor-pointer',
@@ -538,7 +561,7 @@ export function DataTable<T>({
                           key={column.resolvedId}
                           style={widthStyle}
                           className={cn(
-                            'text-xs text-foreground',
+                            'text-sm text-foreground',
                             appearance === 'subtle' && 'py-4',
                             alignClass,
                             column.className,
@@ -571,12 +594,12 @@ export function DataTable<T>({
 
       {/* Pagination Footer */}
       {pagination && totalRows > 0 && (
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-border/70 bg-muted/25 px-4 py-3 text-xs">
+        <div className="flex flex-col sm:flex-row sm:flex-wrap items-center justify-between gap-3 border-t bg-card px-4 py-3 text-xs tabular-nums">
           <div className="flex items-center gap-4 text-muted-foreground w-full sm:w-auto justify-between sm:justify-start">
             <span>
-              Showing <span className="font-bold text-foreground">{startIndex + 1}</span> to{' '}
-              <span className="font-bold text-foreground">{endIndex}</span> of{' '}
-              <span className="font-bold text-foreground">{totalRows}</span> entries
+              Showing <span className="font-medium text-foreground">{startIndex + 1}</span> to{' '}
+              <span className="font-medium text-foreground">{endIndex}</span> of{' '}
+              <span className="font-medium text-foreground">{totalRows}</span> entries
             </span>
 
             {pageSizeOptions.length > 1 && (
@@ -586,7 +609,7 @@ export function DataTable<T>({
                   aria-label="Rows per page"
                   value={activePageSize}
                   onChange={(e) => handlePageSizeSelect(Number(e.target.value))}
-                  className="h-7 rounded-md border border-border/80 bg-background px-2 text-[11px] font-semibold text-foreground focus:outline-hidden cursor-pointer"
+                  className="h-8 rounded-md border border-input bg-card px-2 text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 cursor-pointer"
                 >
                   {pageSizeOptions.map((opt) => (
                     <option key={opt} value={opt}>
@@ -642,13 +665,15 @@ export function DataTable<T>({
                   return (
                     <Button
                       key={pageNum}
+                      aria-label={`Page ${pageNum}`}
+                      aria-current={isCurrent ? 'page' : undefined}
                       variant={isCurrent ? 'primary-contrast' : 'ghost'}
                       size="sm"
                       onClick={() => handlePageSelect(pageNum as number)}
                       className={cn(
-                        'size-7.5 p-0 text-xs font-bold rounded-md cursor-pointer transition-all',
+                        'size-8 p-0 text-xs font-medium rounded-md cursor-pointer',
                         isCurrent
-                          ? 'shadow-2xs font-extrabold'
+                          ? 'font-medium'
                           : 'text-muted-foreground hover:text-foreground hover:bg-muted',
                       )}
                     >

@@ -1,0 +1,148 @@
+{
+  "date": "2026-10-16",
+  "browser": "Headless Microsoft Edge",
+  "pairs": [
+    {
+      "name": "Graphite body text",
+      "foreground": "rgb(28, 33, 29)",
+      "background": "rgb(255, 255, 255)",
+      "ratio": 16.35,
+      "minimum": 4.5
+    },
+    {
+      "name": "Supporting table text on table surface",
+      "foreground": "rgb(86, 96, 87)",
+      "background": "rgb(255, 255, 255)",
+      "ratio": 6.55,
+      "minimum": 4.5
+    },
+    {
+      "name": "Selected navigation text",
+      "foreground": "rgb(28, 33, 29)",
+      "background": "rgb(238, 244, 234)",
+      "ratio": 14.61,
+      "minimum": 4.5
+    },
+    {
+      "name": "Selected navigation icon",
+      "foreground": "rgb(77, 115, 55)",
+      "background": "rgb(238, 244, 234)",
+      "ratio": 4.91,
+      "minimum": 3
+    },
+    {
+      "name": "Brand logo at display size",
+      "foreground": "rgb(106, 153, 78)",
+      "background": "rgb(255, 255, 255)",
+      "ratio": 3.34,
+      "minimum": 3
+    },
+    {
+      "name": "Default filled action",
+      "foreground": "rgb(255, 255, 255)",
+      "background": "rgb(77, 115, 55)",
+      "ratio": 5.49,
+      "minimum": 4.5
+    },
+    {
+      "name": "Contrast filled action",
+      "foreground": "rgb(255, 255, 255)",
+      "background": "rgb(77, 115, 55)",
+      "ratio": 5.49,
+      "minimum": 4.5
+    },
+    {
+      "name": "Raw brand fill with graphite",
+      "foreground": "rgb(28, 33, 29)",
+      "background": "rgb(106, 153, 78)",
+      "ratio": 4.89,
+      "minimum": 4.5
+    },
+    {
+      "name": "Primary text alias",
+      "foreground": "rgb(77, 115, 55)",
+      "background": "rgb(255, 255, 255)",
+      "ratio": 5.49,
+      "minimum": 4.5
+    },
+    {
+      "name": "Link action",
+      "foreground": "rgb(77, 115, 55)",
+      "background": "rgb(255, 255, 255)",
+      "ratio": 5.49,
+      "minimum": 4.5
+    },
+    {
+      "name": "Action icon",
+      "foreground": "rgb(28, 33, 29)",
+      "background": "rgb(255, 255, 255)",
+      "ratio": 16.35,
+      "minimum": 3
+    },
+    {
+      "name": "Input border",
+      "foreground": "rgb(133, 142, 133)",
+      "background": "rgb(255, 255, 255)",
+      "ratio": 3.38,
+      "minimum": 3
+    },
+    {
+      "name": "Checked box border",
+      "foreground": "rgb(77, 115, 55)",
+      "background": "rgb(255, 255, 255)",
+      "ratio": 5.49,
+      "minimum": 3
+    },
+    {
+      "name": "Checkbox checkmark",
+      "foreground": "rgb(255, 255, 255)",
+      "background": "rgb(77, 115, 55)",
+      "ratio": 5.49,
+      "minimum": 3
+    },
+    {
+      "name": "Default action hover",
+      "foreground": "rgb(255, 255, 255)",
+      "background": "color(srgb 0.271765 0.405882 0.194118)",
+      "ratio": 6.48,
+      "minimum": 4.5
+    },
+    {
+      "name": "Default action active",
+      "foreground": "rgb(255, 255, 255)",
+      "background": "color(srgb 0.241569 0.360784 0.172549)",
+      "ratio": 7.58,
+      "minimum": 4.5
+    },
+    {
+      "name": "Default action focus-visible",
+      "foreground": "rgb(255, 255, 255)",
+      "background": "rgb(77, 115, 55)",
+      "ratio": 5.49,
+      "minimum": 4.5
+    },
+    {
+      "name": "Button focus ring",
+      "foreground": "#4d7337",
+      "background": "rgb(255, 255, 255)",
+      "ratio": 5.49,
+      "minimum": 3
+    },
+    {
+      "name": "Input focus ring",
+      "foreground": "#4d7337",
+      "background": "rgb(255, 255, 255)",
+      "ratio": 5.49,
+      "minimum": 3
+    },
+    {
+      "name": "Selected option text",
+      "foreground": "rgb(77, 115, 55)",
+      "background": "rgb(238, 244, 234)",
+      "ratio": 4.91,
+      "minimum": 4.5
+    }
+  ],
+  "states": [],
+  "exceptions": []
+}

@@ -74,7 +74,7 @@ export function DeliveryDetailModal({ deliveryId, open, onClose }: DeliveryDetai
       cell: ({ row, index }) => {
         const { product, orderItem } = cargoProduct(row)
         return (
-          <div className="min-w-0 space-y-0.5 [overflow-wrap:anywhere]">
+          <div className="flex min-w-0 flex-col gap-0.5 [overflow-wrap:anywhere]">
             <p className="text-sm font-medium text-foreground">
               {product?.name ||
                 (orderItem
@@ -82,7 +82,7 @@ export function DeliveryDetailModal({ deliveryId, open, onClose }: DeliveryDetai
                   : `Product line #${index + 1}`)}
             </p>
             {product?.variety && <p className="text-xs text-muted-foreground">{product.variety}</p>}
-            <p className="text-[11px] text-muted-foreground">
+            <p className="text-xs text-muted-foreground">
               Allocation #{row.salesOrderAllocationId}
             </p>
           </div>
@@ -96,7 +96,7 @@ export function DeliveryDetailModal({ deliveryId, open, onClose }: DeliveryDetai
       align: 'right',
       cell: ({ row }) => (
         <div className="[overflow-wrap:anywhere]">
-          <p className="text-sm font-semibold tabular-nums">{row.quantity}</p>
+          <p className="text-sm font-normal tabular-nums">{row.quantity}</p>
           <p className="text-xs text-muted-foreground">
             {formatProductUnit(cargoProduct(row).product?.unit, 'Unit unavailable')}
           </p>
@@ -111,7 +111,7 @@ export function DeliveryDetailModal({ deliveryId, open, onClose }: DeliveryDetai
         <DialogHeader className="shrink-0 px-5 py-5 pr-14 text-left sm:pl-6">
           <div className="flex min-w-0 items-start justify-between gap-3">
             <div className="min-w-0">
-              <DialogTitle className="text-lg font-bold leading-6 [overflow-wrap:anywhere]">
+              <DialogTitle className="text-xl font-semibold leading-6 [overflow-wrap:anywhere]">
                 {delivery?.deliveryNumber || 'Delivery Details'}
               </DialogTitle>
               <DialogDescription className="mt-1 text-xs">
@@ -162,12 +162,12 @@ export function DeliveryDetailModal({ deliveryId, open, onClose }: DeliveryDetai
               )}
             </div>
           ) : (
-            <div className="space-y-5">
+            <div className="flex flex-col gap-5">
               <section
                 aria-label="Customer and order"
-                className="min-w-0 space-y-1 [overflow-wrap:anywhere]"
+                className="flex min-w-0 flex-col gap-1 [overflow-wrap:anywhere]"
               >
-                <h2 className="text-sm font-semibold">
+                <h2 className="text-base font-semibold">
                   {client?.name ||
                     (order
                       ? `Customer #${order.clientId}`
@@ -189,7 +189,7 @@ export function DeliveryDetailModal({ deliveryId, open, onClose }: DeliveryDetai
                   <Button
                     variant="link"
                     size="sm"
-                    className="h-auto px-0 text-xs"
+                    className="h-auto px-0 text-[13px]"
                     onClick={() =>
                       referenceQueries.forEach((query) => {
                         if (query.isError) void query.refetch()
@@ -201,15 +201,15 @@ export function DeliveryDetailModal({ deliveryId, open, onClose }: DeliveryDetai
                 </div>
               )}
 
-              <section aria-label="Delivery progress" className="border-t border-border/70 pt-4">
+              <section aria-label="Delivery progress" className="border-t border-border pt-4">
                 <DeliveryTimeline delivery={delivery} />
               </section>
 
               <section
                 aria-labelledby="delivery-details-heading"
-                className="border-t border-border/70 pt-4"
+                className="border-t border-border pt-4"
               >
-                <h2 id="delivery-details-heading" className="mb-3 text-sm font-semibold">
+                <h2 id="delivery-details-heading" className="mb-3 text-base font-semibold">
                   Delivery details
                 </h2>
                 <dl className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
@@ -257,9 +257,9 @@ export function DeliveryDetailModal({ deliveryId, open, onClose }: DeliveryDetai
 
               <section
                 aria-labelledby="delivery-cargo-heading"
-                className="border-t border-border/70 pt-4"
+                className="border-t border-border pt-4"
               >
-                <h2 id="delivery-cargo-heading" className="mb-3 text-sm font-semibold">
+                <h2 id="delivery-cargo-heading" className="mb-3 text-base font-semibold">
                   Cargo items ({delivery.items.length})
                 </h2>
                 <DataTable
@@ -277,7 +277,7 @@ export function DeliveryDetailModal({ deliveryId, open, onClose }: DeliveryDetai
                 <section aria-labelledby="delivery-notes-heading">
                   <h2
                     id="delivery-notes-heading"
-                    className="mb-1 text-xs font-medium text-muted-foreground"
+                    className="mb-1 text-base font-semibold text-muted-foreground"
                   >
                     Delivery notes
                   </h2>
@@ -289,7 +289,7 @@ export function DeliveryDetailModal({ deliveryId, open, onClose }: DeliveryDetai
             </div>
           )}
         </div>
-        <DialogFooter className="shrink-0 flex-row justify-end border-t border-border/70 px-5 py-3 sm:px-6">
+        <DialogFooter className="shrink-0 flex-row justify-end border-t border-border px-5 py-3 sm:px-6">
           <Button variant="outline" size="sm" className="pointer-coarse:min-h-11" onClick={onClose}>
             Close
           </Button>

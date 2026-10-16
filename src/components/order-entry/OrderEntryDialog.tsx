@@ -86,8 +86,8 @@ export function OrderEntryDialog({
         onPointerDownOutside={(event) => busy && event.preventDefault()}
       >
         <DialogHeader className="shrink-0 gap-1 border-b px-5 pt-4 pb-4 pr-12 text-left">
-          <DialogTitle className="text-lg font-semibold">{title}</DialogTitle>
-          <DialogDescription className="text-[13px] leading-5">{description}</DialogDescription>
+          <DialogTitle className="text-xl font-semibold">{title}</DialogTitle>
+          <DialogDescription className="text-ui leading-5">{description}</DialogDescription>
         </DialogHeader>
         <Tabs value={view} onValueChange={setView} className="flex min-h-0 flex-1 flex-col">
           <TabsList
@@ -138,7 +138,7 @@ export function OrderEntryDialog({
                     variant="outline"
                     onClick={onClose}
                     disabled={busy}
-                    className="h-9 text-sm"
+                    className="h-9 text-ui"
                   >
                     {submission.savedOrder ? 'Close' : 'Cancel'}
                   </Button>
@@ -149,7 +149,7 @@ export function OrderEntryDialog({
                       value="draft"
                       variant="outline"
                       disabled={busy}
-                      className="h-9 text-sm"
+                      className="h-9 text-ui"
                     >
                       {submission.phase === 'saving' && (
                         <Loader2
@@ -167,7 +167,8 @@ export function OrderEntryDialog({
                       name="intent"
                       value="confirm"
                       disabled={busy}
-                      className="h-9 bg-primary-contrast text-sm text-white hover:bg-primary-contrast/90"
+                      variant="primary-contrast"
+                      className="h-9"
                     >
                       {submission.phase === 'confirming' && (
                         <Loader2
@@ -194,7 +195,7 @@ export function OrderEntryDialog({
               aria-label="Product Catalog"
               aria-labelledby={undefined}
               aria-hidden={!split && view !== 'catalog'}
-              className="order-composer-panel order-composer-catalog m-0 min-h-0 min-w-0 bg-muted/10"
+              className="order-composer-panel order-composer-catalog m-0 min-h-0 min-w-0 bg-secondary"
             >
               {catalog(() => setView('editor'))}
             </TabsContent>

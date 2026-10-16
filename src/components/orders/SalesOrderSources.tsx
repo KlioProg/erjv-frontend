@@ -71,7 +71,7 @@ export function SalesOrderSourceEditor({ line, warehouses, form }: SourceProps) 
       className="flex min-w-0 flex-col gap-3 px-3 py-3 sm:px-4"
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="text-xs font-medium">Stock source · {line.name}</span>
+        <span className="text-sm font-medium">Stock source · {line.name}</span>
         <span className="text-xs tabular-nums text-muted-foreground">
           {split
             ? `Allocated ${decimalString(allocatedQuantity(line))} / ${line.quantity}`
@@ -85,7 +85,7 @@ export function SalesOrderSourceEditor({ line, warehouses, form }: SourceProps) 
         return (
           <div key={source.key} className="flex min-w-0 flex-wrap items-end gap-2">
             <div className="flex min-w-0 flex-1 basis-40 flex-col gap-1.5">
-              <Label htmlFor={sourceId} className="text-xs">
+              <Label htmlFor={sourceId} className="text-ui">
                 {split ? `Warehouse ${index + 1}` : 'Warehouse'}
               </Label>
               <Select
@@ -127,7 +127,7 @@ export function SalesOrderSourceEditor({ line, warehouses, form }: SourceProps) 
             </div>
             {split && (
               <div className="flex w-24 shrink-0 flex-col gap-1.5">
-                <Label htmlFor={quantityId} className="text-xs">
+                <Label htmlFor={quantityId} className="text-ui">
                   Quantity
                 </Label>
                 <OrderDecimalInput

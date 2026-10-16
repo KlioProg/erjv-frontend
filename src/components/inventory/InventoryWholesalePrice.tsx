@@ -64,7 +64,7 @@ export function InventoryWholesalePrice({
     <div className="min-w-0 text-right" onClick={(event) => event.stopPropagation()}>
       {editing && editable ? (
         <form
-          className="ml-auto max-w-44 space-y-1"
+          className="ml-auto flex max-w-44 flex-col gap-1"
           onSubmit={(event) => {
             event.preventDefault()
             void savePrice()
@@ -80,7 +80,7 @@ export function InventoryWholesalePrice({
               aria-describedby={error ? `price-error-${product.id}` : undefined}
               value={price}
               disabled={updatePrice.isPending}
-              className="h-8 min-w-16 flex-1 basis-20 px-2 text-right text-xs tabular-nums"
+              className="h-8 min-w-16 flex-1 basis-20 px-2 text-right text-sm tabular-nums"
               onChange={(event) => {
                 setPrice(event.target.value)
                 setError('')
@@ -136,7 +136,7 @@ export function InventoryWholesalePrice({
         <button
           type="button"
           ref={editButton}
-          className="group inline-flex max-w-full items-center justify-end gap-1 rounded px-1 py-1 text-xs font-extrabold tabular-nums text-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring pointer-coarse:min-h-11"
+          className="group inline-flex max-w-full items-center justify-end gap-1 rounded px-1 py-1 text-sm font-normal tabular-nums text-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring pointer-coarse:min-h-11"
           aria-label={`Edit wholesale price for ${product.name}`}
           title="Edit wholesale price"
           onClick={() => {
@@ -152,7 +152,7 @@ export function InventoryWholesalePrice({
         <OverflowValue
           value={displayPrice}
           fullValue={product.unitPrice}
-          className="text-right text-xs font-extrabold text-foreground tabular-nums"
+          className="text-right text-sm font-normal text-foreground tabular-nums"
         />
       )}
     </div>

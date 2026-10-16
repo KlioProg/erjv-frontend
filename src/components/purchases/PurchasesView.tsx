@@ -302,7 +302,7 @@ export function PurchasesView({
       width: 145,
       className: 'min-w-[145px]',
       cell: ({ row: { po } }) => (
-        <span className="whitespace-nowrap font-mono text-xs font-semibold text-foreground">
+        <span className="whitespace-nowrap text-sm font-medium text-foreground">
           {po.orderNumber}
         </span>
       ),
@@ -314,14 +314,11 @@ export function PurchasesView({
       className: 'min-w-[160px] max-w-[230px]',
       cell: ({ row: { po, supplierName } }) => (
         <div className="flex min-w-0 flex-col gap-1">
-          <span className="truncate font-semibold text-foreground" title={supplierName}>
+          <span className="truncate text-sm font-medium text-foreground" title={supplierName}>
             {supplierName}
           </span>
           {po.externalReference && (
-            <span
-              className="truncate text-[11px] text-muted-foreground"
-              title={po.externalReference}
-            >
+            <span className="truncate text-xs text-muted-foreground" title={po.externalReference}>
               Ref: {po.externalReference}
             </span>
           )}
@@ -359,7 +356,7 @@ export function PurchasesView({
       header: 'Total',
       width: 115,
       align: 'right',
-      className: 'whitespace-nowrap font-semibold tabular-nums text-foreground',
+      className: 'whitespace-nowrap tabular-nums text-foreground',
       cell: ({ row: { total } }) => (
         <>₱{total.toLocaleString('en-US', { minimumFractionDigits: 2 })}</>
       ),
@@ -452,7 +449,7 @@ export function PurchasesView({
       width: '12%',
       sortable: true,
       sortKey: 'code',
-      className: 'font-mono text-xs font-bold text-foreground',
+      className: 'text-sm font-medium text-foreground',
       cell: ({ row: supplier }) => <>{supplier.code}</>,
     },
     {
@@ -461,7 +458,7 @@ export function PurchasesView({
       width: '22%',
       sortable: true,
       sortKey: 'name',
-      className: 'text-xs font-semibold text-foreground',
+      className: 'text-sm font-medium text-foreground',
       cell: ({ row: supplier }) => <OverflowValue value={supplier.name} />,
     },
     {
@@ -470,18 +467,20 @@ export function PurchasesView({
       width: '15%',
       sortable: true,
       sortKey: (supplier) => supplier.contactPerson || '',
-      className: 'text-xs text-foreground/90',
+      className: 'text-sm text-foreground',
       cell: ({ row: supplier }) => <>{supplier.contactPerson || '—'}</>,
     },
     {
       id: 'supplier-3',
       header: 'Phone & Email',
       width: '23%',
-      className: 'text-xs text-muted-foreground',
+      className: 'text-sm text-foreground',
       cell: ({ row: supplier }) => (
         <>
           <OverflowValue value={supplier.phone} />
-          {supplier.email && <OverflowValue value={supplier.email} className="text-[11px]" />}
+          {supplier.email && (
+            <OverflowValue value={supplier.email} className="text-xs text-muted-foreground" />
+          )}
         </>
       ),
     },
@@ -491,7 +490,7 @@ export function PurchasesView({
       width: '20%',
       sortable: true,
       sortKey: (supplier) => supplier.address || '',
-      className: 'text-xs text-muted-foreground max-w-[280px]',
+      className: 'text-sm text-foreground max-w-[280px]',
       cell: ({ row: supplier }) => <OverflowValue value={supplier.address} />,
     },
     {
@@ -564,7 +563,7 @@ export function PurchasesView({
                 placeholder="Search order number, supplier, reference..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-9 h-9 text-xs"
+                className="pl-9 h-9 text-ui"
               />
             </div>
 
@@ -582,13 +581,13 @@ export function PurchasesView({
             <Card className="flex min-h-[300px] items-center justify-center p-8">
               <div className="flex flex-col items-center gap-2">
                 <Clock className="size-6 animate-spin text-primary" />
-                <p className="text-xs text-muted-foreground">Loading purchase orders...</p>
+                <p className="text-sm text-muted-foreground">Loading purchase orders...</p>
               </div>
             </Card>
           ) : filteredOrders.length === 0 ? (
-            <Card className="flex min-h-[340px] items-center justify-center border-dashed bg-muted/20 shadow-xs">
+            <Card className="flex min-h-[340px] items-center justify-center border-border bg-card shadow-none">
               <div className="flex flex-col items-center justify-center text-center">
-                <Package className="size-8 text-muted-foreground/40 mb-2" />
+                <Package className="size-8 text-muted-foreground mb-2" />
                 <span className="text-sm font-semibold text-foreground">
                   {searchTerm.trim()
                     ? `No purchase orders match "${searchTerm.trim()}"`
@@ -636,7 +635,7 @@ export function PurchasesView({
                 placeholder="Search suppliers..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-9 h-9 text-xs"
+                className="pl-9 h-9 text-ui"
               />
             </div>
 
@@ -664,7 +663,7 @@ export function PurchasesView({
             emptyContent={
               <div className="flex min-h-64 items-center justify-center px-4 py-12">
                 <div className="flex flex-col items-center justify-center text-center">
-                  <Building2 className="size-8 text-muted-foreground/40 mb-2" />
+                  <Building2 className="size-8 text-muted-foreground mb-2" />
                   <span className="text-sm font-semibold text-foreground">
                     {searchTerm.trim()
                       ? `No suppliers match "${searchTerm.trim()}"`

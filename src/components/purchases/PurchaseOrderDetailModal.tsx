@@ -116,10 +116,10 @@ export function PurchaseOrderDetailModal({
           </DialogDescription>
         </DialogHeader>
         <div>{statusBadge}</div>
-        <dl className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+        <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4 [&_dt]:text-ui [&_dd]:text-sm">
           <div>
             <dt className="text-muted-foreground">Supplier</dt>
-            <dd>{supplier?.name || `Supplier #${order.supplierId}`}</dd>
+            <dd className="font-medium">{supplier?.name || `Supplier #${order.supplierId}`}</dd>
           </div>
           <div>
             <dt className="text-muted-foreground">Supplier Reference</dt>
@@ -146,8 +146,13 @@ export function PurchaseOrderDetailModal({
             </div>
           )}
         </dl>
-        <DataTable data={order.items || []} columns={columns} pagination={false} />
-        <p className="text-right text-sm font-semibold">
+        <DataTable
+          data={order.items || []}
+          columns={columns}
+          pagination={false}
+          tableClassName="tabular-nums"
+        />
+        <p className="text-right text-sm font-semibold tabular-nums">
           Total:{' '}
           {currency((order.items || []).reduce((sum, item) => sum + Number(item.totalAmount), 0))}
         </p>

@@ -197,7 +197,7 @@ export function PurchaseModal({
           </div>
           <section className="flex min-w-0 flex-col gap-2" aria-label="Purchase order items">
             <div className="flex items-center justify-between gap-2">
-              <h2 className="text-sm font-semibold">Selected Order Items</h2>
+              <h2 className="text-base font-semibold">Selected Order Items</h2>
               <Button
                 type="button"
                 variant="outline"

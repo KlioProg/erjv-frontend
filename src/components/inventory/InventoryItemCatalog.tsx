@@ -198,28 +198,20 @@ export function InventoryItemCatalog({
       sortable: true,
       sortKey: 'name',
       cell: ({ row }) => {
-        const isArchived = row.isActive === false
         return (
           <div className="flex min-w-0 items-start gap-2 py-0.5 sm:gap-3">
-            <div
-              className={`hidden p-2 rounded-xl shrink-0 mt-0.5 sm:block ${
-                isArchived ? 'bg-muted text-muted-foreground' : 'bg-primary/10 text-primary'
-              }`}
-            >
-              <Package className="size-4" />
-            </div>
             <div className="flex min-w-0 flex-1 flex-col">
               <div className="flex min-w-0 flex-wrap items-center gap-x-1.5">
                 <OverflowValue
                   value={row.name}
-                  className="text-xs font-bold leading-tight text-foreground"
+                  className="text-sm font-medium leading-5 text-foreground"
                 />
                 {row.variety && (
                   <Badge
                     variant="outline"
-                    className="flex max-w-[50%] shrink-0 bg-muted/60 px-1.5 py-0 text-[10px] font-semibold leading-tight text-muted-foreground"
+                    className="flex max-w-[50%] shrink-0 bg-secondary px-1.5 py-0 text-xs font-semibold leading-tight text-muted-foreground"
                   >
-                    <Tag className="mr-1 size-2.5 shrink-0 text-primary" />
+                    <Tag className="mr-1 size-3 shrink-0 text-muted-foreground" />
                     <OverflowValue value={row.variety} />
                   </Badge>
                 )}
@@ -227,10 +219,10 @@ export function InventoryItemCatalog({
               {row.description ? (
                 <OverflowValue
                   value={row.description}
-                  className="mt-0.5 hidden text-[11px] leading-tight text-muted-foreground lg:block"
+                  className="mt-0.5 hidden text-xs leading-tight text-muted-foreground lg:block"
                 />
               ) : (
-                <span className="mt-0.5 hidden text-[10px] italic leading-tight text-muted-foreground/60 lg:block">
+                <span className="mt-0.5 hidden text-xs leading-tight text-muted-foreground lg:block">
                   No description provided
                 </span>
               )}
@@ -272,7 +264,7 @@ export function InventoryItemCatalog({
         const total =
           productStockMap.get(row.id)?.totalCents ?? (productStockMap.has(row.id) ? null : 0n)
         return (
-          <div className="flex min-w-0 items-center justify-center gap-1 text-xs font-bold">
+          <div className="flex min-w-0 items-center justify-center gap-1 text-sm font-normal">
             {row.isActive && (
               <StockIndicator
                 condition={stockCondition(total)}
@@ -295,11 +287,11 @@ export function InventoryItemCatalog({
               tooltipSuffix={formatProductUnit(row.unit, 'units')}
               className={
                 total === 0n
-                  ? 'text-center font-extrabold tabular-nums text-destructive'
+                  ? 'text-center font-medium tabular-nums text-destructive'
                   : 'text-center tabular-nums text-foreground'
               }
             />
-            <span className="hidden shrink-0 text-[10px] font-normal text-muted-foreground xl:inline">
+            <span className="hidden shrink-0 text-xs font-normal text-muted-foreground xl:inline">
               {formatProductUnit(row.unit, 'units')}
             </span>
           </div>
@@ -337,7 +329,7 @@ export function InventoryItemCatalog({
             aria-expanded={isExpanded}
             aria-controls={`inventory-locations-${row.id}`}
             aria-label={`${isExpanded ? 'Hide' : 'Show'} stock by location for ${row.name}`}
-            className="h-7 max-w-full gap-1 rounded-lg px-1.5 text-[11px] font-semibold sm:px-2"
+            className="h-8 max-w-full gap-1 px-1.5 text-[13px] sm:px-2 pointer-coarse:min-h-11"
           >
             <span className="sm:hidden">{warehouseCount} loc.</span>
             <span className="hidden sm:inline">
@@ -373,10 +365,10 @@ export function InventoryItemCatalog({
         id={`inventory-locations-${product.id}`}
         role="region"
         aria-label={`Stock by location for ${String(product.name ?? 'product')}`}
-        className="min-w-0 bg-muted/10 px-3 py-3 sm:px-7"
+        className="min-w-0 bg-background px-3 py-3 sm:px-7"
       >
-        <h2 className="mb-2 text-xs font-semibold">Stock by location</h2>
-        <div className="divide-y divide-border/60">
+        <h2 className="mb-2 text-base font-semibold">Stock by location</h2>
+        <div className="divide-y divide-border">
           {[...stockData.allocations]
             .sort((a, b) =>
               String(a.warehouse?.name ?? '').localeCompare(String(b.warehouse?.name ?? '')),
@@ -398,13 +390,13 @@ export function InventoryItemCatalog({
                 )}
               >
                 <div className="flex min-w-0 flex-1 items-center gap-2">
-                  <WarehouseIcon className="size-4 shrink-0 text-primary" />
+                  <WarehouseIcon className="size-4 shrink-0 text-muted-foreground" />
                   <OverflowValue
                     value={stock.warehouse?.name || `Warehouse #${stock.warehouseId}`}
                     onActivate={
                       onOpenWarehouse ? () => onOpenWarehouse(stock.warehouseId) : undefined
                     }
-                    className="h-auto p-0 text-left text-xs font-semibold"
+                    className="h-auto min-h-8 p-0 text-left text-sm font-medium pointer-coarse:min-h-11"
                   />
                 </div>
                 <div className="flex min-w-0 items-center justify-between gap-2 pl-6 sm:justify-end sm:pl-0">
@@ -420,7 +412,7 @@ export function InventoryItemCatalog({
                       parseStockCents(stock.quantity) === null ? stock.quantity : undefined
                     }
                     tooltipSuffix={formatProductUnit(product.unit, 'units')}
-                    className="text-xs font-bold tabular-nums sm:max-w-44 sm:text-right"
+                    className="text-sm font-normal tabular-nums sm:max-w-44 sm:text-right"
                   />
                   <span className="shrink-0 text-xs text-muted-foreground">
                     {formatProductUnit(product.unit, 'units')}
@@ -431,7 +423,7 @@ export function InventoryItemCatalog({
                       size="sm"
                       onClick={() => onOpenWarehouse(stock.warehouseId)}
                       aria-label={`View inventory in ${String(stock.warehouse?.name ?? 'warehouse')}`}
-                      className="h-7 shrink-0 gap-1 px-2 text-xs text-primary"
+                      className="h-8 shrink-0 gap-1 px-2 text-[13px] text-primary-text pointer-coarse:min-h-11"
                     >
                       View <ArrowRight className="size-3.5" />
                     </Button>
@@ -440,7 +432,7 @@ export function InventoryItemCatalog({
               </div>
             ))}
         </div>
-        <div className="mt-2 flex min-w-0 items-center justify-end gap-1 text-xs font-bold">
+        <div className="mt-2 flex min-w-0 items-center justify-end gap-1 text-sm font-medium">
           <span className="shrink-0">Total:</span>
           <OverflowValue
             value={formatStockCents(stockData.totalCents)}
@@ -481,7 +473,7 @@ export function InventoryItemCatalog({
               setSearchTerm(e.target.value)
               setSelectedPage(1)
             }}
-            className="pl-9 h-9 text-xs rounded-xl"
+            className="pl-9 h-9 text-[13px]"
           />
         </div>
 
@@ -489,7 +481,7 @@ export function InventoryItemCatalog({
           <Button
             onClick={handleCreateProduct}
             size="sm"
-            className="gap-1.5 shadow-xs font-semibold cursor-pointer shrink-0"
+            className="gap-1.5 font-medium cursor-pointer shrink-0"
           >
             <Plus className="size-4" />
             Register Product
@@ -547,7 +539,7 @@ export function InventoryItemCatalog({
               productStockMap.get(row.id)?.totalCents ?? (productStockMap.has(row.id) ? null : 0n)
             const condition = stockCondition(total)
             return row.isActive === false
-              ? 'opacity-75 bg-muted/10'
+              ? 'opacity-75 bg-background'
               : condition === 'OUT'
                 ? 'bg-destructive/5 hover:bg-destructive/10'
                 : condition === 'LOW'

@@ -29,7 +29,6 @@ import type { Employee } from '@/features/staffing/staffing.types'
 import { EmployeeModal } from './EmployeeModal'
 import { EmployeePositionSelector } from './EmployeePositionSelector'
 import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal'
-import { Card } from '../ui/card'
 
 export function EmployeeList() {
   const [activeTab, setActiveTab] = useState<'ACTIVE' | 'ARCHIVED'>('ACTIVE')
@@ -101,8 +100,8 @@ export function EmployeeList() {
             <div className="flex items-center gap-3">
               <Avatar className="size-9 ring-1 ring-border">
                 <AvatarFallback
-                  className={`text-xs font-bold ${
-                    isArchived ? 'bg-muted text-muted-foreground' : 'bg-primary/10 text-primary'
+                  className={`text-ui font-medium ${
+                    isArchived ? 'bg-muted text-muted-foreground' : 'bg-secondary text-foreground'
                   }`}
                 >
                   {initials}
@@ -110,12 +109,12 @@ export function EmployeeList() {
               </Avatar>
               <div className="flex flex-col">
                 <div className="flex items-center gap-2">
-                  <span className="font-semibold text-foreground text-xs">
+                  <span className="text-sm font-medium text-foreground">
                     {emp.firstName} {emp.lastName}
                   </span>
                 </div>
                 {emp.address && (
-                  <span className="text-[11px] text-muted-foreground truncate max-w-[160px]">
+                  <span className="text-xs text-muted-foreground truncate max-w-[160px]">
                     {emp.address}
                   </span>
                 )}
@@ -126,18 +125,18 @@ export function EmployeeList() {
       case 'contact':
         return (
           <>
-            <div className="flex flex-col gap-0.5 text-xs">
+            <div className="flex flex-col gap-1 text-sm">
               {emp.email ? (
                 <span className="flex items-center gap-1 text-muted-foreground">
-                  <Mail className="size-3 text-muted-foreground/70" />
+                  <Mail className="size-3 text-muted-foreground" />
                   {emp.email}
                 </span>
               ) : (
-                <span className="text-muted-foreground/60">—</span>
+                <span className="text-muted-foreground">—</span>
               )}
               {emp.phone && (
-                <span className="flex items-center gap-1 text-muted-foreground text-[11px]">
-                  <Phone className="size-3 text-muted-foreground/70" />
+                <span className="flex items-center gap-1 text-muted-foreground text-xs tabular-nums">
+                  <Phone className="size-3 text-muted-foreground" />
                   {emp.phone}
                 </span>
               )}
@@ -155,7 +154,7 @@ export function EmployeeList() {
       case 'hireDate':
         return (
           <>
-            <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+            <span className="inline-flex items-center gap-1.5 text-sm tabular-nums text-muted-foreground">
               <Calendar className="size-3" />
               {formattedHireDate}
             </span>
@@ -167,13 +166,13 @@ export function EmployeeList() {
             {emp.userId ? (
               <Badge
                 variant="outline"
-                className="bg-emerald-500/10 text-emerald-600 border-emerald-500/25 text-[11px] font-semibold gap-1"
+                className="bg-status-success text-status-success-foreground border-status-success-foreground/20 text-xs font-medium gap-1"
               >
-                <ShieldCheck className="size-3 text-emerald-600" />
+                <ShieldCheck className="size-3" />
                 Linked (ID #{emp.userId})
               </Badge>
             ) : (
-              <span className="text-xs text-muted-foreground/70">Unlinked</span>
+              <span className="text-xs text-muted-foreground">Unlinked</span>
             )}
           </>
         )
@@ -255,7 +254,7 @@ export function EmployeeList() {
 
       {/* Search and Action Bar */}
       <PageToolbar>
-        <div className="relative flex-1 max-w-sm">
+        <div className="relative w-full sm:max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
           <Input
             aria-label="Search staff"
@@ -266,11 +265,7 @@ export function EmployeeList() {
           />
         </div>
         {activeTab === 'ACTIVE' && (
-          <Button
-            size="sm"
-            onClick={handleCreate}
-            className="shadow-sm font-semibold cursor-pointer"
-          >
+          <Button size="sm" onClick={handleCreate} className="font-medium cursor-pointer">
             <UserPlus data-icon="inline-start" className="size-4" />
             Register Employee
           </Button>
@@ -286,10 +281,8 @@ export function EmployeeList() {
           </div>
         ) : error ? (
           <div className="flex flex-col items-center justify-center py-14 px-4 text-center">
-            <div className="size-12 rounded-2xl bg-destructive/10 border border-destructive/20 flex items-center justify-center text-destructive mb-3 shadow-2xs">
-              <AlertCircle className="size-6" />
-            </div>
-            <h3 className="text-sm font-semibold text-foreground">Unable to load employees</h3>
+            <AlertCircle className="mb-3 size-6 text-destructive" />
+            <h3 className="text-sm font-medium text-foreground">Unable to load employees</h3>
             <p className="text-xs text-muted-foreground mt-1 max-w-sm">
               We encountered an issue connecting to the service. Please check your network
               connection and try again.
@@ -298,17 +291,17 @@ export function EmployeeList() {
               variant="outline"
               size="sm"
               onClick={() => refetch()}
-              className="mt-4 gap-2 text-xs font-semibold shadow-2xs border-border/80 hover:bg-muted cursor-pointer"
+              className="mt-4 gap-2 text-ui font-medium border-border/80 hover:bg-muted cursor-pointer"
             >
               <RotateCcw className="size-3.5" />
               Try Again
             </Button>
           </div>
         ) : filteredEmployees.length === 0 ? (
-          <Card className="flex flex-col min-h-[360px] items-center justify-center border-0 bg-transparent shadow-none">
-            <Users className="size-10 text-muted-foreground/50 mb-3" />
+          <div className="flex min-h-64 flex-col items-center justify-center px-4 py-12">
+            <Users className="size-10 text-muted-foreground mb-3" />
             <div className="text-center">
-              <p className="text-sm font-semibold text-foreground">
+              <p className="text-sm font-medium text-foreground">
                 {activeTab === 'ACTIVE' ? 'No active employees found' : 'No archived staff found'}
               </p>
               <p className="text-xs text-muted-foreground mt-0.5 max-w-sm">
@@ -325,14 +318,14 @@ export function EmployeeList() {
                   variant="outline"
                   size="sm"
                   onClick={() => setActiveTab('ARCHIVED')}
-                  className="mt-3 text-xs gap-1.5 cursor-pointer"
+                  className="mt-3 gap-2"
                 >
-                  <Archive className="size-3.5 text-amber-600" />
+                  <Archive className="size-3.5 text-status-warning-foreground" />
                   View Archived Staff ({archivedEmployees.length})
                 </Button>
               )}
             </div>
-          </Card>
+          </div>
         ) : (
           <DataTable
             appearance="management"

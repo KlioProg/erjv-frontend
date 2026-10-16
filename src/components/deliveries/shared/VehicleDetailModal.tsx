@@ -61,7 +61,7 @@ export function VehicleDetailModal({
         </DialogHeader>
         {viewVehicle && (
           <>
-            <div className="grid grid-cols-2 gap-3 text-xs">
+            <div className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
               {[
                 ['Model / Make', viewVehicle.model || '—'],
                 ['Vehicle Type', viewVehicle.vehicleType],
@@ -79,8 +79,8 @@ export function VehicleDetailModal({
                 ],
               ].map(([label, value]) => (
                 <div key={label}>
-                  <p className="text-muted-foreground">{label}</p>
-                  <p className="mt-1 font-semibold">{value}</p>
+                  <p className="text-xs text-muted-foreground">{label}</p>
+                  <p className="mt-1 font-medium">{value}</p>
                 </div>
               ))}
             </div>
@@ -91,16 +91,16 @@ export function VehicleDetailModal({
                 ['In Transit', allTrips.filter((trip) => trip.status === 'DISPATCHED').length],
                 ['Cancelled', allTrips.filter((trip) => trip.status === 'CANCELLED').length],
               ].map(([label, count]) => (
-                <div key={label} className="rounded-lg border bg-muted/20 p-3">
-                  <p className="text-muted-foreground">{label}</p>
-                  <p className="mt-1 font-mono font-semibold">{count}</p>
+                <div key={label} className="rounded-lg border bg-card p-3">
+                  <p className="text-xs text-muted-foreground">{label}</p>
+                  <p className="mt-1 text-2xl font-semibold tabular-nums">{count}</p>
                 </div>
               ))}
             </div>
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className="text-sm font-semibold">Delivery History</h2>
+              <h2 className="text-base font-semibold">Delivery History</h2>
               <Select value={historyStatus} onValueChange={setHistoryStatus}>
-                <SelectTrigger aria-label="Vehicle history status" className="h-9 w-44 text-xs">
+                <SelectTrigger aria-label="Vehicle history status" className="h-9 w-44 text-[13px]">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -139,7 +139,7 @@ export function VehicleDetailModal({
                     return (
                       <div className="flex flex-col gap-1">
                         <span>{order?.orderNumber || `SO #${row.salesOrderId}`}</span>
-                        <span className="text-muted-foreground">{client?.name || '—'}</span>
+                        <span className="text-xs text-muted-foreground">{client?.name || '—'}</span>
                       </div>
                     )
                   },

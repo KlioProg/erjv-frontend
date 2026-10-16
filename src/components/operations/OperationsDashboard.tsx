@@ -49,12 +49,12 @@ export function OperationsDashboard({ onSwitchToStaffing }: OperationsDashboardP
   return (
     <div className="min-h-svh bg-background text-foreground flex flex-col antialiased">
       {/* Top Navbar */}
-      <header className="sticky top-0 z-30 border-b border-border/80 bg-background/80 backdrop-blur-md">
+      <header className="sticky top-0 z-30 border-b border-border bg-background">
         <div className="max-w-7xl mx-auto flex h-16 items-center justify-between px-4 sm:px-6">
           <div className="flex items-center gap-6">
             <ErjvPosLogo />
 
-            <div className="hidden md:flex items-center gap-1.5 pl-4 border-l border-border/60">
+            <div className="hidden md:flex items-center gap-1.5 pl-4 border-l border-border">
               <Badge variant="secondary" className="font-semibold text-xs gap-1 py-0.5 px-2.5">
                 <Layers className="size-3 text-primary" />
                 Operations & Logistics
@@ -68,31 +68,31 @@ export function OperationsDashboard({ onSwitchToStaffing }: OperationsDashboardP
                 variant="outline"
                 size="sm"
                 onClick={onSwitchToStaffing}
-                className="hidden sm:flex text-xs font-semibold gap-1.5 h-8.5 shadow-2xs"
+                className="hidden sm:flex text-[13px] font-medium gap-1.5 h-8.5"
               >
                 <Users className="size-3.5 text-primary" />
                 Switch to Staffing & HR
               </Button>
             )}
 
-            <div className="flex items-center gap-2 pl-2 border-l border-border/60">
+            <div className="flex items-center gap-2 pl-2 border-l border-border">
               <Avatar className="size-8 border border-border">
                 {user?.avatarUrl && <AvatarImage src={user.avatarUrl} alt={displayName} />}
-                <AvatarFallback className="bg-primary/10 text-primary font-bold text-xs">
+                <AvatarFallback className="bg-secondary text-foreground font-medium text-xs">
                   {userInitial}
                 </AvatarFallback>
               </Avatar>
               <div className="hidden sm:flex flex-col text-left">
                 <span
-                  className="text-xs font-bold leading-none text-foreground truncate max-w-[140px]"
+                  className="text-sm font-medium leading-none text-foreground truncate max-w-[140px]"
                   title={displayName}
                 >
                   {displayName}
                 </span>
-                <span className="text-[10px] text-muted-foreground font-medium mt-0.5 flex items-center gap-1">
+                <span className="text-xs text-muted-foreground font-medium mt-0.5 flex items-center gap-1">
                   <Badge
                     variant="outline"
-                    className={`text-[8px] py-0 px-1 font-bold uppercase tracking-wider ${roleConfig.badgeClass}`}
+                    className={`text-xs py-0 px-1 font-medium ${roleConfig.badgeClass}`}
                   >
                     {roleConfig.label}
                   </Badge>
@@ -119,81 +119,78 @@ export function OperationsDashboard({ onSwitchToStaffing }: OperationsDashboardP
       <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 py-6 flex flex-col gap-6">
         {/* KPI Metric Summary Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5 sm:gap-4">
-          <Card className="p-4 bg-card/60 backdrop-blur-xs border-border/80 shadow-xs flex flex-col justify-between">
+          <Card className="p-4 bg-card border-border flex flex-col justify-between">
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium text-muted-foreground">Active Warehouses</span>
-              <div className="p-2 rounded-xl bg-primary/10 text-primary">
-                <WarehouseIcon className="size-4" />
-              </div>
+              <WarehouseIcon className="size-4 text-muted-foreground" />
             </div>
             <div className="mt-3">
-              <div className="text-2xl font-extrabold text-foreground">{warehouses.length}</div>
-              <p className="text-[11px] text-muted-foreground mt-0.5">
-                Logistics & distribution hubs
-              </p>
+              <div className="text-2xl font-semibold text-foreground">{warehouses.length}</div>
+              <p className="text-xs text-muted-foreground mt-0.5">Logistics & distribution hubs</p>
             </div>
           </Card>
 
-          <Card className="p-4 bg-card/60 backdrop-blur-xs border-border/80 shadow-xs flex flex-col justify-between">
+          <Card className="p-4 bg-card border-border flex flex-col justify-between">
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium text-muted-foreground">Total Stored Units</span>
-              <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-600">
-                <Boxes className="size-4" />
-              </div>
+              <Boxes className="size-4 text-muted-foreground" />
             </div>
             <div className="mt-3">
-              <div className="text-2xl font-extrabold text-foreground">
+              <div className="text-2xl font-semibold text-foreground">
                 {totalStockUnits.toLocaleString()}
               </div>
-              <p className="text-[11px] text-muted-foreground mt-0.5">Across all facilities</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Across all facilities</p>
             </div>
           </Card>
 
-          <Card className="p-4 bg-card/60 backdrop-blur-xs border-border/80 shadow-xs flex flex-col justify-between">
+          <Card className="p-4 bg-card border-border flex flex-col justify-between">
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium text-muted-foreground">Available Fleet</span>
-              <div className="p-2 rounded-xl bg-blue-500/10 text-blue-600">
-                <Truck className="size-4" />
-              </div>
+              <Truck className="size-4 text-muted-foreground" />
             </div>
             <div className="mt-3">
-              <div className="text-2xl font-extrabold text-foreground">
+              <div className="text-2xl font-semibold text-foreground">
                 {availableVehiclesCount}{' '}
                 <span className="text-sm font-normal text-muted-foreground">
                   / {vehicles.length}
                 </span>
               </div>
-              <p className="text-[11px] text-muted-foreground mt-0.5">Ready for dispatch</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Ready for dispatch</p>
             </div>
           </Card>
 
-          <Card className="p-4 bg-card/60 backdrop-blur-xs border-border/80 shadow-xs flex flex-col justify-between">
+          <Card className="p-4 bg-card border-border flex flex-col justify-between">
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium text-muted-foreground">Catalog Products</span>
-              <div className="p-2 rounded-xl bg-amber-500/10 text-amber-600">
-                <Package className="size-4" />
-              </div>
+              <Package className="size-4 text-muted-foreground" />
             </div>
             <div className="mt-3">
-              <div className="text-2xl font-extrabold text-foreground">{products.length}</div>
-              <p className="text-[11px] text-muted-foreground mt-0.5">Active product catalog</p>
+              <div className="text-2xl font-semibold text-foreground">{products.length}</div>
+              <p className="text-xs text-muted-foreground mt-0.5">Active product catalog</p>
             </div>
           </Card>
         </div>
 
         {/* Navigation Tabs and Active Views */}
-        <Tabs value={activeTab} onValueChange={(tab) => { setWarehouseToOpen(null); setActiveTab(tab) }} className="w-full flex flex-col gap-4">
+        <Tabs
+          value={activeTab}
+          onValueChange={(tab) => {
+            setWarehouseToOpen(null)
+            setActiveTab(tab)
+          }}
+          className="w-full flex flex-col gap-4"
+        >
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b pb-3">
             <TabsList className="bg-secondary/70 p-1">
-              <TabsTrigger value="inventory" className="gap-1.5 text-xs">
+              <TabsTrigger value="inventory" className="gap-1.5 text-[13px]">
                 <Boxes className="size-3.5" />
                 Inventory
               </TabsTrigger>
-              <TabsTrigger value="warehouses" className="gap-1.5 text-xs">
+              <TabsTrigger value="warehouses" className="gap-1.5 text-[13px]">
                 <WarehouseIcon className="size-3.5" />
                 Warehouses
               </TabsTrigger>
-              <TabsTrigger value="fleet" className="gap-1.5 text-xs">
+              <TabsTrigger value="fleet" className="gap-1.5 text-[13px]">
                 <Truck className="size-3.5" />
                 Delivery Fleet
               </TabsTrigger>
@@ -204,7 +201,7 @@ export function OperationsDashboard({ onSwitchToStaffing }: OperationsDashboardP
                 variant="ghost"
                 size="sm"
                 onClick={onSwitchToStaffing}
-                className="sm:hidden text-xs text-primary font-medium gap-1"
+                className="sm:hidden text-[13px] text-primary font-medium gap-1"
               >
                 <Users className="size-3" /> Switch to Staffing & HR →
               </Button>
@@ -212,7 +209,12 @@ export function OperationsDashboard({ onSwitchToStaffing }: OperationsDashboardP
           </div>
 
           <TabsContent value="inventory" className="focus-visible:outline-none">
-            <InventoryItemCatalog onOpenWarehouse={(id) => { setWarehouseToOpen(id); setActiveTab('warehouses') }} />
+            <InventoryItemCatalog
+              onOpenWarehouse={(id) => {
+                setWarehouseToOpen(id)
+                setActiveTab('warehouses')
+              }}
+            />
           </TabsContent>
 
           <TabsContent value="warehouses" className="focus-visible:outline-none">
@@ -226,7 +228,7 @@ export function OperationsDashboard({ onSwitchToStaffing }: OperationsDashboardP
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-border/60 py-4 text-center text-xs text-muted-foreground">
+      <footer className="border-t border-border py-4 text-center text-xs text-muted-foreground">
         <div className="max-w-7xl mx-auto flex items-center justify-between px-4 sm:px-6">
           <div className="flex items-center gap-1.5">
             <Sparkles className="size-3 text-primary" />

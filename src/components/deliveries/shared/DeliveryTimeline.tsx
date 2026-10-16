@@ -79,7 +79,7 @@ export function DeliveryTimeline({ delivery }: { delivery: OutgoingDeliveryRecor
                 </span>
               </p>
               {reached && step.date && (
-                <p className="mt-0.5 text-[11px] leading-4 text-muted-foreground">
+                <p className="mt-0.5 text-xs leading-4 text-muted-foreground">
                   {DeliveryUtils.formatDateTime(step.date)}
                 </p>
               )}

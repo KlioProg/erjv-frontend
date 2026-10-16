@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { Truck, Hash, Gauge, Layers, RotateCcw } from 'lucide-react'
+import { Hash, Gauge, Layers, RotateCcw } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -167,12 +167,7 @@ function VehicleFormContent({
   return (
     <>
       <DialogHeader>
-        <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary mb-1">
-          <Truck className="size-5" />
-        </div>
-        <DialogTitle>
-          {isEditing ? 'Edit Vehicle' : 'Add Vehicle'}
-        </DialogTitle>
+        <DialogTitle>{isEditing ? 'Edit Vehicle' : 'Add Vehicle'}</DialogTitle>
         <DialogDescription>
           {isEditing
             ? 'Update vehicle specifications, payload capacity, and route.'
@@ -190,15 +185,13 @@ function VehicleFormContent({
       )}
 
       {deactivatedVehicleMatch && (
-        <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-950 dark:text-amber-200 flex items-start gap-3 shadow-2xs animate-in fade-in-0 zoom-in-95 slide-in-from-top-2 duration-300">
-          <div className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-amber-500/20 text-amber-700 dark:text-amber-300 mt-0.5">
-            <RotateCcw className="size-4 animate-in spin-in-180 duration-500" />
-          </div>
+        <div className="p-3.5 rounded-lg bg-status-warning border border-status-warning-foreground/30 text-status-warning-foreground flex items-start gap-3">
+          <RotateCcw className="mt-0.5 size-4 shrink-0 text-status-warning-foreground" />
           <div className="flex-1 text-xs">
-            <p className="font-bold text-foreground">Deactivated Vehicle Found</p>
+            <p className="font-medium text-foreground">Deactivated Vehicle Found</p>
             <p className="text-muted-foreground mt-0.5 leading-relaxed">
               An archived vehicle record with plate{' '}
-              <strong className="font-mono text-foreground">
+              <strong className="tabular-nums text-foreground">
                 {deactivatedVehicleMatch.plateNumber}
               </strong>{' '}
               ({deactivatedVehicleMatch.vehicleType}) already exists. Click{' '}
@@ -209,9 +202,9 @@ function VehicleFormContent({
       )}
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-3.5 py-1">
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="v-plate" className="text-xs font-medium">
+            <Label htmlFor="v-plate" className="text-[13px] font-medium">
               Plate Number <span className="text-primary">*</span>
             </Label>
             <div className="relative">
@@ -225,14 +218,14 @@ function VehicleFormContent({
                   if (deactivatedVehicleMatch) setDeactivatedVehicleMatch(null)
                   if (errorMsg) setErrorMsg('')
                 }}
-                className="pl-9 uppercase font-mono transition-all duration-200"
+                className="pl-9 uppercase"
                 required
               />
             </div>
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="v-type" className="text-xs font-medium">
+            <Label htmlFor="v-type" className="text-[13px] font-medium">
               Vehicle Type <span className="text-primary">*</span>
             </Label>
             <Select value={vehicleType} onValueChange={setVehicleType}>
@@ -252,9 +245,9 @@ function VehicleFormContent({
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="v-model" className="text-xs font-medium">
+            <Label htmlFor="v-model" className="text-[13px] font-medium">
               Model / Make
             </Label>
             <div className="relative">
@@ -270,7 +263,7 @@ function VehicleFormContent({
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="v-capacity" className="text-xs font-medium">
+            <Label htmlFor="v-capacity" className="text-[13px] font-medium">
               Payload Capacity (kg)
             </Label>
             <div className="relative">
@@ -291,7 +284,7 @@ function VehicleFormContent({
 
         {!isEditing && (
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="v-status" className="text-xs font-medium">
+            <Label htmlFor="v-status" className="text-[13px] font-medium">
               Vehicle Condition
             </Label>
             <Select value={status} onValueChange={(val) => setStatus(val as VehicleStatus)}>
@@ -329,7 +322,7 @@ function VehicleFormContent({
               type="button"
               onClick={handleRestoreFoundVehicle}
               disabled={isPending}
-              className="group gap-2 font-bold shadow-xs cursor-pointer transition-all duration-300 animate-in fade-in-0 zoom-in-95"
+              className="group gap-2 font-medium cursor-pointer"
             >
               {reactivateMutation.isPending ? (
                 <>
@@ -338,17 +331,13 @@ function VehicleFormContent({
                 </>
               ) : (
                 <>
-                  <RotateCcw className="size-4 transition-transform duration-200 group-hover:-rotate-45" />
+                  <RotateCcw className="size-4" />
                   Restore Vehicle
                 </>
               )}
             </Button>
           ) : (
-            <Button
-              type="submit"
-              disabled={isPending}
-              className="font-semibold shadow-xs cursor-pointer transition-all duration-300"
-            >
+            <Button type="submit" disabled={isPending} className="font-medium cursor-pointer">
               {isPending ? (
                 <>
                   <Spinner data-icon="inline-start" />

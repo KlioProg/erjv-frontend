@@ -1,0 +1,274 @@
+[
+  {
+    "page": "Customers",
+    "width": 1920,
+    "documentWidth": 1920
+  },
+  {
+    "page": "Customers",
+    "width": 1440,
+    "documentWidth": 1440
+  },
+  {
+    "page": "Customers",
+    "width": 1280,
+    "documentWidth": 1280
+  },
+  {
+    "page": "Customers",
+    "width": 1024,
+    "documentWidth": 1024
+  },
+  {
+    "page": "Sales Orders",
+    "width": 1920,
+    "documentWidth": 1920
+  },
+  {
+    "page": "Sales Orders",
+    "width": 1440,
+    "documentWidth": 1440
+  },
+  {
+    "page": "Sales Orders",
+    "width": 1280,
+    "documentWidth": 1280
+  },
+  {
+    "page": "Sales Orders",
+    "width": 1024,
+    "documentWidth": 1024
+  },
+  {
+    "page": "Suppliers",
+    "width": 1920,
+    "documentWidth": 1920
+  },
+  {
+    "page": "Suppliers",
+    "width": 1440,
+    "documentWidth": 1440
+  },
+  {
+    "page": "Suppliers",
+    "width": 1280,
+    "documentWidth": 1280
+  },
+  {
+    "page": "Suppliers",
+    "width": 1024,
+    "documentWidth": 1024
+  },
+  {
+    "page": "Purchase Orders",
+    "width": 1920,
+    "documentWidth": 1920
+  },
+  {
+    "page": "Purchase Orders",
+    "width": 1440,
+    "documentWidth": 1440
+  },
+  {
+    "page": "Purchase Orders",
+    "width": 1280,
+    "documentWidth": 1280
+  },
+  {
+    "page": "Purchase Orders",
+    "width": 1024,
+    "documentWidth": 1024
+  },
+  {
+    "page": "Inventory",
+    "width": 1920,
+    "documentWidth": 1920
+  },
+  {
+    "page": "Inventory",
+    "width": 1440,
+    "documentWidth": 1440
+  },
+  {
+    "page": "Inventory",
+    "width": 1280,
+    "documentWidth": 1280
+  },
+  {
+    "page": "Inventory",
+    "width": 1024,
+    "documentWidth": 1024
+  },
+  {
+    "page": "Warehouses",
+    "width": 1920,
+    "documentWidth": 1920
+  },
+  {
+    "page": "Warehouses",
+    "width": 1440,
+    "documentWidth": 1440
+  },
+  {
+    "page": "Warehouses",
+    "width": 1280,
+    "documentWidth": 1280
+  },
+  {
+    "page": "Warehouses",
+    "width": 1024,
+    "documentWidth": 1024
+  },
+  {
+    "page": "Vehicles",
+    "width": 1920,
+    "documentWidth": 1920
+  },
+  {
+    "page": "Vehicles",
+    "width": 1440,
+    "documentWidth": 1440
+  },
+  {
+    "page": "Vehicles",
+    "width": 1280,
+    "documentWidth": 1280
+  },
+  {
+    "page": "Vehicles",
+    "width": 1024,
+    "documentWidth": 1024
+  },
+  {
+    "page": "Staff Directory",
+    "width": 1920,
+    "documentWidth": 1920
+  },
+  {
+    "page": "Staff Directory",
+    "width": 1440,
+    "documentWidth": 1440
+  },
+  {
+    "page": "Staff Directory",
+    "width": 1280,
+    "documentWidth": 1280
+  },
+  {
+    "page": "Staff Directory",
+    "width": 1024,
+    "documentWidth": 1024
+  },
+  {
+    "page": "Job Positions",
+    "width": 1920,
+    "documentWidth": 1920
+  },
+  {
+    "page": "Job Positions",
+    "width": 1440,
+    "documentWidth": 1440
+  },
+  {
+    "page": "Job Positions",
+    "width": 1280,
+    "documentWidth": 1280
+  },
+  {
+    "page": "Job Positions",
+    "width": 1024,
+    "documentWidth": 1024
+  },
+  {
+    "page": "User Roles & Access",
+    "width": 1920,
+    "documentWidth": 1920
+  },
+  {
+    "page": "User Roles & Access",
+    "width": 1440,
+    "documentWidth": 1440
+  },
+  {
+    "page": "User Roles & Access",
+    "width": 1280,
+    "documentWidth": 1280
+  },
+  {
+    "page": "User Roles & Access",
+    "width": 1024,
+    "documentWidth": 1024
+  },
+  {
+    "page": "Deliveries Incoming",
+    "violations": []
+  },
+  {
+    "page": "Deliveries Incoming",
+    "width": 1920,
+    "documentWidth": 1920
+  },
+  {
+    "page": "Deliveries Incoming",
+    "width": 1440,
+    "documentWidth": 1440
+  },
+  {
+    "page": "Deliveries Incoming",
+    "width": 1280,
+    "documentWidth": 1280
+  },
+  {
+    "page": "Deliveries Incoming",
+    "width": 1024,
+    "documentWidth": 1024
+  },
+  {
+    "page": "Deliveries Outgoing",
+    "violations": []
+  },
+  {
+    "page": "Deliveries Outgoing",
+    "width": 1920,
+    "documentWidth": 1920
+  },
+  {
+    "page": "Deliveries Outgoing",
+    "width": 1440,
+    "documentWidth": 1440
+  },
+  {
+    "page": "Deliveries Outgoing",
+    "width": 1280,
+    "documentWidth": 1280
+  },
+  {
+    "page": "Deliveries Outgoing",
+    "width": 1024,
+    "documentWidth": 1024
+  },
+  {
+    "page": "Deliveries History",
+    "violations": []
+  },
+  {
+    "page": "Deliveries History",
+    "width": 1920,
+    "documentWidth": 1920
+  },
+  {
+    "page": "Deliveries History",
+    "width": 1440,
+    "documentWidth": 1440
+  },
+  {
+    "page": "Deliveries History",
+    "width": 1280,
+    "documentWidth": 1280
+  },
+  {
+    "page": "Deliveries History",
+    "width": 1024,
+    "documentWidth": 1024
+  }
+]

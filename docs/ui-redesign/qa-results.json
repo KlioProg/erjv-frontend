@@ -1,0 +1,359 @@
+{
+  "results": [
+    {
+      "name": "customers-after-1920",
+      "width": 1920,
+      "documentWidth": 1920,
+      "title": "Customers",
+      "titleSize": "22px"
+    },
+    {
+      "name": "customers-after-1440",
+      "width": 1440,
+      "documentWidth": 1440,
+      "title": "Customers",
+      "titleSize": "22px"
+    },
+    {
+      "name": "customers-after-1280",
+      "width": 1280,
+      "documentWidth": 1280,
+      "title": "Customers",
+      "titleSize": "22px"
+    },
+    {
+      "name": "customers-after-1024",
+      "width": 1024,
+      "documentWidth": 1024,
+      "title": "Customers",
+      "titleSize": "22px"
+    },
+    {
+      "name": "customers-tablet-1024",
+      "width": 1024,
+      "documentWidth": 1024,
+      "title": "Customers",
+      "titleSize": "22px"
+    },
+    {
+      "name": "customers-search-empty",
+      "width": 1440,
+      "documentWidth": 1440,
+      "title": "Customers",
+      "titleSize": "22px"
+    },
+    {
+      "name": "customers-archived",
+      "width": 1440,
+      "documentWidth": 1440,
+      "title": "Customers",
+      "titleSize": "22px"
+    },
+    {
+      "name": "customer-form-after",
+      "width": 1440,
+      "documentWidth": 1440,
+      "title": "Customers",
+      "titleSize": "22px"
+    },
+    {
+      "name": "sales-orders",
+      "width": 1440,
+      "documentWidth": 1440,
+      "title": "Sales Orders",
+      "titleSize": "22px"
+    },
+    {
+      "page": "Sales Orders",
+      "buttons": [
+        "Active Orders1",
+        "Completed Orders0",
+        "Cancelled Orders0",
+        "Create Sales Order",
+        "View Delivery",
+        ""
+      ]
+    },
+    {
+      "name": "sales-orders-form",
+      "width": 1440,
+      "documentWidth": 1440,
+      "title": "Sales Orders",
+      "titleSize": "22px"
+    },
+    {
+      "name": "suppliers",
+      "width": 1440,
+      "documentWidth": 1440,
+      "title": "Suppliers",
+      "titleSize": "22px"
+    },
+    {
+      "page": "Suppliers",
+      "buttons": [
+        "Active Suppliers1",
+        "Archived Suppliers0",
+        "Add Supplier",
+        "Code",
+        "Company Name",
+        "Contact Person",
+        "Address",
+        "",
+        ""
+      ]
+    },
+    {
+      "name": "suppliers-form",
+      "width": 1440,
+      "documentWidth": 1440,
+      "title": "Suppliers",
+      "titleSize": "22px"
+    },
+    {
+      "name": "purchase-orders",
+      "width": 1440,
+      "documentWidth": 1440,
+      "title": "Purchase Orders",
+      "titleSize": "22px"
+    },
+    {
+      "page": "Purchase Orders",
+      "buttons": [
+        "Active Orders1",
+        "Received Orders0",
+        "Cancelled Orders0",
+        "Create Purchase Order",
+        "Incoming Deliveries",
+        ""
+      ]
+    },
+    {
+      "name": "purchase-orders-form",
+      "width": 1440,
+      "documentWidth": 1440,
+      "title": "Purchase Orders",
+      "titleSize": "22px"
+    },
+    {
+      "name": "inventory",
+      "width": 1440,
+      "documentWidth": 1440,
+      "title": "Inventory",
+      "titleSize": "22px"
+    },
+    {
+      "page": "Inventory",
+      "buttons": [
+        "Active1",
+        "Archived0",
+        "Register Product",
+        "Product",
+        "Wholesale Price",
+        "StockTotal Stock",
+        "Loc.Locations",
+        "—",
+        "1 loc.1 Warehouse",
+        "",
+        ""
+      ]
+    },
+    {
+      "name": "inventory-form",
+      "width": 1440,
+      "documentWidth": 1440,
+      "title": "Inventory",
+      "titleSize": "22px"
+    },
+    {
+      "name": "warehouses",
+      "width": 1440,
+      "documentWidth": 1440,
+      "title": "Warehouses",
+      "titleSize": "22px"
+    },
+    {
+      "page": "Warehouses",
+      "buttons": [
+        "Active Warehouses1",
+        "Archived Warehouses0",
+        "Register Warehouse",
+        "Warehouse",
+        "Location",
+        "Products",
+        "Total Stock",
+        "Panacan Distribution Hub",
+        "",
+        ""
+      ]
+    },
+    {
+      "name": "warehouses-form",
+      "width": 1440,
+      "documentWidth": 1440,
+      "title": "Warehouses",
+      "titleSize": "22px"
+    },
+    {
+      "name": "vehicles",
+      "width": 1440,
+      "documentWidth": 1440,
+      "title": "Vehicles",
+      "titleSize": "22px"
+    },
+    {
+      "page": "Vehicles",
+      "buttons": [
+        "Active Vehicles1",
+        "Archived Vehicles0",
+        "Add Vehicle",
+        "Vehicle",
+        "Plate Number",
+        "Vehicle Type",
+        "Condition",
+        "Availability / Status",
+        "OUT-0001",
+        "",
+        ""
+      ]
+    },
+    {
+      "name": "vehicles-form",
+      "width": 1440,
+      "documentWidth": 1440,
+      "title": "Vehicles",
+      "titleSize": "22px"
+    },
+    {
+      "name": "staff-directory",
+      "width": 1440,
+      "documentWidth": 1440,
+      "title": "Staff Directory",
+      "titleSize": "22px"
+    },
+    {
+      "page": "Staff Directory",
+      "buttons": [
+        "Active Staff1",
+        "Archived Staff0",
+        "Register Employee",
+        "Unassigned",
+        "",
+        ""
+      ]
+    },
+    {
+      "name": "staff-directory-form",
+      "width": 1440,
+      "documentWidth": 1440,
+      "title": "Staff Directory",
+      "titleSize": "22px"
+    },
+    {
+      "name": "job-positions",
+      "width": 1440,
+      "documentWidth": 1440,
+      "title": "Job Positions",
+      "titleSize": "22px"
+    },
+    {
+      "page": "Job Positions",
+      "buttons": [
+        "Active Positions1",
+        "Archived Positions0",
+        "Create Job Position",
+        "Position",
+        "Description",
+        "",
+        ""
+      ]
+    },
+    {
+      "name": "job-positions-form",
+      "width": 1440,
+      "documentWidth": 1440,
+      "title": "Job Positions",
+      "titleSize": "22px"
+    },
+    {
+      "name": "user-roles-access",
+      "width": 1440,
+      "documentWidth": 1440,
+      "title": "User Roles & Access",
+      "titleSize": "22px"
+    },
+    {
+      "page": "User Roles & Access",
+      "buttons": [
+        "Active Accounts1",
+        "Archived Accounts0",
+        "Register User",
+        "ADMIN",
+        ""
+      ]
+    },
+    {
+      "name": "user-roles-access-form",
+      "width": 1440,
+      "documentWidth": 1440,
+      "title": "User Roles & Access",
+      "titleSize": "22px"
+    },
+    {
+      "name": "deliveries-incoming",
+      "width": 1440,
+      "documentWidth": 1440,
+      "title": "Incoming Deliveries",
+      "titleSize": "22px"
+    },
+    {
+      "name": "schedule-incoming",
+      "width": 1440,
+      "documentWidth": 1440,
+      "title": "Incoming Deliveries",
+      "titleSize": "22px"
+    },
+    {
+      "name": "deliveries-outgoing",
+      "width": 1440,
+      "documentWidth": 1440,
+      "title": "Outgoing Deliveries",
+      "titleSize": "22px"
+    },
+    {
+      "name": "schedule-outgoing",
+      "width": 1440,
+      "documentWidth": 1440,
+      "title": "Outgoing Deliveries",
+      "titleSize": "22px"
+    },
+    {
+      "name": "deliveries-history",
+      "width": 1440,
+      "documentWidth": 1440,
+      "title": "Delivery History",
+      "titleSize": "22px"
+    },
+    {
+      "name": "stock-notifications",
+      "width": 1440,
+      "documentWidth": 1440,
+      "title": "Delivery History",
+      "titleSize": "22px"
+    },
+    {
+      "name": "account-menu",
+      "width": 1440,
+      "documentWidth": 1440,
+      "title": "Delivery History",
+      "titleSize": "22px"
+    },
+    {
+      "name": "customers-loading",
+      "width": 1440,
+      "documentWidth": 1440,
+      "title": "Customers",
+      "titleSize": "22px"
+    }
+  ],
+  "errors": []
+}

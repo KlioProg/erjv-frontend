@@ -179,17 +179,18 @@ export function DashboardLayout({
       {/* Sidebar Navigation */}
       <aside
         data-sidebar
-        className={`fixed inset-y-0 left-0 z-50 flex w-60 flex-col justify-between border-r border-border/80 bg-card backdrop-blur-md transition-transform duration-300 lg:sticky lg:top-0 lg:h-screen lg:shrink-0 ${
+        className={`fixed inset-y-0 left-0 z-50 flex w-60 flex-col justify-between border-r bg-card transition-transform duration-200 lg:sticky lg:top-0 lg:h-screen lg:shrink-0 ${
           isMobileOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full lg:translate-x-0'
         }`}
       >
         {/* Sidebar Header & Nav list */}
         <div className="flex flex-col min-h-0 flex-1">
-          <div className="flex h-16 shrink-0 items-center justify-between px-5 border-b border-border/70">
+          <div className="flex h-14 shrink-0 items-center justify-between px-5 border-b">
             <ErjvPosLogo />
             <Button
               variant="ghost"
               size="icon"
+              aria-label="Close navigation"
               className="lg:hidden size-8 text-muted-foreground"
               onClick={() => setIsMobileOpen(false)}
             >
@@ -203,14 +204,12 @@ export function DashboardLayout({
             tabIndex={0}
             data-scrolling={isSidebarScrolling}
             onScroll={handleSidebarScroll}
-            className="scrollbar-subtle flex-1 flex flex-col gap-5 px-3.5 py-4 overflow-y-auto min-h-0"
+            className="scrollbar-subtle flex-1 flex flex-col gap-6 px-3 py-5 overflow-y-auto min-h-0"
           >
             {visibleGroups.map((group) => (
-              <div key={group.title} className="flex flex-col gap-1.5">
-                <div className="px-3 text-[10px] font-bold tracking-wider uppercase text-muted-foreground/80">
-                  {group.title}
-                </div>
-                <div className="flex flex-col gap-0.5">
+              <div key={group.title} className="flex flex-col gap-2">
+                <div className="px-3 text-xs font-medium text-muted-foreground">{group.title}</div>
+                <div className="flex flex-col gap-1">
                   {group.items.map((item) => {
                     if (item.key === 'deliveries')
                       return (
@@ -240,15 +239,15 @@ export function DashboardLayout({
                           handleSelectTab(item.key)
                           setIsMobileOpen(false)
                         }}
-                        className={`group relative flex h-9 w-full items-center justify-between rounded-md px-3 py-2 text-xs font-semibold transition-all duration-150 cursor-pointer select-none active:scale-[0.98] pointer-coarse:min-h-11 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                        className={`group relative flex h-9 w-full items-center justify-between rounded-md px-3 py-2 text-ui font-medium transition-colors duration-150 cursor-pointer select-none pointer-coarse:min-h-11 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                           isActive
-                            ? 'bg-accent text-foreground'
+                            ? 'bg-primary-subtle text-foreground'
                             : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
                         }`}
                       >
                         <div className="flex items-center gap-3">
                           <Icon
-                            className={`size-4 shrink-0 transition-transform group-hover:scale-110 ${
+                            className={`size-4 shrink-0 ${
                               isActive
                                 ? 'text-primary'
                                 : 'text-muted-foreground group-hover:text-foreground'
@@ -270,13 +269,13 @@ export function DashboardLayout({
         </div>
 
         {/* Sidebar Footer / User Profile & Role Switcher - ALWAYS PINNED ON BOTTOM LEFT */}
-        <div className="p-3 bg-card shrink-0">
+        <div className="p-3 border-t bg-card shrink-0">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
                 type="button"
                 aria-label="Account menu"
-                className="flex w-full items-center justify-between gap-2.5 p-2 rounded-xl bg-card border border-border/70 cursor-pointer hover:bg-muted transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="flex w-full items-center justify-between gap-3 p-2 rounded-md bg-card cursor-pointer hover:bg-muted transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <div className="flex items-center gap-2.5 min-w-0">
                   <Avatar className="size-9 border border-border bg-muted shrink-0">
@@ -287,32 +286,19 @@ export function DashboardLayout({
                         className="object-cover"
                       />
                     )}
-                    <AvatarFallback className="bg-muted text-foreground font-extrabold text-xs">
+                    <AvatarFallback className="bg-muted text-foreground font-semibold text-ui">
                       {userInitial}
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex flex-col min-w-0 text-left">
                     <span
-                      className="text-xs font-bold leading-snug text-foreground truncate max-w-[130px]"
+                      className="text-ui font-medium leading-snug text-foreground truncate max-w-[130px]"
                       title={displayName}
                     >
                       {displayName}
                     </span>
                     <div className="flex items-center gap-1.5 mt-0.5">
-                      <span
-                        className={`inline-block size-1.5 rounded-full shrink-0 ${
-                          roleConfig.role === USER_ROLES.ADMIN
-                            ? 'bg-emerald-500'
-                            : roleConfig.role === USER_ROLES.MANAGER
-                              ? 'bg-blue-500'
-                              : roleConfig.role === USER_ROLES.STAFF
-                                ? 'bg-muted-foreground'
-                                : 'bg-rose-500'
-                        }`}
-                      />
-                      <span className="text-[10px] font-extrabold tracking-tight uppercase text-muted-foreground">
-                        {roleConfig.label}
-                      </span>
+                      <span className="text-xs text-muted-foreground">{roleConfig.label}</span>
                     </div>
                   </div>
                 </div>
@@ -321,25 +307,27 @@ export function DashboardLayout({
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" side="top" className="w-64 mb-2">
               <div className="px-2.5 py-2 text-xs text-muted-foreground flex flex-col gap-1 rounded-xl mx-1">
-                <span className="font-bold text-foreground truncate text-sm">{displayName}</span>
-                <span className="text-[11px] text-muted-foreground truncate font-mono">
+                <span className="font-medium text-foreground truncate text-sm">{displayName}</span>
+                <span className="text-xs text-muted-foreground truncate">
                   {user?.email || 'Logged In'}
                 </span>
                 <div className="flex items-center gap-1.5 mt-1">
                   <Badge
                     variant="outline"
-                    className={`font-bold text-[9px] py-0 px-1.5 ${roleConfig.badgeClass}`}
+                    className={`font-medium text-xs py-0.5 px-2 ${roleConfig.badgeClass}`}
                   >
                     {roleConfig.label}
                   </Badge>
-                  <span className="text-[10px] text-emerald-600 font-semibold">● Online</span>
+                  <span className="text-xs text-status-success-foreground font-medium">
+                    ● Online
+                  </span>
                 </div>
               </div>
               <DropdownMenuSeparator />
               <DropdownMenuGroup>
                 <DropdownMenuItem
                   onClick={logout}
-                  className="text-destructive gap-2 text-xs cursor-pointer font-semibold py-2 hover:bg-muted focus:bg-muted focus:text-destructive"
+                  className="text-destructive gap-2 text-ui cursor-pointer font-medium py-2 hover:bg-muted focus:bg-muted focus:text-destructive"
                 >
                   <LogOut className="size-3.5" />
                   Sign Out
@@ -353,11 +341,12 @@ export function DashboardLayout({
       {/* Main Content Viewport */}
       <div className="flex-1 flex flex-col min-w-0 overflow-x-hidden">
         {/* Sticky Top Header */}
-        <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border/80 bg-background/85 backdrop-blur-md px-4 sm:px-8">
+        <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b bg-card px-4 sm:px-8">
           <div className="flex items-center gap-3">
             <Button
               variant="ghost"
               size="icon"
+              aria-label="Open navigation"
               className="lg:hidden size-9 text-muted-foreground"
               onClick={() => setIsMobileOpen(true)}
             >
@@ -365,10 +354,10 @@ export function DashboardLayout({
             </Button>
 
             <div className="flex flex-col select-none">
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <div className="flex items-center gap-2 text-ui text-muted-foreground">
                 <span className="font-medium">{currentGroup?.title}</span>
                 <span>/</span>
-                <span className="font-bold text-foreground">
+                <span className="font-medium text-foreground">
                   {deliveryView
                     ? `Deliveries / ${deliveryView === 'incoming' ? 'Incoming' : deliveryView === 'outgoing' ? 'Outgoing' : 'History'}`
                     : currentItem?.label}
@@ -386,9 +375,7 @@ export function DashboardLayout({
         </header>
 
         {/* Dynamic Main Body Content */}
-        <main className="flex-1 p-4 sm:p-8 max-w-7xl w-full mx-auto animate-in fade-in-50 duration-200">
-          {children}
-        </main>
+        <main className="flex-1 p-4 sm:p-8 max-w-[1600px] w-full mx-auto">{children}</main>
 
         {/* Global Footer */}
         <footer className="border-t border-border/60 py-4 px-4 sm:px-8 text-center text-xs text-muted-foreground">
@@ -396,9 +383,7 @@ export function DashboardLayout({
             <span className="font-medium tracking-tight">
               ERJV POS Enterprise Operations Suite © {new Date().getFullYear()}
             </span>
-            <span className="font-mono text-[11px] text-muted-foreground/80">
-              v1.0.0 (Production)
-            </span>
+            <span className="text-xs text-muted-foreground">v1.0.0 (Production)</span>
           </div>
         </footer>
       </div>

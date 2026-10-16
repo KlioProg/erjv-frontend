@@ -1,8 +1,20 @@
 @import 'tailwindcss';
 
+/* Match dark utilities to the existing token selector, keeping the app light under a dark OS. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@font-face {
+  font-family: 'Inter';
+  src: url('/fonts/inter/InterVariable.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+}
+
 @theme inline {
   --text-ui: 0.8125rem;
-  --font-sans: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --font-sans:
+    'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   /* Legacy data/code utilities use the same family as the rest of the UI. */
   --font-mono: var(--font-sans);
 
@@ -16,8 +28,10 @@
   --color-popover-foreground: var(--popover-foreground);
 
   --color-primary: var(--primary);
+  --color-primary-text: var(--primary-text);
   --color-primary-foreground: var(--primary-foreground);
   --color-primary-button-foreground: var(--primary-button-foreground);
+  --color-primary-contrast-foreground: var(--primary-contrast-foreground);
   --color-primary-hover: var(--primary-hover);
   --color-primary-active: var(--primary-active);
   --color-primary-contrast: var(--primary-contrast);
@@ -29,7 +43,7 @@
   --color-primary-disabled-foreground: var(--primary-disabled-foreground);
   /* Text needs a darker shade than the brand fill on light surfaces. */
   --text-color-primary: var(--primary-text);
-  /* The POS signature follows the primary CTA brand color. */
+  /* The POS signature uses the brand accent at display size. */
   --color-logo-pos: var(--logo-pos);
 
   --color-secondary: var(--secondary);
@@ -69,33 +83,34 @@
 }
 
 :root {
-  --background: #f6f3ee;
-  --foreground: #1c1917;
+  color-scheme: light;
+  --background: #ffffff;
+  --foreground: #1c211d;
   --card: #ffffff;
-  --card-foreground: #1c1917;
+  --card-foreground: #1c211d;
   --popover: #ffffff;
-  --popover-foreground: #1c1917;
-  /* Green buttons use white text and icons. */
-  --primary: #80b918;
-  --primary-foreground: #ffffff;
-  --primary-button-foreground: var(--primary-foreground);
-  /* Compact controls and text-heavy actions can use this AA white-text fill. */
-  --primary-contrast: #507410;
-  --primary-text: color-mix(in srgb, var(--primary) 50%, black);
-  --logo-pos: var(--primary-contrast);
-  --secondary: #f0ebe4;
-  --secondary-foreground: #292524;
-  --muted: #eae3d9;
-  --muted-foreground: #6b645e;
-  --accent: #f5efe8;
-  --accent-foreground: #1c1917;
+  --popover-foreground: #1c211d;
+  /* Brand fills pair with graphite; filled actions use the darker AA shade. */
+  --primary: #6a994e;
+  --primary-foreground: #1c211d;
+  --primary-button-foreground: var(--primary-contrast-foreground);
+  --primary-contrast: #4d7337;
+  --primary-contrast-foreground: #ffffff;
+  --primary-text: var(--primary-contrast);
+  --logo-pos: var(--primary);
+  --secondary: #f3f5f2;
+  --secondary-foreground: #1c211d;
+  --muted: #ecefeb;
+  --muted-foreground: #566057;
+  --accent: #f3f5f2;
+  --accent-foreground: #1c211d;
   --destructive: #dc2626;
   --destructive-foreground: #ffffff;
   --destructive-text: color-mix(in srgb, var(--destructive) 85%, black);
   --destructive-hover: color-mix(in srgb, var(--destructive) 90%, black);
   --destructive-active: color-mix(in srgb, var(--destructive) 80%, black);
-  --border: #e7dfd5;
-  --input: #ded5c8;
+  --border: #d2d9d1;
+  --input: #858e85;
   --ring: var(--primary-text);
   --status-info: #edf2f8;
   --status-info-foreground: #385e85;
@@ -107,6 +122,7 @@
 }
 
 .dark {
+  color-scheme: dark;
   --background: #141210;
   --foreground: #fafaf9;
   --card: #1c1a18;
@@ -139,14 +155,19 @@
 
 :root,
 .dark {
-  --primary-hover: #6fa315;
-  --primary-active: color-mix(in srgb, var(--primary) 80%, black);
+  --primary-hover: color-mix(in srgb, var(--primary) 92%, white);
+  --primary-active: color-mix(in srgb, var(--primary) 88%, white);
   --primary-contrast-hover: color-mix(in srgb, var(--primary-contrast) 90%, black);
   --primary-contrast-active: color-mix(in srgb, var(--primary-contrast) 80%, black);
-  --primary-subtle: color-mix(in srgb, var(--primary) 10%, var(--card));
-  --primary-selected: color-mix(in srgb, var(--primary) 16%, var(--card));
+  --primary-subtle: #eef4ea;
+  --primary-selected: #eef4ea;
   --primary-disabled: color-mix(in srgb, var(--primary) 30%, var(--muted));
   --primary-disabled-foreground: color-mix(in srgb, var(--foreground) 70%, var(--muted));
+}
+
+.dark {
+  --primary-subtle: color-mix(in srgb, var(--primary) 10%, var(--card));
+  --primary-selected: color-mix(in srgb, var(--primary) 16%, var(--card));
 }
 
 @layer base {
@@ -157,33 +178,16 @@
 
 /* Shared selection treatment for feature navigation and Radix tabs. */
 @utility navigation-tab {
-  position: relative;
   color: var(--muted-foreground);
-
-  &::after {
-    content: '';
-    position: absolute;
-    inset-inline: 0.75rem;
-    bottom: 0;
-    height: 2px;
-    border-radius: 999px;
-    background-color: var(--primary-contrast);
-    opacity: 0;
-    pointer-events: none;
-  }
 
   &:hover {
     color: var(--foreground);
-    background-color: color-mix(in srgb, var(--background) 40%, transparent);
+    background-color: var(--muted);
   }
 
   &[data-state='active'] {
     color: var(--foreground);
-    background-color: var(--card);
-  }
-
-  &[data-state='active']::after {
-    opacity: 1;
+    background-color: var(--primary-subtle);
   }
 }
 
@@ -227,7 +231,6 @@ body {
   background-color: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
-  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
   -webkit-font-smoothing: antialiased;
 }
 
@@ -309,12 +312,12 @@ input[type='radio'] {
 }
 .management-toolbar input,
 .management-toolbar button {
-  min-height: 2.25rem;
+  min-height: 2.5rem;
   font-size: var(--text-ui);
   box-shadow: none;
 }
 .management-toolbar input {
-  height: 2.25rem;
+  height: 2.5rem;
 }
 @media (min-width: 640px) {
   .management-toolbar > button:last-child,
@@ -324,36 +327,47 @@ input[type='radio'] {
 }
 .management-table th {
   height: 2.75rem;
-  font-size: var(--text-ui);
+  font-size: 0.75rem;
   font-weight: 500;
 }
 .management-table tbody > tr:not(:has(td[colspan])) {
   height: 3.5rem;
 }
 .management-table td {
-  font-size: var(--text-ui);
   line-height: 1.5;
-  padding-block: 0.875rem;
+  padding-block: 0.75rem;
   font-variant-numeric: tabular-nums;
-}
-.management-table td :is(.text-sm, .text-xs, .text-\[13px\]):not(button):not([data-slot='badge']) {
-  font-size: var(--text-ui);
-}
-.management-table td :is(.text-muted-foreground, .text-\[11px\]) {
-  font-size: var(--text-ui);
 }
 .management-table button:focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 2px;
 }
-/* One body size across shared operational surfaces; headings retain their hierarchy. */
-.ui-typography,
-.ui-text,
-.ui-typography
-  :where(div, p, span, label, input, textarea, select, button, th, td, dt, dd, summary, a) {
-  font-size: var(--text-ui);
+/* Utilities remain free to express headings, controls, and metadata sizes. */
+@layer base {
+  .ui-typography,
+  .ui-text {
+    font-size: var(--text-ui);
+  }
+}
+.ui-dialog-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: -0.02em;
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 @media (pointer: coarse) {
+  .management-table td {
+    padding-block: 0.5rem;
+  }
   .management-toolbar input,
   .management-toolbar button,
   .management-table button,

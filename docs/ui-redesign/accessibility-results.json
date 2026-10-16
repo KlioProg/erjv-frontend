@@ -1,0 +1,50 @@
+[
+  {
+    "name": "Customers",
+    "violations": []
+  },
+  {
+    "name": "Sales Orders",
+    "violations": []
+  },
+  {
+    "name": "Suppliers",
+    "violations": []
+  },
+  {
+    "name": "Purchase Orders",
+    "violations": []
+  },
+  {
+    "name": "Inventory",
+    "violations": []
+  },
+  {
+    "name": "Warehouses",
+    "violations": []
+  },
+  {
+    "name": "Vehicles",
+    "violations": []
+  },
+  {
+    "name": "Staff Directory",
+    "violations": []
+  },
+  {
+    "name": "Job Positions",
+    "violations": []
+  },
+  {
+    "name": "User Roles & Access",
+    "violations": []
+  },
+  {
+    "name": "Customer registration",
+    "violations": []
+  },
+  {
+    "name": "Keyboard focus",
+    "focused": "Register New Customer"
+  }
+]

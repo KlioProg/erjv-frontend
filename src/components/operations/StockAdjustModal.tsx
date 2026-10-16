@@ -1,7 +1,6 @@
 import { formatProductUnit } from '@/lib/product-unit'
 import { useState, useMemo, type FormEvent } from 'react'
 import {
-  Boxes,
   PlusCircle,
   MinusCircle,
   Package,
@@ -183,23 +182,20 @@ function StockAdjustContent({
   return (
     <>
       <DialogHeader className="pb-1">
-        <div className="flex size-11 items-center justify-center rounded-2xl bg-primary/10 text-primary mb-2 shadow-2xs">
-          <Boxes className="size-5" />
-        </div>
-        <DialogTitle className="text-lg font-extrabold tracking-tight text-foreground">
+        <DialogTitle>
           {isExistingStock ? 'Adjust Stock Quantity' : 'Allocate Stock to Warehouse'}
         </DialogTitle>
         <DialogDescription className="text-xs text-muted-foreground leading-relaxed">
           {isExistingStock ? (
             <>
               Update physical inventory count for{' '}
-              <span className="font-bold text-foreground">{itemName}</span> at{' '}
-              <span className="font-bold text-foreground">{whName}</span>.
+              <span className="font-medium text-foreground">{itemName}</span> at{' '}
+              <span className="font-medium text-foreground">{whName}</span>.
             </>
           ) : (
             <>
               Allocate initial stock for{' '}
-              <span className="font-bold text-foreground">{itemName}</span> to a facility.
+              <span className="font-medium text-foreground">{itemName}</span> to a facility.
             </>
           )}
         </DialogDescription>
@@ -217,17 +213,17 @@ function StockAdjustContent({
         {!stockItem && !warehouseId && (
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center justify-between">
-              <Label className="text-xs font-semibold text-foreground">
+              <Label className="text-[13px] font-medium text-foreground">
                 Target Warehouse Facility <span className="text-primary">*</span>
               </Label>
               {isLoadingPair && (
-                <span className="flex items-center gap-1 text-[11px] text-muted-foreground font-medium">
+                <span className="flex items-center gap-1 text-xs text-muted-foreground font-medium">
                   <Spinner className="size-3" /> Checking stock...
                 </span>
               )}
             </div>
             {activeWarehouses.length === 0 ? (
-              <Alert className="border-amber-500/30 bg-amber-500/10 text-foreground">
+              <Alert className="border-status-warning-foreground/30 bg-status-warning text-foreground">
                 <AlertDescription className="text-xs">
                   No active warehouse facilities available.
                 </AlertDescription>
@@ -240,7 +236,7 @@ function StockAdjustContent({
                   setErrorMsg(null)
                 }}
               >
-                <SelectTrigger className="h-10 text-xs rounded-xl">
+                <SelectTrigger className="h-10 text-[13px] rounded-md">
                   <SelectValue placeholder="Select warehouse facility" />
                 </SelectTrigger>
                 <SelectContent>
@@ -250,15 +246,15 @@ function StockAdjustContent({
                         (s) => s.inventoryItemId === inventoryItem?.id && s.warehouseId === wh.id,
                       )
                       return (
-                        <SelectItem key={wh.id} value={String(wh.id)} className="text-xs">
+                        <SelectItem key={wh.id} value={String(wh.id)} className="text-[13px]">
                           <div className="flex items-center justify-between w-full gap-3">
                             <span className="font-semibold">{wh.name}</span>
                             {stockRecord ? (
-                              <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
+                              <span className="text-xs font-medium text-status-success-foreground">
                                 ({parseFloat(stockRecord.quantity).toLocaleString()} in stock)
                               </span>
                             ) : (
-                              <span className="text-[11px] text-muted-foreground">
+                              <span className="text-xs text-muted-foreground">
                                 (New allocation)
                               </span>
                             )}
@@ -276,45 +272,45 @@ function StockAdjustContent({
         {/* Adjustment Type Selector */}
         {isExistingStock && (
           <div className="flex flex-col gap-1.5">
-            <Label className="text-xs font-semibold text-foreground">Adjustment Action</Label>
+            <Label className="text-[13px] font-medium text-foreground">Adjustment Action</Label>
             <div className="grid grid-cols-3 gap-2">
               <button
                 type="button"
                 onClick={() => setMode('increase')}
-                className={`flex flex-col items-center justify-center p-2.5 rounded-xl border text-center transition-all cursor-pointer ${
+                className={`flex flex-col items-center justify-center p-2.5 rounded-md border text-center transition-all cursor-pointer ${
                   effectiveMode === 'increase'
-                    ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 font-bold shadow-xs'
-                    : 'border-border/70 bg-card hover:bg-muted/50 text-muted-foreground font-semibold'
+                    ? 'border-status-success-foreground/40 bg-status-success text-status-success-foreground font-medium'
+                    : 'border-border bg-card hover:bg-muted/50 text-muted-foreground font-semibold'
                 }`}
               >
-                <PlusCircle className="size-4 mb-1 text-emerald-600 dark:text-emerald-400" />
-                <span className="text-xs">Receive (+)</span>
+                <PlusCircle className="size-4 mb-1 text-status-success-foreground" />
+                <span className="text-[13px]">Receive (+)</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setMode('decrease')}
-                className={`flex flex-col items-center justify-center p-2.5 rounded-xl border text-center transition-all cursor-pointer ${
+                className={`flex flex-col items-center justify-center p-2.5 rounded-md border text-center transition-all cursor-pointer ${
                   effectiveMode === 'decrease'
-                    ? 'border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400 font-bold shadow-xs'
-                    : 'border-border/70 bg-card hover:bg-muted/50 text-muted-foreground font-semibold'
+                    ? 'border-status-warning-foreground/40 bg-status-warning text-status-warning-foreground font-medium'
+                    : 'border-border bg-card hover:bg-muted/50 text-muted-foreground font-semibold'
                 }`}
               >
-                <MinusCircle className="size-4 mb-1 text-amber-600 dark:text-amber-400" />
-                <span className="text-xs">Dispatch (-)</span>
+                <MinusCircle className="size-4 mb-1 text-status-warning-foreground" />
+                <span className="text-[13px]">Dispatch (-)</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setMode('set')}
-                className={`flex flex-col items-center justify-center p-2.5 rounded-xl border text-center transition-all cursor-pointer ${
+                className={`flex flex-col items-center justify-center p-2.5 rounded-md border text-center transition-all cursor-pointer ${
                   effectiveMode === 'set'
-                    ? 'border-primary/40 bg-primary/10 text-primary font-bold shadow-xs'
-                    : 'border-border/70 bg-card hover:bg-muted/50 text-muted-foreground font-semibold'
+                    ? 'border-primary-text bg-primary-selected text-primary-text font-medium'
+                    : 'border-border bg-card hover:bg-muted/50 text-muted-foreground font-semibold'
                 }`}
               >
                 <SlidersHorizontal className="size-4 mb-1 text-primary" />
-                <span className="text-xs">Set Total (=)</span>
+                <span className="text-[13px]">Set Total (=)</span>
               </button>
             </div>
           </div>
@@ -322,7 +318,7 @@ function StockAdjustContent({
 
         {/* Amount Input */}
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="stock-amount" className="text-xs font-semibold text-foreground">
+          <Label htmlFor="stock-amount" className="text-[13px] font-medium text-foreground">
             {isExistingStock
               ? effectiveMode === 'increase'
                 ? 'Units to Receive / Add (+)'
@@ -341,20 +337,20 @@ function StockAdjustContent({
               placeholder="0.00"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
-              className="pl-9 h-10 text-xs rounded-xl font-bold"
+              className="pl-9 h-10 text-[13px] rounded-md font-medium"
               required
             />
           </div>
 
           {/* Quick preset chips */}
-          <div className="flex items-center gap-1.5 pt-1 text-[11px]">
+          <div className="flex items-center gap-1.5 pt-1 text-xs">
             <span className="text-muted-foreground font-semibold">Presets:</span>
             {[10, 25, 50, 100, 250].map((val) => (
               <button
                 key={val}
                 type="button"
                 onClick={() => setAmount(String(val))}
-                className="px-2 py-0.5 rounded-lg bg-muted hover:bg-muted/80 border border-border/60 text-[11px] font-bold text-foreground cursor-pointer transition-colors"
+                className="px-2 min-h-8 pointer-coarse:min-h-11 py-0.5 rounded-md bg-secondary hover:bg-muted border border-border text-[13px] font-medium text-foreground cursor-pointer transition-colors"
               >
                 +{val}
               </button>
@@ -364,12 +360,10 @@ function StockAdjustContent({
 
         {/* Real-time Projected Balance Preview */}
         {isExistingStock && (
-          <div className="rounded-2xl border border-border/80 bg-muted/40 p-3.5 flex items-center justify-between">
+          <div className="rounded-lg border border-border bg-secondary p-3.5 flex items-center justify-between">
             <div className="flex flex-col">
-              <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">
-                Current Units
-              </span>
-              <span className="text-xs font-semibold text-foreground">
+              <span className="text-xs font-medium text-muted-foreground">Current Units</span>
+              <span className="text-sm font-normal tabular-nums text-foreground">
                 {currentQty.toLocaleString()}{' '}
                 {formatProductUnit(inventoryItem?.unit || stockItem?.inventoryItem?.unit, 'units')}
               </span>
@@ -387,15 +381,13 @@ function StockAdjustContent({
             </div>
 
             <div className="flex flex-col text-right">
-              <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">
-                Projected Balance
-              </span>
+              <span className="text-xs font-medium text-muted-foreground">Projected Balance</span>
               <span
-                className={`text-sm font-extrabold ${
+                className={`text-sm font-medium tabular-nums ${
                   calculatedNewQty < 0
                     ? 'text-destructive'
                     : effectiveMode === 'increase'
-                      ? 'text-emerald-600 dark:text-emerald-400'
+                      ? 'text-status-success-foreground'
                       : 'text-foreground'
                 }`}
               >
@@ -413,7 +405,7 @@ function StockAdjustContent({
             variant="outline"
             onClick={onClose}
             disabled={isPending}
-            className="text-xs font-semibold h-9 rounded-xl cursor-pointer"
+            className="text-[13px] font-medium h-9 rounded-md cursor-pointer"
           >
             Cancel
           </Button>
@@ -427,11 +419,11 @@ function StockAdjustContent({
               isNaN(parsedVal) ||
               parsedVal < 0
             }
-            className={`text-xs font-bold h-9 rounded-xl cursor-pointer shadow-xs ${
+            className={`text-[13px] font-medium h-9 rounded-md cursor-pointer ${
               isExistingStock && effectiveMode === 'increase'
                 ? ''
                 : isExistingStock && effectiveMode === 'decrease'
-                  ? 'bg-amber-600 hover:bg-amber-700 text-white'
+                  ? 'bg-status-warning-foreground hover:bg-status-warning-foreground/90 text-white'
                   : ''
             }`}
           >

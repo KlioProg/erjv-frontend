@@ -106,7 +106,7 @@ export function DeliveryQuantityTable({
       }
       getRowKey={(row) => row.id}
       pagination={false}
-      tableClassName={`${compact ? 'min-w-[460px]' : 'min-w-[580px]'} [&_td]:text-[13px]`}
+      tableClassName={`${compact ? 'min-w-[460px]' : 'min-w-[580px]'} [&_td]:text-sm [&_td]:tabular-nums`}
     />
   )
 }

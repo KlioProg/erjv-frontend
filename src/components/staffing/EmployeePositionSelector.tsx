@@ -95,8 +95,8 @@ export function EmployeePositionSelector({
       <div
         title={hasError ? 'Roles unavailable' : allPositionNames || 'Unassigned'}
         className={cn(
-          'inline-flex h-8 w-36 min-w-36 items-center gap-2 rounded-lg border px-2.5 text-xs font-semibold shadow-2xs pointer-coarse:h-11',
-          'bg-primary/10 text-primary border-primary/25',
+          'inline-flex h-8 w-36 min-w-36 items-center gap-2 rounded-lg border px-2.5 text-ui font-medium pointer-coarse:h-11',
+          'border-border bg-secondary text-foreground',
         )}
       >
         {hasError ? 'Roles unavailable' : triggerContent}
@@ -131,8 +131,8 @@ export function EmployeePositionSelector({
         <button
           type="button"
           className={cn(
-            'inline-flex h-8 w-36 min-w-36 items-center gap-2 rounded-lg border px-2.5 text-xs font-semibold shadow-2xs transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring pointer-coarse:h-11',
-            'border-primary/25 bg-primary/10 text-primary hover:bg-primary/15 active:bg-primary/20',
+            'inline-flex h-8 w-36 min-w-36 items-center gap-2 rounded-lg border px-2.5 text-ui font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring pointer-coarse:h-11',
+            'border-border bg-card text-foreground hover:bg-secondary active:bg-muted',
           )}
           aria-label={`Change job positions for ${employeeName}; ${assignments.length} assigned`}
           disabled={isSaving || isLoading}
@@ -148,7 +148,7 @@ export function EmployeePositionSelector({
       <DropdownMenuContent align="start" className="w-64">
         <DropdownMenuLabel className="font-normal">
           <span className="block font-medium text-foreground">Job positions</span>
-          <span className="text-[11px] text-muted-foreground">
+          <span className="text-xs text-muted-foreground">
             {employeeName} · Select multiple positions
           </span>
         </DropdownMenuLabel>
@@ -175,7 +175,7 @@ export function EmployeePositionSelector({
                   <span className="flex min-w-0 flex-1 items-center justify-between gap-2">
                     <span className="truncate">{job.name}</span>
                     {!job.isActive && (
-                      <span className="shrink-0 text-[10px] text-muted-foreground">Archived</span>
+                      <span className="shrink-0 text-xs text-muted-foreground">Archived</span>
                     )}
                   </span>
                 </DropdownMenuCheckboxItem>

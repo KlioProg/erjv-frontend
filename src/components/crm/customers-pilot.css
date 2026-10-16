@@ -1,0 +1,72 @@
+/* Customer-specific composition; shared tokens and controls live in the design system. */
+.customer-pilot .customer-table .customer-secondary {
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.customer-dialog {
+  gap: 24px;
+}
+
+.customer-form legend {
+  float: left;
+  width: 100%;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.customer-form legend + * {
+  clear: both;
+}
+
+.customer-field-hint,
+.customer-field-error {
+  font-size: 12px;
+  line-height: 18px;
+  font-weight: 400;
+  color: var(--muted-foreground);
+}
+
+.customer-form legend .customer-field-hint {
+  margin-left: 8px;
+}
+
+.customer-field-error {
+  color: var(--destructive-text);
+}
+
+.customer-restore-notice {
+  background: var(--muted);
+}
+
+@media (pointer: coarse) {
+  .customer-pilot .customer-table button,
+  .customer-pilot .customer-table select {
+    min-height: 44px;
+  }
+}
+
+@media (max-width: 639px) {
+  .customer-filters > div > div {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .customer-filters .navigation-tab {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .customer-filters .navigation-tab > svg {
+    display: none;
+  }
+
+  .customer-filters .navigation-tab > span:not(:last-child) {
+    white-space: normal;
+    line-height: 18px;
+  }
+
+  .customer-dialog {
+    padding: 20px;
+  }
+}

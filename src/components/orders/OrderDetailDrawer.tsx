@@ -8,7 +8,6 @@ import {
   Building2,
   MapPin,
   AlertCircle,
-  Receipt,
   ShieldCheck,
   Check,
   X,
@@ -197,63 +196,54 @@ export function OrderDetailDrawer({
   return (
     <>
       <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-        <DialogContent className="w-[94vw] max-w-3xl sm:max-w-4xl max-h-[92vh] flex flex-col p-4 sm:p-5 gap-3 overflow-hidden shadow-2xl">
+        <DialogContent className="w-[94vw] max-w-3xl sm:max-w-4xl max-h-[92vh] flex flex-col p-4 sm:p-5 gap-3 overflow-hidden">
           <DialogHeader className="pb-0 shrink-0">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                  <Receipt className="size-5" />
-                </div>
-                <div>
-                  <DialogTitle className="text-xl font-bold tracking-tight flex items-center gap-2">
-                    {order.orderNumber}
-                    {order.status === 'DRAFT' && (
-                      <Badge
-                        variant="outline"
-                        className="bg-amber-500/10 text-amber-600 border-amber-500/20 text-[10px]"
-                      >
-                        Draft
-                      </Badge>
-                    )}
-                    {order.status === 'CONFIRMED' && (
-                      <Badge
-                        variant="outline"
-                        className="bg-blue-500/10 text-blue-600 border-blue-500/20 text-[10px]"
-                      >
-                        Stock Reserved
-                      </Badge>
-                    )}
-                    {order.status === 'PARTIALLY_DELIVERED' && (
-                      <Badge
-                        variant="outline"
-                        className="bg-indigo-500/10 text-indigo-600 border-indigo-500/20 text-[10px]"
-                      >
-                        In Transit
-                      </Badge>
-                    )}
-                    {order.status === 'DELIVERED' && (
-                      <Badge
-                        variant="outline"
-                        className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-[10px]"
-                      >
-                        Delivered & Closed
-                      </Badge>
-                    )}
-                    {order.status === 'CANCELLED' && (
-                      <Badge
-                        variant="outline"
-                        className="bg-rose-500/10 text-rose-600 border-rose-500/20 text-[10px]"
-                      >
-                        Cancelled
-                      </Badge>
-                    )}
-                  </DialogTitle>
-                  <DialogDescription className="text-xs">
-                    Placed on {new Date(order.orderedAt || order.createdAt).toLocaleDateString()}
-                  </DialogDescription>
-                </div>
-              </div>
-            </div>
+            <DialogTitle className="text-xl font-semibold tracking-tight flex flex-wrap items-center gap-2 pr-6">
+              {order.orderNumber}
+              {order.status === 'DRAFT' && (
+                <Badge
+                  variant="outline"
+                  className="bg-status-warning text-status-warning-foreground border-status-warning-foreground/20 text-xs"
+                >
+                  Draft
+                </Badge>
+              )}
+              {order.status === 'CONFIRMED' && (
+                <Badge
+                  variant="outline"
+                  className="bg-status-info text-status-info-foreground border-status-info-foreground/20 text-xs"
+                >
+                  Stock Reserved
+                </Badge>
+              )}
+              {order.status === 'PARTIALLY_DELIVERED' && (
+                <Badge
+                  variant="outline"
+                  className="bg-status-info text-status-info-foreground border-status-info-foreground/20 text-xs"
+                >
+                  In Transit
+                </Badge>
+              )}
+              {order.status === 'DELIVERED' && (
+                <Badge
+                  variant="outline"
+                  className="bg-status-success text-status-success-foreground border-status-success-foreground/20 text-xs"
+                >
+                  Delivered & Closed
+                </Badge>
+              )}
+              {order.status === 'CANCELLED' && (
+                <Badge
+                  variant="outline"
+                  className="bg-destructive/5 text-destructive border-destructive/20 text-xs"
+                >
+                  Cancelled
+                </Badge>
+              )}
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Placed on {new Date(order.orderedAt || order.createdAt).toLocaleDateString()}
+            </DialogDescription>
           </DialogHeader>
 
           {errorMessage && (
@@ -265,71 +255,67 @@ export function OrderDetailDrawer({
 
           <div className="flex flex-col gap-3.5 min-h-0 flex-1 overflow-y-auto pr-1">
             {/* Lifecycle Stepper */}
-            <div className="rounded-2xl border border-border/70 bg-muted/20 p-3.5">
+            <div className="rounded-lg bg-secondary p-4">
               <div className="grid grid-cols-4 gap-2 text-center text-xs">
                 {/* Step 1: Draft */}
                 <div className="flex flex-col items-center">
                   <div
-                    className={`size-7 rounded-md flex items-center justify-center text-xs font-bold transition-all ${
+                    className={`size-7 rounded-md flex items-center justify-center text-xs font-medium transition-colors ${
                       isCancelled
                         ? 'bg-muted text-muted-foreground'
                         : currentStep >= 1
-                          ? 'bg-primary text-primary-foreground'
+                          ? 'bg-primary-contrast text-primary-contrast-foreground'
                           : 'bg-muted text-muted-foreground'
                     }`}
                   >
                     {currentStep > 1 && !isCancelled ? <Check className="size-3.5" /> : '1'}
                   </div>
-                  <span className="font-semibold text-foreground mt-1.5 text-[11px]">Draft</span>
-                  <span className="text-[10px] text-muted-foreground">Order Planned</span>
+                  <span className="font-medium text-foreground mt-1.5 text-xs">Draft</span>
+                  <span className="text-xs text-muted-foreground">Order Planned</span>
                 </div>
 
                 {/* Step 2: Confirmed */}
                 <div className="flex flex-col items-center">
                   <div
-                    className={`size-7 rounded-md flex items-center justify-center text-xs font-bold transition-all ${
+                    className={`size-7 rounded-md flex items-center justify-center text-xs font-medium transition-colors ${
                       isCancelled
                         ? 'bg-muted text-muted-foreground'
                         : currentStep >= 2
-                          ? 'bg-blue-600 text-white'
+                          ? 'bg-status-info-foreground text-background'
                           : 'bg-muted text-muted-foreground'
                     }`}
                   >
                     {currentStep > 2 && !isCancelled ? <Check className="size-3.5" /> : '2'}
                   </div>
-                  <span className="font-semibold text-foreground mt-1.5 text-[11px]">
-                    Confirmed
-                  </span>
-                  <span className="text-[10px] text-muted-foreground">Stock Reserved</span>
+                  <span className="font-medium text-foreground mt-1.5 text-xs">Confirmed</span>
+                  <span className="text-xs text-muted-foreground">Stock Reserved</span>
                 </div>
 
                 {/* Step 3: In Transit */}
                 <div className="flex flex-col items-center">
                   <div
-                    className={`size-7 rounded-md flex items-center justify-center text-xs font-bold transition-all ${
+                    className={`size-7 rounded-md flex items-center justify-center text-xs font-medium transition-colors ${
                       isCancelled
                         ? 'bg-muted text-muted-foreground'
                         : currentStep >= 3
-                          ? 'bg-indigo-600 text-white'
+                          ? 'bg-status-info-foreground text-background'
                           : 'bg-muted text-muted-foreground'
                     }`}
                   >
                     {currentStep > 3 && !isCancelled ? <Check className="size-3.5" /> : '3'}
                   </div>
-                  <span className="font-semibold text-foreground mt-1.5 text-[11px]">
-                    In Transit
-                  </span>
-                  <span className="text-[10px] text-muted-foreground">Fleet Dispatched</span>
+                  <span className="font-medium text-foreground mt-1.5 text-xs">In Transit</span>
+                  <span className="text-xs text-muted-foreground">Fleet Dispatched</span>
                 </div>
 
                 {/* Step 4: Delivered */}
                 <div className="flex flex-col items-center">
                   <div
-                    className={`size-7 rounded-md flex items-center justify-center text-xs font-bold transition-all ${
+                    className={`size-7 rounded-md flex items-center justify-center text-xs font-medium transition-colors ${
                       isCancelled
-                        ? 'bg-rose-500/20 text-rose-600'
+                        ? 'bg-destructive/10 text-destructive'
                         : currentStep === 4
-                          ? 'bg-emerald-600 text-white'
+                          ? 'bg-status-success-foreground text-background'
                           : 'bg-muted text-muted-foreground'
                     }`}
                   >
@@ -341,40 +327,31 @@ export function OrderDetailDrawer({
                       '4'
                     )}
                   </div>
-                  <span className="font-semibold text-foreground mt-1.5 text-[11px]">
-                    Delivered
-                  </span>
-                  <span className="text-[10px] text-muted-foreground">Customer Received</span>
+                  <span className="font-medium text-foreground mt-1.5 text-xs">Delivered</span>
+                  <span className="text-xs text-muted-foreground">Customer Received</span>
                 </div>
               </div>
             </div>
 
             {/* THE 3 CORE QUESTIONS GUIDANCE BANNER */}
             {order.status === 'DRAFT' && (
-              <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 flex flex-col gap-3">
+              <div className="rounded-lg bg-secondary p-4 flex flex-col gap-3">
                 <div className="flex items-start gap-3">
-                  <div className="size-9 rounded-xl bg-amber-500/20 text-amber-600 flex items-center justify-center shrink-0 mt-0.5">
-                    <Clock className="size-4" />
-                  </div>
-                  <div className="flex-1 text-xs">
-                    <p className="font-bold text-amber-950 dark:text-amber-200">
-                      What just happened?
-                    </p>
+                  <Clock className="size-4 shrink-0 text-status-warning-foreground mt-0.5" />
+                  <div className="flex-1 text-sm">
+                    <p className="font-medium text-foreground">What just happened?</p>
                     <p className="text-muted-foreground">
-                      Order{' '}
-                      <span className="font-semibold text-foreground">{order.orderNumber}</span> was
-                      recorded as a Draft.
+                      Order <span className="font-medium text-foreground">{order.orderNumber}</span>{' '}
+                      was recorded as a Draft.
                     </p>
-                    <p className="font-bold text-amber-950 dark:text-amber-200 mt-2">
-                      What is its current state?
-                    </p>
+                    <p className="font-medium text-foreground mt-2">What is its current state?</p>
                     <p className="text-muted-foreground">
-                      <span className="font-semibold text-amber-600">Draft (Unconfirmed)</span> —
-                      Inventory has been planned, but physical stock is not locked yet.
+                      <span className="font-medium text-status-warning-foreground">
+                        Draft (Unconfirmed)
+                      </span>{' '}
+                      — Inventory has been planned, but physical stock is not locked yet.
                     </p>
-                    <p className="font-bold text-amber-950 dark:text-amber-200 mt-2">
-                      What should you do next?
-                    </p>
+                    <p className="font-medium text-foreground mt-2">What should you do next?</p>
                     <p className="text-muted-foreground">
                       Confirm the order to atomically reserve the items in the warehouse and prepare
                       for shipment.
@@ -383,13 +360,13 @@ export function OrderDetailDrawer({
                 </div>
 
                 {!readOnly && (
-                  <div className="flex items-center justify-end gap-2 border-t border-amber-500/20 pt-3">
+                  <div className="flex items-center justify-end gap-2 border-t border-border pt-3">
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={handleCancelOrder}
                       disabled={!canManage || cancelMutation.isPending}
-                      className="text-xs text-rose-600 hover:bg-rose-500/10 border-rose-500/30"
+                      className="text-ui text-destructive hover:bg-destructive/5 border-destructive/30"
                     >
                       <X className="size-3 mr-1" />
                       Cancel Order
@@ -398,7 +375,7 @@ export function OrderDetailDrawer({
                       size="sm"
                       onClick={handleConfirmOrder}
                       disabled={!canManage || confirmMutation.isPending}
-                      className="font-semibold text-xs shadow-xs"
+                      className="font-medium text-ui"
                     >
                       {confirmMutation.isPending ? (
                         'Confirming...'
@@ -420,13 +397,11 @@ export function OrderDetailDrawer({
               </Button>
             )}
             {order.status === 'CONFIRMED' && (
-              <div className="flex flex-col gap-3 rounded-xl border border-blue-500/20 bg-blue-500/5 px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-col gap-3 rounded-lg bg-secondary p-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex min-w-0 items-center gap-2.5">
-                  <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-blue-500/10 text-blue-600">
-                    <ShieldCheck className="size-4" />
-                  </div>
-                  <div className="min-w-0 text-xs">
-                    <p className="font-semibold text-foreground">Order confirmed</p>
+                  <ShieldCheck className="size-4 shrink-0 text-status-info-foreground" />
+                  <div className="min-w-0 text-sm">
+                    <p className="font-medium text-foreground">Order confirmed</p>
                     <p className="text-muted-foreground">
                       Stock is reserved and ready for delivery.
                     </p>
@@ -434,13 +409,13 @@ export function OrderDetailDrawer({
                 </div>
 
                 {!readOnly && (
-                  <div className="flex items-center justify-end gap-2 border-t border-blue-500/15 pt-3 sm:shrink-0 sm:border-0 sm:pt-0">
+                  <div className="flex items-center justify-end gap-2 border-t border-border pt-3 sm:shrink-0 sm:border-0 sm:pt-0">
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={handleCancelOrder}
                       disabled={!canManage || cancelMutation.isPending}
-                      className="text-xs text-rose-600 hover:bg-rose-500/10 border-rose-500/30"
+                      className="text-ui text-destructive hover:bg-destructive/5 border-destructive/30"
                     >
                       <X className="size-3 mr-1" />
                       Cancel Order
@@ -454,7 +429,7 @@ export function OrderDetailDrawer({
                             ? onArrangeDelivery(order.id)
                             : setIsDispatchModalOpen(true)
                         }
-                        className="font-semibold text-xs shadow-xs"
+                        className="font-medium text-ui"
                       >
                         <span className="flex items-center gap-1.5">
                           <Truck className="size-3.5" />
@@ -468,32 +443,25 @@ export function OrderDetailDrawer({
             )}
 
             {activeDelivery?.status === 'DISPATCHED' && (
-              <div className="rounded-2xl border border-indigo-500/30 bg-indigo-500/10 p-4 flex flex-col gap-3">
+              <div className="rounded-lg bg-secondary p-4 flex flex-col gap-3">
                 <div className="flex items-start gap-3">
-                  <div className="size-9 rounded-xl bg-indigo-500/20 text-indigo-600 flex items-center justify-center shrink-0 mt-0.5">
-                    <Truck className="size-4" />
-                  </div>
-                  <div className="flex-1 text-xs">
-                    <p className="font-bold text-indigo-950 dark:text-indigo-200">
-                      What just happened?
-                    </p>
+                  <Truck className="size-4 shrink-0 text-status-info-foreground mt-0.5" />
+                  <div className="flex-1 text-sm">
+                    <p className="font-medium text-foreground">What just happened?</p>
                     <p className="text-muted-foreground">
                       The delivery truck has been dispatched from the warehouse and is currently in
                       transit.
                     </p>
-                    <p className="font-bold text-indigo-950 dark:text-indigo-200 mt-2">
-                      What is its current state?
-                    </p>
+                    <p className="font-medium text-foreground mt-2">What is its current state?</p>
                     <p className="text-muted-foreground">
-                      <span className="font-semibold text-indigo-600">In Transit</span> — Delivery{' '}
-                      <span className="font-semibold text-foreground">
+                      <span className="font-medium text-status-info-foreground">In Transit</span> —
+                      Delivery{' '}
+                      <span className="font-medium text-foreground">
                         {activeDelivery?.deliveryNumber || 'Active Trip'}
                       </span>{' '}
                       is en route to {order.deliveryAddress}.
                     </p>
-                    <p className="font-bold text-indigo-950 dark:text-indigo-200 mt-2">
-                      What should you do next?
-                    </p>
+                    <p className="font-medium text-foreground mt-2">What should you do next?</p>
                     <p className="text-muted-foreground">
                       Once the customer inspects and signs for the shipment, click below to confirm
                       delivery and complete the order.
@@ -502,12 +470,12 @@ export function OrderDetailDrawer({
                 </div>
 
                 {!readOnly && (
-                  <div className="flex items-center justify-end gap-2 border-t border-indigo-500/20 pt-3">
+                  <div className="flex items-center justify-end gap-2 border-t border-border pt-3">
                     <Button
                       size="sm"
                       onClick={handleConfirmCustomerDelivery}
                       disabled={!canManage || isCompletingDelivery}
-                      className="font-semibold text-xs shadow-xs"
+                      className="font-medium text-ui"
                     >
                       {isCompletingDelivery ? (
                         'Completing...'
@@ -524,12 +492,10 @@ export function OrderDetailDrawer({
             )}
 
             {order.status === 'DELIVERED' && (
-              <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 flex items-center gap-3">
-                <div className="size-9 rounded-xl bg-emerald-500/20 text-emerald-600 flex items-center justify-center shrink-0">
-                  <CheckCircle2 className="size-5" />
-                </div>
-                <div className="text-xs">
-                  <p className="font-bold text-emerald-950 dark:text-emerald-200">
+              <div className="rounded-lg bg-status-success p-4 flex items-center gap-3">
+                <CheckCircle2 className="size-5 shrink-0 text-status-success-foreground" />
+                <div className="text-sm">
+                  <p className="font-semibold text-status-success-foreground">
                     Order Successfully Completed
                   </p>
                   <p className="text-muted-foreground mt-0.5">
@@ -540,21 +506,23 @@ export function OrderDetailDrawer({
               </div>
             )}
 
-            <div className="grid grid-cols-1 gap-4 text-xs sm:grid-cols-2 sm:gap-6">
+            <div className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2 sm:gap-6">
               <div className="min-w-0 space-y-1.5">
-                <div className="flex items-center gap-1.5 font-medium text-muted-foreground">
+                <div className="flex items-center gap-1.5 text-ui font-medium text-muted-foreground">
                   <Building2 className="size-3.5" aria-hidden="true" />
                   Customer
                 </div>
-                <div className="text-sm font-semibold text-foreground">
+                <div className="text-sm font-medium text-foreground">
                   {client?.name || `Customer #${order.clientId}`}
                 </div>
-                <div className="text-muted-foreground">{client?.phone || 'No phone recorded'}</div>
-                <div className="text-muted-foreground">{client?.email || ''}</div>
+                <div className="text-xs text-muted-foreground">
+                  {client?.phone || 'No phone recorded'}
+                </div>
+                <div className="text-xs text-muted-foreground">{client?.email || ''}</div>
               </div>
 
               <div className="min-w-0 space-y-1.5">
-                <div className="flex items-center gap-1.5 font-medium text-muted-foreground">
+                <div className="flex items-center gap-1.5 text-ui font-medium text-muted-foreground">
                   <MapPin className="size-3.5" aria-hidden="true" />
                   Destination Address
                 </div>
@@ -562,19 +530,17 @@ export function OrderDetailDrawer({
                   {order.deliveryAddress || 'Store Counter / Direct Pick-up'}
                 </div>
                 {order.notes && (
-                  <div className="pt-1 text-[11px] text-muted-foreground">
-                    Note: {order.notes}
-                  </div>
+                  <div className="pt-1 text-xs text-muted-foreground">Note: {order.notes}</div>
                 )}
               </div>
             </div>
 
             {/* Active Fleet / Delivery Trip Tracker */}
             {activeDelivery && (
-              <div className="rounded-xl border border-border/80 bg-muted/10 p-3.5 text-xs flex flex-col gap-2">
+              <div className="border-y border-border py-4 text-sm flex flex-col gap-3">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 font-semibold text-foreground">
-                    <Truck className="size-4 text-primary" />
+                  <div className="flex items-center gap-2 text-base font-semibold text-foreground">
+                    <Truck className="size-4 text-muted-foreground" />
                     Shipment Trip: {activeDelivery.deliveryNumber}
                   </div>
                   <div className="flex items-center gap-2">
@@ -589,10 +555,10 @@ export function OrderDetailDrawer({
                     )}
                     <Badge
                       variant="outline"
-                      className={`text-[10px] ${
+                      className={`text-xs ${
                         activeDelivery.status === 'DELIVERED'
-                          ? 'bg-emerald-500/10 text-emerald-600'
-                          : 'bg-blue-500/10 text-blue-600'
+                          ? 'bg-status-success text-status-success-foreground'
+                          : 'bg-status-info text-status-info-foreground'
                       }`}
                     >
                       {activeDelivery.status}
@@ -600,7 +566,7 @@ export function OrderDetailDrawer({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2 text-muted-foreground pt-1 border-t border-border/60">
+                <div className="grid grid-cols-2 gap-2 text-muted-foreground pt-1 border-t border-border">
                   <div>
                     Vehicle:{' '}
                     <span className="font-medium text-foreground">
@@ -626,16 +592,16 @@ export function OrderDetailDrawer({
             )}
 
             {/* Items Breakdown Table */}
-            <div className="rounded-xl border border-border/80 overflow-hidden">
-              <div className="bg-muted/40 px-3.5 py-2 text-xs font-bold text-foreground border-b border-border/70 flex items-center justify-between">
+            <div className="overflow-hidden">
+              <div className="pb-3 text-base font-semibold text-foreground border-b border-border flex flex-wrap items-center justify-between gap-2">
                 <span>Order Cargo Items ({(order.items || []).length})</span>
-                <span>
+                <span className="text-sm tabular-nums">
                   Total: ₱{grossTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}
                 </span>
               </div>
-              <div className="divide-y divide-border/60 text-xs">
+              <div className="divide-y divide-border text-sm">
                 {(order.items || []).length === 0 ? (
-                  <div className="p-4 text-center text-muted-foreground italic text-xs">
+                  <div className="p-4 text-center text-muted-foreground text-sm">
                     No line items recorded for this order.
                   </div>
                 ) : (
@@ -655,10 +621,10 @@ export function OrderDetailDrawer({
                     return (
                       <div
                         key={item.id ?? item.lineNumber ?? idx}
-                        className="p-3 flex items-center justify-between"
+                        className="py-4 flex flex-wrap items-center justify-between gap-3"
                       >
                         <div>
-                          <div className="font-semibold text-foreground">
+                          <div className="font-medium text-foreground">
                             {product ? product.name : `Product #${item.inventoryItemId}`}
                             {product?.variety && (
                               <span className="ml-1 text-muted-foreground font-normal">
@@ -666,26 +632,26 @@ export function OrderDetailDrawer({
                               </span>
                             )}
                           </div>
-                          <div className="text-[11px] text-muted-foreground flex items-center gap-1.5 mt-0.5">
+                          <div className="text-xs text-muted-foreground flex flex-wrap items-center gap-1.5 mt-1">
                             <span>
                               Qty:{' '}
-                              <span className="font-bold text-foreground">
+                              <span className="font-medium text-foreground">
                                 {item.quantity} {formatProductUnit(product?.unit)}
                               </span>{' '}
                               @ ₱{parseFloat(item.unitPrice || '0').toFixed(2)}
                             </span>
                             {warehouse ? (
-                              <span className="text-muted-foreground/70">
+                              <span className="text-muted-foreground">
                                 • Fulfilling from {warehouse.name}
                               </span>
                             ) : (
-                              <span className="text-muted-foreground/60 italic">
+                              <span className="text-muted-foreground">
                                 • Direct fulfillment / Unassigned warehouse
                               </span>
                             )}
                           </div>
                         </div>
-                        <div className="font-bold text-foreground text-sm">
+                        <div className="text-foreground text-sm tabular-nums">
                           ₱
                           {parseFloat(item.totalAmount || '0').toLocaleString('en-US', {
                             minimumFractionDigits: 2,

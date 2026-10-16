@@ -31,7 +31,7 @@ export function DeliveryNavigation({
         aria-controls="delivery-navigation"
         onClick={() => setExpanded(!expanded)}
         className={cn(
-          'flex h-9 w-full items-center justify-between rounded-md px-3 py-2 text-xs font-semibold transition-colors duration-150 pointer-coarse:min-h-11 hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+          'ui-text flex h-9 w-full items-center justify-between rounded-md px-3 py-2 font-medium transition-colors duration-150 pointer-coarse:min-h-11 hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
           view ? 'text-foreground' : 'text-muted-foreground',
         )}
       >
@@ -56,9 +56,9 @@ export function DeliveryNavigation({
             aria-current={view === link.view ? 'page' : undefined}
             onClick={() => onSelect(link.view)}
             className={cn(
-              'flex h-9 w-full items-center rounded-md px-3 py-2 text-left text-xs font-medium transition-colors duration-150 pointer-coarse:min-h-11 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+              'ui-text flex h-9 w-full items-center rounded-md px-3 py-2 text-left font-medium transition-colors duration-150 pointer-coarse:min-h-11 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
               view === link.view
-                ? 'bg-accent text-foreground'
+                ? 'bg-primary-subtle text-foreground'
                 : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
             )}
           >

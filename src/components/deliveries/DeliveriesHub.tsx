@@ -82,7 +82,7 @@ function DeliveryFilter({
 }) {
   return (
     <div className="flex min-w-0 flex-col gap-1.5">
-      <Label className="text-xs" htmlFor={`delivery-filter-${label}`}>
+      <Label className="text-[13px]" htmlFor={`delivery-filter-${label}`}>
         {label}
       </Label>
       <Select value={value} onValueChange={onChange}>
@@ -249,7 +249,7 @@ export function DeliveriesHub({
       ).mutateAsync(row.record.id)
   }
   return (
-    <div className="flex min-w-0 flex-col gap-4">
+    <div className="flex min-w-0 flex-col gap-6">
       <PageHeader
         description={
           view === 'history'
@@ -323,12 +323,12 @@ export function DeliveriesHub({
             placeholder="Search delivery, order, supplier, customer, or vehicle..."
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            className="h-9 pl-9 text-xs"
+            className="h-9 pl-9 text-[13px]"
           />
         </div>
         <div className="flex flex-1 gap-3 sm:max-w-sm">
           <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-            <Label htmlFor="delivery-date-from" className="text-xs">
+            <Label htmlFor="delivery-date-from" className="text-[13px]">
               From Date
             </Label>
             <Input
@@ -336,11 +336,11 @@ export function DeliveriesHub({
               type="date"
               value={fromDate}
               onChange={(event) => setFromDate(event.target.value)}
-              className="h-9 text-xs"
+              className="h-9 text-[13px]"
             />
           </div>
           <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-            <Label htmlFor="delivery-date-to" className="text-xs">
+            <Label htmlFor="delivery-date-to" className="text-[13px]">
               To Date
             </Label>
             <Input
@@ -349,7 +349,7 @@ export function DeliveriesHub({
               value={toDate}
               min={fromDate || undefined}
               onChange={(event) => setToDate(event.target.value)}
-              className="h-9 text-xs"
+              className="h-9 text-[13px]"
             />
           </div>
         </div>

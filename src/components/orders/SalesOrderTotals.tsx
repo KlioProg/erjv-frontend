@@ -43,7 +43,7 @@ export function SalesOrderTotals({
           {form.lines.length} {form.lines.length === 1 ? 'item' : 'items'}
         </span>
         {form.lines.length > 0 && (
-          <div className="flex flex-wrap items-center gap-2 text-[13px]">
+          <div className="flex flex-wrap items-center gap-2 text-ui">
             <label htmlFor="order-discount" className="text-muted-foreground">
               Discount
             </label>
@@ -89,7 +89,7 @@ export function SalesOrderTotals({
           </div>
         )}
       </div>
-      <dl className="ml-auto grid min-w-44 grid-cols-[auto_auto] gap-x-6 gap-y-1 text-[13px] tabular-nums [&_dd]:text-right">
+      <dl className="ml-auto grid min-w-44 grid-cols-[auto_auto] gap-x-6 gap-y-1 text-sm tabular-nums [&_dd]:text-right">
         <dt className="text-muted-foreground">Subtotal</dt>
         <dd>{displayAmount(form.amounts.subtotal)}</dd>
         <dt className="text-muted-foreground">Discount</dt>

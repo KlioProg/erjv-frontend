@@ -26,26 +26,28 @@ export class DeliveryUtils {
     },
     SCHEDULED: {
       label: 'Scheduled',
-      badgeClass: 'bg-blue-500/10 text-blue-600 border-blue-500/20',
-      dotClass: 'bg-blue-500',
+      badgeClass: 'bg-status-info text-status-info-foreground border-status-info-foreground/20',
+      dotClass: 'bg-status-info-foreground',
       description: 'Scheduled for dispatch with allocated inventory',
     },
     DISPATCHED: {
       label: 'In Transit',
-      badgeClass: 'bg-amber-500/10 text-amber-600 border-amber-500/20',
-      dotClass: 'bg-amber-500 animate-pulse',
+      badgeClass:
+        'bg-status-warning text-status-warning-foreground border-status-warning-foreground/20',
+      dotClass: 'bg-status-warning-foreground',
       description: 'Vehicle & driver dispatched, en route to destination',
     },
     DELIVERED: {
       label: 'Delivered',
-      badgeClass: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20',
-      dotClass: 'bg-emerald-500',
+      badgeClass:
+        'bg-status-success text-status-success-foreground border-status-success-foreground/20',
+      dotClass: 'bg-status-success-foreground',
       description: 'Successfully delivered and stock deducted',
     },
     CANCELLED: {
       label: 'Cancelled',
-      badgeClass: 'bg-rose-500/10 text-rose-600 border-rose-500/20',
-      dotClass: 'bg-rose-500',
+      badgeClass: 'bg-destructive/10 text-destructive border-destructive/20',
+      dotClass: 'bg-destructive',
       description: 'Shipment cancelled and allocations released',
     },
   }
@@ -53,26 +55,29 @@ export class DeliveryUtils {
   private static readonly VEHICLE_STATUS_MAP: Record<VehicleStatus, VehicleStatusConfig> = {
     AVAILABLE: {
       label: 'Available',
-      badgeClass: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20',
-      dotClass: 'bg-emerald-500',
+      badgeClass:
+        'bg-status-success text-status-success-foreground border-status-success-foreground/20',
+      dotClass: 'bg-status-success-foreground',
       description: 'Ready for assignment and dispatch',
     },
     IN_DELIVERY: {
       label: 'In Delivery',
-      badgeClass: 'bg-amber-500/10 text-amber-600 border-amber-500/20',
-      dotClass: 'bg-amber-500 animate-pulse',
+      badgeClass:
+        'bg-status-warning text-status-warning-foreground border-status-warning-foreground/20',
+      dotClass: 'bg-status-warning-foreground',
       description: 'Currently out on active shipment route',
     },
     MAINTENANCE: {
       label: 'Maintenance',
-      badgeClass: 'bg-orange-500/10 text-orange-600 border-orange-500/20',
-      dotClass: 'bg-orange-500',
+      badgeClass:
+        'bg-status-warning text-status-warning-foreground border-status-warning-foreground/20',
+      dotClass: 'bg-status-warning-foreground',
       description: 'Under inspection or mechanical repair',
     },
     OUT_OF_SERVICE: {
       label: 'Out of Service',
-      badgeClass: 'bg-rose-500/10 text-rose-600 border-rose-500/20',
-      dotClass: 'bg-rose-500',
+      badgeClass: 'bg-destructive/10 text-destructive border-destructive/20',
+      dotClass: 'bg-destructive',
       description: 'Decommissioned or unavailable for operations',
     },
   }

@@ -23,7 +23,7 @@ export function DeliveryNumberLookup({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="pl-9 pr-8 h-9 text-xs"
+        className="pl-9 pr-8 h-9 text-[13px]"
       />
       {value.trim().length > 0 && (
         <Button

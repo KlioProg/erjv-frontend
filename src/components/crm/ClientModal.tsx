@@ -1,5 +1,5 @@
-import { useState, type FormEvent } from 'react'
-import { Users, Building2, User, Phone, Mail, MapPin, RotateCcw } from 'lucide-react'
+import { useRef, useState, type FormEvent } from 'react'
+import { RotateCcw } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -12,7 +12,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Spinner } from '@/components/ui/spinner'
-import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import './customers-pilot.css'
 import {
   useClients,
   useCreateClient,
@@ -43,20 +44,24 @@ function ClientFormContent({ client, onClose }: { client: Client | null; onClose
   const [email, setEmail] = useState(client?.email || '')
   const [address, setAddress] = useState(client?.address || '')
   const [errorMsg, setErrorMsg] = useState('')
+  const [errorField, setErrorField] = useState<'name' | 'address' | 'email' | 'phone' | null>(null)
   const [deactivatedClientMatch, setDeactivatedClientMatch] = useState<Client | null>(null)
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setErrorMsg('')
+    setErrorField(null)
     setDeactivatedClientMatch(null)
 
     const cleanName = name.trim()
     if (!cleanName) {
+      setErrorField('name')
       setErrorMsg('Customer business/account name is required.')
       return
     }
 
     if (!address.trim()) {
+      setErrorField('address')
       setErrorMsg('Billing / Delivery address is required.')
       return
     }
@@ -89,6 +94,7 @@ function ClientFormContent({ client, onClose }: { client: Client | null; onClose
         (c) => c.name.toUpperCase().trim() === cleanName.toUpperCase() && c.isActive !== false,
       )
       if (isNameDup || backendActive) {
+        setErrorField('name')
         setErrorMsg(`A customer account with the name "${cleanName}" is already registered.`)
         return
       }
@@ -100,6 +106,7 @@ function ClientFormContent({ client, onClose }: { client: Client | null; onClose
         (c) => c.id !== client?.id && c.email?.toLowerCase().trim() === cleanEmail,
       )
       if (isEmailDup) {
+        setErrorField('email')
         setErrorMsg(`A customer with email "${cleanEmail}" already exists.`)
         return
       }
@@ -107,6 +114,7 @@ function ClientFormContent({ client, onClose }: { client: Client | null; onClose
 
     const phoneError = validatePhilippinePhone(phone, 'Phone number')
     if (phoneError) {
+      setErrorField('phone')
       setErrorMsg(phoneError)
       return
     }
@@ -143,8 +151,12 @@ function ClientFormContent({ client, onClose }: { client: Client | null; onClose
 
   const handleRestoreFoundClient = async () => {
     if (deactivatedClientMatch) {
-      await reactivateMutation.mutateAsync(deactivatedClientMatch.id)
-      onClose()
+      try {
+        await reactivateMutation.mutateAsync(deactivatedClientMatch.id)
+        onClose()
+      } catch (err) {
+        setErrorMsg(getErrorMessage(err))
+      }
     }
   }
 
@@ -153,185 +165,180 @@ function ClientFormContent({ client, onClose }: { client: Client | null; onClose
 
   return (
     <>
-      <DialogHeader className="pb-2">
-        <div className="flex size-11 items-center justify-center rounded-2xl bg-primary/10 text-primary mb-2 shadow-2xs">
-          {isEditing ? <Building2 className="size-5" /> : <Users className="size-5" />}
-        </div>
-        <DialogTitle className="text-xl font-bold tracking-tight">
+      <DialogHeader>
+        <DialogTitle>
           {isEditing ? 'Edit Customer Business Profile' : 'Register New Customer'}
         </DialogTitle>
-        <DialogDescription className="text-xs text-muted-foreground leading-relaxed">
+        <DialogDescription>
           {isEditing
-            ? 'Update customer contact personnel, delivery locations, and business details.'
-            : 'Register a commercial or wholesale customer to manage orders, POS billing, and deliveries.'}
+            ? 'Update account details and the people we contact for orders and deliveries.'
+            : 'Add a customer account for sales orders, billing, and deliveries.'}
         </DialogDescription>
       </DialogHeader>
 
-      {errorMsg && !deactivatedClientMatch && (
-        <Alert variant="destructive" className="my-1">
+      {errorMsg && !deactivatedClientMatch && !errorField && (
+        <Alert variant="destructive">
           <AlertDescription>{errorMsg}</AlertDescription>
         </Alert>
       )}
-
       {deactivatedClientMatch && (
-        <div className="my-1 p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-950 dark:text-amber-200 flex items-start gap-3 shadow-2xs animate-in fade-in-0 zoom-in-95 slide-in-from-top-2 duration-300">
-          <div className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-amber-500/20 text-amber-700 dark:text-amber-300 mt-0.5">
-            <RotateCcw className="size-4 animate-in spin-in-180 duration-500" />
-          </div>
-          <div className="flex-1 text-xs">
-            <p className="font-bold text-foreground">Deactivated Customer Found</p>
-            <p className="text-muted-foreground mt-0.5 leading-relaxed">
-              An archived account for{' '}
-              <strong className="text-foreground">{deactivatedClientMatch.name}</strong> (
-              {deactivatedClientMatch.address}) already exists. Click{' '}
-              <strong>"Reactivate Customer"</strong> below to restore it.
+        <Alert className="customer-restore-notice">
+          <AlertTitle>Archived customer found</AlertTitle>
+          <AlertDescription>
+            <p>
+              {deactivatedClientMatch.name} already has an archived account at{' '}
+              {deactivatedClientMatch.address}. Reactivate it to keep the existing order history.
             </p>
-          </div>
-        </div>
+            <p className="mt-2">{errorMsg}</p>
+          </AlertDescription>
+        </Alert>
       )}
 
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4 py-2">
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="client-name" className="text-xs font-semibold text-foreground/90">
-            Business / Customer Name <span className="text-primary">*</span>
-          </Label>
-          <div className="relative">
-            <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
+      <form onSubmit={handleSubmit} className="customer-form flex flex-col gap-6">
+        <fieldset className="flex min-w-0 flex-col gap-4">
+          <legend>Customer account</legend>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="client-name">
+              Business / Customer Name <span aria-hidden="true">*</span>
+            </Label>
             <Input
               id="client-name"
-              placeholder="e.g. Davao Central Supermarket, Lanang Retail Depot"
+              placeholder="e.g. Davao Central Supermarket"
               value={name}
               onChange={(e) => {
                 setName(e.target.value)
                 if (deactivatedClientMatch) setDeactivatedClientMatch(null)
-                if (errorMsg) setErrorMsg('')
+                if (errorMsg) {
+                  setErrorMsg('')
+                  setErrorField(null)
+                }
               }}
-              className="pl-9 h-10 text-sm transition-all duration-200"
+              aria-invalid={errorField === 'name' || undefined}
+              aria-describedby={errorField === 'name' ? 'client-name-error' : undefined}
               required
             />
+            {errorField === 'name' && (
+              <p id="client-name-error" role="alert" className="customer-field-error">
+                {errorMsg}
+              </p>
+            )}
           </div>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="client-contact" className="text-xs font-semibold text-foreground/90">
-              Contact Person
+            <Label htmlFor="client-address">
+              Delivery / Billing Address <span aria-hidden="true">*</span>
             </Label>
-            <div className="relative">
-              <User className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
-              <Input
-                id="client-contact"
-                placeholder="e.g. Juan dela Cruz"
-                value={contactPerson}
-                onChange={(e) => setContactPerson(e.target.value)}
-                className="pl-9 h-10 text-sm transition-all duration-200"
-              />
-            </div>
+            <Input
+              id="client-address"
+              placeholder="Street, barangay, city"
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              aria-invalid={errorField === 'address' || undefined}
+              aria-describedby={
+                errorField === 'address' ? 'client-address-error' : 'client-address-hint'
+              }
+              required
+            />
+            {errorField === 'address' ? (
+              <p id="client-address-error" role="alert" className="customer-field-error">
+                {errorMsg}
+              </p>
+            ) : (
+              <p id="client-address-hint" className="customer-field-hint">
+                Use the address for billing and customer deliveries.
+              </p>
+            )}
           </div>
+        </fieldset>
 
+        <fieldset className="flex min-w-0 flex-col gap-4 border-t pt-5">
+          <legend>
+            Contact details <span className="customer-field-hint">Optional</span>
+          </legend>
           <div className="flex flex-col gap-1.5">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="client-phone" className="text-xs font-semibold text-foreground/90">
-                Phone Number
-              </Label>
-              {phone && (
-                <span
-                  className={`text-[10px] font-semibold ${
-                    phone.length === 11 && phone.startsWith('09')
-                      ? 'text-emerald-600 dark:text-emerald-400'
-                      : 'text-amber-600 dark:text-amber-400'
-                  }`}
-                >
-                  {phone.length}/11 digits
-                </span>
-              )}
-            </div>
-            <div className="relative">
-              <Phone className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
+            <Label htmlFor="client-contact">Contact Person</Label>
+            <Input
+              id="client-contact"
+              placeholder="e.g. Juan dela Cruz"
+              value={contactPerson}
+              onChange={(e) => setContactPerson(e.target.value)}
+            />
+          </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="client-phone">Phone Number</Label>
               <Input
                 id="client-phone"
                 type="tel"
+                inputMode="tel"
                 placeholder="09171234567"
                 value={phone}
                 maxLength={11}
                 onChange={(e) => setPhone(sanitizePhilippinePhone(e.target.value))}
-                className="pl-9 h-10 text-sm transition-all duration-200"
+                aria-invalid={errorField === 'phone' || undefined}
+                aria-describedby={
+                  errorField === 'phone' ? 'client-phone-error' : 'client-phone-hint'
+                }
               />
+              {errorField === 'phone' ? (
+                <p id="client-phone-error" role="alert" className="customer-field-error">
+                  {errorMsg}
+                </p>
+              ) : (
+                <p id="client-phone-hint" className="customer-field-hint">
+                  11 digits, starting with 09.
+                </p>
+              )}
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="client-email">Email Address</Label>
+              <Input
+                id="client-email"
+                type="email"
+                placeholder="purchasing@company.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                aria-invalid={errorField === 'email' || undefined}
+                aria-describedby={errorField === 'email' ? 'client-email-error' : undefined}
+              />
+              {errorField === 'email' && (
+                <p id="client-email-error" role="alert" className="customer-field-error">
+                  {errorMsg}
+                </p>
+              )}
             </div>
           </div>
-        </div>
+        </fieldset>
 
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="client-email" className="text-xs font-semibold text-foreground/90">
-            Email Address
-          </Label>
-          <div className="relative">
-            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
-            <Input
-              id="client-email"
-              type="email"
-              placeholder="e.g. purchasing@davaocentral.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="pl-9 h-10 text-sm transition-all duration-200"
-            />
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="client-address" className="text-xs font-semibold text-foreground/90">
-            Delivery / Billing Address <span className="text-primary">*</span>
-          </Label>
-          <div className="relative">
-            <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
-            <Input
-              id="client-address"
-              placeholder="e.g. Door 4, Commercial Center, JP Laurel Ave, Bajada, Davao City"
-              value={address}
-              onChange={(e) => setAddress(e.target.value)}
-              className="pl-9 h-10 text-sm transition-all duration-200"
-              required
-            />
-          </div>
-        </div>
-
-        <DialogFooter className="gap-2.5 pt-3 border-t">
+        <DialogFooter className="border-t pt-4">
           <Button type="button" variant="outline" onClick={onClose} disabled={isPending}>
             Cancel
           </Button>
           {deactivatedClientMatch ? (
             <Button
               type="button"
+              variant="primary-contrast"
               onClick={handleRestoreFoundClient}
               disabled={isPending}
-              className="group gap-2 font-bold shadow-xs cursor-pointer transition-all duration-300 animate-in fade-in-0 zoom-in-95"
             >
               {reactivateMutation.isPending ? (
-                <>
-                  <Spinner data-icon="inline-start" />
-                  Reactivating Customer...
-                </>
+                <Spinner data-icon="inline-start" />
               ) : (
-                <>
-                  <RotateCcw className="size-4 transition-transform duration-200 group-hover:-rotate-45" />
-                  Reactivate Customer Profile
-                </>
+                <RotateCcw data-icon="inline-start" />
               )}
+              {reactivateMutation.isPending
+                ? 'Reactivating Customer...'
+                : 'Reactivate Customer Profile'}
             </Button>
           ) : (
-            <Button
-              type="submit"
-              disabled={isPending}
-              className="font-semibold shadow-xs cursor-pointer transition-all duration-300"
-            >
-              {isPending ? (
-                <>
-                  <Spinner data-icon="inline-start" />
-                  {isEditing ? 'Saving...' : 'Registering Customer...'}
-                </>
-              ) : (
-                <>{isEditing ? 'Save Changes' : 'Register Customer Profile'}</>
-              )}
+            <Button type="submit" variant="primary-contrast" disabled={isPending}>
+              {isPending && <Spinner data-icon="inline-start" />}
+              {isPending
+                ? isEditing
+                  ? 'Saving...'
+                  : 'Registering Customer...'
+                : isEditing
+                  ? 'Save Changes'
+                  : 'Register Customer Profile'}
             </Button>
           )}
         </DialogFooter>
@@ -341,9 +348,19 @@ function ClientFormContent({ client, onClose }: { client: Client | null; onClose
 }
 
 export function ClientModal({ client, open, onClose }: ClientModalProps) {
+  const returnFocus = useRef<HTMLElement | null>(null)
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-      <DialogContent className="sm:max-w-[540px]">
+      <DialogContent
+        className="customer-dialog sm:max-w-[580px]"
+        onOpenAutoFocus={() => {
+          returnFocus.current = document.activeElement as HTMLElement | null
+        }}
+        onCloseAutoFocus={(event) => {
+          event.preventDefault()
+          returnFocus.current?.focus()
+        }}
+      >
         {open && (
           <ClientFormContent
             key={client ? `client-${client.id}` : 'new-customer'}

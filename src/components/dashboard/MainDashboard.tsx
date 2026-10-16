@@ -14,8 +14,6 @@ import { UserRolesList } from '../staffing/UserRolesList'
 import { useWarehouses } from '@/features/logistics/warehouses.hooks'
 import { useStockItems } from '@/features/logistics/stock-items.hooks'
 import { useProducts } from '@/features/products/products.hooks'
-import { useClients } from '@/features/crm/clients.hooks'
-import { useSalesOrders } from '@/features/crm/sales-orders.hooks'
 import { useEmployees, useJobs } from '@/features/staffing/staffing.hooks'
 import { useAuth } from '@/features/auth/AuthContext'
 import type { InventoryFocusTarget } from '@/features/logistics/stock-warnings'
@@ -34,8 +32,6 @@ export function MainDashboard() {
   const { data: warehouses = [] } = useWarehouses()
   const { data: stockItems = [] } = useStockItems()
   const { data: products = [] } = useProducts()
-  const { data: clients = [] } = useClients()
-  const { data: salesOrders = [] } = useSalesOrders()
   const { data: employees = [] } = useEmployees()
   const { data: jobs = [] } = useJobs()
 
@@ -71,53 +67,20 @@ export function MainDashboard() {
           hint: 'Active product catalog items',
         },
       ]
-    : effectiveTab === 'clients'
+    : isStaffingTab && !isStaff
       ? [
           {
-            label: 'Customers',
-            value: <> {clients.length} </>,
-            hint: 'Supermarkets, distributors & retailers',
+            label: 'Active Staff Members',
+            value: <> {activeStaffCount} </>,
+            hint: 'Operations, logistics & administration',
           },
           {
-            label: 'Active Products',
-            value: <> {products.length} Products </>,
-            hint: 'Ready for POS & wholesale orders',
-          },
-          {
-            label: 'Active Sales Orders',
-            value: (
-              <>
-                {' '}
-                {
-                  salesOrders.filter((order) =>
-                    ['DRAFT', 'CONFIRMED', 'PARTIALLY_DELIVERED'].includes(order.status),
-                  ).length
-                }{' '}
-                Orders{' '}
-              </>
-            ),
-            hint: 'Open customer orders',
+            label: 'Job Roles Defined',
+            value: <> {jobs.length} </>,
+            hint: 'Organizational designations',
           },
         ]
-      : isStaffingTab && !isStaff
-        ? [
-            {
-              label: 'Active Staff Members',
-              value: <> {activeStaffCount} </>,
-              hint: 'Operations, logistics & administration',
-            },
-            {
-              label: 'Job Roles Defined',
-              value: <> {jobs.length} </>,
-              hint: 'Organizational designations',
-            },
-            {
-              label: 'Warehouse Hubs',
-              value: <> {warehouses.length} Facilities </>,
-              hint: 'Fulfillment & distribution centers',
-            },
-          ]
-        : []
+      : []
 
   return (
     <DashboardLayout

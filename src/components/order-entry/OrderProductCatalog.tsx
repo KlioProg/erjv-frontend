@@ -74,7 +74,7 @@ export function OrderProductCatalog({
             type="button"
             variant="ghost"
             size="icon"
-            className="size-9 text-primary-contrast hover:bg-primary/10 pointer-coarse:size-11"
+            className="size-9 text-primary hover:bg-primary-selected pointer-coarse:size-11"
             aria-label={`Add ${row.name}`}
             title={
               busy
@@ -114,14 +114,14 @@ export function OrderProductCatalog({
         const stock = stockMap.get(row.id)
         const unknown = state.stockLoading || !!state.stockError
         return (
-          <div className="flex flex-col gap-0.5 text-right text-xs tabular-nums">
+          <div className="flex flex-col gap-0.5 text-right text-sm tabular-nums">
             <span>
               {unknown
                 ? '—'
                 : `${formatStockCents(stock ? (sales ? stock.availableCents : stock.totalCents) : 0n)}${row.unit ? ` ${formatProductUnit(row.unit)}` : ''}`}
             </span>
             {sales && (
-              <span className="text-muted-foreground">
+              <span className="text-xs text-muted-foreground">
                 {unknown
                   ? 'Stock unavailable'
                   : `${formatStockCents(stock ? stock.totalCents : 0n)}${row.unit ? ` ${formatProductUnit(row.unit)}` : ''} on hand`}
@@ -136,7 +136,7 @@ export function OrderProductCatalog({
     <div className="flex h-full min-h-0 min-w-0 flex-col">
       <div className="flex shrink-0 flex-col gap-3 border-b px-4 py-4">
         <div className="flex items-center justify-between gap-2">
-          <h2 className="text-sm font-semibold">Products</h2>
+          <h2 className="text-base font-semibold">Products</h2>
           <span className="text-xs text-muted-foreground">{filtered.length} products</span>
         </div>
         <div className="relative">
@@ -152,7 +152,7 @@ export function OrderProductCatalog({
               setSearch(event.target.value)
               setPage(1)
             }}
-            className="h-9 pl-9 text-sm"
+            className="h-9 pl-9 text-ui"
           />
         </div>
         {(state.productsError || state.stockError) && (
@@ -182,7 +182,7 @@ export function OrderProductCatalog({
             getRowKey={(product) => product.id}
             onRowClick={addProduct}
             rowClassName={(product) =>
-              isAddDisabled(product) ? 'cursor-default hover:bg-transparent' : 'hover:bg-primary/5'
+              isAddDisabled(product) ? 'cursor-default hover:bg-transparent' : 'hover:bg-accent'
             }
             isLoading={state.productsLoading}
             loadingMessage="Loading products…"
@@ -192,7 +192,7 @@ export function OrderProductCatalog({
             className="order-composer-catalog-table h-auto shadow-none"
             tableClassName="table-fixed [&_th]:h-11 [&_td]:py-2 [&_td]:text-sm"
             emptyContent={
-              <p className="px-3 py-6 text-center text-[13px] text-muted-foreground">
+              <p className="px-3 py-6 text-center text-ui text-muted-foreground">
                 {search ? 'No products match your search.' : 'No active products available.'}
               </p>
             }

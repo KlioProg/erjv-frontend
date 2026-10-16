@@ -20,7 +20,7 @@ type StatusTabNavProps = {
 export function StatusTabNav({ tabs, activeTab, onTabChange, className = '' }: StatusTabNavProps) {
   return (
     <div className={`flex min-w-0 items-center overflow-x-auto ${className}`}>
-      <div className="inline-flex min-w-max items-center gap-1 rounded-lg bg-muted/60 p-1">
+      <div className="inline-flex min-w-max items-center gap-1 rounded-lg bg-secondary p-1">
         {tabs.map((tab) => {
           const isSelected = tab.value === activeTab
 
@@ -31,11 +31,11 @@ export function StatusTabNav({ tabs, activeTab, onTabChange, className = '' }: S
               aria-pressed={isSelected}
               data-state={isSelected ? 'active' : 'inactive'}
               onClick={() => onTabChange(tab.value)}
-              className="navigation-tab flex min-h-8 cursor-pointer select-none items-center gap-2 rounded-md px-3 py-1.5 text-xs font-medium transition-colors pointer-coarse:min-h-11 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="navigation-tab group flex min-h-9 cursor-pointer select-none items-center gap-2 rounded-md px-3 py-2 text-ui font-medium transition-colors duration-150 pointer-coarse:min-h-11 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               {tab.icon}
               <span>{tab.label}</span>
-              <span className="rounded-sm bg-muted px-1.5 py-0.5 text-[11px] font-semibold tabular-nums text-foreground">
+              <span className="min-w-5 rounded-sm bg-muted px-1 text-center text-xs font-medium leading-5 tabular-nums text-foreground group-data-[state=active]:bg-primary-contrast group-data-[state=active]:text-primary-contrast-foreground">
                 {tab.count}
               </span>
             </button>

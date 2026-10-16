@@ -45,7 +45,7 @@ export function UnifiedNavbar<T extends string>({
       {/* Unified Single Navbar Container */}
       <div
         className={cn(
-          'inline-flex min-w-0 items-center gap-1.5 p-1 rounded-lg bg-muted/60 border border-border/70 shadow-2xs overflow-x-auto max-w-full',
+          'inline-flex min-w-0 items-center gap-1 p-1 rounded-lg bg-secondary overflow-x-auto max-w-full',
           containerClassName,
         )}
       >
@@ -66,7 +66,7 @@ export function UnifiedNavbar<T extends string>({
                     data-state={isSelected ? 'active' : 'inactive'}
                     onClick={() => group.onChange(tab.value)}
                     className={cn(
-                      'navigation-tab flex items-center gap-2 px-3.5 py-1.5 rounded-md text-xs font-bold transition-all duration-150 active:scale-95 cursor-pointer select-none whitespace-nowrap data-[state=active]:shadow-2xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                      'navigation-tab flex min-h-9 items-center gap-2 px-3 py-2 rounded-md text-ui font-medium transition-colors duration-150 pointer-coarse:min-h-11 cursor-pointer select-none whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                     )}
                   >
                     {tab.icon && (
@@ -83,7 +83,7 @@ export function UnifiedNavbar<T extends string>({
                     <span>{tab.label}</span>
 
                     {tab.count !== undefined && (
-                      <span className="ml-0.5 px-2 py-0.5 rounded-full bg-muted text-foreground text-[11px] font-extrabold transition-colors">
+                      <span className="ml-1 px-2 py-0.5 rounded-sm bg-muted text-foreground text-xs font-medium transition-colors">
                         {tab.count}
                       </span>
                     )}
@@ -126,17 +126,17 @@ export function ArchiveNoticeBanner({
   return (
     <div
       className={cn(
-        'flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 px-4 py-3 rounded-lg bg-amber-500/[0.06] dark:bg-amber-500/[0.1] border border-amber-500/25 text-foreground text-xs shadow-2xs animate-in fade-in-0 duration-200',
+        'flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 px-4 py-3 rounded-lg bg-secondary text-muted-foreground text-ui',
         className,
       )}
     >
       <div className="flex items-center gap-3">
-        <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-600 dark:text-[#ffb627] shadow-2xs">
+        <div className="flex size-8 shrink-0 items-center justify-center text-muted-foreground">
           <Archive className="size-4" />
         </div>
         <div>
-          <span className="font-bold text-foreground">Archived Records Directory</span>
-          <span className="text-foreground/75 dark:text-foreground/80 ml-1.5 leading-normal">
+          <span className="font-medium text-foreground">Archived Records Directory</span>
+          <span className="text-muted-foreground ml-2 leading-5">
             {description ||
               `Showing ${count !== undefined ? count : ''} archived ${entityName}. Historical stock records and transaction history are safely preserved and can be reactivated anytime.`}
           </span>
@@ -147,9 +147,9 @@ export function ArchiveNoticeBanner({
         variant="outline"
         size="sm"
         onClick={onBackToActive}
-        className="group h-7.5 px-3 text-xs font-bold text-foreground hover:text-amber-600 dark:hover:text-[#ffb627] hover:bg-amber-500/15 bg-background/90 border-border/70 hover:border-amber-500/30 rounded-md cursor-pointer self-end sm:self-auto gap-1.5 shrink-0 transition-all duration-150 active:scale-95 shadow-2xs"
+        className="self-end sm:self-auto shrink-0 text-ui"
       >
-        <ArrowLeft className="size-3.5 transition-transform duration-200 group-hover:-translate-x-1" />
+        <ArrowLeft className="size-3.5" />
         Back to Active
       </Button>
     </div>

@@ -45,7 +45,7 @@ export function StockNotifications({
           {!loading && !unavailable && warnings.length > 0 && (
             <span
               aria-hidden="true"
-              className="absolute -top-1 -right-1 flex min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-semibold text-destructive-foreground"
+              className="absolute -top-1 -right-1 flex min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-xs font-medium text-destructive-foreground"
             >
               {warnings.length > 99 ? '99+' : warnings.length}
             </span>
@@ -113,7 +113,7 @@ export function StockNotifications({
                   />
                 )}
                 <div className="flex min-w-0 flex-col gap-1">
-                  <span className="font-semibold break-words">{warning.productName}</span>
+                  <span className="font-medium break-words">{warning.productName}</span>
                   <span className="text-xs text-muted-foreground break-words">
                     {warning.locationName} · {formatStockCents(warning.quantityCents)}{' '}
                     {formatProductUnit(warning.unit)} remaining
@@ -133,7 +133,7 @@ export function StockNotifications({
           )}
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        <p className="px-2 py-2 text-[11px] text-muted-foreground">
+        <p className="px-2 py-2 text-xs text-muted-foreground">
           Warnings remain until stock changes. Low-stock alerts need configured reorder thresholds.
         </p>
       </DropdownMenuContent>

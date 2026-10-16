@@ -303,26 +303,24 @@ export function InventoryStockList({
         sortKey: (row) => row.product?.name || '',
         cell: ({ row }) => (
           <div className="flex items-start gap-3 py-0.5">
-            <div className="p-2 rounded-xl shrink-0 mt-0.5 bg-primary/10 text-primary">
-              <Package className="size-4" />
-            </div>
+            <Package className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
             <div className="flex flex-col min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-xs font-bold text-foreground truncate">
+                <span className="text-sm font-medium text-foreground truncate">
                   {row.product?.name || `Item #${row.stock.inventoryItemId}`}
                 </span>
                 {row.product?.variety && (
                   <Badge
                     variant="outline"
-                    className="text-[10px] px-1.5 py-0 bg-muted/60 text-muted-foreground font-semibold"
+                    className="text-xs px-1.5 py-0 bg-secondary text-muted-foreground font-normal"
                   >
-                    <Tag className="size-2.5 mr-1 text-primary" />
+                    <Tag className="size-2.5 mr-1 text-primary-text" />
                     {row.product.variety}
                   </Badge>
                 )}
               </div>
               {row.product?.unitPrice && (
-                <span className="text-[11px] text-muted-foreground mt-0.5">
+                <span className="text-xs text-muted-foreground mt-0.5">
                   ₱{Number(row.product.unitPrice).toFixed(2)} /{' '}
                   {formatProductUnit(row.product?.unit, 'unit')}
                 </span>
@@ -340,12 +338,12 @@ export function InventoryStockList({
           <div>
             <div className="flex items-center gap-1.5">
               <WarehouseIcon className="size-3.5 text-muted-foreground shrink-0" />
-              <span className="text-xs font-semibold text-foreground">
+              <span className="text-sm font-normal text-foreground">
                 {row.warehouse?.name || `Warehouse #${row.stock.warehouseId}`}
               </span>
             </div>
             {row.warehouse?.address && (
-              <span className="text-[10px] text-muted-foreground block truncate max-w-xs mt-0.5">
+              <span className="text-xs text-muted-foreground block truncate max-w-xs mt-0.5">
                 {row.warehouse.address}
               </span>
             )}
@@ -361,13 +359,13 @@ export function InventoryStockList({
         cell: ({ row }) => (
           <div className="text-right">
             <span
-              className={`text-xs font-bold ${
-                row.availableUnits === 0 ? 'text-rose-600' : 'text-foreground'
+              className={`text-sm font-normal tabular-nums ${
+                row.availableUnits === 0 ? 'text-destructive' : 'text-foreground'
               }`}
             >
               {row.availableUnits.toLocaleString()}
             </span>
-            <span className="text-[10px] text-muted-foreground block">
+            <span className="text-xs text-muted-foreground block">
               {formatProductUnit(row.product?.unit, 'units')}
             </span>
           </div>
@@ -381,10 +379,10 @@ export function InventoryStockList({
         sortKey: 'allocatedUnits',
         cell: ({ row }) => (
           <div className="text-right">
-            <span className="text-xs font-semibold text-muted-foreground">
+            <span className="text-sm font-normal text-muted-foreground">
               {row.allocatedUnits.toLocaleString()}
             </span>
-            <span className="text-[10px] text-muted-foreground/70 block">
+            <span className="text-xs text-muted-foreground block">
               {formatProductUnit(row.product?.unit, 'units')}
             </span>
           </div>
@@ -398,21 +396,21 @@ export function InventoryStockList({
         sortKey: 'totalUnits',
         cell: ({ row }) => (
           <div className="text-right">
-            <div className="inline-flex items-center gap-1 font-extrabold text-xs">
-              <Boxes className="size-3 text-primary" />
+            <div className="inline-flex items-center gap-1 font-normal text-sm tabular-nums">
+              <Boxes className="size-3 text-primary-text" />
               <span
                 className={
                   row.totalUnits === 0
-                    ? 'text-rose-600'
+                    ? 'text-destructive'
                     : row.totalUnits <= row.reorderLevel
-                      ? 'text-amber-600 dark:text-[#ffb627]'
+                      ? 'text-status-warning-foreground'
                       : 'text-foreground'
                 }
               >
                 {row.totalUnits.toLocaleString()}
               </span>
             </div>
-            <span className="text-[10px] text-muted-foreground block">
+            <span className="text-xs text-muted-foreground block">
               {formatProductUnit(row.product?.unit, 'units')}
             </span>
           </div>
@@ -423,7 +421,7 @@ export function InventoryStockList({
         header: 'Reorder Level',
         align: 'center',
         cell: ({ row }) => (
-          <Badge variant="secondary" className="text-[10px] px-2 py-0.5 rounded-lg">
+          <Badge variant="secondary" className="text-xs px-2 py-0.5 rounded-lg">
             {row.reorderLevel} {formatProductUnit(row.product?.unit, 'units')}
           </Badge>
         ),
@@ -437,23 +435,23 @@ export function InventoryStockList({
         cell: ({ row }) => {
           if (row.status === 'OUT_OF_STOCK') {
             return (
-              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/25">
-                <span className="size-1.5 rounded-full bg-rose-600 dark:bg-rose-400 shrink-0" />
+              <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-md bg-destructive/10 text-destructive border border-destructive/30">
+                <span className="size-1.5 rounded-full bg-destructive shrink-0" />
                 Out of Stock
               </span>
             )
           }
           if (row.status === 'LOW_STOCK') {
             return (
-              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-600 dark:text-[#ffb627] border border-amber-500/25">
-                <span className="size-1.5 rounded-full bg-amber-600 dark:bg-[#ffb627] shrink-0" />
+              <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-md bg-status-warning text-status-warning-foreground border border-status-warning-foreground/30">
+                <span className="size-1.5 rounded-full bg-status-warning-foreground shrink-0" />
                 Low Stock
               </span>
             )
           }
           return (
-            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-500 border border-emerald-500/25">
-              <span className="size-1.5 rounded-full bg-emerald-600 dark:bg-emerald-500 shrink-0" />
+            <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-md bg-status-success text-status-success-foreground border border-status-success-foreground/30">
+              <span className="size-1.5 rounded-full bg-status-success-foreground shrink-0" />
               In Stock
             </span>
           )
@@ -472,7 +470,7 @@ export function InventoryStockList({
                     variant="outline"
                     size="sm"
                     onClick={() => handleAdjustStock(row.stock)}
-                    className="h-7 px-2 text-[11px] font-bold rounded-lg gap-1 cursor-pointer bg-background hover:bg-muted/70 text-foreground border-border/80 shadow-2xs"
+                    className="h-8 px-2 text-[13px] font-medium rounded-lg gap-1 cursor-pointer bg-background hover:bg-muted/70 text-foreground border-border"
                   >
                     <ArrowUpDown className="size-3 text-muted-foreground" />
                     Adjust
@@ -487,7 +485,7 @@ export function InventoryStockList({
                         row.warehouse?.name || `WH #${row.stock.warehouseId}`,
                       )
                     }
-                    className="size-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg cursor-pointer"
+                    className="size-8 text-muted-foreground pointer-coarse:size-11 hover:text-destructive hover:bg-destructive/10 rounded-lg cursor-pointer"
                     title="Remove allocation"
                   >
                     <Trash2 className="size-3.5" />
@@ -525,7 +523,7 @@ export function InventoryStockList({
               placeholder="Search product name or variety..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-9 h-9 text-xs rounded-xl"
+              className="pl-9 h-9 text-[13px]"
             />
           </div>
 
@@ -534,7 +532,7 @@ export function InventoryStockList({
               variant={selectedWarehouseFilter === 'ALL' ? 'secondary' : 'ghost'}
               size="sm"
               onClick={() => setSelectedWarehouseFilter('ALL')}
-              className="h-8 text-xs font-semibold cursor-pointer rounded-xl"
+              className="h-8 text-[13px] font-medium cursor-pointer rounded-md"
             >
               All Warehouses
             </Button>
@@ -544,7 +542,7 @@ export function InventoryStockList({
                 variant={selectedWarehouseFilter === String(wh.id) ? 'secondary' : 'ghost'}
                 size="sm"
                 onClick={() => setSelectedWarehouseFilter(String(wh.id))}
-                className="h-8 text-xs whitespace-nowrap cursor-pointer rounded-xl"
+                className="h-8 text-[13px] whitespace-nowrap cursor-pointer"
               >
                 {wh.name.split(' ')[0]}
               </Button>
@@ -556,44 +554,44 @@ export function InventoryStockList({
             <button
               type="button"
               onClick={onNavigateToLowStock}
-              className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-600 dark:text-[#ffb627] bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 px-2.5 py-1 rounded-xl cursor-pointer transition-all shrink-0 self-start sm:self-center shadow-2xs group"
+              className="inline-flex items-center gap-1.5 text-xs font-medium text-status-warning-foreground bg-status-warning hover:bg-status-warning border border-status-warning-foreground/30 px-2.5 py-1 rounded-md cursor-pointer transition-all shrink-0 self-start sm:self-center group"
               title="Click to view depleted items in Low-Stock Alerts"
             >
-              <AlertTriangle className="size-3.5 text-amber-600 dark:text-[#ffb627] shrink-0" />
+              <AlertTriangle className="size-3.5 text-status-warning-foreground shrink-0" />
               <span>
                 {contextualLowStock.length}{' '}
                 {contextualLowStock.length === 1 ? 'item low' : 'items low'}
               </span>
-              <ChevronRight className="size-3 text-amber-600 dark:text-[#ffb627] transition-transform group-hover:translate-x-0.5" />
+              <ChevronRight className="size-3 text-status-warning-foreground transition-transform group-hover:translate-x-0.5" />
             </button>
           )}
         </div>
 
         <div className="flex items-center gap-2 self-end sm:self-center">
           {/* View Mode Switcher: Table vs Cards */}
-          <div className="flex items-center p-0.5 rounded-xl bg-muted/60 border border-border/70 shadow-2xs">
+          <div className="flex items-center p-0.5 rounded-md bg-secondary border border-border">
             <Button
               variant={viewMode === 'table' ? 'secondary' : 'ghost'}
               size="sm"
               onClick={() => setViewMode('table')}
-              className={`h-7 px-2.5 text-xs font-bold gap-1.5 cursor-pointer rounded-lg transition-all ${
-                viewMode === 'table' ? 'bg-background shadow-2xs' : 'text-muted-foreground'
+              className={`h-8 px-2.5 text-[13px] font-medium gap-1.5 cursor-pointer rounded-lg transition-all ${
+                viewMode === 'table' ? 'bg-background' : 'text-muted-foreground'
               }`}
               title="Table View"
             >
-              <TableIcon className="size-3.5 text-primary" />
+              <TableIcon className="size-3.5 text-primary-text" />
               <span className="hidden sm:inline">Table</span>
             </Button>
             <Button
               variant={viewMode === 'cards' ? 'secondary' : 'ghost'}
               size="sm"
               onClick={() => setViewMode('cards')}
-              className={`h-7 px-2.5 text-xs font-bold gap-1.5 cursor-pointer rounded-lg transition-all ${
-                viewMode === 'cards' ? 'bg-background shadow-2xs' : 'text-muted-foreground'
+              className={`h-8 px-2.5 text-[13px] font-medium gap-1.5 cursor-pointer rounded-lg transition-all ${
+                viewMode === 'cards' ? 'bg-background' : 'text-muted-foreground'
               }`}
               title="Card View"
             >
-              <LayoutGrid className="size-3.5 text-primary" />
+              <LayoutGrid className="size-3.5 text-primary-text" />
               <span className="hidden sm:inline">Cards</span>
             </Button>
           </div>
@@ -602,7 +600,7 @@ export function InventoryStockList({
             <Button
               onClick={handleCreateProduct}
               size="sm"
-              className="gap-1.5 shadow-xs font-semibold cursor-pointer shrink-0"
+              className="gap-1.5 font-medium cursor-pointer shrink-0"
             >
               <Plus className="size-4" />
               Register Product
@@ -621,10 +619,10 @@ export function InventoryStockList({
           pagination={true}
           pageSizeOptions={[10, 25, 50, 100]}
           emptyContent={
-            <Card className="border-dashed bg-muted/20">
+            <Card className="border-0 bg-transparent shadow-none">
               <CardContent className="flex flex-col items-center justify-center py-12 text-center">
                 <WarehouseIcon className="size-10 text-muted-foreground/50 mb-3" />
-                <h3 className="text-sm font-semibold text-foreground">
+                <h3 className="text-base font-semibold text-foreground">
                   No warehouse stock records found
                 </h3>
                 <p className="text-xs text-muted-foreground mt-1 max-w-xs">
@@ -640,10 +638,10 @@ export function InventoryStockList({
         /* Card Mode */
         <div className="flex flex-col gap-4">
           {filteredProducts.length === 0 ? (
-            <Card className="border-dashed bg-muted/20">
+            <Card className="border-0 bg-transparent shadow-none">
               <CardContent className="flex flex-col items-center justify-center py-12 text-center">
                 <Package className="size-10 text-muted-foreground/50 mb-3" />
-                <h3 className="text-sm font-semibold text-foreground">
+                <h3 className="text-base font-semibold text-foreground">
                   {activeTab === 'ACTIVE'
                     ? 'No catalog items found'
                     : 'No deactivated products found'}
@@ -666,34 +664,26 @@ export function InventoryStockList({
               return (
                 <Card
                   key={prod.id}
-                  className={`group overflow-hidden border-border/80 shadow-xs hover:border-primary/40 transition-all rounded-2xl ${
-                    isArchived ? 'opacity-75 bg-muted/20 border-dashed' : ''
+                  className={`group overflow-hidden border-border transition-all rounded-lg ${
+                    isArchived ? 'opacity-75 bg-secondary border-dashed' : ''
                   }`}
                 >
                   <div className="p-5">
                     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                       {/* Product Basic Info */}
                       <div className="flex items-start gap-3.5 min-w-0 flex-1">
-                        <div
-                          className={`flex size-11 shrink-0 items-center justify-center rounded-2xl shadow-2xs ${
-                            isArchived
-                              ? 'bg-muted text-muted-foreground'
-                              : 'bg-primary/10 text-primary'
-                          }`}
-                        >
-                          <Package className="size-5" />
-                        </div>
+                        <Package className="mt-0.5 size-5 shrink-0 text-muted-foreground" />
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <h4 className="text-sm font-bold text-foreground truncate">
+                            <h4 className="text-sm font-medium text-foreground truncate">
                               {prod.name}
                             </h4>
                             {prod.variety && (
                               <Badge
                                 variant="outline"
-                                className="text-[10px] px-2 py-0.5 bg-muted/50 border-border text-foreground font-semibold"
+                                className="text-xs px-2 py-0.5 bg-secondary border-border text-muted-foreground font-normal"
                               >
-                                <Tag className="size-2.5 mr-1 text-primary" />
+                                <Tag className="size-2.5 mr-1 text-primary-text" />
                                 {prod.variety}
                               </Badge>
                             )}
@@ -709,25 +699,25 @@ export function InventoryStockList({
                       {/* Stock Overview & Price */}
                       <div className="flex items-center gap-6 self-end sm:self-center">
                         <div className="text-right">
-                          <span className="text-[10px] text-muted-foreground uppercase font-semibold block">
+                          <span className="text-xs text-muted-foreground block">
                             Total Stock (All Hubs)
                           </span>
-                          <div className="flex items-center justify-end gap-1.5 font-extrabold text-foreground text-sm">
+                          <div className="flex items-center justify-end gap-1.5 font-medium text-foreground text-sm tabular-nums">
                             <Boxes
                               className={`size-3.5 ${
                                 totalStockUnits === 0
-                                  ? 'text-rose-600 dark:text-rose-400'
+                                  ? 'text-destructive'
                                   : totalStockUnits <= 20
-                                    ? 'text-amber-600 dark:text-[#ffb627]'
-                                    : 'text-primary'
+                                    ? 'text-status-warning-foreground'
+                                    : 'text-primary-text'
                               }`}
                             />
                             <span
                               className={
                                 totalStockUnits === 0
-                                  ? 'text-rose-600 dark:text-rose-400'
+                                  ? 'text-destructive'
                                   : totalStockUnits <= 20
-                                    ? 'text-amber-600 dark:text-[#ffb627]'
+                                    ? 'text-status-warning-foreground'
                                     : 'text-foreground'
                               }
                             >
@@ -739,11 +729,11 @@ export function InventoryStockList({
                           </div>
                         </div>
 
-                        <div className="text-right pl-4 border-l border-border/60">
-                          <span className="text-[10px] text-muted-foreground uppercase font-semibold block">
+                        <div className="text-right pl-4 border-l border-border">
+                          <span className="text-xs text-muted-foreground block">
                             Wholesale Price
                           </span>
-                          <span className="text-sm font-bold text-foreground block">
+                          <span className="text-sm font-medium text-foreground block">
                             ₱
                             {prod.unitPrice.toLocaleString('en-US', {
                               minimumFractionDigits: 2,
@@ -759,9 +749,9 @@ export function InventoryStockList({
                                 variant="secondary"
                                 size="sm"
                                 onClick={() => handleReactivateProduct(prod)}
-                                className="group h-8 px-3 gap-1.5 text-xs font-bold text-emerald-600 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 rounded-xl cursor-pointer"
+                                className="group h-8 px-3 gap-1.5 text-[13px] font-medium text-status-success-foreground bg-status-success hover:bg-status-success border border-status-success-foreground/30 rounded-md cursor-pointer"
                               >
-                                <RotateCcw className="size-3.5 text-emerald-600" />
+                                <RotateCcw className="size-3.5 text-status-success-foreground" />
                                 <span>Reactivate</span>
                               </Button>
                             ) : (
@@ -770,7 +760,7 @@ export function InventoryStockList({
                                   <Button
                                     variant="ghost"
                                     size="icon"
-                                    className="size-8 text-muted-foreground hover:text-foreground cursor-pointer rounded-lg hover:bg-muted"
+                                    className="size-8 text-muted-foreground pointer-coarse:size-11 hover:text-foreground cursor-pointer rounded-lg hover:bg-muted"
                                   >
                                     <MoreVertical className="size-4" />
                                     <span className="sr-only">Product options</span>
@@ -779,14 +769,14 @@ export function InventoryStockList({
                                 <DropdownMenuContent align="end" className="p-1">
                                   <DropdownMenuItem
                                     onClick={() => handleEditProduct(prod)}
-                                    className="gap-2 text-xs cursor-pointer px-2 py-1.5 rounded-md"
+                                    className="gap-2 text-[13px] cursor-pointer px-2 py-1.5 rounded-md"
                                   >
                                     <Edit2 className="size-3.5" />
                                     Edit Product & Pricing
                                   </DropdownMenuItem>
                                   <DropdownMenuItem
                                     onClick={() => handleAllocateStock(prod)}
-                                    className="gap-2 text-xs font-semibold text-primary cursor-pointer px-2 py-1.5 rounded-md"
+                                    className="gap-2 text-[13px] font-medium text-primary-text cursor-pointer px-2 py-1.5 rounded-md"
                                   >
                                     <Plus className="size-3.5" />
                                     Allocate Stock to Warehouse
@@ -794,7 +784,7 @@ export function InventoryStockList({
                                   <DropdownMenuSeparator className="my-1" />
                                   <DropdownMenuItem
                                     onClick={() => handleDeleteProduct(prod)}
-                                    className="gap-2 text-xs text-destructive focus:text-destructive cursor-pointer px-2 py-1.5 rounded-md"
+                                    className="gap-2 text-[13px] text-destructive focus:text-destructive cursor-pointer px-2 py-1.5 rounded-md"
                                   >
                                     <Archive className="size-3.5" />
                                     Archive Product
@@ -809,10 +799,10 @@ export function InventoryStockList({
                   </div>
 
                   {/* Warehouse Breakdown Sub-Panel */}
-                  <div className="bg-muted/30 border-t border-border/60 px-5 py-3.5">
+                  <div className="bg-secondary border-t border-border px-5 py-3.5">
                     <div className="flex items-center justify-between mb-2.5">
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground/90 flex items-center gap-1.5">
-                        <WarehouseIcon className="size-3.5 text-primary" />
+                      <span className="text-base font-semibold text-muted-foreground flex items-center gap-1.5">
+                        <WarehouseIcon className="size-3.5 text-primary-text" />
                         Warehouse Stock Allocation & Adjustments
                       </span>
 
@@ -821,16 +811,16 @@ export function InventoryStockList({
                           variant="ghost"
                           size="sm"
                           onClick={() => handleAllocateStock(prod)}
-                          className="h-6.5 px-2.5 text-[11px] font-bold text-primary hover:text-primary/90 hover:bg-primary/10 rounded-lg gap-1 cursor-pointer"
+                          className="h-8 px-2.5 text-[13px] font-medium text-primary-text hover:text-primary-text hover:bg-primary-selected rounded-lg gap-1 cursor-pointer"
                         >
-                          <Plus className="size-3 text-primary" />
+                          <Plus className="size-3 text-primary-text" />
                           Allocate to Warehouse
                         </Button>
                       )}
                     </div>
 
                     {stockInHubs.length === 0 ? (
-                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3.5 rounded-xl bg-card border border-dashed border-border/80 text-xs">
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3.5 rounded-md bg-card border border-dashed border-border text-xs">
                         <span className="text-muted-foreground font-medium">
                           No stock units allocated to any warehouse facility yet.
                         </span>
@@ -839,9 +829,9 @@ export function InventoryStockList({
                             variant="secondary"
                             size="sm"
                             onClick={() => handleAllocateStock(prod)}
-                            className="h-7 text-xs font-bold gap-1 cursor-pointer"
+                            className="h-8 text-[13px] font-medium gap-1 cursor-pointer"
                           >
-                            <Plus className="size-3.5 text-primary" />
+                            <Plus className="size-3.5 text-primary-text" />
                             Allocate Stock to Warehouse
                           </Button>
                         )}
@@ -859,47 +849,47 @@ export function InventoryStockList({
                           return (
                             <div
                               key={stock.id}
-                              className={`flex items-center justify-between p-3.5 rounded-2xl border bg-card shadow-2xs transition-all gap-3 ${
+                              className={`flex items-center justify-between py-3 border-t gap-3 ${
                                 isOut
-                                  ? 'border-rose-400 dark:border-rose-600 ring-1 ring-rose-400/30'
+                                  ? 'border-destructive/40'
                                   : isLow
-                                    ? 'border-amber-400 dark:border-amber-600 ring-1 ring-amber-400/30'
-                                    : 'border-border/80 hover:border-primary/40'
+                                    ? 'border-status-warning-foreground/40'
+                                    : 'border-border'
                               }`}
                             >
                               <div className="min-w-0 flex-1">
                                 <div className="flex items-center gap-2 flex-wrap">
                                   <span
-                                    className="text-xs font-bold text-foreground truncate leading-tight"
+                                    className="text-sm font-medium text-foreground truncate leading-tight"
                                     title={whDisplayName}
                                   >
                                     {whDisplayName}
                                   </span>
                                   {isOut ? (
-                                    <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/25">
-                                      <span className="size-1.5 rounded-full bg-rose-600 dark:bg-rose-400 shrink-0" />
+                                    <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-md bg-destructive/10 text-destructive border border-destructive/30">
+                                      <span className="size-1.5 rounded-full bg-destructive shrink-0" />
                                       Out of Stock
                                     </span>
                                   ) : isLow ? (
-                                    <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-600 dark:text-[#ffb627] border border-amber-500/25">
-                                      <span className="size-1.5 rounded-full bg-amber-600 dark:bg-[#ffb627] shrink-0" />
+                                    <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-md bg-status-warning text-status-warning-foreground border border-status-warning-foreground/30">
+                                      <span className="size-1.5 rounded-full bg-status-warning-foreground shrink-0" />
                                       Low Stock
                                     </span>
                                   ) : null}
                                 </div>
                                 <div className="flex items-baseline gap-1.5 mt-1.5">
                                   <span
-                                    className={`text-base font-extrabold tracking-tight ${
+                                    className={`text-sm font-medium tabular-nums ${
                                       isOut
-                                        ? 'text-rose-600 dark:text-rose-400'
+                                        ? 'text-destructive'
                                         : isLow
-                                          ? 'text-amber-600 dark:text-[#ffb627]'
+                                          ? 'text-status-warning-foreground'
                                           : 'text-foreground'
                                     }`}
                                   >
                                     {qtyNum.toLocaleString()}
                                   </span>
-                                  <span className="text-[11px] font-medium text-muted-foreground">
+                                  <span className="text-xs font-medium text-muted-foreground">
                                     {formatProductUnit(prod.unit, 'units')}
                                   </span>
                                 </div>
@@ -911,7 +901,7 @@ export function InventoryStockList({
                                     variant="outline"
                                     size="sm"
                                     onClick={() => handleAdjustStock(stock)}
-                                    className="h-7.5 px-2.5 text-[11px] font-bold rounded-xl gap-1.5 cursor-pointer bg-background hover:bg-muted/70 text-foreground border-border/80 shadow-2xs"
+                                    className="h-8 px-2.5 text-[13px] font-medium rounded-md gap-1.5 cursor-pointer bg-background hover:bg-muted/70 text-foreground border-border"
                                   >
                                     <ArrowUpDown className="size-3 text-muted-foreground" />
                                     Adjust
@@ -922,7 +912,7 @@ export function InventoryStockList({
                                     onClick={() =>
                                       handleRemoveStockAllocation(stock, prod.name, whDisplayName)
                                     }
-                                    className="size-7.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-xl cursor-pointer"
+                                    className="size-8 text-muted-foreground pointer-coarse:size-11 hover:text-destructive hover:bg-destructive/10 rounded-md cursor-pointer"
                                     title={`Remove allocation from ${whDisplayName}`}
                                   >
                                     <Trash2 className="size-3.5" />

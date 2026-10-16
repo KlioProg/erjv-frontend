@@ -299,7 +299,7 @@ export function OrdersView({
       width: 145,
       className: 'min-w-[145px]',
       cell: ({ row: { order } }) => (
-        <span className="whitespace-nowrap font-mono text-xs font-semibold text-foreground">
+        <span className="whitespace-nowrap text-sm font-medium text-foreground">
           {order.orderNumber}
         </span>
       ),
@@ -312,15 +312,12 @@ export function OrdersView({
       cell: ({ row: { order, client } }) => (
         <div className="flex min-w-0 flex-col gap-1">
           <span
-            className="truncate font-semibold text-foreground"
+            className="truncate text-sm font-medium text-foreground"
             title={client?.name || `Customer #${order.clientId}`}
           >
             {client?.name || `Customer #${order.clientId}`}
           </span>
-          <span
-            className="truncate text-[11px] text-muted-foreground"
-            title={order.deliveryAddress}
-          >
+          <span className="truncate text-xs text-muted-foreground" title={order.deliveryAddress}>
             {order.deliveryAddress || 'No address specified'}
           </span>
         </div>
@@ -360,7 +357,7 @@ export function OrdersView({
       header: 'Total',
       width: 110,
       align: 'right',
-      className: 'whitespace-nowrap font-semibold tabular-nums text-foreground',
+      className: 'whitespace-nowrap tabular-nums text-foreground',
       cell: ({ row: { orderTotal } }) =>
         `₱${orderTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
     },
@@ -515,7 +512,7 @@ export function OrdersView({
             placeholder="Search order # or customer..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-9 h-9 text-xs"
+            className="pl-9 h-9 text-ui"
           />
         </div>
 
@@ -525,7 +522,7 @@ export function OrdersView({
             setIsOrderModalOpen(true)
           }}
           disabled={!canManage}
-          className="gap-1.5 font-semibold text-xs shadow-xs"
+          className="gap-1.5 text-ui"
         >
           <Plus className="size-4" />
           Create Sales Order
@@ -534,18 +531,18 @@ export function OrdersView({
 
       {/* Orders Table */}
       {isLoadingOrders ? (
-        <Card className="flex min-h-[360px] items-center justify-center border-dashed bg-muted/20 shadow-xs">
+        <Card className="flex min-h-[360px] items-center justify-center border-border bg-card shadow-none">
           <div className="flex flex-col items-center justify-center text-center gap-2">
             <Spinner className="size-6 text-primary" />
-            <span className="text-xs text-muted-foreground font-medium">
+            <span className="text-sm text-muted-foreground">
               Loading sales orders from database...
             </span>
           </div>
         </Card>
       ) : filteredOrders.length === 0 ? (
-        <Card className="flex min-h-[360px] items-center justify-center border-dashed bg-muted/20 shadow-xs">
+        <Card className="flex min-h-[360px] items-center justify-center border-border bg-card shadow-none">
           <div className="flex flex-col items-center justify-center text-center">
-            <Receipt className="size-8 text-muted-foreground/40" />
+            <Receipt className="size-8 text-muted-foreground" />
             <span className="text-sm font-semibold text-foreground mt-2">
               {searchTerm.trim()
                 ? `No ${activeStatus.toLowerCase()} orders match "${searchTerm.trim()}"`

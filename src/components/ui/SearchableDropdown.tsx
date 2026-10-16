@@ -81,7 +81,7 @@ export function SearchableDropdown<T>({
           type="button"
           variant="outline"
           className={cn(
-            'h-10 w-full justify-between text-[13px] font-normal pointer-coarse:min-h-11',
+            'h-10 w-full justify-between text-sm font-normal pointer-coarse:min-h-11',
             className,
           )}
           aria-label={ariaLabel}
@@ -114,7 +114,7 @@ export function SearchableDropdown<T>({
             onKeyDown={(event) => event.stopPropagation()}
             placeholder={searchPlaceholder}
             aria-label={searchPlaceholder}
-            className="h-10 pl-8 text-xs"
+            className="h-10 pl-8 text-sm"
           />
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain" aria-label={ariaLabel}>

@@ -178,14 +178,14 @@ export function WarehouseList({ initialWarehouseId }: { initialWarehouseId?: num
       cell: ({ row }) => (
         <div className="min-w-0">
           <div className="flex min-w-0 items-center gap-2">
-            <WarehouseIcon className="size-4 shrink-0 text-primary" />
+            <WarehouseIcon className="size-4 shrink-0 text-muted-foreground" />
             <OverflowValue
               value={row.name}
               onActivate={() => setSelectedWarehouseId(row.id)}
-              className="h-auto p-0 text-left text-xs font-bold"
+              className="h-auto min-h-8 p-0 text-left text-sm font-medium pointer-coarse:min-h-11"
             />
           </div>
-          <div className="mt-1 flex min-w-0 items-center gap-2 pl-6 text-[11px] sm:hidden">
+          <div className="mt-1 flex min-w-0 items-center gap-2 pl-6 text-xs sm:hidden">
             <OverflowValue
               value={formatStockCents(getWarehouseUnits(row.id))}
               tooltipSuffix="units"
@@ -204,7 +204,7 @@ export function WarehouseList({ initialWarehouseId }: { initialWarehouseId?: num
       sortable: true,
       sortKey: 'address',
       cell: ({ row }) => (
-        <span className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+        <span className="flex min-w-0 items-center gap-1.5 text-sm text-muted-foreground">
           <MapPin className="size-3.5 shrink-0" />
           <OverflowValue value={row.address} />
         </span>
@@ -220,7 +220,7 @@ export function WarehouseList({ initialWarehouseId }: { initialWarehouseId?: num
       sortable: true,
       sortKey: (row) => warehouseTotals.get(row.id)?.products || 0,
       cell: ({ row }) => (
-        <div className="flex min-w-0 items-center justify-end gap-1 text-xs font-semibold">
+        <div className="flex min-w-0 items-center justify-end gap-1 text-sm font-normal">
           <OverflowValue
             value={(warehouseTotals.get(row.id)?.products ?? 0).toLocaleString()}
             className="text-right tabular-nums"
@@ -239,7 +239,7 @@ export function WarehouseList({ initialWarehouseId }: { initialWarehouseId?: num
       sortable: true,
       sortKey: (row) => stockSortKey(getWarehouseUnits(row.id)),
       cell: ({ row }) => (
-        <div className="flex min-w-0 items-center justify-end gap-1 text-xs font-semibold">
+        <div className="flex min-w-0 items-center justify-end gap-1 text-sm font-normal">
           <OverflowValue
             value={formatStockCents(getWarehouseUnits(row.id))}
             tooltipSuffix="units"
@@ -336,7 +336,7 @@ export function WarehouseList({ initialWarehouseId }: { initialWarehouseId?: num
             placeholder="Search warehouses or locations..."
             value={searchTerm}
             onChange={(event) => setSearchTerm(event.target.value)}
-            className="pl-9 h-9 text-xs"
+            className="pl-9 h-9 text-[13px]"
           />
         </div>
         {canManage && activeTab === 'ACTIVE' && (
@@ -358,7 +358,7 @@ export function WarehouseList({ initialWarehouseId }: { initialWarehouseId?: num
         data={filteredWarehouses}
         columns={columns}
         onRowClick={(warehouse) => setSelectedWarehouseId(warehouse.id)}
-        rowClassName={() => 'hover:bg-primary/5 focus-within:bg-primary/5'}
+        rowClassName={() => 'hover:bg-accent focus-within:bg-accent'}
         isLoading={warehousesQuery.isLoading || stockQuery.isLoading}
         loadingMessage="Loading warehouses..."
         emptyContent={
@@ -380,7 +380,7 @@ export function WarehouseList({ initialWarehouseId }: { initialWarehouseId?: num
         <DialogContent className="sm:max-w-[440px]">
           <DialogHeader className="gap-2">
             <div
-              className={`mb-1 flex size-11 items-center justify-center rounded-xl ${archiveCheck?.status === 'blocked' || archiveCheck?.status === 'error' ? 'bg-amber-500/10 text-amber-600' : 'bg-destructive/10 text-destructive'}`}
+              className={`mb-1 flex size-5 items-center justify-center ${archiveCheck?.status === 'blocked' || archiveCheck?.status === 'error' ? 'text-status-warning-foreground' : 'text-destructive'}`}
             >
               {archiveCheck?.status === 'checking' ? (
                 <Spinner className="size-5" />
@@ -410,8 +410,8 @@ export function WarehouseList({ initialWarehouseId }: { initialWarehouseId?: num
             </DialogDescription>
           </DialogHeader>
           {archiveCheck?.status === 'blocked' && (
-            <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3.5 text-xs text-foreground">
-              <p className="break-all font-bold">{warehouseToArchive?.name}</p>
+            <div className="rounded-md border border-status-warning-foreground/30 bg-status-warning p-3.5 text-xs text-foreground">
+              <p className="break-all font-medium">{warehouseToArchive?.name}</p>
               <p className="mt-1">
                 {archiveCheck.products} {archiveCheck.products === 1 ? 'product' : 'products'} ·{' '}
                 {formatStockCents(archiveCheck.units)} units of inventory
@@ -421,7 +421,7 @@ export function WarehouseList({ initialWarehouseId }: { initialWarehouseId?: num
           {archiveCheck?.status === 'error' && archiveCheck.error && (
             <p
               role="alert"
-              className="rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive"
+              className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive"
             >
               {archiveCheck.error}
             </p>

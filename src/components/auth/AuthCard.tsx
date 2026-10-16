@@ -55,13 +55,13 @@ export function AuthCard({ mode, onModeChange }: AuthCardProps) {
   return (
     <div className="w-full max-w-[400px]">
       <Card
-        className={`w-full border-border/80 bg-card/95 backdrop-blur-sm shadow-xl ring-1 ring-black/5 sm:rounded-3xl transition-all duration-300 ${
-          isSuccess ? 'scale-[0.98] opacity-90' : ''
+        className={`w-full border-border bg-card transition-opacity duration-150 ${
+          isSuccess ? 'opacity-90' : ''
         }`}
       >
         <CardHeader className="items-center pb-4 text-center">
           <ErjvPosLogo className="mt-5 mb-1" />
-          <CardTitle className="mt-1 text-2xl font-bold tracking-tight text-foreground">
+          <CardTitle className="mt-1 text-2xl font-semibold tracking-tight text-foreground">
             Welcome back
           </CardTitle>
           <CardDescription className="text-xs text-muted-foreground">
@@ -69,7 +69,7 @@ export function AuthCard({ mode, onModeChange }: AuthCardProps) {
           </CardDescription>
         </CardHeader>
 
-        <CardContent className="flex flex-col gap-10 px-10 pb-10">
+        <CardContent className="flex flex-col gap-6 px-5 pb-5">
           <Tabs
             value={mode}
             onValueChange={(val) => {
@@ -96,7 +96,7 @@ export function AuthCard({ mode, onModeChange }: AuthCardProps) {
 
         <Separator />
 
-        <CardFooter className="flex items-center justify-center gap-1.5 py-4 text-center text-[11px] text-muted-foreground">
+        <CardFooter className="flex items-center justify-center gap-1.5 py-4 text-center text-xs text-muted-foreground">
           <ShieldCheck className="size-3.5 text-muted-foreground/70" />
           <span>Encrypted 256-bit SSL connection</span>
         </CardFooter>

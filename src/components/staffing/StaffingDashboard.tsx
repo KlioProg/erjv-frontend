@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Users, Briefcase, Layers, Shield, LogOut, Package, Sparkles } from 'lucide-react'
+import { Users, Briefcase, Layers, Shield, LogOut, Package } from 'lucide-react'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -39,16 +39,12 @@ export function StaffingDashboard({ onSwitchToOperations }: StaffingDashboardPro
   return (
     <div className="min-h-svh w-full bg-background flex flex-col antialiased">
       {/* Top Navigation Bar */}
-      <header className="sticky top-0 z-30 border-b border-border/80 bg-card/85 backdrop-blur-md px-4 sm:px-8 py-3">
-        <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
+      <header className="sticky top-0 z-30 border-b border-border bg-card px-4 sm:px-8 py-3">
+        <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-6">
             <ErjvPosLogo />
             <div className="hidden md:flex items-center gap-1.5 pl-6 border-l border-border">
-              <Badge
-                variant="secondary"
-                className="gap-1 text-[11px] font-semibold text-primary bg-primary/10"
-              >
-                <Sparkles className="size-3" />
+              <Badge variant="secondary" className="text-xs font-medium">
                 Staffing & HR Management
               </Badge>
             </div>
@@ -56,12 +52,7 @@ export function StaffingDashboard({ onSwitchToOperations }: StaffingDashboardPro
 
           <div className="flex items-center gap-3">
             {onSwitchToOperations && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="font-semibold gap-1.5 shadow-2xs border-primary/30 text-primary hover:bg-primary/10"
-                onClick={onSwitchToOperations}
-              >
+              <Button variant="outline" size="sm" className="gap-2" onClick={onSwitchToOperations}>
                 <Layers className="size-3.5" />
                 Operations & Logistics
               </Button>
@@ -71,10 +62,10 @@ export function StaffingDashboard({ onSwitchToOperations }: StaffingDashboardPro
             <Button
               variant="outline"
               size="sm"
-              className="font-semibold gap-1.5 shadow-xs"
+              className="gap-2"
               onClick={() => setIsProductsModalOpen(true)}
             >
-              <Package className="size-3.5 text-primary" />
+              <Package className="size-3.5 text-muted-foreground" />
               Products ({products.length})
             </Button>
 
@@ -82,13 +73,13 @@ export function StaffingDashboard({ onSwitchToOperations }: StaffingDashboardPro
             <div className="flex items-center gap-2 pl-2 border-l border-border">
               <Avatar className="size-8 ring-1 ring-border">
                 {user?.avatarUrl && <AvatarImage src={user.avatarUrl} alt={displayName} />}
-                <AvatarFallback className="bg-primary/10 text-primary text-xs font-bold">
+                <AvatarFallback className="bg-secondary text-foreground text-xs font-medium">
                   {userInitial}
                 </AvatarFallback>
               </Avatar>
               <div className="hidden sm:flex flex-col text-left">
                 <span
-                  className="text-xs font-semibold text-foreground truncate max-w-[140px]"
+                  className="text-ui font-medium text-foreground truncate max-w-[140px]"
                   title={displayName}
                 >
                   {displayName}
@@ -96,7 +87,7 @@ export function StaffingDashboard({ onSwitchToOperations }: StaffingDashboardPro
                 <div className="flex items-center gap-1">
                   <Badge
                     variant="outline"
-                    className={`text-[9px] py-0 px-1.5 font-bold uppercase tracking-wider ${roleConfig.badgeClass}`}
+                    className={`text-xs py-0 px-1.5 font-medium ${roleConfig.badgeClass}`}
                   >
                     {roleConfig.label}
                   </Badge>
@@ -122,67 +113,55 @@ export function StaffingDashboard({ onSwitchToOperations }: StaffingDashboardPro
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-8 py-6 flex flex-col gap-6">
         {/* Metric Cards Row */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
-          <Card className="p-4 shadow-xs">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <Card className="p-4">
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium text-muted-foreground">Active Staff</span>
-              <div className="flex size-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                <Users className="size-3.5" />
-              </div>
             </div>
             <div className="mt-2 flex items-baseline gap-2">
-              <span className="text-2xl font-bold tracking-tight text-foreground">
+              <span className="text-2xl font-semibold tabular-nums tracking-tight text-foreground">
                 {activeEmployeesCount}
               </span>
-              <span className="text-[11px] text-muted-foreground">employees</span>
+              <span className="text-xs text-muted-foreground">employees</span>
             </div>
           </Card>
 
-          <Card className="p-4 shadow-xs">
+          <Card className="p-4">
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium text-muted-foreground">Job Positions</span>
-              <div className="flex size-7 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600">
-                <Briefcase className="size-3.5" />
-              </div>
             </div>
             <div className="mt-2 flex items-baseline gap-2">
-              <span className="text-2xl font-bold tracking-tight text-foreground">
+              <span className="text-2xl font-semibold tabular-nums tracking-tight text-foreground">
                 {activeJobsCount}
               </span>
-              <span className="text-[11px] text-muted-foreground">roles active</span>
+              <span className="text-xs text-muted-foreground">roles active</span>
             </div>
           </Card>
 
-          <Card className="p-4 shadow-xs">
+          <Card className="p-4">
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium text-muted-foreground">Registered Users</span>
-              <div className="flex size-7 items-center justify-center rounded-lg bg-blue-500/10 text-blue-600">
-                <Shield className="size-3.5" />
-              </div>
             </div>
             <div className="mt-2 flex items-baseline gap-2">
-              <span className="text-2xl font-bold tracking-tight text-foreground">
+              <span className="text-2xl font-semibold tabular-nums tracking-tight text-foreground">
                 {users.length}
               </span>
-              <span className="text-[11px] text-muted-foreground">accounts</span>
+              <span className="text-xs text-muted-foreground">accounts</span>
             </div>
           </Card>
 
           <Card
-            className="p-4 shadow-xs cursor-pointer hover:border-primary/40 transition-colors"
+            className="p-4 cursor-pointer hover:bg-secondary transition-colors"
             onClick={() => setIsProductsModalOpen(true)}
           >
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium text-muted-foreground">Inventory Items</span>
-              <div className="flex size-7 items-center justify-center rounded-lg bg-orange-500/10 text-orange-600">
-                <Package className="size-3.5" />
-              </div>
             </div>
             <div className="mt-2 flex items-baseline gap-2">
-              <span className="text-2xl font-bold tracking-tight text-foreground">
+              <span className="text-2xl font-semibold tabular-nums tracking-tight text-foreground">
                 {products.length}
               </span>
-              <span className="text-[11px] text-muted-foreground">products catalog</span>
+              <span className="text-xs text-muted-foreground">products catalog</span>
             </div>
           </Card>
         </div>
@@ -191,22 +170,20 @@ export function StaffingDashboard({ onSwitchToOperations }: StaffingDashboardPro
         <div className="w-full">
           <Tabs
             value={activeTab}
-            onValueChange={(val) =>
-              setActiveTab(val as 'employees' | 'jobs' | 'users')
-            }
+            onValueChange={(val) => setActiveTab(val as 'employees' | 'jobs' | 'users')}
             className="w-full flex flex-col gap-4"
           >
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 border-b pb-3">
-              <TabsList className="h-10 p-1 bg-secondary/80 justify-start w-full sm:w-auto">
-                <TabsTrigger value="employees" className="gap-1.5 text-xs">
+              <TabsList className="h-auto min-h-10 flex-wrap justify-start w-full sm:w-auto">
+                <TabsTrigger value="employees" className="gap-2 text-ui">
                   <Users className="size-3.5" />
                   Employee Directory
                 </TabsTrigger>
-                <TabsTrigger value="jobs" className="gap-1.5 text-xs">
+                <TabsTrigger value="jobs" className="gap-2 text-ui">
                   <Briefcase className="size-3.5" />
                   Job Positions
                 </TabsTrigger>
-                <TabsTrigger value="users" className="gap-1.5 text-xs">
+                <TabsTrigger value="users" className="gap-2 text-ui">
                   <Shield className="size-3.5" />
                   User Roles
                 </TabsTrigger>
