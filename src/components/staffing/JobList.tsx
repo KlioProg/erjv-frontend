@@ -162,7 +162,9 @@ export function JobList() {
 
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader>Job Positions</PageHeader>
+      <PageHeader description="Manage job positions and assigned staff duties.">
+        Job Positions
+      </PageHeader>
       {/* Position Archive / Active Tabs */}
       <ArchiveTabNav
         activeTab={activeTab}

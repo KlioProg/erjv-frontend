@@ -526,7 +526,9 @@ export function PurchasesView({
     <div className="flex min-w-0 flex-col gap-4">
       {section === 'orders' ? (
         <div className="flex flex-col gap-4">
-          <PageHeader>Purchase Orders</PageHeader>
+          <PageHeader description="Manage supplier orders and track stock receiving.">
+            Purchase Orders
+          </PageHeader>
           <StatusTabNav
             activeTab={activeStatus}
             onTabChange={(tab) => setActiveStatus(tab as PurchaseTabFilter)}
@@ -616,7 +618,9 @@ export function PurchasesView({
         </div>
       ) : (
         <div className="flex min-w-0 flex-col gap-4">
-          <PageHeader>Suppliers</PageHeader>
+          <PageHeader description="Manage supplier details and purchasing contacts.">
+            Suppliers
+          </PageHeader>
           <ArchiveTabNav
             activeTab={supplierView}
             onTabChange={setSupplierView}

@@ -152,13 +152,13 @@ export function WarehouseInventory({
           className="mb-2 flex min-w-0 items-center gap-1 text-xs text-muted-foreground"
         >
           <Button
-            variant="ghost"
+            variant="secondary"
             size="sm"
             onClick={onBack}
-            className="-ml-2 h-7 gap-1 px-2 text-[13px]"
+            className="h-11 min-h-11 gap-2 border border-border px-3 text-sm font-medium"
           >
             <ArrowLeft className="size-4" />
-            Warehouses
+            Back to Warehouses
           </Button>
           <ChevronRight className="size-3.5 shrink-0" />
           <OverflowValue value={warehouse.name} className="font-semibold text-foreground" />

@@ -275,25 +275,41 @@ export function VehicleList() {
       ),
     },
   ]
+  const countStatus = (status: VehicleStatus) =>
+    active.filter((row) => row.status === status).length
+  const availableCount = countStatus('AVAILABLE')
+  const inDeliveryCount = countStatus('IN_DELIVERY')
+  const maintenanceCount = countStatus('MAINTENANCE')
+  const outOfServiceCount = countStatus('OUT_OF_SERVICE')
+  const fleetOverview = [
+    { label: 'Total', count: active.length, valueClass: 'text-foreground' },
+    {
+      label: 'Available',
+      count: availableCount,
+      valueClass: availableCount > 0 ? 'text-primary-text' : 'text-muted-foreground',
+    },
+    {
+      label: 'In Delivery',
+      count: inDeliveryCount,
+      valueClass: inDeliveryCount > 0 ? 'text-foreground' : 'text-muted-foreground',
+    },
+    {
+      label: 'Maintenance',
+      count: maintenanceCount,
+      valueClass: maintenanceCount > 0 ? 'text-status-warning-foreground' : 'text-muted-foreground',
+    },
+    {
+      label: 'Out of Service',
+      count: outOfServiceCount,
+      valueClass: outOfServiceCount > 0 ? 'text-destructive' : 'text-muted-foreground',
+    },
+  ]
+
   return (
-    <div className="flex min-w-0 flex-col gap-6">
-      <PageHeader description="Manage ERJV vehicles, their condition, and delivery assignments.">
+    <div className="flex min-w-0 flex-col gap-4">
+      <PageHeader description="Manage vehicles, their condition, and delivery assignments.">
         Vehicles
       </PageHeader>
-      <div className="flex flex-wrap gap-x-5 gap-y-2">
-        {[
-          ['Total', active.length],
-          ['Available', active.filter((row) => row.status === 'AVAILABLE').length],
-          ['In Delivery', active.filter((row) => row.status === 'IN_DELIVERY').length],
-          ['Maintenance', active.filter((row) => row.status === 'MAINTENANCE').length],
-          ['Out of Service', active.filter((row) => row.status === 'OUT_OF_SERVICE').length],
-        ].map(([label, count]) => (
-          <div key={label} className="flex items-center gap-2">
-            <span className="text-xs font-medium text-muted-foreground">{label}</span>
-            <span className="text-sm font-semibold tabular-nums">{count}</span>
-          </div>
-        ))}
-      </div>
       <ArchiveTabNav
         activeTab={activeTab}
         onTabChange={setActiveTab}
@@ -304,6 +320,19 @@ export function VehicleList() {
         activeIcon={<Truck className="size-3.5" />}
         bannerDescription="Archived ERJV vehicles remain linked to their historical deliveries and can be restored."
       />
+      <dl
+        aria-label="Fleet status overview"
+        className="grid grid-cols-2 gap-3 rounded-lg border border-border bg-secondary/40 p-3 sm:grid-cols-3 lg:grid-cols-5"
+      >
+        {fleetOverview.map(({ label, count, valueClass }) => (
+          <div key={label} className="flex min-w-0 flex-col gap-1">
+            <dt className="truncate text-xs font-medium text-muted-foreground">{label}</dt>
+            <dd className={`text-lg font-semibold leading-6 tabular-nums ${valueClass}`}>
+              {count}
+            </dd>
+          </div>
+        ))}
+      </dl>
       <PageToolbar>
         <div className="relative flex-1 sm:max-w-sm">
           <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />

@@ -129,7 +129,9 @@ export function ClientList() {
 
   return (
     <div className="customer-pilot flex min-w-0 flex-col gap-4">
-      <PageHeader>Customers</PageHeader>
+      <PageHeader description="Manage customer accounts, contacts, and delivery addresses.">
+        Customers
+      </PageHeader>
       <ArchiveTabNav
         activeTab={activeTab}
         onTabChange={setActiveTab}

@@ -14,7 +14,6 @@ import { UserRolesList } from '../staffing/UserRolesList'
 import { useWarehouses } from '@/features/logistics/warehouses.hooks'
 import { useStockItems } from '@/features/logistics/stock-items.hooks'
 import { useProducts } from '@/features/products/products.hooks'
-import { useEmployees, useJobs } from '@/features/staffing/staffing.hooks'
 import { useAuth } from '@/features/auth/AuthContext'
 import type { InventoryFocusTarget } from '@/features/logistics/stock-warnings'
 
@@ -32,14 +31,10 @@ export function MainDashboard() {
   const { data: warehouses = [] } = useWarehouses()
   const { data: stockItems = [] } = useStockItems()
   const { data: products = [] } = useProducts()
-  const { data: employees = [] } = useEmployees()
-  const { data: jobs = [] } = useJobs()
-
   const totalStockUnits = useMemo(
     () => stockItems.reduce((acc, s) => acc + parseFloat(s.quantity || '0'), 0),
     [stockItems],
   )
-  const activeStaffCount = useMemo(() => employees.filter((e) => e.isActive).length, [employees])
 
   const isOperationsTab = currentTab === 'warehouses'
 
@@ -67,20 +62,7 @@ export function MainDashboard() {
           hint: 'Active product catalog items',
         },
       ]
-    : isStaffingTab && !isStaff
-      ? [
-          {
-            label: 'Active Staff Members',
-            value: <> {activeStaffCount} </>,
-            hint: 'Operations, logistics & administration',
-          },
-          {
-            label: 'Job Roles Defined',
-            value: <> {jobs.length} </>,
-            hint: 'Organizational designations',
-          },
-        ]
-      : []
+    : []
 
   return (
     <DashboardLayout

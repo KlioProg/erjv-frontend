@@ -391,7 +391,9 @@ export function UserRolesList() {
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
-      <PageHeader>User Roles &amp; Access</PageHeader>
+      <PageHeader description="Manage user accounts, staff links, and system access.">
+        User Roles &amp; Access
+      </PageHeader>
       {/* Archive / Active Tabs */}
       <ArchiveTabNav
         activeTab={activeTab}

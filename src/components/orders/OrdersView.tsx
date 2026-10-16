@@ -474,7 +474,9 @@ export function OrdersView({
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
-      <PageHeader>Sales Orders</PageHeader>
+      <PageHeader description="Create and track customer orders and deliveries.">
+        Sales Orders
+      </PageHeader>
       <StatusTabNav
         activeTab={activeStatus}
         onTabChange={(tab) => setActiveStatus(tab as OrderTabFilter)}

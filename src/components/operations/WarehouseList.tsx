@@ -315,7 +315,9 @@ export function WarehouseList({ initialWarehouseId }: { initialWarehouseId?: num
 
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader>Warehouses</PageHeader>
+      <PageHeader description="Manage warehouse locations and review the stock held at each site.">
+        Warehouses
+      </PageHeader>
       <div className="min-w-0 overflow-x-auto">
         <ArchiveTabNav
           activeTab={activeTab}

@@ -239,7 +239,9 @@ export function EmployeeList() {
 
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader>Staff Directory</PageHeader>
+      <PageHeader description="Manage staff profiles, contacts, and assigned positions.">
+        Staff Directory
+      </PageHeader>
       {/* Staff Archive / Active Tabs */}
       <ArchiveTabNav
         activeTab={activeTab}

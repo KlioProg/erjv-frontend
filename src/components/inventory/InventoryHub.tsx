@@ -8,7 +8,12 @@ export function InventoryHub({
 }: { onOpenWarehouse?: (warehouseId: number) => void; focusTarget?: InventoryFocusTarget } = {}) {
   return (
     <section aria-labelledby="inventory-heading" className="flex min-w-0 flex-col gap-4">
-      <PageHeader id="inventory-heading">Inventory</PageHeader>
+      <PageHeader
+        id="inventory-heading"
+        description="Browse products, check stock across warehouses, and manage inventory records."
+      >
+        Inventory
+      </PageHeader>
       <InventoryItemCatalog onOpenWarehouse={onOpenWarehouse} focusTarget={focusTarget} />
     </section>
   )

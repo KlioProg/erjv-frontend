@@ -72,7 +72,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     title: 'Sales',
     items: [
-      { key: 'clients', label: 'Customers', icon: Building2 },
+      { key: 'clients', label: 'Customers', icon: Users },
       { key: 'orders', label: 'Sales Orders', icon: ReceiptText },
     ],
   },
