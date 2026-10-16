@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { ChevronDown, MapPinned } from 'lucide-react'
+import { NavLink } from 'react-router'
 import type { DeliveryView } from '@/features/logistics/delivery-workflow'
 import { cn } from '@/lib/utils'
+import { routeForScreen } from '@/routes'
 
 const links: { view: DeliveryView; label: string }[] = [
   { view: 'incoming', label: 'Incoming' },
@@ -50,20 +52,28 @@ export function DeliveryNavigation({
         className="relative ml-7 flex flex-col gap-0.5 before:absolute before:inset-y-1 before:-left-2 before:w-px before:bg-border"
       >
         {links.map((link) => (
-          <button
+          <NavLink
             key={link.view}
-            type="button"
-            aria-current={view === link.view ? 'page' : undefined}
-            onClick={() => onSelect(link.view)}
-            className={cn(
-              'ui-text flex h-9 w-full items-center rounded-md px-3 py-2 text-left font-medium transition-colors duration-150 pointer-coarse:min-h-11 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-              view === link.view
-                ? 'bg-primary-subtle text-foreground'
-                : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
+            to={routeForScreen(
+              link.view === 'incoming'
+                ? 'incoming-deliveries'
+                : link.view === 'history'
+                  ? 'delivery-history'
+                  : 'outgoing-deliveries',
             )}
+            end
+            onClick={() => onSelect(link.view)}
+            className={({ isActive }) =>
+              cn(
+                'ui-text flex h-9 w-full items-center rounded-md px-3 py-2 text-left font-medium transition-colors duration-150 pointer-coarse:min-h-11 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                isActive
+                  ? 'bg-primary-subtle text-foreground'
+                  : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
+              )
+            }
           >
             {link.label}
-          </button>
+          </NavLink>
         ))}
       </div>
     </div>

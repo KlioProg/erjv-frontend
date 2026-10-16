@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { BrowserRouter } from 'react-router'
 import { AuthCard } from './components/auth/AuthCard'
-import { MainDashboard } from './components/dashboard/MainDashboard'
 import { Toaster } from './components/ui/sonner'
 import { Spinner } from './components/ui/spinner'
 import { AuthProvider, useAuth } from './features/auth/AuthContext'
 import type { AuthMode } from './features/auth/auth.types'
 import { ErrorBoundary } from './components/common/ErrorBoundary'
+import { AppRoutes } from './routing/AppRoutes'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -35,7 +36,7 @@ function AppContent() {
   if (isAuthenticated) {
     return (
       <div className="animate-in fade-in-0 duration-300 min-h-svh">
-        <MainDashboard />
+        <AppRoutes />
       </div>
     )
   }
@@ -64,8 +65,10 @@ function App() {
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
-          <AppContent />
-          <Toaster position="top-right" richColors />
+          <BrowserRouter>
+            <AppContent />
+            <Toaster position="top-right" richColors />
+          </BrowserRouter>
         </AuthProvider>
       </QueryClientProvider>
     </ErrorBoundary>

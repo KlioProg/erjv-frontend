@@ -1,10 +1,11 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { MemoryRouter, useLocation, useNavigate } from 'react-router'
 import { beforeEach, afterEach, describe, it, expect, vi } from 'vitest'
 import { toast } from 'sonner'
 import { apiClient } from '@/lib/api-client'
-import { MainDashboard } from '@/components/dashboard/MainDashboard'
+import { AppRoutes } from '@/routing/AppRoutes'
 import { InventoryHub } from './InventoryHub'
 import { WarehouseInventory } from '@/components/operations/WarehouseInventory'
 import { StockNotifications } from '@/components/layout/StockNotifications'
@@ -78,6 +79,29 @@ function mount(ui: React.ReactNode) {
     ...render(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>),
     queryClient,
   }
+}
+function mountDashboard(initialEntry = '/') {
+  function LocationControls() {
+    const location = useLocation()
+    const navigate = useNavigate()
+    return (
+      <>
+        <output data-testid="route-location">{location.pathname}</output>
+        <button type="button" onClick={() => navigate(-1)}>
+          Test browser back
+        </button>
+        <button type="button" onClick={() => navigate(1)}>
+          Test browser forward
+        </button>
+      </>
+    )
+  }
+  return mount(
+    <MemoryRouter initialEntries={[initialEntry]}>
+      <AppRoutes />
+      <LocationControls />
+    </MemoryRouter>,
+  )
 }
 beforeEach(() => {
   failPrice = false
@@ -313,7 +337,7 @@ describe('inventory and global stock warnings', () => {
     await user.clear(search)
     await user.click(within(table).getByRole('button', { name: 'Product' }))
     expect(within(visibleRows()[0]).getByText('Alpha Healthy')).toBeTruthy()
-    await user.click(screen.getByRole('button', { name: 'Warehouses' }))
+    await user.click(screen.getByRole('button', { name: 'Back to Warehouses' }))
     expect(onBack).toHaveBeenCalledOnce()
   })
 
@@ -354,7 +378,7 @@ describe('inventory and global stock warnings', () => {
 
   it('removes redundant navigation/cards/status while preserving account and inventory management', async () => {
     const user = userEvent.setup()
-    mount(<MainDashboard />)
+    mountDashboard()
     await screen.findByText('Alpha Empty')
     expect(screen.getByRole('heading', { name: 'Inventory' })).toBeTruthy()
     for (const text of [
@@ -385,7 +409,7 @@ describe('inventory and global stock warnings', () => {
     await screen.findByText('Alpha Empty')
     const inventoryNav = within(
       screen.getByRole('navigation', { name: 'Main navigation' }),
-    ).getByRole('button', { name: 'Inventory' })
+    ).getByRole('link', { name: 'Inventory' })
     expect(inventoryNav.querySelectorAll('svg')).toHaveLength(1)
     await user.click(screen.getByRole('button', { name: 'Account menu' }))
     await user.click(screen.getByRole('menuitem', { name: 'Sign Out' }))
@@ -419,10 +443,10 @@ describe('inventory and global stock warnings', () => {
       stock(p.id * 2 + 1, p.id, 2, '100'),
     ])
     const user = userEvent.setup()
-    mount(<MainDashboard />)
+    mountDashboard()
     await screen.findByText('Product 01')
     await user.click(
-      within(screen.getByRole('navigation', { name: 'Main navigation' })).getByRole('button', {
+      within(screen.getByRole('navigation', { name: 'Main navigation' })).getByRole('link', {
         name: 'Customers',
       }),
     )
@@ -439,6 +463,52 @@ describe('inventory and global stock warnings', () => {
     expect(
       screen.getByRole('button', { name: 'Stock notifications, 15 unresolved warnings' }),
     ).toBeTruthy()
+  })
+
+  it('uses the pilot URLs for customers and sales orders while keeping the dashboard shell mounted', async () => {
+    const user = userEvent.setup()
+    mountDashboard('/customers')
+
+    await screen.findByRole('heading', { name: 'Customers' })
+    const mainNavigation = screen.getByRole('navigation', { name: 'Main navigation' })
+    const customersLink = within(mainNavigation).getByRole('link', { name: 'Customers' })
+    expect(screen.getByTestId('route-location').textContent).toBe('/customers')
+    expect(customersLink.getAttribute('aria-current')).toBe('page')
+
+    await user.click(within(mainNavigation).getByRole('link', { name: 'Sales Orders' }))
+    await screen.findByRole('heading', { name: 'Sales Orders' })
+    expect(screen.getByTestId('route-location').textContent).toBe('/sales-orders')
+    expect(
+      within(mainNavigation)
+        .getByRole('link', { name: 'Sales Orders' })
+        .getAttribute('aria-current'),
+    ).toBe('page')
+    expect(screen.getByRole('navigation', { name: 'Main navigation' })).toBe(mainNavigation)
+
+    await user.click(screen.getByRole('button', { name: 'Test browser back' }))
+    await screen.findByRole('heading', { name: 'Customers' })
+    expect(screen.getByTestId('route-location').textContent).toBe('/customers')
+
+    await user.click(screen.getByRole('button', { name: 'Test browser forward' }))
+    await screen.findByRole('heading', { name: 'Sales Orders' })
+    expect(screen.getByTestId('route-location').textContent).toBe('/sales-orders')
+  })
+
+  it('provides a safe destination for unknown paths', async () => {
+    const user = userEvent.setup()
+    mountDashboard('/not-a-page')
+    await screen.findByRole('heading', { name: 'Page not found' })
+    await user.click(screen.getByRole('link', { name: 'Go to Inventory' }))
+    await screen.findByRole('heading', { name: 'Inventory' })
+    expect(screen.getByTestId('route-location').textContent).toBe('/legacy/inventory')
+  })
+
+  it('redirects staff away from staffing URLs', async () => {
+    auth.isStaff = true
+    mountDashboard('/legacy/employees')
+    await screen.findByRole('heading', { name: 'Inventory' })
+    expect(screen.getByTestId('route-location').textContent).toBe('/legacy/inventory')
+    expect(screen.queryByRole('heading', { name: 'Staff Directory' })).toBeNull()
   })
 
   it('keeps warnings unresolved when read and refreshes them after stock/cache changes', async () => {

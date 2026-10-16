@@ -1,11 +1,12 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { MemoryRouter } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { apiClient } from '@/lib/api-client'
 import { OrdersView } from '@/components/orders/OrdersView'
 import { PurchasesView } from '@/components/purchases/PurchasesView'
-import { MainDashboard } from '@/components/dashboard/MainDashboard'
+import { AppRoutes } from '@/routing/AppRoutes'
 import { DeliveryNavigation } from '@/components/layout/DeliveryNavigation'
 import { DeliveriesHub } from './DeliveriesHub'
 import { ScheduleDeliveryModal } from './ScheduleDeliveryModal'
@@ -159,6 +160,14 @@ function mount(ui: ReactNode) {
     ...render(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>),
     queryClient,
   }
+}
+
+function mountDashboard() {
+  return mount(
+    <MemoryRouter>
+      <AppRoutes />
+    </MemoryRouter>,
+  )
 }
 
 beforeEach(() => {
@@ -688,36 +697,34 @@ describe('order to delivery workflow', () => {
   it('supports keyboard collapse/expand and opens a newly selected sidebar child', async () => {
     const user = userEvent.setup()
     const onSelect = vi.fn()
-    const { rerender } = render(<DeliveryNavigation view="incoming" onSelect={onSelect} />)
-    expect(screen.getByRole('button', { name: 'Incoming' }).getAttribute('aria-current')).toBe(
-      'page',
+    render(
+      <MemoryRouter initialEntries={['/legacy/incoming-deliveries']}>
+        <DeliveryNavigation view="incoming" onSelect={onSelect} />
+      </MemoryRouter>,
     )
+    expect(screen.getByRole('link', { name: 'Incoming' }).getAttribute('aria-current')).toBe('page')
     await user.click(screen.getByRole('button', { name: 'Deliveries' }))
     expect(screen.queryByRole('button', { name: 'Incoming' })).toBeNull()
     await user.keyboard('{Enter}')
-    await user.click(screen.getByRole('button', { name: 'Outgoing' }))
+    await user.click(screen.getByRole('link', { name: 'Outgoing' }))
     expect(onSelect).toHaveBeenCalledWith('outgoing')
-    await user.click(screen.getByRole('button', { name: 'Deliveries' }))
-    rerender(<DeliveryNavigation view="history" onSelect={onSelect} />)
-    expect(screen.getByRole('button', { name: 'History' }).getAttribute('aria-current')).toBe(
-      'page',
-    )
+    expect(screen.getByRole('link', { name: 'Outgoing' }).getAttribute('aria-current')).toBe('page')
   })
 
   it('routes sidebar children to active direction tables and terminal history without page tabs', async () => {
     const user = userEvent.setup()
-    mount(<MainDashboard />)
+    mountDashboard()
     const nav = within(screen.getByRole('navigation', { name: 'Main navigation' }))
     await user.click(nav.getByRole('button', { name: 'Deliveries' }))
-    await user.click(nav.getByRole('button', { name: 'Incoming' }))
+    await user.click(nav.getByRole('link', { name: 'Incoming' }))
     expect(await screen.findByRole('button', { name: 'View delivery IN-21' })).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'View delivery IN-23' })).toBeNull()
     expect(screen.queryByRole('columnheader', { name: 'Type' })).toBeNull()
     expect(screen.queryByRole('tablist')).toBeNull()
-    await user.click(nav.getByRole('button', { name: 'Outgoing' }))
+    await user.click(nav.getByRole('link', { name: 'Outgoing' }))
     expect(await screen.findByRole('button', { name: 'Dispatch OUT-6' })).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'View delivery OUT-7' })).toBeNull()
-    await user.click(nav.getByRole('button', { name: 'History' }))
+    await user.click(nav.getByRole('link', { name: 'History' }))
     expect(await screen.findByRole('button', { name: 'View delivery IN-23' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'View delivery OUT-7' })).toBeTruthy()
     expect(screen.queryByRole('button', { name: /Cancel Delivery/ })).toBeNull()

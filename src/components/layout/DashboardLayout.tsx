@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
+import { NavLink } from 'react-router'
 import {
   Boxes,
   Warehouse as WarehouseIcon,
@@ -34,26 +35,13 @@ import { useAuth } from '@/features/auth/AuthContext'
 import { USER_ROLES, ROLE_DETAILS } from '@/features/auth/roles'
 import { StockNotifications } from './StockNotifications'
 import type { InventoryFocusTarget } from '@/features/logistics/stock-warnings'
+import { routeForScreen, type NavItemKey } from '@/routes'
 
-export type NavItemKey =
-  | 'inventory'
-  | 'warehouses'
-  | 'fleet'
-  | 'deliveries'
-  | 'incoming-deliveries'
-  | 'outgoing-deliveries'
-  | 'delivery-history'
-  | 'purchases'
-  | 'suppliers'
-  | 'clients'
-  | 'employees'
-  | 'jobs'
-  | 'users'
-  | 'orders'
+export type { NavItemKey } from '@/routes'
 
 type DashboardLayoutProps = {
-  currentTab: NavItemKey
   onSelectTab: (tab: NavItemKey) => void
+  currentTab?: NavItemKey
   children: React.ReactNode
   onOpenInventory: (target: InventoryFocusTarget) => void
 }
@@ -229,26 +217,27 @@ export function DashboardLayout({
                         />
                       )
                     const Icon = item.icon
-                    const isActive = currentTab === item.key
-
                     return (
-                      <button
+                      <NavLink
                         key={item.key}
-                        aria-current={isActive ? 'page' : undefined}
+                        to={routeForScreen(item.key)}
+                        end
                         onClick={() => {
                           handleSelectTab(item.key)
                           setIsMobileOpen(false)
                         }}
-                        className={`group relative flex h-9 w-full items-center justify-between rounded-md px-3 py-2 text-ui font-medium transition-colors duration-150 cursor-pointer select-none pointer-coarse:min-h-11 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
-                          isActive
-                            ? 'bg-primary-subtle text-foreground'
-                            : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
-                        }`}
+                        className={({ isActive }) =>
+                          `group relative flex h-9 w-full items-center justify-between rounded-md px-3 py-2 text-ui font-medium transition-colors duration-150 cursor-pointer select-none pointer-coarse:min-h-11 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                            isActive
+                              ? 'bg-primary-subtle text-foreground'
+                              : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
+                          }`
+                        }
                       >
                         <div className="flex items-center gap-3">
                           <Icon
                             className={`size-4 shrink-0 ${
-                              isActive
+                              currentTab === item.key
                                 ? 'text-primary'
                                 : 'text-muted-foreground group-hover:text-foreground'
                             }`}
@@ -256,10 +245,10 @@ export function DashboardLayout({
                           <span>{item.label}</span>
                         </div>
 
-                        {isActive && item.key !== 'inventory' && (
+                        {currentTab === item.key && item.key !== 'inventory' && (
                           <ChevronRight className="size-3.5 text-muted-foreground" />
                         )}
-                      </button>
+                      </NavLink>
                     )
                   })}
                 </div>

@@ -1,6 +1,15 @@
-import { useState, useMemo } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
+import {
+  Link,
+  Navigate,
+  Outlet,
+  useLocation,
+  useNavigate,
+  useOutletContext,
+  useParams,
+} from 'react-router'
 import { ManagementPage } from '@/components/ui/ManagementPage'
-import { DashboardLayout, type NavItemKey } from '../layout/DashboardLayout'
+import { DashboardLayout } from '../layout/DashboardLayout'
 import { InventoryHub } from '../inventory/InventoryHub'
 import { WarehouseList } from '../operations/WarehouseList'
 import { VehicleList } from '../operations/VehicleList'
@@ -16,9 +25,32 @@ import { useStockItems } from '@/features/logistics/stock-items.hooks'
 import { useProducts } from '@/features/products/products.hooks'
 import { useAuth } from '@/features/auth/AuthContext'
 import type { InventoryFocusTarget } from '@/features/logistics/stock-warnings'
+import { isNavItemKey, ROUTES, routeForScreen, screenFromPath, type NavItemKey } from '@/routes'
+
+type DashboardSummary = { label: string; value: ReactNode; hint: string }[]
+
+export type DashboardOutletContext = {
+  warehouseToOpen: number | null
+  deliveryPurchaseOrderId?: number
+  deliverySalesOrderId?: number
+  arrangeDelivery: boolean
+  inventoryTarget?: InventoryFocusTarget & { requestId: number }
+  summary: DashboardSummary
+  onOpenInventory: (target: InventoryFocusTarget) => void
+  onOpenWarehouse: (id: number) => void
+  onNavigateToPurchases: () => void
+  onNavigateFromPurchaseToDeliveries: (purchaseOrderId?: number, arrange?: boolean) => void
+  onNavigateFromSalesOrderToDeliveries: (
+    tab?: 'schedule' | 'status' | 'completed' | 'incoming' | 'outgoing' | 'history',
+    salesOrderId?: number,
+    arrange?: boolean,
+  ) => void
+  onNavigateToInventory: () => void
+}
 
 export function MainDashboard() {
-  const [currentTab, setCurrentTab] = useState<NavItemKey>('inventory')
+  const navigate = useNavigate()
+  const location = useLocation()
   const [warehouseToOpen, setWarehouseToOpen] = useState<number | null>(null)
   const [deliveryPurchaseOrderId, setDeliveryPurchaseOrderId] = useState<number | undefined>()
   const [deliverySalesOrderId, setDeliverySalesOrderId] = useState<number | undefined>()
@@ -36,117 +68,179 @@ export function MainDashboard() {
     [stockItems],
   )
 
-  const isOperationsTab = currentTab === 'warehouses'
+  const requestedScreen = screenFromPath(location.pathname)
+  const isStaffingScreen =
+    requestedScreen === 'employees' || requestedScreen === 'jobs' || requestedScreen === 'users'
+  const currentTab = isStaff && isStaffingScreen ? 'inventory' : requestedScreen
 
-  const isStaffingTab =
-    currentTab === 'employees' || currentTab === 'jobs' || currentTab === 'users'
+  const summary =
+    currentTab === 'warehouses'
+      ? [
+          {
+            label: 'Warehouse Locations',
+            value: <> {warehouses.length} </>,
+            hint: 'Active facilities & storage hubs',
+          },
+          {
+            label: 'Total Stored Units',
+            value: <> {totalStockUnits.toLocaleString()} units </>,
+            hint: 'Inventory across storage hubs',
+          },
+          {
+            label: 'Catalog Products',
+            value: <> {products.length} </>,
+            hint: 'Active product catalog items',
+          },
+        ]
+      : []
 
-  // Safety fallback if staff clicks restricted tab
-  const effectiveTab = isStaff && isStaffingTab ? 'inventory' : currentTab
+  const clearNavigationContext = () => {
+    setInventoryTarget(undefined)
+    setWarehouseToOpen(null)
+    setDeliverySalesOrderId(undefined)
+    setArrangeDelivery(false)
+    setDeliveryPurchaseOrderId(undefined)
+  }
 
-  const summary = isOperationsTab
-    ? [
-        {
-          label: 'Warehouse Locations',
-          value: <> {warehouses.length} </>,
-          hint: 'Active facilities & storage hubs',
-        },
-        {
-          label: 'Total Stored Units',
-          value: <> {totalStockUnits.toLocaleString()} units </>,
-          hint: 'Inventory across storage hubs',
-        },
-        {
-          label: 'Catalog Products',
-          value: <> {products.length} </>,
-          hint: 'Active product catalog items',
-        },
-      ]
-    : []
+  const navigateToScreen = (screen: NavItemKey) => navigate(routeForScreen(screen))
+
+  const onOpenInventory = (target: InventoryFocusTarget) => {
+    setInventoryTarget((previous) => ({ ...target, requestId: (previous?.requestId ?? 0) + 1 }))
+    navigateToScreen('inventory')
+  }
+
+  const onNavigateFromPurchaseToDeliveries = (purchaseOrderId?: number, arrange = false) => {
+    setDeliveryPurchaseOrderId(purchaseOrderId)
+    setDeliverySalesOrderId(undefined)
+    setArrangeDelivery(arrange)
+    navigateToScreen('incoming-deliveries')
+  }
+
+  const onNavigateFromSalesOrderToDeliveries: DashboardOutletContext['onNavigateFromSalesOrderToDeliveries'] =
+    (tab, salesOrderId, arrange = false) => {
+      setDeliveryPurchaseOrderId(undefined)
+      setDeliverySalesOrderId(salesOrderId)
+      setArrangeDelivery(arrange)
+      navigateToScreen(
+        tab === 'history'
+          ? 'delivery-history'
+          : tab === 'incoming'
+            ? 'incoming-deliveries'
+            : 'outgoing-deliveries',
+      )
+    }
+
+  const outletContext: DashboardOutletContext = {
+    warehouseToOpen,
+    deliveryPurchaseOrderId,
+    deliverySalesOrderId,
+    arrangeDelivery,
+    inventoryTarget,
+    summary,
+    onOpenInventory,
+    onOpenWarehouse: (id) => {
+      setWarehouseToOpen(id)
+      navigateToScreen('warehouses')
+    },
+    onNavigateToPurchases: () => navigateToScreen('purchases'),
+    onNavigateFromPurchaseToDeliveries,
+    onNavigateFromSalesOrderToDeliveries,
+    onNavigateToInventory: () => navigateToScreen('inventory'),
+  }
 
   return (
     <DashboardLayout
-      currentTab={effectiveTab}
-      onOpenInventory={(target) => {
-        setInventoryTarget((previous) => ({ ...target, requestId: (previous?.requestId ?? 0) + 1 }))
-        setCurrentTab('inventory')
-      }}
-      onSelectTab={(tab) => {
-        setInventoryTarget(undefined)
-        setWarehouseToOpen(null)
-        setDeliverySalesOrderId(undefined)
-        setArrangeDelivery(false)
-        setDeliveryPurchaseOrderId(undefined)
-        setCurrentTab(tab)
-      }}
+      currentTab={currentTab}
+      onSelectTab={clearNavigationContext}
+      onOpenInventory={onOpenInventory}
     >
-      <ManagementPage summary={summary}>
-        {effectiveTab === 'inventory' && (
-          <InventoryHub
-            key={inventoryTarget?.requestId ?? 'browse'}
-            focusTarget={inventoryTarget}
-            onOpenWarehouse={(id) => {
-              setWarehouseToOpen(id)
-              setCurrentTab('warehouses')
-            }}
-          />
-        )}
-        {effectiveTab === 'warehouses' && (
-          <WarehouseList key={warehouseToOpen ?? 'list'} initialWarehouseId={warehouseToOpen} />
-        )}
-        {effectiveTab === 'fleet' && <VehicleList />}
-        {['deliveries', 'incoming-deliveries', 'outgoing-deliveries', 'delivery-history'].includes(
-          effectiveTab,
-        ) && (
-          <DeliveriesHub
-            key={`${effectiveTab}-${deliveryPurchaseOrderId || deliverySalesOrderId || 'all'}`}
-            initialTab={
-              effectiveTab === 'incoming-deliveries'
-                ? 'incoming'
-                : effectiveTab === 'delivery-history'
-                  ? 'history'
-                  : 'outgoing'
-            }
-            purchaseOrderId={deliveryPurchaseOrderId}
-            salesOrderId={deliverySalesOrderId}
-            arrangeOrder={arrangeDelivery}
-          />
-        )}
-        {(effectiveTab === 'purchases' || effectiveTab === 'suppliers') && (
-          <PurchasesView
-            key={effectiveTab}
-            section={effectiveTab === 'suppliers' ? 'suppliers' : 'orders'}
-            onNavigateToDeliveries={(purchaseOrderId, arrange) => {
-              setDeliveryPurchaseOrderId(purchaseOrderId)
-              setDeliverySalesOrderId(undefined)
-              setArrangeDelivery(!!arrange)
-              setCurrentTab('incoming-deliveries')
-            }}
-          />
-        )}
-        {effectiveTab === 'orders' && (
-          <OrdersView
-            onNavigateToPurchases={() => setCurrentTab('purchases')}
-            onNavigateToDeliveries={(tab, salesOrderId, arrange) => {
-              setDeliveryPurchaseOrderId(undefined)
-              setDeliverySalesOrderId(salesOrderId)
-              setArrangeDelivery(!!arrange)
-              setCurrentTab(
-                tab === 'history'
-                  ? 'delivery-history'
-                  : tab === 'incoming'
-                    ? 'incoming-deliveries'
-                    : 'outgoing-deliveries',
-              )
-            }}
-            onNavigateToInventory={() => setCurrentTab('inventory')}
-          />
-        )}
-        {effectiveTab === 'clients' && <ClientList />}
-        {effectiveTab === 'employees' && <EmployeeList />}
-        {effectiveTab === 'jobs' && <JobList />}
-        {effectiveTab === 'users' && <UserRolesList />}
-      </ManagementPage>
+      <Outlet context={outletContext} />
     </DashboardLayout>
+  )
+}
+
+function useDashboardContext() {
+  return useOutletContext<DashboardOutletContext>()
+}
+
+export function DashboardScreen({ screen }: { screen: NavItemKey }) {
+  const context = useDashboardContext()
+  const { isStaff } = useAuth()
+  const isStaffingScreen = screen === 'employees' || screen === 'jobs' || screen === 'users'
+
+  if (isStaff && isStaffingScreen) {
+    return <Navigate replace to={ROUTES.default} />
+  }
+
+  return (
+    <ManagementPage summary={screen === 'warehouses' ? context.summary : []}>
+      {screen === 'inventory' && (
+        <InventoryHub
+          key={context.inventoryTarget?.requestId ?? 'browse'}
+          focusTarget={context.inventoryTarget}
+          onOpenWarehouse={context.onOpenWarehouse}
+        />
+      )}
+      {screen === 'warehouses' && (
+        <WarehouseList
+          key={context.warehouseToOpen ?? 'list'}
+          initialWarehouseId={context.warehouseToOpen}
+        />
+      )}
+      {screen === 'fleet' && <VehicleList />}
+      {['deliveries', 'incoming-deliveries', 'outgoing-deliveries', 'delivery-history'].includes(
+        screen,
+      ) && (
+        <DeliveriesHub
+          key={`${screen}-${context.deliveryPurchaseOrderId || context.deliverySalesOrderId || 'all'}`}
+          initialTab={
+            screen === 'incoming-deliveries'
+              ? 'incoming'
+              : screen === 'delivery-history'
+                ? 'history'
+                : 'outgoing'
+          }
+          purchaseOrderId={context.deliveryPurchaseOrderId}
+          salesOrderId={context.deliverySalesOrderId}
+          arrangeOrder={context.arrangeDelivery}
+        />
+      )}
+      {(screen === 'purchases' || screen === 'suppliers') && (
+        <PurchasesView
+          key={screen}
+          section={screen === 'suppliers' ? 'suppliers' : 'orders'}
+          onNavigateToDeliveries={context.onNavigateFromPurchaseToDeliveries}
+        />
+      )}
+      {screen === 'orders' && (
+        <OrdersView
+          onNavigateToPurchases={context.onNavigateToPurchases}
+          onNavigateToDeliveries={context.onNavigateFromSalesOrderToDeliveries}
+          onNavigateToInventory={context.onNavigateToInventory}
+        />
+      )}
+      {screen === 'clients' && <ClientList />}
+      {screen === 'employees' && <EmployeeList />}
+      {screen === 'jobs' && <JobList />}
+      {screen === 'users' && <UserRolesList />}
+    </ManagementPage>
+  )
+}
+
+export function LegacyDashboardScreen() {
+  const { screen } = useParams()
+  if (!isNavItemKey(screen)) return <DashboardNotFound />
+  return <DashboardScreen screen={screen} />
+}
+
+export function DashboardNotFound() {
+  return (
+    <div className="flex flex-col items-start gap-3 py-8">
+      <h1 className="text-xl font-semibold">Page not found</h1>
+      <p className="text-sm text-muted-foreground">The page you requested does not exist.</p>
+      <Link className="text-sm font-medium underline underline-offset-4" to={ROUTES.default}>
+        Go to Inventory
+      </Link>
+    </div>
   )
 }
