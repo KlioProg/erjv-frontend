@@ -97,6 +97,8 @@ const destinations = [
   ['/deliveries/outgoing', 'Outgoing'],
   ['/deliveries/history', 'History'],
   ['/vehicles', 'Vehicles'],
+  ['/suppliers', 'Suppliers'],
+  ['/purchase-orders', 'Purchase Orders'],
 ] as const
 
 it.each(destinations)('opens %s directly with its sidebar link active', async (path, label) => {
@@ -207,6 +209,8 @@ it.each([
   ['incoming-deliveries', '/deliveries/incoming'],
   ['outgoing-deliveries', '/deliveries/outgoing'],
   ['delivery-history', '/deliveries/history'],
+  ['suppliers', '/suppliers'],
+  ['purchases', '/purchase-orders'],
 ])('redirects legacy %s bookmarks', async (key, path) => {
   mount(`/legacy/${key}`)
   await waitFor(() => expect(screen.getByTestId('path').textContent).toBe(path))
@@ -220,4 +224,30 @@ it('retains staff permissions on the warehouse list', async () => {
   await within(table).findByText(warehouse.name)
   expect(screen.queryByRole('button', { name: 'Register Warehouse' })).toBeNull()
   expect(within(table).queryByRole('button', { name: 'Edit' })).toBeNull()
+})
+
+it('navigates between purchasing pages with Back/Forward while keeping the shell and existing controls', async () => {
+  const user = userEvent.setup()
+  mount('/suppliers')
+  const navigation = screen.getByRole('navigation', { name: 'Main navigation' })
+  await screen.findByRole('heading', { name: 'Suppliers' })
+  expect(screen.getByRole('textbox', { name: 'Search suppliers' })).toBeTruthy()
+  await user.click(screen.getByRole('link', { name: 'Purchase Orders' }))
+  await screen.findByRole('heading', { name: 'Purchase Orders' })
+  expect(screen.getByTestId('path').textContent).toBe('/purchase-orders')
+  expect(screen.getByRole('textbox', { name: 'Search purchase orders' })).toBeTruthy()
+  await user.click(screen.getByRole('button', { name: /Received Orders/ }))
+  expect(await screen.findByText('No completed purchase orders found')).toBeTruthy()
+  await user.click(screen.getByRole('button', { name: 'Browser back' }))
+  await screen.findByRole('heading', { name: 'Suppliers' })
+  expect(screen.getByRole('link', { name: 'Suppliers' }).getAttribute('aria-current')).toBe('page')
+  await user.click(screen.getByRole('button', { name: /Archived Suppliers/ }))
+  expect(await screen.findByText('No archived suppliers found')).toBeTruthy()
+  await user.click(screen.getByRole('button', { name: 'Browser forward' }))
+  await screen.findByRole('heading', { name: 'Purchase Orders' })
+  expect(screen.getByRole('link', { name: 'Purchase Orders' }).getAttribute('aria-current')).toBe(
+    'page',
+  )
+  expect(screen.getByRole('navigation', { name: 'Main navigation' })).toBe(navigation)
+  expect(requests.every((request) => request.startsWith('get '))).toBe(true)
 })

@@ -25,19 +25,27 @@ export const ROUTES = {
   home: '/',
   customers: '/customers',
   salesOrders: '/sales-orders',
+  suppliers: '/suppliers',
+  purchaseOrders: '/purchase-orders',
+  staffDirectory: '/staff-directory',
+  jobPositions: '/job-positions',
+  userRoles: '/user-roles',
   inventory: '/inventory',
   warehouses: '/warehouses',
   vehicles: '/vehicles',
   incomingDeliveries: '/deliveries/incoming',
   outgoingDeliveries: '/deliveries/outgoing',
   deliveryHistory: '/deliveries/history',
-  legacyPrefix: '/legacy',
-  default: '/inventory',
 } as const
 
-const SCREEN_ROUTES: Partial<Record<NavItemKey, string>> = {
+const SCREEN_ROUTES: Record<Exclude<NavItemKey, 'deliveries'>, string> = {
   clients: ROUTES.customers,
   orders: ROUTES.salesOrders,
+  suppliers: ROUTES.suppliers,
+  purchases: ROUTES.purchaseOrders,
+  employees: ROUTES.staffDirectory,
+  jobs: ROUTES.jobPositions,
+  users: ROUTES.userRoles,
   inventory: ROUTES.inventory,
   warehouses: ROUTES.warehouses,
   fleet: ROUTES.vehicles,
@@ -52,17 +60,16 @@ export function warehouseDetailsPath(id: number): string {
 
 export function routeForScreen(screen: NavItemKey): string {
   if (screen === 'deliveries') return ROUTES.outgoingDeliveries
-  return SCREEN_ROUTES[screen] ?? `${ROUTES.legacyPrefix}/${screen}`
+  return SCREEN_ROUTES[screen]
 }
 
 export function screenFromPath(pathname: string): NavItemKey | undefined {
   const path = pathname.replace(/\/$/, '')
-  const screen = (Object.keys(SCREEN_ROUTES) as NavItemKey[]).find(
+  const screen = (Object.keys(SCREEN_ROUTES) as (keyof typeof SCREEN_ROUTES)[]).find(
     (key) => SCREEN_ROUTES[key] === path,
   )
   if (screen) return screen
   if (/^\/warehouses\/[^/]+$/.test(path)) return 'warehouses'
 
-  const legacyScreen = pathname.match(/^\/legacy\/([^/]+)\/?$/)?.[1]
-  return isNavItemKey(legacyScreen) ? legacyScreen : undefined
+  return undefined
 }

@@ -498,12 +498,13 @@ describe('inventory and global stock warnings', () => {
     const user = userEvent.setup()
     mountDashboard('/not-a-page')
     await screen.findByRole('heading', { name: 'Page not found' })
-    await user.click(screen.getByRole('link', { name: 'Go to Inventory' }))
+    await user.click(screen.getByRole('link', { name: 'Go to home' }))
     await screen.findByRole('heading', { name: 'Inventory' })
     expect(screen.getByTestId('route-location').textContent).toBe('/inventory')
   })
 
   it('redirects staff away from staffing URLs', async () => {
+    auth.isAdmin = false
     auth.isStaff = true
     mountDashboard('/legacy/employees')
     await screen.findByRole('heading', { name: 'Inventory' })

@@ -2,7 +2,6 @@ import { Link, useNavigate, useParams } from 'react-router'
 import { WarehouseInventory } from '@/components/operations/WarehouseInventory'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import { ManagementPage } from '@/components/ui/ManagementPage'
 import { Spinner } from '@/components/ui/spinner'
 import { useWarehouse } from '@/features/logistics/warehouses.hooks'
 import { getErrorMessage } from '@/lib/api-client'
@@ -16,7 +15,7 @@ export function WarehouseDetailsRoute() {
   const query = useWarehouse(validId ? id : undefined)
 
   return (
-    <ManagementPage summary={[]}>
+    <>
       {validId && query.data && !query.isError ? (
         <WarehouseInventory
           key={id}
@@ -46,6 +45,6 @@ export function WarehouseDetailsRoute() {
           )}
         </div>
       )}
-    </ManagementPage>
+    </>
   )
 }

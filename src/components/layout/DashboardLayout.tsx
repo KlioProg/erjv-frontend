@@ -37,11 +37,9 @@ import { StockNotifications } from './StockNotifications'
 import type { InventoryFocusTarget } from '@/features/logistics/stock-warnings'
 import { routeForScreen, type NavItemKey } from '@/routes'
 
-export type { NavItemKey } from '@/routes'
-
 type DashboardLayoutProps = {
-  onSelectTab: (tab: NavItemKey) => void
-  currentTab?: NavItemKey
+  onNavigate: () => void
+  currentScreen?: NavItemKey
   children: React.ReactNode
   onOpenInventory: (target: InventoryFocusTarget) => void
 }
@@ -52,7 +50,7 @@ type NavGroup = {
     key: NavItemKey
     label: string
     icon: React.ComponentType<{ className?: string }>
-    requiresAdmin?: boolean
+    requiresStaffAccess?: boolean
   }[]
 }
 
@@ -83,16 +81,16 @@ const NAV_GROUPS: NavGroup[] = [
   {
     title: 'Staffing & HR',
     items: [
-      { key: 'employees', label: 'Staff Directory', icon: Users, requiresAdmin: true },
-      { key: 'jobs', label: 'Job Positions', icon: Briefcase, requiresAdmin: true },
-      { key: 'users', label: 'User Roles & Access', icon: Shield, requiresAdmin: true },
+      { key: 'employees', label: 'Staff Directory', icon: Users, requiresStaffAccess: true },
+      { key: 'jobs', label: 'Job Positions', icon: Briefcase, requiresStaffAccess: true },
+      { key: 'users', label: 'User Roles & Access', icon: Shield, requiresStaffAccess: true },
     ],
   },
 ]
 
 export function DashboardLayout({
-  currentTab,
-  onSelectTab,
+  currentScreen,
+  onNavigate,
   children,
   onOpenInventory,
 }: DashboardLayoutProps) {
@@ -123,34 +121,34 @@ export function DashboardLayout({
     }, 700)
   }
 
-  const handleSelectTab = (tab: NavItemKey) => {
-    onSelectTab(tab)
+  const handleNavigate = () => {
+    onNavigate()
     void queryClient.invalidateQueries()
   }
 
   const displayName = user?.fullName || (user?.email ? user.email.split('@')[0] : 'User Account')
   const userInitial = displayName.charAt(0).toUpperCase()
 
-  // Filter out admin-only items if user is Staff
+  // Staffing pages are available to admins and managers.
   const visibleGroups = NAV_GROUPS.map((group) => ({
     ...group,
-    items: group.items.filter((item) => !item.requiresAdmin || isAdmin || isManager),
+    items: group.items.filter((item) => !item.requiresStaffAccess || isAdmin || isManager),
   })).filter((group) => group.items.length > 0)
 
   const deliveryView =
-    currentTab === 'incoming-deliveries'
+    currentScreen === 'incoming-deliveries'
       ? 'incoming'
-      : currentTab === 'delivery-history'
+      : currentScreen === 'delivery-history'
         ? 'history'
-        : currentTab === 'outgoing-deliveries' || currentTab === 'deliveries'
+        : currentScreen === 'outgoing-deliveries' || currentScreen === 'deliveries'
           ? 'outgoing'
           : null
   // Determine current section info
   const currentGroup = NAV_GROUPS.find((g) =>
-    g.items.some((item) => item.key === (deliveryView ? 'deliveries' : currentTab)),
+    g.items.some((item) => item.key === (deliveryView ? 'deliveries' : currentScreen)),
   )
   const currentItem = currentGroup?.items.find(
-    (item) => item.key === (deliveryView ? 'deliveries' : currentTab),
+    (item) => item.key === (deliveryView ? 'deliveries' : currentScreen),
   )
 
   return (
@@ -204,14 +202,8 @@ export function DashboardLayout({
                         <DeliveryNavigation
                           key={item.key}
                           view={deliveryView}
-                          onSelect={(view) => {
-                            handleSelectTab(
-                              view === 'incoming'
-                                ? 'incoming-deliveries'
-                                : view === 'history'
-                                  ? 'delivery-history'
-                                  : 'outgoing-deliveries',
-                            )
+                          onSelect={() => {
+                            handleNavigate()
                             setIsMobileOpen(false)
                           }}
                         />
@@ -223,7 +215,7 @@ export function DashboardLayout({
                         to={routeForScreen(item.key)}
                         end={item.key !== 'warehouses'}
                         onClick={() => {
-                          handleSelectTab(item.key)
+                          handleNavigate()
                           setIsMobileOpen(false)
                         }}
                         className={({ isActive }) =>
@@ -237,7 +229,7 @@ export function DashboardLayout({
                         <div className="flex items-center gap-3">
                           <Icon
                             className={`size-4 shrink-0 ${
-                              currentTab === item.key
+                              currentScreen === item.key
                                 ? 'text-primary'
                                 : 'text-muted-foreground group-hover:text-foreground'
                             }`}
@@ -245,7 +237,7 @@ export function DashboardLayout({
                           <span>{item.label}</span>
                         </div>
 
-                        {currentTab === item.key && item.key !== 'inventory' && (
+                        {currentScreen === item.key && item.key !== 'inventory' && (
                           <ChevronRight className="size-3.5 text-muted-foreground" />
                         )}
                       </NavLink>
