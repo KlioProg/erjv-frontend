@@ -698,7 +698,7 @@ describe('order to delivery workflow', () => {
     const user = userEvent.setup()
     const onSelect = vi.fn()
     render(
-      <MemoryRouter initialEntries={['/legacy/incoming-deliveries']}>
+      <MemoryRouter initialEntries={['/deliveries/incoming']}>
         <DeliveryNavigation view="incoming" onSelect={onSelect} />
       </MemoryRouter>,
     )

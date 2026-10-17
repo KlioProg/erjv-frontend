@@ -36,7 +36,6 @@ import type { Warehouse } from '@/features/logistics/warehouses.types'
 import type { StockItem } from '@/features/logistics/stock-items.types'
 import { getErrorMessage } from '@/lib/api-client'
 import { WarehouseModal } from './WarehouseModal'
-import { WarehouseInventory } from './WarehouseInventory'
 import { formatStockCents, parseStockCents, stockSortKey } from '@/features/logistics/stock-display'
 
 type WarehouseStockSummary = { products: number; units: bigint }
@@ -61,7 +60,7 @@ function summarizeWarehouseStock(items: StockItem[]): WarehouseStockSummary {
   return { products, units }
 }
 
-export function WarehouseList({ initialWarehouseId }: { initialWarehouseId?: number | null } = {}) {
+export function WarehouseList({ onOpenWarehouse }: { onOpenWarehouse: (id: number) => void }) {
   const [activeTab, setActiveTab] = useState<'ACTIVE' | 'ARCHIVED'>('ACTIVE')
   const warehousesQuery = useAllWarehouses()
   const stockQuery = useStockItems()
@@ -70,9 +69,6 @@ export function WarehouseList({ initialWarehouseId }: { initialWarehouseId?: num
   const { isAdmin, isManager } = useAuth()
   const canManage = isAdmin || isManager
   const [searchTerm, setSearchTerm] = useState('')
-  const [selectedWarehouseId, setSelectedWarehouseId] = useState<number | null>(
-    initialWarehouseId ?? null,
-  )
   const [editingWarehouse, setEditingWarehouse] = useState<Warehouse | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [warehouseToArchive, setWarehouseToArchive] = useState<Warehouse | null>(null)
@@ -91,7 +87,6 @@ export function WarehouseList({ initialWarehouseId }: { initialWarehouseId?: num
     () => allWarehouses.filter((warehouse) => warehouse.isActive === false),
     [allWarehouses],
   )
-  const selectedWarehouse = allWarehouses.find((warehouse) => warehouse.id === selectedWarehouseId)
   const warehouseTotals = useMemo(() => {
     const totals = new Map<number, { products: number; units: bigint | null }>()
     for (const stock of stockItems) {
@@ -181,7 +176,7 @@ export function WarehouseList({ initialWarehouseId }: { initialWarehouseId?: num
             <WarehouseIcon className="size-4 shrink-0 text-muted-foreground" />
             <OverflowValue
               value={row.name}
-              onActivate={() => setSelectedWarehouseId(row.id)}
+              onActivate={() => onOpenWarehouse(row.id)}
               className="h-auto min-h-8 p-0 text-left text-sm font-medium pointer-coarse:min-h-11"
             />
           </div>
@@ -284,14 +279,6 @@ export function WarehouseList({ initialWarehouseId }: { initialWarehouseId?: num
     })
   }
 
-  if (selectedWarehouse)
-    return (
-      <WarehouseInventory
-        warehouse={selectedWarehouse}
-        onBack={() => setSelectedWarehouseId(null)}
-      />
-    )
-
   if (warehousesQuery.isError || stockQuery.isError)
     return (
       <div
@@ -359,7 +346,7 @@ export function WarehouseList({ initialWarehouseId }: { initialWarehouseId?: num
         appearance="management"
         data={filteredWarehouses}
         columns={columns}
-        onRowClick={(warehouse) => setSelectedWarehouseId(warehouse.id)}
+        onRowClick={(warehouse) => onOpenWarehouse(warehouse.id)}
         rowClassName={() => 'hover:bg-accent focus-within:bg-accent'}
         isLoading={warehousesQuery.isLoading || stockQuery.isLoading}
         loadingMessage="Loading warehouses..."
@@ -443,7 +430,7 @@ export function WarehouseList({ initialWarehouseId }: { initialWarehouseId?: num
                 type="button"
                 size="sm"
                 onClick={() => {
-                  setSelectedWarehouseId(warehouseToArchive.id)
+                  onOpenWarehouse(warehouseToArchive.id)
                   closeArchiveDialog()
                 }}
               >

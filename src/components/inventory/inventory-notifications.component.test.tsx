@@ -500,14 +500,14 @@ describe('inventory and global stock warnings', () => {
     await screen.findByRole('heading', { name: 'Page not found' })
     await user.click(screen.getByRole('link', { name: 'Go to Inventory' }))
     await screen.findByRole('heading', { name: 'Inventory' })
-    expect(screen.getByTestId('route-location').textContent).toBe('/legacy/inventory')
+    expect(screen.getByTestId('route-location').textContent).toBe('/inventory')
   })
 
   it('redirects staff away from staffing URLs', async () => {
     auth.isStaff = true
     mountDashboard('/legacy/employees')
     await screen.findByRole('heading', { name: 'Inventory' })
-    expect(screen.getByTestId('route-location').textContent).toBe('/legacy/inventory')
+    expect(screen.getByTestId('route-location').textContent).toBe('/inventory')
     expect(screen.queryByRole('heading', { name: 'Staff Directory' })).toBeNull()
   })
 

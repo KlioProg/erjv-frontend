@@ -221,7 +221,7 @@ export function DashboardLayout({
                       <NavLink
                         key={item.key}
                         to={routeForScreen(item.key)}
-                        end
+                        end={item.key !== 'warehouses'}
                         onClick={() => {
                           handleSelectTab(item.key)
                           setIsMobileOpen(false)

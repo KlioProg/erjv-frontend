@@ -25,12 +25,18 @@ import { useStockItems } from '@/features/logistics/stock-items.hooks'
 import { useProducts } from '@/features/products/products.hooks'
 import { useAuth } from '@/features/auth/AuthContext'
 import type { InventoryFocusTarget } from '@/features/logistics/stock-warnings'
-import { isNavItemKey, ROUTES, routeForScreen, screenFromPath, type NavItemKey } from '@/routes'
+import {
+  isNavItemKey,
+  ROUTES,
+  routeForScreen,
+  screenFromPath,
+  warehouseDetailsPath,
+  type NavItemKey,
+} from '@/routes'
 
 type DashboardSummary = { label: string; value: ReactNode; hint: string }[]
 
 export type DashboardOutletContext = {
-  warehouseToOpen: number | null
   deliveryPurchaseOrderId?: number
   deliverySalesOrderId?: number
   arrangeDelivery: boolean
@@ -51,7 +57,6 @@ export type DashboardOutletContext = {
 export function MainDashboard() {
   const navigate = useNavigate()
   const location = useLocation()
-  const [warehouseToOpen, setWarehouseToOpen] = useState<number | null>(null)
   const [deliveryPurchaseOrderId, setDeliveryPurchaseOrderId] = useState<number | undefined>()
   const [deliverySalesOrderId, setDeliverySalesOrderId] = useState<number | undefined>()
   const [arrangeDelivery, setArrangeDelivery] = useState(false)
@@ -96,7 +101,6 @@ export function MainDashboard() {
 
   const clearNavigationContext = () => {
     setInventoryTarget(undefined)
-    setWarehouseToOpen(null)
     setDeliverySalesOrderId(undefined)
     setArrangeDelivery(false)
     setDeliveryPurchaseOrderId(undefined)
@@ -131,17 +135,13 @@ export function MainDashboard() {
     }
 
   const outletContext: DashboardOutletContext = {
-    warehouseToOpen,
     deliveryPurchaseOrderId,
     deliverySalesOrderId,
     arrangeDelivery,
     inventoryTarget,
     summary,
     onOpenInventory,
-    onOpenWarehouse: (id) => {
-      setWarehouseToOpen(id)
-      navigateToScreen('warehouses')
-    },
+    onOpenWarehouse: (id) => navigate(warehouseDetailsPath(id)),
     onNavigateToPurchases: () => navigateToScreen('purchases'),
     onNavigateFromPurchaseToDeliveries,
     onNavigateFromSalesOrderToDeliveries,
@@ -181,12 +181,7 @@ export function DashboardScreen({ screen }: { screen: NavItemKey }) {
           onOpenWarehouse={context.onOpenWarehouse}
         />
       )}
-      {screen === 'warehouses' && (
-        <WarehouseList
-          key={context.warehouseToOpen ?? 'list'}
-          initialWarehouseId={context.warehouseToOpen}
-        />
-      )}
+      {screen === 'warehouses' && <WarehouseList onOpenWarehouse={context.onOpenWarehouse} />}
       {screen === 'fleet' && <VehicleList />}
       {['deliveries', 'incoming-deliveries', 'outgoing-deliveries', 'delivery-history'].includes(
         screen,
@@ -230,6 +225,8 @@ export function DashboardScreen({ screen }: { screen: NavItemKey }) {
 export function LegacyDashboardScreen() {
   const { screen } = useParams()
   if (!isNavItemKey(screen)) return <DashboardNotFound />
+  const path = routeForScreen(screen)
+  if (!path.startsWith(`${ROUTES.legacyPrefix}/`)) return <Navigate replace to={path} />
   return <DashboardScreen screen={screen} />
 }
 

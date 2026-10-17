@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router'
+import { warehouseDetailsPath } from '@/routes'
 import {
   Warehouse as WarehouseIcon,
   Boxes,
@@ -30,6 +32,7 @@ type OperationsDashboardProps = {
 }
 
 export function OperationsDashboard({ onSwitchToStaffing }: OperationsDashboardProps) {
+  const navigate = useNavigate()
   const { user, logout } = useAuth()
   const { data: warehouses = [] } = useWarehouses()
   const { data: stockItems = [] } = useStockItems()
@@ -37,7 +40,7 @@ export function OperationsDashboard({ onSwitchToStaffing }: OperationsDashboardP
   const { data: products = [] } = useProducts()
 
   const [activeTab, setActiveTab] = useState<string>('inventory')
-  const [warehouseToOpen, setWarehouseToOpen] = useState<number | null>(null)
+  const onOpenWarehouse = (id: number) => navigate(warehouseDetailsPath(id))
 
   const totalStockUnits = stockItems.reduce((acc, s) => acc + parseFloat(s.quantity), 0)
   const availableVehiclesCount = vehicles.filter((v) => v.status === 'AVAILABLE').length
@@ -175,7 +178,6 @@ export function OperationsDashboard({ onSwitchToStaffing }: OperationsDashboardP
         <Tabs
           value={activeTab}
           onValueChange={(tab) => {
-            setWarehouseToOpen(null)
             setActiveTab(tab)
           }}
           className="w-full flex flex-col gap-4"
@@ -209,16 +211,11 @@ export function OperationsDashboard({ onSwitchToStaffing }: OperationsDashboardP
           </div>
 
           <TabsContent value="inventory" className="focus-visible:outline-none">
-            <InventoryItemCatalog
-              onOpenWarehouse={(id) => {
-                setWarehouseToOpen(id)
-                setActiveTab('warehouses')
-              }}
-            />
+            <InventoryItemCatalog onOpenWarehouse={onOpenWarehouse} />
           </TabsContent>
 
           <TabsContent value="warehouses" className="focus-visible:outline-none">
-            <WarehouseList key={warehouseToOpen ?? 'list'} initialWarehouseId={warehouseToOpen} />
+            <WarehouseList onOpenWarehouse={onOpenWarehouse} />
           </TabsContent>
 
           <TabsContent value="fleet" className="focus-visible:outline-none">

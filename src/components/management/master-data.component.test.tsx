@@ -50,7 +50,7 @@ const surfaces = [
   {
     title: 'Warehouses',
     endpoint: '/warehouses',
-    ui: () => <WarehouseList />,
+    ui: () => <WarehouseList onOpenWarehouse={vi.fn()} />,
     search: 'Search warehouses',
     tabs: 'Warehouses',
     nameField: /Warehouse Name/,
@@ -255,13 +255,17 @@ describe('neutral master-data tables', () => {
   it('retains warehouse stock safeguards and never treats zero stock as archived', async () => {
     warehouseQuantity = '0.05'
     const user = userEvent.setup()
-    mount(<WarehouseList />)
+    const onOpenWarehouse = vi.fn()
+    mount(<WarehouseList onOpenWarehouse={onOpenWarehouse} />)
     const row = (await screen.findByText('Active Record')).closest('tr')!
     await user.click(within(row).getByRole('button', { name: 'Archive' }))
     expect(await screen.findByRole('heading', { name: 'Cannot Archive Warehouse' })).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Archive Warehouse' })).toBeNull()
     expect(requests.filter(({ method }) => method === 'delete')).toHaveLength(0)
     expect(records['/warehouses'][0].isActive).toBe(true)
+    await user.click(screen.getByRole('button', { name: 'View Inventory' }))
+    expect(onOpenWarehouse).toHaveBeenCalledWith(records['/warehouses'][0].id)
+    expect(screen.queryByRole('dialog')).toBeNull()
   })
 
   it('preserves read-only customer and warehouse permissions', async () => {
@@ -272,7 +276,7 @@ describe('neutral master-data tables', () => {
     expect(screen.queryByRole('button', { name: 'Edit' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Archive' })).toBeNull()
     view.unmount()
-    mount(<WarehouseList />)
+    mount(<WarehouseList onOpenWarehouse={vi.fn()} />)
     await screen.findByText('Active Record')
     expect(screen.queryByRole('button', { name: 'Edit' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Archive' })).toBeNull()
