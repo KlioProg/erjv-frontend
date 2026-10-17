@@ -35,7 +35,7 @@ export function StatusTabNav({ tabs, activeTab, onTabChange, className = '' }: S
             >
               {tab.icon}
               <span>{tab.label}</span>
-              <span className="min-w-5 rounded-sm bg-muted px-1 text-center text-xs font-medium leading-5 tabular-nums text-foreground group-data-[state=active]:bg-primary-contrast group-data-[state=active]:text-primary-contrast-foreground">
+              <span className="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-sm bg-muted px-1 text-center text-xs font-medium leading-none tabular-nums text-foreground group-data-[state=active]:bg-primary-contrast group-data-[state=active]:text-primary-contrast-foreground">
                 {tab.count}
               </span>
             </button>

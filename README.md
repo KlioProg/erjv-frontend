@@ -121,7 +121,7 @@ npm run build
 npm run preview
 ```
 
-For Vercel, import this repository as a separate **Vite** project with its repository root, Node 22, build command `npm run build`, and output directory `dist`. Set `VITE_API_BASE_URL` for Production to the backend Production HTTPS origin. If using a staging Preview, set its Preview value to the backend staging branch HTTPS origin and add the frontend Preview origin to the backend Preview CORS allowlist. Rebuild after changing the value because Vite embeds it into the browser bundle.
+For Vercel, import this repository as a separate **Vite** project with its repository root, Node 22, build command `npm run build`, and output directory `dist`. The checked-in `vercel.json` rewrites frontend routes to the SPA entry point while leaving API paths and static assets untouched. Set `VITE_API_BASE_URL` for Production to the backend Production HTTPS origin. If using a staging Preview, set its Preview value to the backend staging branch HTTPS origin and add the frontend Preview origin to the backend Preview CORS allowlist. Rebuild after changing the value because Vite embeds it into the browser bundle.
 
 The hosted demo has no self-service password reset. An authenticated administrator can change a user's password through the backend `PATCH /users/:id/password` route; account recovery requires administrator help. The account profile dialog is read-only until profile fields have a persistent backend API. “Remember email” stores the email address only; the browser session timer remains one day.
 

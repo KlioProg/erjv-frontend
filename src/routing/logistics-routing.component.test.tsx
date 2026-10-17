@@ -68,6 +68,7 @@ function mount(path: string) {
         <output data-testid="path">{location.pathname}</output>
         <button onClick={() => navigate(-1)}>Browser back</button>
         <button onClick={() => navigate(1)}>Browser forward</button>
+        <button onClick={() => navigate('?filter=all')}>Update query</button>
       </>
     )
   }
@@ -91,6 +92,8 @@ function mount(path: string) {
 }
 
 const destinations = [
+  ['/customers', 'Customers'],
+  ['/sales-orders', 'Sales Orders'],
   ['/inventory', 'Inventory'],
   ['/warehouses', 'Warehouses'],
   ['/deliveries/incoming', 'Incoming'],
@@ -211,6 +214,8 @@ it.each([
   ['delivery-history', '/deliveries/history'],
   ['suppliers', '/suppliers'],
   ['purchases', '/purchase-orders'],
+  ['clients', '/customers'],
+  ['orders', '/sales-orders'],
 ])('redirects legacy %s bookmarks', async (key, path) => {
   mount(`/legacy/${key}`)
   await waitFor(() => expect(screen.getByTestId('path').textContent).toBe(path))
@@ -224,6 +229,54 @@ it('retains staff permissions on the warehouse list', async () => {
   await within(table).findByText(warehouse.name)
   expect(screen.queryByRole('button', { name: 'Register Warehouse' })).toBeNull()
   expect(within(table).queryByRole('button', { name: 'Edit' })).toBeNull()
+})
+
+it('uses the application breadcrumb for client-side section navigation', async () => {
+  mount('/vehicles')
+  const sidebar = screen.getByRole('navigation', { name: 'Main navigation' })
+  const breadcrumb = screen.getByRole('navigation', { name: 'Application breadcrumb' })
+  const link = within(breadcrumb).getByRole('link', { name: 'Logistics' })
+  expect(link.getAttribute('href')).toBe('/inventory')
+  await userEvent.setup().click(link)
+  await screen.findByRole('heading', { name: 'Inventory' })
+  expect(screen.getByRole('navigation', { name: 'Main navigation' })).toBe(sidebar)
+  expect(breadcrumb.isConnected).toBe(true)
+})
+
+it('keeps warehouse summaries below status navigation and outside the shared heading', async () => {
+  mount('/warehouses')
+  await screen.findByRole('heading', { name: 'Warehouses' })
+  const summary = screen.getByText('Warehouse Locations')
+  const activeTab = screen.getByRole('button', { name: /Active Warehouses/ })
+  expect(summary.closest('header')).toBeNull()
+  expect(activeTab.compareDocumentPosition(summary) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  expect(
+    summary.compareDocumentPosition(screen.getByRole('textbox', { name: 'Search warehouses' })) &
+      Node.DOCUMENT_POSITION_FOLLOWING,
+  ).toBeTruthy()
+})
+
+it('starts new management routes at the top without resetting local tabs, query updates, or history', async () => {
+  const scrollTo = vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
+  try {
+    const user = userEvent.setup()
+    mount('/suppliers')
+    expect(scrollTo).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('link', { name: 'Purchase Orders' }))
+    expect(scrollTo).toHaveBeenLastCalledWith({ top: 0, left: 0, behavior: 'instant' })
+    scrollTo.mockClear()
+    await user.click(screen.getByRole('button', { name: /Received Orders/ }))
+    await user.click(screen.getByRole('button', { name: 'Update query' }))
+    expect(scrollTo).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: 'Browser back' }))
+    await user.click(screen.getByRole('button', { name: 'Browser back' }))
+    await screen.findByRole('heading', { name: 'Suppliers' })
+    await user.click(screen.getByRole('button', { name: 'Browser forward' }))
+    await screen.findByRole('heading', { name: 'Purchase Orders' })
+    expect(scrollTo).not.toHaveBeenCalled()
+  } finally {
+    scrollTo.mockRestore()
+  }
 })
 
 it('navigates between purchasing pages with Back/Forward while keeping the shell and existing controls', async () => {

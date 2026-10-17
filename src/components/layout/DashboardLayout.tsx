@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { NavLink } from 'react-router'
+import { Link, NavLink } from 'react-router'
 import {
   Boxes,
   Warehouse as WarehouseIcon,
@@ -334,17 +334,27 @@ export function DashboardLayout({
               <Menu className="size-5" />
             </Button>
 
-            <div className="flex flex-col select-none">
+            <nav aria-label="Application breadcrumb" className="flex flex-col select-none">
               <div className="flex items-center gap-2 text-ui text-muted-foreground">
-                <span className="font-medium">{currentGroup?.title}</span>
-                <span>/</span>
-                <span className="font-medium text-foreground">
+                {currentGroup && (
+                  <>
+                    <Link
+                      className="font-medium hover:text-foreground"
+                      to={routeForScreen(currentGroup.items[0].key)}
+                      onClick={handleNavigate}
+                    >
+                      {currentGroup.title}
+                    </Link>
+                    <span>/</span>
+                  </>
+                )}
+                <span aria-current="page" className="font-medium text-foreground">
                   {deliveryView
                     ? `Deliveries / ${deliveryView === 'incoming' ? 'Incoming' : deliveryView === 'outgoing' ? 'Outgoing' : 'History'}`
                     : currentItem?.label}
                 </span>
               </div>
-            </div>
+            </nav>
           </div>
 
           <StockNotifications

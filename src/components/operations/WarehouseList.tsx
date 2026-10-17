@@ -1,4 +1,4 @@
-import { PageHeader, PageToolbar } from '@/components/ui/ManagementPage'
+import { PageHeader, PageOverview, PageToolbar } from '@/components/ui/ManagementPage'
 import { useMemo, useRef, useState } from 'react'
 import {
   AlertTriangle,
@@ -317,6 +317,7 @@ export function WarehouseList({ onOpenWarehouse }: { onOpenWarehouse: (id: numbe
           bannerDescription="Archived warehouses retain their inventory records and can be restored."
         />
       </div>
+      <PageOverview />
       <PageToolbar>
         <div className="relative w-full sm:max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />

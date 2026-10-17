@@ -3,6 +3,10 @@
 /* Match dark utilities to the existing token selector, keeping the app light under a dark OS. */
 @custom-variant dark (&:where(.dark, .dark *));
 
+html {
+  scrollbar-gutter: stable;
+}
+
 @font-face {
   font-family: 'Inter';
   src: url('/fonts/inter/InterVariable.woff2') format('woff2');

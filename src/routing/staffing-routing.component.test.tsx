@@ -171,6 +171,31 @@ it('has a canonical non-legacy route for every current navigation key', () => {
   for (const key of NAV_ITEM_KEYS) expect(routeForScreen(key)).not.toContain('/legacy/')
 })
 
+it('intercepts internal links and keeps providers and shell-level fetching stable on history navigation', async () => {
+  const user = userEvent.setup()
+  mount('/staff-directory')
+  await screen.findByRole('heading', { name: 'Staff Directory' })
+  const navigation = screen.getByRole('navigation', { name: 'Main navigation' })
+  const documentRoot = document.documentElement
+  const link = within(navigation).getByRole('link', { name: 'Job Positions' })
+  let intercepted = false
+  const observeClick = (event: MouseEvent) => { intercepted = event.defaultPrevented }
+  document.addEventListener('click', observeClick)
+  try { await user.click(link) } finally { document.removeEventListener('click', observeClick) }
+  await screen.findByRole('heading', { name: 'Job Positions' })
+  expect(intercepted).toBe(true)
+  const shellRequests = () => requests.filter((request) => /^get \/(warehouses|stock-items|inventory-items)$/.test(request))
+  const beforeHistory = shellRequests()
+  window.history.back()
+  await screen.findByRole('heading', { name: 'Staff Directory' })
+  window.history.forward()
+  await screen.findByRole('heading', { name: 'Job Positions' })
+  expect(shellRequests()).toEqual(beforeHistory)
+  expect(requests.filter((request) => request === 'get /auth/profile')).toHaveLength(1)
+  expect(document.documentElement).toBe(documentRoot)
+  expect(screen.getByRole('navigation', { name: 'Main navigation' })).toBe(navigation)
+})
+
 it('loads a staffing URL again after a fresh application mount', async () => {
   const first = mount('/job-positions')
   await screen.findByRole('heading', { name: 'Job Positions' })

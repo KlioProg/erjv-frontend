@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react'
-import { Outlet, useLocation, useNavigate } from 'react-router'
+import { useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { Outlet, useLocation, useNavigate, useNavigationType } from 'react-router'
 import { ManagementPage } from '@/components/ui/ManagementPage'
 import { DashboardLayout } from '../layout/DashboardLayout'
 import { useWarehouses } from '@/features/logistics/warehouses.hooks'
@@ -27,6 +27,15 @@ export type DashboardOutletContext = {
 export function MainDashboard() {
   const navigate = useNavigate()
   const location = useLocation()
+  const navigationType = useNavigationType()
+  const previousPath = useRef(location.pathname)
+  useLayoutEffect(() => {
+    // Leave POP navigation to the browser's native scroll restoration.
+    if (previousPath.current !== location.pathname && navigationType !== 'POP') {
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' })
+    }
+    previousPath.current = location.pathname
+  }, [location.pathname, navigationType])
   const [deliveryPurchaseOrderId, setDeliveryPurchaseOrderId] = useState<number | undefined>()
   const [deliverySalesOrderId, setDeliverySalesOrderId] = useState<number | undefined>()
   const [arrangeDelivery, setArrangeDelivery] = useState(false)
