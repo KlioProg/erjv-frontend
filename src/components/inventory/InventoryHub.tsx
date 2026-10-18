@@ -1,11 +1,14 @@
 import { PageHeader } from '@/components/ui/ManagementPage'
 import { InventoryItemCatalog } from './InventoryItemCatalog'
-import type { InventoryFocusTarget } from '@/features/logistics/stock-warnings'
+import type { InventoryNavigationTarget } from '@/features/logistics/stock-warnings'
 
 export function InventoryHub({
   onOpenWarehouse,
   focusTarget,
-}: { onOpenWarehouse?: (warehouseId: number) => void; focusTarget?: InventoryFocusTarget } = {}) {
+}: {
+  onOpenWarehouse?: (warehouseId: number) => void
+  focusTarget?: InventoryNavigationTarget
+} = {}) {
   return (
     <section aria-labelledby="inventory-heading" className="flex min-w-0 flex-col gap-4">
       <PageHeader

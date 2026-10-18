@@ -1,6 +1,15 @@
+import { useRef, useState } from 'react'
 import { formatProductUnit } from '@/lib/product-unit'
 import { AlertTriangle, Bell, CircleAlert } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -9,17 +18,38 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
 } from '@/components/ui/dropdown-menu'
 import { useStockWarnings } from '@/features/logistics/stock-warnings.hooks'
 import { formatStockCents } from '@/features/logistics/stock-display'
-import type { InventoryFocusTarget } from '@/features/logistics/stock-warnings'
+import {
+  filterStockWarnings,
+  type InventoryNavigationTarget,
+  type StockWarningFilter,
+} from '@/features/logistics/stock-warnings'
 
 export function StockNotifications({
   onOpenInventory,
 }: {
-  onOpenInventory: (target: InventoryFocusTarget) => void
+  onOpenInventory: (target: InventoryNavigationTarget) => void
 }) {
-  const { warnings, loading, unavailable, refreshing, refresh } = useStockWarnings()
+  const { warnings, warehouses, loading, unavailable, refreshing, refresh } = useStockWarnings()
+  const [warehouseId, setWarehouseId] = useState('ALL')
+  const warehouseTrigger = useRef<HTMLButtonElement>(null)
+  const [warningFilter, setWarningFilter] = useState<StockWarningFilter>('ALL')
+  const warehouse = warehouses.find((item) => String(item.id) === warehouseId)
+  const scope = { warningFilter, warehouseId: warehouse?.id }
+  const filtered = filterStockWarnings(warnings, scope)
+  const preview = filtered.slice(0, 6)
+  const emptyMessage =
+    warningFilter === 'LOW'
+      ? 'No low-stock items can be identified without configured reorder thresholds.'
+      : warningFilter === 'OUT'
+        ? 'No out-of-stock items' + (warehouse ? ' for the selected warehouse.' : '.')
+        : warehouse
+          ? 'No warnings for the selected warehouse.'
+          : 'No stock warnings.'
   return (
     <DropdownMenu
       onOpenChange={(open) => {
@@ -54,6 +84,22 @@ export function StockNotifications({
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
+        onFocus={(event) => {
+          if (event.target === event.currentTarget && warehouseTrigger.current) {
+            event.preventDefault()
+            warehouseTrigger.current.focus()
+          }
+        }}
+        onKeyDown={(event) => {
+          if (
+            warehouseTrigger.current &&
+            (event.key === 'ArrowUp' || (event.key === 'Tab' && event.shiftKey)) &&
+            event.target === event.currentTarget.querySelector('[role="menuitemradio"]')
+          ) {
+            event.preventDefault()
+            warehouseTrigger.current.focus()
+          }
+        }}
         className="max-h-[min(70dvh,32rem)] w-[min(24rem,calc(100vw-2rem))] overflow-y-auto"
       >
         <DropdownMenuGroup>
@@ -65,6 +111,68 @@ export function StockNotifications({
               </span>
             )}
           </DropdownMenuLabel>
+          {!loading && !unavailable && (
+            <>
+              {warehouses.length > 1 && (
+                <Select
+                  value={warehouse ? String(warehouse.id) : 'ALL'}
+                  onValueChange={setWarehouseId}
+                >
+                  <SelectTrigger
+                    ref={warehouseTrigger}
+                    aria-label="Warning warehouse"
+                    onKeyDown={(event) => {
+                      if (event.key === 'Tab') {
+                        event.preventDefault()
+                        event.stopPropagation()
+                        event.currentTarget
+                          .closest('[role="menu"]')
+                          ?.querySelector<HTMLElement>('[role="menuitemradio"]')
+                          ?.focus()
+                      }
+                    }}
+                    className="mx-2 mb-2 w-[calc(100%-1rem)] h-9"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      <SelectItem value="ALL">All Warehouses</SelectItem>
+                      {warehouses.map((item) => (
+                        <SelectItem key={item.id} value={String(item.id)}>
+                          {item.name}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              )}
+              <DropdownMenuRadioGroup
+                aria-label="Warning status"
+                value={warningFilter}
+                onValueChange={(value) => setWarningFilter(value as StockWarningFilter)}
+                className="flex flex-wrap"
+              >
+                {(
+                  [
+                    ['ALL', 'All warnings'],
+                    ['OUT', 'Out of stock'],
+                    ['LOW', 'Low stock'],
+                  ] as const
+                ).map(([value, label]) => (
+                  <DropdownMenuRadioItem
+                    key={value}
+                    value={value}
+                    onSelect={(event) => event.preventDefault()}
+                    className="text-xs"
+                  >
+                    {label}
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+              <DropdownMenuSeparator />
+            </>
+          )}
           {unavailable ? (
             <>
               <p role="alert" className="px-2 py-3 text-xs text-destructive">
@@ -83,12 +191,12 @@ export function StockNotifications({
             <p role="status" className="px-2 py-3 text-xs text-muted-foreground">
               Loading stock warnings...
             </p>
-          ) : warnings.length === 0 ? (
+          ) : filtered.length === 0 ? (
             <p role="status" className="px-2 py-3 text-xs text-muted-foreground">
-              No out-of-stock locations found.
+              {emptyMessage}
             </p>
           ) : (
-            warnings.map((warning) => (
+            preview.map((warning) => (
               <DropdownMenuItem
                 key={warning.id}
                 disabled={refreshing}
@@ -126,15 +234,38 @@ export function StockNotifications({
                     }
                   >
                     {warning.severity === 'OUT' ? 'Out of stock' : 'Low stock'}
+                    {warning.severity === 'LOW' && warning.reorderThresholdCents !== undefined && (
+                      <>
+                        {' '}
+                        · Reorder at {formatStockCents(warning.reorderThresholdCents)}{' '}
+                        {formatProductUnit(warning.unit)}
+                      </>
+                    )}
                   </span>
                 </div>
               </DropdownMenuItem>
             ))
           )}
         </DropdownMenuGroup>
+        {!loading && !unavailable && (
+          <>
+            {filtered.length > preview.length && (
+              <p className="px-2 py-1 text-xs text-muted-foreground">
+                Showing {preview.length} of {filtered.length} warnings
+              </p>
+            )}
+            <DropdownMenuSeparator />
+            <DropdownMenuGroup>
+              <DropdownMenuItem disabled={refreshing} onSelect={() => onOpenInventory(scope)}>
+                View All
+              </DropdownMenuItem>
+            </DropdownMenuGroup>
+          </>
+        )}
         <DropdownMenuSeparator />
         <p className="px-2 py-2 text-xs text-muted-foreground">
-          Warnings remain until stock changes. Low-stock alerts need configured reorder thresholds.
+          Low-stock detection is unavailable because warehouse reorder thresholds are not
+          configured. Quantities shown are physical stock.
         </p>
       </DropdownMenuContent>
     </DropdownMenu>

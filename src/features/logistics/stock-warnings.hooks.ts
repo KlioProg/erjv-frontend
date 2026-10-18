@@ -20,6 +20,7 @@ export function useStockWarnings() {
   )
   return {
     warnings,
+    warehouses: (warehouses.data ?? []).filter((warehouse) => warehouse.isActive),
     loading,
     unavailable,
     refreshing: products.isFetching || stocks.isFetching || warehouses.isFetching,

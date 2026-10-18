@@ -5,6 +5,9 @@ import { parseStockCents } from './stock-display.ts'
 
 export type StockCondition = 'OUT' | 'LOW' | 'NORMAL' | 'UNKNOWN'
 export type InventoryFocusTarget = { productId: number; warehouseId: number }
+export type StockWarningFilter = 'ALL' | 'OUT' | 'LOW'
+export type InventoryWarningTarget = { warningFilter: StockWarningFilter; warehouseId?: number }
+export type InventoryNavigationTarget = InventoryFocusTarget | InventoryWarningTarget
 export type StockWarning = InventoryFocusTarget & {
   id: string
   productName: string
@@ -12,6 +15,18 @@ export type StockWarning = InventoryFocusTarget & {
   unit: string
   quantityCents: bigint
   severity: 'OUT' | 'LOW'
+  reorderThresholdCents?: bigint
+}
+
+export function filterStockWarnings(
+  warnings: StockWarning[],
+  { warningFilter, warehouseId }: InventoryWarningTarget,
+): StockWarning[] {
+  return warnings.filter(
+    (warning) =>
+      (warningFilter === 'ALL' || warning.severity === warningFilter) &&
+      (warehouseId === undefined || warning.warehouseId === warehouseId),
+  )
 }
 
 /** LOW is valid only with an authoritative threshold; today's API supplies none. */

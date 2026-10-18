@@ -9,6 +9,8 @@ import { AppRoutes } from '@/routing/AppRoutes'
 import { InventoryHub } from './InventoryHub'
 import { WarehouseInventory } from '@/components/operations/WarehouseInventory'
 import { StockNotifications } from '@/components/layout/StockNotifications'
+import { useCompleteIncomingDelivery } from '@/features/logistics/incoming-deliveries.hooks'
+import { useCompleteOutgoingDelivery } from '@/features/logistics/outgoing-deliveries.hooks'
 import type { InventoryItemResponse } from '@/features/products/products.types'
 import type { StockItemWithRelations } from '@/features/logistics/stock-items.types'
 
@@ -104,6 +106,7 @@ function mountDashboard(initialEntry = '/') {
   )
 }
 beforeEach(() => {
+  warehouses[1].isActive = true
   failPrice = false
   priceGate = undefined
   requests = []
@@ -152,6 +155,14 @@ beforeEach(() => {
               : url === '/warehouses'
                 ? warehouses.filter((w) => w.isActive)
                 : []
+    } else if (
+      url === '/incoming-deliveries/1/complete' ||
+      url === '/outgoing-deliveries/1/complete'
+    ) {
+      stocks = stocks.map((item) =>
+        item.id === 1 ? { ...item, quantity: url.startsWith('/incoming') ? '5' : '0' } : item,
+      )
+      data = { id: 1, deliveryNumber: 'TEST-MOVEMENT' }
     } else if (url.startsWith('/inventory-items/') && method === 'delete') {
       if (failArchive)
         throw { isAxiosError: true, response: { status: 409, data: { message: 'Archive failed' } } }
@@ -188,6 +199,108 @@ afterEach(() => {
 })
 
 describe('inventory and global stock warnings', () => {
+  it('lets keyboard users change the warehouse and return to warning categories', async () => {
+    const user = userEvent.setup()
+    mount(<StockNotifications onOpenInventory={vi.fn()} />)
+    const bell = await screen.findByRole('button', { name: /2 unresolved/ })
+    bell.focus()
+    await user.keyboard('{Enter}')
+    const selector = screen.getByRole('combobox', { name: 'Warning warehouse' })
+    expect(document.activeElement).toBe(selector)
+    await user.keyboard('{ArrowDown}{End}{Enter}')
+    expect(selector.textContent).toContain('Main Warehouse')
+    await user.tab()
+    expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: 'All warnings' }))
+    await user.tab({ shift: true })
+    expect(document.activeElement).toBe(selector)
+  })
+
+  it('refreshes notifications after receiving and outgoing completion through the existing mutation hooks', async () => {
+    function Movements() {
+      const receive = useCompleteIncomingDelivery()
+      const deliver = useCompleteOutgoingDelivery()
+      return (
+        <>
+          <button onClick={() => receive.mutate(1)}>Test receive</button>
+          <button onClick={() => deliver.mutate(1)}>Test complete delivery</button>
+          <StockNotifications onOpenInventory={vi.fn()} />
+        </>
+      )
+    }
+    const user = userEvent.setup()
+    mount(<Movements />)
+    await screen.findByRole('button', { name: /2 unresolved/ })
+    await user.click(screen.getByRole('button', { name: 'Test receive' }))
+    await screen.findByRole('button', { name: /1 unresolved/ })
+    await user.click(screen.getByRole('button', { name: 'Test complete delivery' }))
+    await screen.findByRole('button', { name: /2 unresolved/ })
+    expect(requests.some((request) => request.url === '/incoming-deliveries/1/complete')).toBe(true)
+    expect(requests.some((request) => request.url === '/outgoing-deliveries/1/complete')).toBe(true)
+  })
+
+  it('hides the warehouse selector for one active warehouse and provides honest empty category states', async () => {
+    warehouses[1].isActive = false
+    stocks = stocks.map((item) => ({ ...item, quantity: '50', reservedQuantity: '50' }))
+    const user = userEvent.setup()
+    mount(<StockNotifications onOpenInventory={vi.fn()} />)
+    await user.click(await screen.findByRole('button', { name: /0 unresolved/ }))
+    expect(screen.queryByRole('combobox', { name: 'Warning warehouse' })).toBeNull()
+    expect(screen.getByRole('status').textContent).toContain('No stock warnings')
+    await user.click(screen.getByRole('menuitemradio', { name: 'Out of stock' }))
+    expect(screen.getByRole('status').textContent).toContain('No out-of-stock items')
+    await user.click(screen.getByRole('menuitemradio', { name: 'Low stock' }))
+    expect(screen.getByRole('status').textContent).toContain(
+      'without configured reorder thresholds',
+    )
+  })
+
+  it('filters warnings by active warehouse and opens Inventory with the same warning scope', async () => {
+    stocks.push(stock(10, 3, 2, '0'))
+    const user = userEvent.setup()
+    mountDashboard('/customers')
+    await user.click(
+      await screen.findByRole('button', { name: /Stock notifications, 3 unresolved/ }),
+    )
+    await user.click(screen.getByRole('combobox', { name: 'Warning warehouse' }))
+    await user.click(await screen.findByRole('option', { name: 'Main Warehouse' }))
+    expect(screen.queryByRole('menuitem', { name: /Out of stock: Beta Mixed/ })).toBeNull()
+    expect(
+      screen.getByRole('menuitem', { name: /Out of stock: Gamma Small, Main Warehouse/ }),
+    ).toBeTruthy()
+    await user.click(screen.getByRole('menuitem', { name: 'View All' }))
+    await screen.findByRole('heading', { name: 'Inventory' })
+    expect(screen.getByRole('combobox', { name: 'Warning warehouse' }).textContent).toContain(
+      'Main Warehouse',
+    )
+    expect(screen.queryByText('Beta Mixed')).toBeNull()
+    expect(screen.getByRole('region', { name: 'Stock by location for Gamma Small' })).toBeTruthy()
+  })
+
+  it('limits the warning preview and distinguishes unavailable thresholds from zero stock', async () => {
+    products = Array.from({ length: 9 }, (_, i) => product(i + 1, `Warning ${i + 1}`))
+    stocks = products.map((p) => stock(p.id, p.id, 1, '0'))
+    const user = userEvent.setup()
+    mount(<StockNotifications onOpenInventory={vi.fn()} />)
+    await user.click(await screen.findByRole('button', { name: /9 unresolved/ }))
+    expect(screen.getAllByRole('menuitem', { name: /Out of stock:/ })).toHaveLength(6)
+    expect(screen.getByText('Showing 6 of 9 warnings')).toBeTruthy()
+    await user.click(screen.getByRole('menuitemradio', { name: 'Low stock' }))
+    expect(screen.getByRole('status').textContent).toContain('No low-stock items')
+    expect(screen.getByText(/Low-stock detection is unavailable/)).toBeTruthy()
+    expect(screen.queryByRole('menuitem', { name: /Out of stock:/ })).toBeNull()
+  })
+
+  it('shows warehouse-specific and overall empty states without fabricating unallocated stock', async () => {
+    const user = userEvent.setup()
+    mount(<StockNotifications onOpenInventory={vi.fn()} />)
+    await user.click(await screen.findByRole('button', { name: /2 unresolved/ }))
+    await user.click(screen.getByRole('combobox', { name: 'Warning warehouse' }))
+    await user.click(await screen.findByRole('option', { name: 'Main Warehouse' }))
+    expect(screen.getByRole('status').textContent).toContain(
+      'No warnings for the selected warehouse',
+    )
+  })
+
   it('edits only the wholesale price inline, validates decimals and saves exact zero with Enter', async () => {
     const user = userEvent.setup()
     products[0].unit = 'piece'
@@ -439,7 +552,7 @@ describe('inventory and global stock warnings', () => {
       product(index + 1, `Product ${String(index + 1).padStart(2, '0')}`),
     )
     stocks = products.flatMap((p) => [
-      stock(p.id * 2, p.id, 1, '0'),
+      stock(p.id * 2, p.id, 1, p.id === 15 ? '0' : '1'),
       stock(p.id * 2 + 1, p.id, 2, '100'),
     ])
     const user = userEvent.setup()
@@ -451,7 +564,7 @@ describe('inventory and global stock warnings', () => {
       }),
     )
     await user.click(
-      await screen.findByRole('button', { name: /Stock notifications, 15 unresolved/ }),
+      await screen.findByRole('button', { name: /Stock notifications, 1 unresolved/ }),
     )
     const alert = await screen.findByRole('menuitem', { name: /Out of stock: Product 15, Store/ })
     await waitFor(() => expect(alert.getAttribute('data-disabled')).toBeNull())
@@ -461,7 +574,7 @@ describe('inventory and global stock warnings', () => {
     await waitFor(() => expect(document.activeElement?.id).toBe('inventory-location-15-1'))
     expect(screen.queryByText('Product 01')).toBeNull()
     expect(
-      screen.getByRole('button', { name: 'Stock notifications, 15 unresolved warnings' }),
+      screen.getByRole('button', { name: 'Stock notifications, 1 unresolved warnings' }),
     ).toBeTruthy()
   })
 

@@ -11,15 +11,28 @@ import {
   Warehouse as WarehouseIcon,
 } from 'lucide-react'
 import {
+  buildStockWarnings,
+  filterStockWarnings,
   stockCondition,
   stockConditionRank,
-  type InventoryFocusTarget,
+  type InventoryNavigationTarget,
+  type InventoryWarningTarget,
+  type StockWarningFilter,
 } from '@/features/logistics/stock-warnings'
 import { cn } from '@/lib/utils'
 import { StockIndicator } from './StockIndicator'
 import { InventoryWholesalePrice } from './InventoryWholesalePrice'
 import { ArchiveTabNav } from '@/components/ui/ArchiveTabNav'
 import { Button } from '@/components/ui/button'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { useWarehouses } from '@/features/logistics/warehouses.hooks'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { DataTableActions } from '@/components/ui/DataTableActions'
@@ -47,7 +60,7 @@ export interface InventoryItemCatalogProps {
   onArchiveTabChange?: (tab: 'ACTIVE' | 'ARCHIVED') => void
   hideArchiveNav?: boolean
   onOpenWarehouse?: (warehouseId: number) => void
-  focusTarget?: InventoryFocusTarget
+  focusTarget?: InventoryNavigationTarget
 }
 
 export function InventoryItemCatalog({
@@ -55,8 +68,18 @@ export function InventoryItemCatalog({
   onArchiveTabChange,
   hideArchiveNav = false,
   onOpenWarehouse,
-  focusTarget,
+  focusTarget: navigationTarget,
 }: InventoryItemCatalogProps = {}) {
+  const focusTarget =
+    navigationTarget && 'productId' in navigationTarget ? navigationTarget : undefined
+  const [warningScope, setWarningScope] = useState<InventoryWarningTarget | null>(
+    navigationTarget && 'warningFilter' in navigationTarget ? navigationTarget : null,
+  )
+  const warehousesQuery = useWarehouses()
+  const warehouses = useMemo(
+    () => (warehousesQuery.data ?? []).filter((item) => item.isActive),
+    [warehousesQuery.data],
+  )
   const productsQuery = useAllProducts()
   const stockQuery = useStockItems()
   const allProducts = useMemo(() => productsQuery.data ?? [], [productsQuery.data])
@@ -68,6 +91,7 @@ export function InventoryItemCatalog({
   const handleTabChange = (tab: 'ACTIVE' | 'ARCHIVED') => {
     setSelectedPage(1)
     setSearchTerm('')
+    setWarningScope(null)
     if (onArchiveTabChange) onArchiveTabChange(tab)
     else setInternalActiveTab(tab)
   }
@@ -113,19 +137,34 @@ export function InventoryItemCatalog({
   )
   const currentList = activeTab === 'ACTIVE' ? activeProducts : archivedProducts
 
+  const warningLocations = useMemo(
+    () =>
+      filterStockWarnings(
+        buildStockWarnings(allProducts, stockItems, warehouses),
+        warningScope ?? { warningFilter: 'ALL' },
+      ),
+    [allProducts, stockItems, warehouses, warningScope],
+  )
+  const warningProductIds = useMemo(
+    () => new Set(warningLocations.map((warning) => warning.productId)),
+    [warningLocations],
+  )
+
   const filteredProducts = useMemo(
     () =>
-      [...filterCatalogProducts(currentList, searchTerm)].sort((a, b) => {
-        const quantity = (id: number) =>
-          productStockMap.get(id)?.totalCents ?? (productStockMap.has(id) ? null : 0n)
-        return (
-          stockConditionRank[stockCondition(quantity(a.id))] -
-            stockConditionRank[stockCondition(quantity(b.id))] ||
-          a.name.localeCompare(b.name) ||
-          a.id - b.id
-        )
-      }),
-    [currentList, searchTerm, productStockMap],
+      [...filterCatalogProducts(currentList, searchTerm)]
+        .filter((product) => !warningScope || warningProductIds.has(product.id))
+        .sort((a, b) => {
+          const quantity = (id: number) =>
+            productStockMap.get(id)?.totalCents ?? (productStockMap.has(id) ? null : 0n)
+          return (
+            stockConditionRank[stockCondition(quantity(a.id))] -
+              stockConditionRank[stockCondition(quantity(b.id))] ||
+            a.name.localeCompare(b.name) ||
+            a.id - b.id
+          )
+        }),
+    [currentList, searchTerm, productStockMap, warningScope, warningProductIds],
   )
 
   const handleCreateProduct = () => {
@@ -150,7 +189,10 @@ export function InventoryItemCatalog({
     reactivateProductMutation.mutate(prod)
   }
 
-  const isLoading = productsQuery.isLoading || stockQuery.isLoading
+  const isLoading =
+    productsQuery.isLoading ||
+    stockQuery.isLoading ||
+    Boolean(warningScope && warehousesQuery.isLoading)
 
   const targetIndex = focusTarget
     ? filteredProducts.findIndex((product) => product.id === focusTarget.productId)
@@ -320,11 +362,12 @@ export function InventoryItemCatalog({
             </span>
           )
         }
-        const isExpanded = expandedProductIds.has(row.id)
+        const isExpanded = Boolean(warningScope) || expandedProductIds.has(row.id)
         return (
           <Button
             variant="outline"
             size="sm"
+            disabled={Boolean(warningScope)}
             onClick={() => toggleProductLocations(row.id)}
             aria-expanded={isExpanded}
             aria-controls={`inventory-locations-${row.id}`}
@@ -358,7 +401,8 @@ export function InventoryItemCatalog({
 
   const renderProductLocations = (product: InventoryItemResponse) => {
     const stockData = productStockMap.get(product.id)
-    if (!expandedProductIds.has(product.id) || !stockData?.allocations.length) return null
+    if ((!warningScope && !expandedProductIds.has(product.id)) || !stockData?.allocations.length)
+      return null
 
     return (
       <div
@@ -370,6 +414,14 @@ export function InventoryItemCatalog({
         <h2 className="mb-2 text-base font-semibold">Stock by location</h2>
         <div className="divide-y divide-border">
           {[...stockData.allocations]
+            .filter(
+              (stock) =>
+                !warningScope ||
+                warningLocations.some(
+                  (warning) =>
+                    warning.productId === product.id && warning.warehouseId === stock.warehouseId,
+                ),
+            )
             .sort((a, b) =>
               String(a.warehouse?.name ?? '').localeCompare(String(b.warehouse?.name ?? '')),
             )
@@ -433,7 +485,9 @@ export function InventoryItemCatalog({
             ))}
         </div>
         <div className="mt-2 flex min-w-0 items-center justify-end gap-1 text-sm font-medium">
-          <span className="shrink-0">Total:</span>
+          <span className="shrink-0">
+            {warningScope ? 'Product total (all warehouses):' : 'Total:'}
+          </span>
           <OverflowValue
             value={formatStockCents(stockData.totalCents)}
             tooltipSuffix={formatProductUnit(product.unit, 'units')}
@@ -461,6 +515,70 @@ export function InventoryItemCatalog({
         />
       )}
 
+      {warningScope && (
+        <section aria-label="Stock warning filters" className="flex flex-wrap items-center gap-2">
+          <Select
+            value={warningScope.warningFilter}
+            onValueChange={(value) => {
+              setWarningScope({ ...warningScope, warningFilter: value as StockWarningFilter })
+              setSelectedPage(1)
+            }}
+          >
+            <SelectTrigger aria-label="Warning status" className="w-full sm:w-44">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                <SelectItem value="ALL">All stock warnings</SelectItem>
+                <SelectItem value="OUT">Out of stock</SelectItem>
+                <SelectItem value="LOW">Low stock</SelectItem>
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+          {warehouses.length > 1 && (
+            <Select
+              value={
+                warningScope.warehouseId === undefined ? 'ALL' : String(warningScope.warehouseId)
+              }
+              onValueChange={(value) => {
+                setWarningScope({
+                  ...warningScope,
+                  warehouseId: value === 'ALL' ? undefined : Number(value),
+                })
+                setSelectedPage(1)
+              }}
+            >
+              <SelectTrigger aria-label="Warning warehouse" className="w-full sm:w-48">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectItem value="ALL">All Warehouses</SelectItem>
+                  {warehouses.map((warehouse) => (
+                    <SelectItem key={warehouse.id} value={String(warehouse.id)}>
+                      {warehouse.name}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setWarningScope(null)
+              setSelectedPage(1)
+            }}
+          >
+            Clear warning filters
+          </Button>
+          <p className="w-full text-xs text-muted-foreground">
+            Warnings use physical stock at each active warehouse. Product totals include all
+            warehouses. Low-stock detection requires configured reorder thresholds.
+          </p>
+        </section>
+      )}
       {/* Header controls and Search */}
       <PageToolbar>
         <div className="relative flex-1 w-full sm:max-w-md">
@@ -489,18 +607,22 @@ export function InventoryItemCatalog({
         )}
       </PageToolbar>
 
-      {(productsQuery.isError || stockQuery.isError) && (
+      {(productsQuery.isError ||
+        stockQuery.isError ||
+        (warningScope && warehousesQuery.isError)) && (
         <div
           role="alert"
           className="rounded-lg border border-destructive/30 p-3 text-xs text-destructive"
         >
-          Inventory could not be loaded: {getErrorMessage(productsQuery.error ?? stockQuery.error)}
+          Inventory could not be loaded:{' '}
+          {getErrorMessage(productsQuery.error ?? stockQuery.error ?? warehousesQuery.error)}
           <Button
             variant="link"
             size="sm"
             onClick={() => {
               if (productsQuery.isError) void productsQuery.refetch()
               if (stockQuery.isError) void stockQuery.refetch()
+              if (warningScope && warehousesQuery.isError) void warehousesQuery.refetch()
             }}
           >
             Retry
@@ -519,35 +641,52 @@ export function InventoryItemCatalog({
           </p>
         )}
       {/* Reusable DataTable Component */}
-      {!productsQuery.isError && !stockQuery.isError && (
-        <DataTable
-          appearance="management"
-          data={filteredProducts}
-          columns={columns}
-          renderExpandedRow={renderProductLocations}
-          isLoading={isLoading}
-          loadingMessage="Loading inventory catalog items..."
-          pagination={true}
-          page={page}
-          onPageChange={setSelectedPage}
-          pageSize={pageSize}
-          onPageSizeChange={setPageSize}
-          pageSizeOptions={[10, 25, 50, 100]}
-          tableClassName="table-fixed w-full"
-          rowClassName={(row) => {
-            const total =
-              productStockMap.get(row.id)?.totalCents ?? (productStockMap.has(row.id) ? null : 0n)
-            const condition = stockCondition(total)
-            return row.isActive === false
-              ? 'opacity-75 bg-background'
-              : condition === 'OUT'
-                ? 'bg-destructive/5 hover:bg-destructive/10'
-                : condition === 'LOW'
-                  ? 'bg-status-warning/60 hover:bg-status-warning'
-                  : ''
-          }}
-        />
-      )}
+      {!productsQuery.isError &&
+        !stockQuery.isError &&
+        !(warningScope && warehousesQuery.isError) && (
+          <DataTable
+            appearance="management"
+            emptyContent={
+              warningScope ? (
+                <p role="status" className="px-4 py-8 text-center text-sm text-muted-foreground">
+                  {searchTerm
+                    ? 'No warning items match your search.'
+                    : warningScope.warningFilter === 'LOW'
+                      ? 'No low-stock items can be identified without configured reorder thresholds.'
+                      : warningScope.warningFilter === 'OUT'
+                        ? 'No out-of-stock items for the selected warehouses.'
+                        : warningScope.warehouseId
+                          ? 'No warnings for the selected warehouse.'
+                          : 'No stock warnings.'}
+                </p>
+              ) : undefined
+            }
+            data={filteredProducts}
+            columns={columns}
+            renderExpandedRow={renderProductLocations}
+            isLoading={isLoading}
+            loadingMessage="Loading inventory catalog items..."
+            pagination={true}
+            page={page}
+            onPageChange={setSelectedPage}
+            pageSize={pageSize}
+            onPageSizeChange={setPageSize}
+            pageSizeOptions={[10, 25, 50, 100]}
+            tableClassName="table-fixed w-full"
+            rowClassName={(row) => {
+              const total =
+                productStockMap.get(row.id)?.totalCents ?? (productStockMap.has(row.id) ? null : 0n)
+              const condition = stockCondition(total)
+              return row.isActive === false
+                ? 'opacity-75 bg-background'
+                : condition === 'OUT'
+                  ? 'bg-destructive/5 hover:bg-destructive/10'
+                  : condition === 'LOW'
+                    ? 'bg-status-warning/60 hover:bg-status-warning'
+                    : ''
+            }}
+          />
+        )}
 
       {/* Edit / Create Item Modal */}
       <InventoryItemModal

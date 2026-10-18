@@ -35,14 +35,14 @@ import { ErjvPosLogo } from '@/components/ui/ErjvPosLogo'
 import { useAuth } from '@/features/auth/AuthContext'
 import { USER_ROLES, ROLE_DETAILS } from '@/features/auth/roles'
 import { StockNotifications } from './StockNotifications'
-import type { InventoryFocusTarget } from '@/features/logistics/stock-warnings'
+import type { InventoryNavigationTarget } from '@/features/logistics/stock-warnings'
 import { routeForScreen, type NavItemKey } from '@/routes'
 
 type DashboardLayoutProps = {
   onNavigate: () => void
   currentScreen?: NavItemKey
   children: React.ReactNode
-  onOpenInventory: (target: InventoryFocusTarget) => void
+  onOpenInventory: (target: InventoryNavigationTarget) => void
 }
 
 type NavGroup = {

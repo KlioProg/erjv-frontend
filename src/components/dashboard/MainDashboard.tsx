@@ -5,14 +5,14 @@ import { DashboardLayout } from '../layout/DashboardLayout'
 import { useWarehouses } from '@/features/logistics/warehouses.hooks'
 import { useStockItems } from '@/features/logistics/stock-items.hooks'
 import { useProducts } from '@/features/products/products.hooks'
-import type { InventoryFocusTarget } from '@/features/logistics/stock-warnings'
+import type { InventoryNavigationTarget } from '@/features/logistics/stock-warnings'
 import { routeForScreen, screenFromPath, warehouseDetailsPath, type NavItemKey } from '@/routes'
 
 export type DashboardOutletContext = {
   deliveryPurchaseOrderId?: number
   deliverySalesOrderId?: number
   arrangeDelivery: boolean
-  inventoryTarget?: InventoryFocusTarget & { requestId: number }
+  inventoryTarget?: InventoryNavigationTarget & { requestId: number }
   onOpenWarehouse: (id: number) => void
   onNavigateToPurchases: () => void
   onNavigateFromPurchaseToDeliveries: (purchaseOrderId?: number, arrange?: boolean) => void
@@ -40,7 +40,7 @@ export function MainDashboard() {
   const [deliverySalesOrderId, setDeliverySalesOrderId] = useState<number | undefined>()
   const [arrangeDelivery, setArrangeDelivery] = useState(false)
   const [inventoryTarget, setInventoryTarget] = useState<
-    (InventoryFocusTarget & { requestId: number }) | undefined
+    (InventoryNavigationTarget & { requestId: number }) | undefined
   >()
 
   const { data: warehouses = [] } = useWarehouses()
@@ -83,7 +83,7 @@ export function MainDashboard() {
 
   const navigateToScreen = (screen: NavItemKey) => navigate(routeForScreen(screen))
 
-  const onOpenInventory = (target: InventoryFocusTarget) => {
+  const onOpenInventory = (target: InventoryNavigationTarget) => {
     setInventoryTarget((previous) => ({ ...target, requestId: (previous?.requestId ?? 0) + 1 }))
     navigateToScreen('inventory')
   }
