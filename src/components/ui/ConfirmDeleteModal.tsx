@@ -67,7 +67,11 @@ export function ConfirmDeleteModal({
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && !isProcessing && onClose()}>
-      <DialogContent className={cn('sm:max-w-[440px] p-6', className)} closeDisabled={isProcessing}>
+      <DialogContent
+        className={cn('sm:max-w-[440px] p-6', className)}
+        closeDisabled={isProcessing}
+        onOpenAutoFocus={() => setError('')}
+      >
         <DialogHeader className="gap-2">
           <div
             className={`flex size-8 items-center justify-center rounded-md ${
@@ -100,11 +104,7 @@ export function ConfirmDeleteModal({
             {itemName && (
               <span className="font-medium text-foreground leading-snug">{itemName}</span>
             )}
-            {itemDetails && (
-              <span className="text-xs text-muted-foreground">
-                {itemDetails}
-              </span>
-            )}
+            {itemDetails && <span className="text-xs text-muted-foreground">{itemDetails}</span>}
           </div>
         )}
 

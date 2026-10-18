@@ -27,7 +27,8 @@ function AppContent() {
 
   if (isLoading) {
     return (
-      <div className="flex min-h-svh items-center justify-center bg-background">
+      <div role="status" className="flex min-h-svh items-center justify-center bg-background">
+        <span className="sr-only">Loading your account...</span>
         <Spinner className="size-8 text-primary" />
       </div>
     )

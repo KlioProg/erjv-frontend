@@ -489,7 +489,7 @@ export function DataTable<T>({
                         type="button"
                         onClick={() => handleSortToggle(column)}
                         className={cn(
-                          'inline-flex items-center gap-1.5 hover:text-foreground/80 cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-sm group',
+                          'inline-flex min-h-6 items-center gap-1.5 hover:text-foreground/80 cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-sm group',
                           justifyClass,
                           column.align === 'right' && 'w-full',
                         )}
@@ -595,7 +595,7 @@ export function DataTable<T>({
       {/* Pagination Footer */}
       {pagination && totalRows > 0 && (
         <div className="flex flex-col sm:flex-row sm:flex-wrap items-center justify-between gap-3 border-t bg-card px-4 py-3 text-xs tabular-nums">
-          <div className="flex items-center gap-4 text-muted-foreground w-full sm:w-auto justify-between sm:justify-start">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-muted-foreground w-full sm:w-auto justify-between sm:justify-start">
             <span>
               Showing <span className="font-medium text-foreground">{startIndex + 1}</span> to{' '}
               <span className="font-medium text-foreground">{endIndex}</span> of{' '}
@@ -623,7 +623,7 @@ export function DataTable<T>({
 
           {/* Navigation Controls */}
           {totalPages > 1 && (
-            <div className="flex items-center gap-1 self-center sm:self-auto">
+            <div className="flex max-w-full flex-wrap items-center justify-center gap-1 self-center sm:self-auto">
               <Button
                 variant="ghost"
                 size="icon"
@@ -648,7 +648,7 @@ export function DataTable<T>({
                 <span className="sr-only">Previous Page</span>
               </Button>
 
-              <div className="flex items-center gap-1 mx-1">
+              <div className="flex max-w-full flex-wrap items-center justify-center gap-1 mx-1">
                 {visiblePages.map((pageNum, idx) => {
                   if (pageNum === '...') {
                     return (

@@ -3,6 +3,7 @@ import { SalesOrderCancelModal } from './SalesOrderCancelModal'
 import { useState, useMemo } from 'react'
 import { CheckCircle2, Eye, MoreHorizontal, Plus, Receipt, Search, XCircle } from 'lucide-react'
 import { Card } from '@/components/ui/card'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -100,7 +101,8 @@ export function OrdersView({
   const [orderToCancel, setOrderToCancel] = useState<SalesOrderRecord | null>(null)
 
   // Real backend queries
-  const { data: salesOrders = [], isLoading: isLoadingOrders } = useSalesOrders()
+  const ordersQuery = useSalesOrders()
+  const { data: salesOrders = [], isLoading: isLoadingOrders } = ordersQuery
   const { data: clients = [] } = useClients()
   const productsQuery = useProducts()
   const { data: products = [] } = productsQuery
@@ -532,7 +534,22 @@ export function OrdersView({
       </PageToolbar>
 
       {/* Orders Table */}
-      {isLoadingOrders ? (
+      {ordersQuery.isError ? (
+        <Alert variant="destructive">
+          <AlertDescription>
+            Sales orders could not be loaded. {getErrorMessage(ordersQuery.error)}
+            <Button
+              variant="outline"
+              size="sm"
+              className="ml-2"
+              onClick={() => void ordersQuery.refetch()}
+              disabled={ordersQuery.isFetching}
+            >
+              Retry
+            </Button>
+          </AlertDescription>
+        </Alert>
+      ) : isLoadingOrders ? (
         <Card className="flex min-h-[360px] items-center justify-center border-border bg-card shadow-none">
           <div className="flex flex-col items-center justify-center text-center gap-2">
             <Spinner className="size-6 text-primary" />

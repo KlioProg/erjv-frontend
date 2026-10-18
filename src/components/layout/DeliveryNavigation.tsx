@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { ChevronDown, MapPinned } from 'lucide-react'
 import { NavLink } from 'react-router'
 import type { DeliveryView } from '@/features/logistics/delivery-workflow'
@@ -18,6 +18,7 @@ export function DeliveryNavigation({
   view: DeliveryView | null
   onSelect: (view: DeliveryView) => void
 }) {
+  const navigationId = useId()
   const [expanded, setExpanded] = useState(!!view)
   const [previousView, setPreviousView] = useState(view)
   // A navigation change opens its selected child; manual collapse still works.
@@ -30,7 +31,7 @@ export function DeliveryNavigation({
       <button
         type="button"
         aria-expanded={expanded}
-        aria-controls="delivery-navigation"
+        aria-controls={navigationId}
         onClick={() => setExpanded(!expanded)}
         className={cn(
           'ui-text flex h-9 w-full items-center justify-between rounded-md px-3 py-2 font-medium transition-colors duration-150 pointer-coarse:min-h-11 hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
@@ -47,7 +48,7 @@ export function DeliveryNavigation({
         />
       </button>
       <div
-        id="delivery-navigation"
+        id={navigationId}
         hidden={!expanded}
         className="relative ml-7 flex flex-col gap-0.5 before:absolute before:inset-y-1 before:-left-2 before:w-px before:bg-border"
       >

@@ -166,10 +166,10 @@ export function WarehouseInventory({
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-              <h2 className="flex min-w-0 max-w-full items-center gap-2 text-2xl font-semibold">
+              <h1 className="flex min-w-0 max-w-full items-center gap-2 text-2xl font-semibold">
                 <WarehouseIcon className="size-5 shrink-0 text-muted-foreground" />
                 <OverflowValue value={warehouse.name} className="font-semibold" />
-              </h2>
+              </h1>
               <Badge
                 variant="outline"
                 className={

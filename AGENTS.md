@@ -108,3 +108,14 @@ Keep completion reports concise and include:
 Do not generate lengthy plans, documentation, or post-implementation proposals unless requested or warranted by the task.
 
 **Principle: Focused investigation → selective skills → smallest safe implementation → proportional verification.**
+
+## Optional UX/UI toolkit
+
+- For frontend UI design, component development, accessibility audits, or visual reviews, use the `ux-ui-gates` MCP tools when relevant.
+- Consult only the relevant topics from `get_doctrine`. Use `get_tokens` as reference material, not as a replacement for existing project tokens.
+- Project-specific AGENTS.md instructions, established design systems, component libraries, and explicit user requirements take precedence over toolkit recommendations.
+- Do not impose the toolkit's opinionated rules (such as banning native selects or emoji) unless they are appropriate for the project.
+- Do not introduce dependencies, replace components, change themes, or restructure files solely to satisfy the toolkit without approval.
+- For UI verification, use `list_gates` and run applicable checks. Report actual results. Skipped or unavailable checks are not passes.
+- Do not load the toolkit for backend-only tasks, routine refactors, or unrelated work.
+- Keep existing project workflows and tests authoritative.

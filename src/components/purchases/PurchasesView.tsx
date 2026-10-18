@@ -15,6 +15,7 @@ import {
   XCircle,
 } from 'lucide-react'
 import { Card } from '@/components/ui/card'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -98,10 +99,12 @@ export function PurchasesView({
   const processedBy = user?.fullName || user?.email || 'Current User'
 
   // Data queries
-  const { data: purchaseOrders = [], isLoading: isLoadingPOs } = usePurchaseOrders()
-  const { data: suppliers = [], isLoading: isLoadingSuppliers } = useSuppliers({
+  const ordersQuery = usePurchaseOrders()
+  const { data: purchaseOrders = [], isLoading: isLoadingPOs } = ordersQuery
+  const suppliersQuery = useSuppliers({
     includeInactive: 'true',
   })
+  const { data: suppliers = [], isLoading: isLoadingSuppliers } = suppliersQuery
   const stockQuery = useStockItems()
   const { data: stockItems = [] } = stockQuery
   const productsQuery = useProducts()
@@ -579,7 +582,22 @@ export function PurchasesView({
             </Button>
           </PageToolbar>
 
-          {isLoadingPOs ? (
+          {ordersQuery.isError ? (
+            <Alert variant="destructive">
+              <AlertDescription>
+                Purchase orders could not be loaded. {getErrorMessage(ordersQuery.error)}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="ml-2"
+                  onClick={() => void ordersQuery.refetch()}
+                  disabled={ordersQuery.isFetching}
+                >
+                  Retry
+                </Button>
+              </AlertDescription>
+            </Alert>
+          ) : isLoadingPOs ? (
             <Card className="flex min-h-[300px] items-center justify-center p-8">
               <div className="flex flex-col items-center gap-2">
                 <Clock className="size-6 animate-spin text-primary" />
@@ -655,35 +673,52 @@ export function PurchasesView({
             </Button>
           </PageToolbar>
 
-          <DataTable
-            appearance="management"
-            data={filteredSuppliers}
-            columns={supplierColumns}
-            getRowKey={(supplier) => supplier.id}
-            isLoading={isLoadingSuppliers}
-            loadingMessage="Loading supplier directory..."
-            tableClassName="min-w-[800px]"
-            pageSizeOptions={[10, 25, 50, 100]}
-            emptyContent={
-              <div className="flex min-h-64 items-center justify-center px-4 py-12">
-                <div className="flex flex-col items-center justify-center text-center">
-                  <Building2 className="size-8 text-muted-foreground mb-2" />
-                  <span className="text-sm font-semibold text-foreground">
-                    {searchTerm.trim()
-                      ? `No suppliers match "${searchTerm.trim()}"`
-                      : supplierView === 'ACTIVE'
-                        ? 'No active suppliers found'
-                        : 'No archived suppliers found'}
-                  </span>
-                  <p className="text-xs text-muted-foreground mt-1 max-w-xs">
-                    {supplierView === 'ACTIVE'
-                      ? 'Register suppliers to begin purchasing stock materials.'
-                      : 'Archived suppliers will appear here and can be restored.'}
-                  </p>
+          {suppliersQuery.isError ? (
+            <Alert variant="destructive">
+              <AlertDescription>
+                Suppliers could not be loaded. {getErrorMessage(suppliersQuery.error)}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="ml-2"
+                  onClick={() => void suppliersQuery.refetch()}
+                  disabled={suppliersQuery.isFetching}
+                >
+                  Retry
+                </Button>
+              </AlertDescription>
+            </Alert>
+          ) : (
+            <DataTable
+              appearance="management"
+              data={filteredSuppliers}
+              columns={supplierColumns}
+              getRowKey={(supplier) => supplier.id}
+              isLoading={isLoadingSuppliers}
+              loadingMessage="Loading supplier directory..."
+              tableClassName="min-w-[800px]"
+              pageSizeOptions={[10, 25, 50, 100]}
+              emptyContent={
+                <div className="flex min-h-64 items-center justify-center px-4 py-12">
+                  <div className="flex flex-col items-center justify-center text-center">
+                    <Building2 className="size-8 text-muted-foreground mb-2" />
+                    <span className="text-sm font-semibold text-foreground">
+                      {searchTerm.trim()
+                        ? `No suppliers match "${searchTerm.trim()}"`
+                        : supplierView === 'ACTIVE'
+                          ? 'No active suppliers found'
+                          : 'No archived suppliers found'}
+                    </span>
+                    <p className="text-xs text-muted-foreground mt-1 max-w-xs">
+                      {supplierView === 'ACTIVE'
+                        ? 'Register suppliers to begin purchasing stock materials.'
+                        : 'Archived suppliers will appear here and can be restored.'}
+                    </p>
+                  </div>
                 </div>
-              </div>
-            }
-          />
+              }
+            />
+          )}
         </div>
       )}
 

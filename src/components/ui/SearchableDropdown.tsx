@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useMemo, useRef, useState, type ReactNode } from 'react'
 import { Check, Search } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -54,10 +54,6 @@ export function SearchableDropdown<T>({
   const [query, setQuery] = useState('')
   const searchInputRef = useRef<HTMLInputElement>(null)
 
-  useEffect(() => {
-    if (open) searchInputRef.current?.focus()
-  }, [open])
-
   const selectedOption = options.find((option) => getOptionValue(option) === value)
   const filteredOptions = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase()
@@ -93,6 +89,21 @@ export function SearchableDropdown<T>({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
+        onFocus={(event) => {
+          if (event.target === event.currentTarget) {
+            event.preventDefault()
+            searchInputRef.current?.focus()
+          }
+        }}
+        onKeyDown={(event) => {
+          if (
+            event.key === 'ArrowUp' &&
+            event.target === event.currentTarget.querySelector('[role="menuitem"]')
+          ) {
+            event.preventDefault()
+            searchInputRef.current?.focus()
+          }
+        }}
         side={side}
         avoidCollisions={avoidCollisions}
         align={align}
@@ -111,7 +122,18 @@ export function SearchableDropdown<T>({
             type="search"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            onKeyDown={(event) => event.stopPropagation()}
+            onKeyDown={(event) => {
+              if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                event.preventDefault()
+                const items = event.currentTarget
+                  .closest('[role="menu"]')
+                  ?.querySelectorAll<HTMLElement>('[role="menuitem"]')
+                const item = event.key === 'ArrowDown' ? items?.[0] : items?.[items.length - 1]
+                item?.focus()
+              }
+              // Keep text editing out of menu typeahead; allow Escape to dismiss.
+              if (event.key !== 'Escape') event.stopPropagation()
+            }}
             placeholder={searchPlaceholder}
             aria-label={searchPlaceholder}
             className="h-10 pl-8 text-sm"

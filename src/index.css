@@ -95,7 +95,7 @@ html {
   --popover: #ffffff;
   --popover-foreground: #1c211d;
   /* Brand fills pair with graphite; filled actions use the darker AA shade. */
-  --primary: #6a994e;
+  --primary: #80b918;
   --primary-foreground: #1c211d;
   --primary-button-foreground: var(--primary-contrast-foreground);
   --primary-contrast: #4d7337;

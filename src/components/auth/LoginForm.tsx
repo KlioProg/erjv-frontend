@@ -82,10 +82,8 @@ export default function LoginForm({
         >
           <AlertCircle className="size-4 shrink-0 mt-0.5" />
           <div className="flex flex-col gap-0.5">
-            <span className="font-medium text-ui">Incorrect Email or Password</span>
-            <AlertDescription className="text-ui leading-5">
-              {errorMessage}
-            </AlertDescription>
+            <span className="font-medium text-ui">Unable to sign in</span>
+            <AlertDescription className="text-ui leading-5">{errorMessage}</AlertDescription>
           </div>
         </Alert>
       )}
@@ -119,6 +117,9 @@ export default function LoginForm({
                 : ''
             }`}
             aria-invalid={emailVal.message || isPasswordRejected ? true : undefined}
+            aria-describedby={
+              emailVal.message || isPasswordRejected ? 'login-email-error' : undefined
+            }
             disabled={isSubmitting}
             onChange={(e) => {
               setEmail(e.target.value)
@@ -127,7 +128,11 @@ export default function LoginForm({
           />
         </div>
         {(emailVal.message || isPasswordRejected) && (
-          <p className="text-xs font-medium text-destructive flex items-center gap-2">
+          <p
+            id="login-email-error"
+            role="alert"
+            className="text-xs font-medium text-destructive flex items-center gap-2"
+          >
             <AlertCircle className="size-3 shrink-0" />
             {emailVal.message || 'Please check your email address'}
           </p>
@@ -158,6 +163,9 @@ export default function LoginForm({
             }`}
             minLength={8}
             aria-invalid={passVal.message || isPasswordRejected ? true : undefined}
+            aria-describedby={
+              passVal.message || isPasswordRejected ? 'login-password-error' : undefined
+            }
             disabled={isSubmitting}
             onChange={(e) => {
               setPassword(e.target.value)
@@ -174,14 +182,18 @@ export default function LoginForm({
           </button>
         </div>
         {(passVal.message || isPasswordRejected) && (
-          <p className="text-xs font-medium text-destructive flex items-center gap-2">
+          <p
+            id="login-password-error"
+            role="alert"
+            className="text-xs font-medium text-destructive flex items-center gap-2"
+          >
             <AlertCircle className="size-3 shrink-0" />
             {passVal.message || 'Incorrect password or email address'}
           </p>
         )}
       </div>
 
-      <div className="flex items-center justify-between gap-3 py-1">
+      <div className="flex flex-wrap items-center justify-between gap-3 py-1">
         <div className="flex items-center gap-2.5">
           <Checkbox
             id="rememberMe"
@@ -205,7 +217,9 @@ export default function LoginForm({
       <Button
         type="submit"
         className={`mt-1 w-full font-medium ${
-          isSuccess ? 'bg-status-success-foreground hover:bg-status-success-foreground text-white' : ''
+          isSuccess
+            ? 'bg-status-success-foreground hover:bg-status-success-foreground text-white'
+            : ''
         }`}
         size="lg"
         disabled={isSubmitting || isSuccess}

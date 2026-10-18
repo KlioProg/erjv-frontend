@@ -1,13 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { ShieldCheck } from 'lucide-react'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-  CardFooter,
-} from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardFooter } from '@/components/ui/card'
 import { Tabs, TabsContent } from '@/components/ui/tabs'
 import { Separator } from '@/components/ui/separator'
 import { ErjvPosLogo } from '../ui/ErjvPosLogo'
@@ -61,9 +54,9 @@ export function AuthCard({ mode, onModeChange }: AuthCardProps) {
       >
         <CardHeader className="items-center pb-4 text-center">
           <ErjvPosLogo className="mt-5 mb-1" />
-          <CardTitle className="mt-1 text-2xl font-semibold tracking-tight text-foreground">
+          <h1 className="mt-1 text-2xl font-semibold tracking-tight text-foreground">
             Welcome back
-          </CardTitle>
+          </h1>
           <CardDescription className="text-xs text-muted-foreground">
             Sign in to access your register, analytics & inventory
           </CardDescription>
