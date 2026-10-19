@@ -14,6 +14,7 @@ import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -23,6 +24,27 @@ import { Spinner } from '@/components/ui/spinner'
 import { useRegisterUser, useEmployees, useUsers } from '@/features/staffing/staffing.hooks'
 import { USER_ROLES, type UserRole } from '@/features/auth/roles'
 import { getErrorMessage } from '@/lib/api-client'
+
+const registrationRoles = [
+  {
+    value: USER_ROLES.STAFF,
+    label: 'STAFF (Restricted)',
+    description: 'Standard POS sales and restricted operational access',
+  },
+  {
+    value: USER_ROLES.MANAGER,
+    label: 'MANAGER (Operations)',
+    description: 'Warehouse, inventory, logistics and team management',
+  },
+  {
+    value: USER_ROLES.ADMIN,
+    label: 'ADMIN (Administrator)',
+    description: 'Full administrative authority, user registration, and system configuration',
+  },
+]
+
+const dropdownLayout =
+  'w-[var(--radix-select-trigger-width)] max-w-[var(--radix-select-content-available-width)] max-h-[min(24rem,var(--radix-select-content-available-height))] [&_[data-radix-select-viewport]]:min-w-0'
 
 type RegisterUserModalProps = {
   open: boolean
@@ -43,6 +65,8 @@ export function RegisterUserModal({ open, onClose }: RegisterUserModalProps) {
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
+
+  const selectedRole = registrationRoles.find((option) => option.value === role)
 
   // Filter employees who do not yet have a linked user account
   const unlinkedEmployees = employees.filter((e) => !e.userId && e.isActive)
@@ -118,7 +142,7 @@ export function RegisterUserModal({ open, onClose }: RegisterUserModalProps) {
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && handleClose()}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="min-w-0 sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Register User Account</DialogTitle>
           <DialogDescription>
@@ -126,7 +150,7 @@ export function RegisterUserModal({ open, onClose }: RegisterUserModalProps) {
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <form onSubmit={handleSubmit} className="flex min-w-0 flex-col gap-4">
           {errorMsg && (
             <Alert variant="destructive" className="py-2.5 px-3">
               <AlertDescription className="text-xs">{errorMsg}</AlertDescription>
@@ -134,7 +158,7 @@ export function RegisterUserModal({ open, onClose }: RegisterUserModalProps) {
           )}
 
           {/* Work Email */}
-          <div className="flex flex-col gap-2">
+          <div className="flex min-w-0 flex-col gap-2">
             <Label htmlFor="register-email" className="text-ui font-medium text-foreground">
               Work Email Address
             </Label>
@@ -157,7 +181,7 @@ export function RegisterUserModal({ open, onClose }: RegisterUserModalProps) {
           </div>
 
           {/* System Role Selector */}
-          <div className="flex flex-col gap-2">
+          <div className="flex min-w-0 flex-col gap-2">
             <Label htmlFor="register-role" className="text-ui font-medium text-foreground">
               System Role & Permissions
             </Label>
@@ -168,49 +192,45 @@ export function RegisterUserModal({ open, onClose }: RegisterUserModalProps) {
             >
               <SelectTrigger
                 id="register-role"
-                className="h-auto min-h-16 py-3 [&>span]:line-clamp-none [&>span]:w-full [&>span]:text-left [&>span]:whitespace-normal"
+                aria-describedby="register-role-description"
+                className="min-w-0 gap-2 text-left [&>span]:font-medium [&>svg]:shrink-0"
               >
-                <SelectValue placeholder="Select role" />
+                <SelectValue placeholder="Select role">{selectedRole?.label}</SelectValue>
               </SelectTrigger>
-              <SelectContent className="p-1">
-                <SelectItem value={USER_ROLES.STAFF} className="py-3">
-                  <div className="flex min-w-0 flex-col gap-1 text-left">
-                    <span className="font-medium text-ui text-foreground leading-tight">
-                      STAFF (Restricted)
-                    </span>
-                    <span className="text-xs text-muted-foreground leading-tight">
-                      Standard POS sales and restricted operational access
-                    </span>
-                  </div>
-                </SelectItem>
-                <SelectItem value={USER_ROLES.MANAGER} className="py-3">
-                  <div className="flex min-w-0 flex-col gap-1 text-left">
-                    <span className="font-medium text-ui text-foreground leading-tight">
-                      MANAGER (Operations)
-                    </span>
-                    <span className="text-xs text-muted-foreground leading-tight">
-                      Warehouse, inventory, logistics and team management
-                    </span>
-                  </div>
-                </SelectItem>
-                <SelectItem value={USER_ROLES.ADMIN} className="py-3">
-                  <div className="flex min-w-0 flex-col gap-1 text-left">
-                    <span className="font-medium text-ui text-foreground leading-tight">
-                      ADMIN (Administrator)
-                    </span>
-                    <span className="text-xs text-muted-foreground leading-tight">
-                      Full administrative authority, user registration, and system configuration
-                    </span>
-                  </div>
-                </SelectItem>
+              <SelectContent className={dropdownLayout} collisionPadding={16}>
+                <SelectGroup>
+                  {registrationRoles.map((option) => (
+                    <SelectItem
+                      key={option.value}
+                      value={option.value}
+                      textValue={option.label}
+                      className="min-w-0 py-3 [&>span:last-child]:min-w-0"
+                    >
+                      <span className="flex min-w-0 flex-col gap-1 whitespace-normal text-left wrap-anywhere">
+                        <span className="font-medium text-ui text-foreground leading-5">
+                          {option.label}
+                        </span>
+                        <span className="text-xs text-muted-foreground leading-4">
+                          {option.description}
+                        </span>
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
               </SelectContent>
             </Select>
+            <p
+              id="register-role-description"
+              className="text-xs leading-4 text-muted-foreground wrap-anywhere"
+            >
+              {selectedRole?.description}
+            </p>
           </div>
 
           {/* Link to Existing Employee (Optional) */}
           {unlinkedEmployees.length > 0 && (
-            <div className="flex flex-col gap-2">
-              <div className="flex items-center justify-between">
+            <div className="flex min-w-0 flex-col gap-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <Label htmlFor="link-employee" className="text-ui font-medium text-foreground">
                   Link to Staff Profile (Optional)
                 </Label>
@@ -224,31 +244,44 @@ export function RegisterUserModal({ open, onClose }: RegisterUserModalProps) {
                 onValueChange={setSelectedEmployeeId}
                 disabled={registerMutation.isPending}
               >
-                <SelectTrigger id="link-employee">
+                <SelectTrigger
+                  id="link-employee"
+                  className="h-auto min-h-10 min-w-0 gap-2 text-left [&>span]:min-w-0 [&>span]:line-clamp-none [&_span]:whitespace-normal [&_span]:overflow-visible [&_span]:text-clip [&>svg]:shrink-0"
+                >
                   <SelectValue placeholder="Select staff profile (optional)" />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none" className="py-2">
-                    <span className="text-muted-foreground italic">None (Standalone Account)</span>
-                  </SelectItem>
-                  {unlinkedEmployees.map((emp) => (
-                    <SelectItem key={emp.id} value={String(emp.id)} className="py-2">
-                      <div className="flex items-center gap-2">
-                        <UserCheck className="size-3.5 text-status-success-foreground shrink-0" />
-                        <span>
-                          {emp.firstName} {emp.lastName}
-                        </span>
-                        <span className="text-xs text-muted-foreground">(Staff #{emp.id})</span>
-                      </div>
+                <SelectContent className={dropdownLayout} collisionPadding={16}>
+                  <SelectGroup>
+                    <SelectItem value="none" className="py-2">
+                      <span className="text-muted-foreground italic">
+                        None (Standalone Account)
+                      </span>
                     </SelectItem>
-                  ))}
+                    {unlinkedEmployees.map((emp) => (
+                      <SelectItem
+                        key={emp.id}
+                        value={String(emp.id)}
+                        className="min-w-0 py-2 [&>span:last-child]:min-w-0"
+                      >
+                        <div className="flex min-w-0 items-start gap-2 whitespace-normal wrap-anywhere">
+                          <UserCheck className="size-3.5 text-status-success-foreground shrink-0" />
+                          <span className="min-w-0">
+                            {emp.firstName} {emp.lastName}
+                          </span>
+                          <span className="shrink-0 text-xs text-muted-foreground">
+                            (Staff #{emp.id})
+                          </span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
                 </SelectContent>
               </Select>
             </div>
           )}
 
           {/* Password */}
-          <div className="flex flex-col gap-2">
+          <div className="flex min-w-0 flex-col gap-2">
             <Label htmlFor="register-password" className="text-ui font-medium text-foreground">
               Initial Password
             </Label>
@@ -280,7 +313,7 @@ export function RegisterUserModal({ open, onClose }: RegisterUserModalProps) {
           </div>
 
           {/* Confirm Password */}
-          <div className="flex flex-col gap-2">
+          <div className="flex min-w-0 flex-col gap-2">
             <Label htmlFor="register-confirm" className="text-ui font-medium text-foreground">
               Confirm Password
             </Label>
@@ -316,9 +349,9 @@ export function RegisterUserModal({ open, onClose }: RegisterUserModalProps) {
           </div>
 
           {/* Admin Notice Callout */}
-          <div className="mt-1 flex items-start gap-3 rounded-lg bg-secondary p-4 text-xs leading-5 text-muted-foreground">
+          <div className="flex min-w-0 items-start gap-3 rounded-lg bg-secondary p-4 text-xs leading-5 text-muted-foreground">
             <Shield className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-            <div>
+            <div className="min-w-0 wrap-anywhere">
               <span className="font-semibold text-foreground">Admin Provisioning: </span>
               This account will be created immediately. The user can sign in right away using these
               credentials. You can modify their role or archive the account anytime.
