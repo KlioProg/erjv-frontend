@@ -19,6 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { SearchableDropdown } from '@/components/ui/SearchableDropdown'
 import { Spinner } from '@/components/ui/spinner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
@@ -125,6 +126,11 @@ function VehicleFormContent({
       return
     }
 
+    if (vehicleType.trim().length > 100) {
+      setErrorMsg('Vehicle type must be 100 characters or fewer.')
+      return
+    }
+
     const parsedCap = capacity.trim() ? parseFloat(capacity) : null
 
     try {
@@ -228,20 +234,20 @@ function VehicleFormContent({
             <Label htmlFor="v-type" className="text-[13px] font-medium">
               Vehicle Type <span className="text-primary">*</span>
             </Label>
-            <Select value={vehicleType} onValueChange={setVehicleType}>
-              <SelectTrigger id="v-type">
-                <SelectValue placeholder="Select type..." />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  {VEHICLE_TYPES.map((t) => (
-                    <SelectItem key={t} value={t}>
-                      {t}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
+            <SearchableDropdown
+              id="v-type"
+              options={VEHICLE_TYPES}
+              value={vehicleType}
+              onValueChange={setVehicleType}
+              onCreateValue={setVehicleType}
+              maxCustomLength={100}
+              getOptionValue={(type) => type}
+              getOptionLabel={(type) => type}
+              placeholder="Select type..."
+              searchPlaceholder="Search or enter vehicle type"
+              emptyMessage="No matching vehicle types"
+              ariaLabel="Vehicle Type"
+            />
           </div>
         </div>
 

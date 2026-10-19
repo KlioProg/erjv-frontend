@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type ReactNode } from 'react'
+import { useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Check, Search } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -9,10 +9,13 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
+import { OverflowValue } from '@/components/ui/OverflowValue'
 import { cn } from '@/lib/utils'
 
 type SearchableDropdownProps<T> = {
   id?: string
+  onCreateValue?: (value: string) => void
+  maxCustomLength?: number
   options: T[]
   value: string
   onValueChange: (value: string, option: T) => void
@@ -33,6 +36,8 @@ type SearchableDropdownProps<T> = {
 
 export function SearchableDropdown<T>({
   id,
+  onCreateValue,
+  maxCustomLength = 100,
   options,
   value,
   onValueChange,
@@ -54,12 +59,35 @@ export function SearchableDropdown<T>({
   const [query, setQuery] = useState('')
   const searchInputRef = useRef<HTMLInputElement>(null)
 
+  const validationId = useId()
+  const customValue = query.trim().replace(/\s+/g, ' ')
+  const exactMatch = options.find(
+    (option) =>
+      getOptionLabel(option).trim().replace(/\s+/g, ' ').toLocaleLowerCase() ===
+      customValue.toLocaleLowerCase(),
+  )
+  const tooLong = !!onCreateValue && customValue.length > maxCustomLength
+  const canCreate = !!onCreateValue && !!customValue && !exactMatch && !tooLong
+  const selectCustom = () => {
+    if (!canCreate) return
+    onCreateValue?.(customValue)
+    setOpen(false)
+  }
+
   const selectedOption = options.find((option) => getOptionValue(option) === value)
+  const selectedLabel = selectedOption
+    ? getOptionLabel(selectedOption)
+    : onCreateValue && value
+      ? value
+      : placeholder
   const filteredOptions = useMemo(() => {
-    const normalizedQuery = query.trim().toLocaleLowerCase()
+    const normalizedQuery = query.trim().replace(/\s+/g, ' ').toLocaleLowerCase()
     if (!normalizedQuery) return options
     return options.filter((option) =>
-      getOptionSearchText(option).toLocaleLowerCase().includes(normalizedQuery),
+      getOptionSearchText(option)
+        .replace(/\s+/g, ' ')
+        .toLocaleLowerCase()
+        .includes(normalizedQuery),
     )
   }, [getOptionSearchText, options, query])
 
@@ -71,23 +99,25 @@ export function SearchableDropdown<T>({
         if (nextOpen) setQuery('')
       }}
     >
-      <DropdownMenuTrigger asChild>
-        <Button
-          id={id}
-          type="button"
-          variant="outline"
-          className={cn(
-            'h-10 w-full justify-between text-sm font-normal pointer-coarse:min-h-11',
-            className,
-          )}
-          aria-label={ariaLabel}
-        >
-          <span className="truncate">
-            {selectedOption ? getOptionLabel(selectedOption) : placeholder}
-          </span>
-          <Search aria-hidden="true" className="size-3.5 shrink-0 text-muted-foreground" />
-        </Button>
-      </DropdownMenuTrigger>
+      <OverflowValue asChild value={selectedLabel}>
+        <DropdownMenuTrigger asChild>
+          <Button
+            id={id}
+            type="button"
+            variant="outline"
+            className={cn(
+              'h-10 min-w-0 w-full justify-between text-sm font-normal pointer-coarse:min-h-11',
+              className,
+            )}
+            aria-label={ariaLabel}
+          >
+            <span data-overflow-text className="min-w-0 flex-1 truncate text-left">
+              {selectedLabel}
+            </span>
+            <Search aria-hidden="true" className="size-3.5 shrink-0 text-muted-foreground" />
+          </Button>
+        </DropdownMenuTrigger>
+      </OverflowValue>
       <DropdownMenuContent
         onFocus={(event) => {
           if (event.target === event.currentTarget) {
@@ -112,6 +142,9 @@ export function SearchableDropdown<T>({
           contentClassName,
         )}
       >
+        {onCreateValue && value && !selectedOption && (
+          <p className="px-2.5 pb-2 text-sm [overflow-wrap:anywhere]">Selected: {value}</p>
+        )}
         <div className="relative shrink-0 pb-2">
           <Search
             aria-hidden="true"
@@ -122,7 +155,18 @@ export function SearchableDropdown<T>({
             type="search"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
+            aria-invalid={tooLong || undefined}
+            aria-describedby={tooLong ? validationId : undefined}
             onKeyDown={(event) => {
+              if (event.key === 'Enter' && onCreateValue && !event.nativeEvent.isComposing) {
+                event.preventDefault()
+                if (exactMatch) {
+                  onValueChange(getOptionValue(exactMatch), exactMatch)
+                  setOpen(false)
+                } else {
+                  selectCustom()
+                }
+              }
               if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
                 event.preventDefault()
                 const items = event.currentTarget
@@ -140,7 +184,12 @@ export function SearchableDropdown<T>({
           />
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain" aria-label={ariaLabel}>
-          {filteredOptions.length === 0 ? (
+          {tooLong && (
+            <p id={validationId} role="status" className="px-2.5 py-2 text-xs text-destructive">
+              Use {maxCustomLength} characters or fewer.
+            </p>
+          )}
+          {filteredOptions.length === 0 && !canCreate ? (
             <p className="px-2.5 py-4 text-center text-xs text-muted-foreground">{emptyMessage}</p>
           ) : (
             <DropdownMenuGroup>
@@ -153,7 +202,7 @@ export function SearchableDropdown<T>({
                     onSelect={() => onValueChange(optionValue, option)}
                     className="flex min-h-11 items-center justify-between gap-3"
                   >
-                    <span className="min-w-0 flex-1">
+                    <span className="min-w-0 flex-1 whitespace-normal [overflow-wrap:anywhere]">
                       {renderOption ? renderOption(option) : getOptionLabel(option)}
                     </span>
                     {isSelected && (
@@ -162,6 +211,14 @@ export function SearchableDropdown<T>({
                   </DropdownMenuItem>
                 )
               })}
+              {canCreate && (
+                <DropdownMenuItem
+                  onSelect={selectCustom}
+                  className="min-h-11 whitespace-normal [overflow-wrap:anywhere]"
+                >
+                  Use &quot;{customValue}&quot;
+                </DropdownMenuItem>
+              )}
             </DropdownMenuGroup>
           )}
         </div>

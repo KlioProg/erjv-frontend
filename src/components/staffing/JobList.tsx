@@ -24,12 +24,33 @@ import type { Job } from '@/features/staffing/staffing.types'
 import { JobModal } from './JobModal'
 import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal'
 import { ArchiveTabNav } from '@/components/ui/ArchiveTabNav'
+import { getErrorMessage } from '@/lib/api-client'
 
 function JobStaffCount({ jobId, isArchived }: { jobId: number; isArchived?: boolean }) {
-  const { data: employeeJobs = [], isLoading } = useEmployeesForJob(jobId)
+  const { data: employeeJobs = [], isFetching, error, refetch } = useEmployeesForJob(jobId)
 
-  if (isLoading) {
-    return <Spinner className="size-3 text-muted-foreground" />
+  if (isFetching) {
+    return (
+      <span role="status" aria-label="Loading staff assignments">
+        <Spinner className="size-3 text-muted-foreground" />
+      </span>
+    )
+  }
+
+  if (error) {
+    return (
+      <span role="alert" className="inline-flex items-center gap-1 text-xs text-destructive">
+        Staff assignments could not be loaded: {getErrorMessage(error)}
+        <Button
+          variant="link"
+          size="sm"
+          className="h-auto p-0 text-xs"
+          onClick={() => void refetch()}
+        >
+          Retry
+        </Button>
+      </span>
+    )
   }
 
   return (
@@ -51,7 +72,7 @@ function JobStaffCount({ jobId, isArchived }: { jobId: number; isArchived?: bool
 
 export function JobList() {
   const [activeTab, setActiveTab] = useState<'ACTIVE' | 'ARCHIVED'>('ACTIVE')
-  const { data: jobs = [], isLoading, error, refetch } = useAllJobs()
+  const { data: jobs = [], isLoading, isFetching, error, refetch } = useAllJobs()
   const deactivateMutation = useDeactivateJob({ onViewArchive: () => setActiveTab('ARCHIVED') })
   const reactivateMutation = useReactivateJob()
 
@@ -210,10 +231,11 @@ export function JobList() {
             variant="outline"
             size="sm"
             onClick={() => refetch()}
+            disabled={isFetching}
             className="mt-4 gap-2 text-ui font-medium border-border/80 hover:bg-muted cursor-pointer"
           >
             <RotateCcw className="size-3.5" />
-            Try Again
+            {isFetching ? 'Retrying...' : 'Try Again'}
           </Button>
         </div>
       ) : (

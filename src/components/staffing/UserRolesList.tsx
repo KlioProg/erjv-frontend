@@ -104,7 +104,7 @@ RoleBadgeDisplay.displayName = 'RoleBadgeDisplay'
 
 export function UserRolesList() {
   const { isAdmin, user: currentUser } = useAuth()
-  const { data: users = [], isLoading, error, refetch } = useAllUsers()
+  const { data: users = [], isLoading, isFetching, error, refetch } = useAllUsers()
 
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false)
   const [activeTab, setActiveTab] = useState<'ACTIVE' | 'ARCHIVED'>('ACTIVE')
@@ -442,10 +442,17 @@ export function UserRolesList() {
       {/* Users Table */}
       <div className="min-w-0">
         {isLoading ? (
-          <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-2">
-            <Spinner className="size-6 text-primary" />
-            <p className="text-xs">Loading user accounts...</p>
-          </div>
+          <DataTable
+            appearance="management"
+            data={filteredUsers}
+            columns={userColumns}
+            getRowKey={(row) => row.id}
+            isLoading
+            loadingMessage="Loading user accounts..."
+            pageSize={10}
+            pageSizeOptions={[10, 25, 50, 100]}
+            tableClassName="min-w-[980px]"
+          />
         ) : error ? (
           <div className="flex flex-col items-center justify-center py-14 px-4 text-center">
             <AlertCircle className="mb-3 size-6 text-destructive" />
@@ -458,10 +465,11 @@ export function UserRolesList() {
               variant="outline"
               size="sm"
               onClick={() => refetch()}
+              disabled={isFetching}
               className="mt-4 gap-2 text-ui font-medium border-border/80 hover:bg-muted cursor-pointer"
             >
               <RotateCcw className="size-3.5" />
-              Try Again
+              {isFetching ? 'Retrying...' : 'Try Again'}
             </Button>
           </div>
         ) : filteredUsers.length === 0 ? (

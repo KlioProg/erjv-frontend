@@ -1,3 +1,4 @@
+import { DataTableExpandToggle } from '@/components/ui/DataTableExpandedSection'
 import { PageHeader, PageOverview, PageToolbar } from '@/components/ui/ManagementPage'
 import { useMemo, useRef, useState } from 'react'
 import {
@@ -35,6 +36,7 @@ import { useAuth } from '@/features/auth/AuthContext'
 import type { Warehouse } from '@/features/logistics/warehouses.types'
 import type { StockItem } from '@/features/logistics/stock-items.types'
 import { getErrorMessage } from '@/lib/api-client'
+import { WarehouseProducts } from './WarehouseProducts'
 import { WarehouseModal } from './WarehouseModal'
 import { formatStockCents, parseStockCents, stockSortKey } from '@/features/logistics/stock-display'
 
@@ -68,6 +70,7 @@ export function WarehouseList({ onOpenWarehouse }: { onOpenWarehouse: (id: numbe
   const stockItems = useMemo(() => stockQuery.data ?? [], [stockQuery.data])
   const { isAdmin, isManager } = useAuth()
   const canManage = isAdmin || isManager
+  const [expandedWarehouseIds, setExpandedWarehouseIds] = useState<Set<number>>(new Set())
   const [searchTerm, setSearchTerm] = useState('')
   const [editingWarehouse, setEditingWarehouse] = useState<Warehouse | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -209,20 +212,33 @@ export function WarehouseList({ onOpenWarehouse }: { onOpenWarehouse: (id: numbe
       id: 'products',
       header: 'Products',
       width: '12%',
-      className: 'hidden lg:table-cell',
-      headerClassName: 'hidden lg:table-cell',
+      className: 'hidden sm:table-cell',
+      headerClassName: 'hidden sm:table-cell',
       align: 'right',
       sortable: true,
       sortKey: (row) => warehouseTotals.get(row.id)?.products || 0,
-      cell: ({ row }) => (
-        <div className="flex min-w-0 items-center justify-end gap-1 text-sm font-normal">
-          <OverflowValue
-            value={(warehouseTotals.get(row.id)?.products ?? 0).toLocaleString()}
-            className="text-right tabular-nums"
-          />
-          <span className="shrink-0">products</span>
-        </div>
-      ),
+      cell: ({ row }) => {
+        const expanded = expandedWarehouseIds.has(row.id)
+        const count = warehouseTotals.get(row.id)?.products ?? 0
+        return (
+          <DataTableExpandToggle
+            expanded={expanded}
+            controls={`warehouse-products-${row.id}`}
+            ariaLabel={`${expanded ? 'Hide' : 'Show'} products for ${row.name}`}
+            onToggle={() => {
+              setExpandedWarehouseIds((current) => {
+                const next = new Set(current)
+                if (next.has(row.id)) next.delete(row.id)
+                else next.add(row.id)
+                return next
+              })
+            }}
+          >
+            <span className="tabular-nums">{count.toLocaleString()}</span>
+            <span className="hidden xl:inline">{count === 1 ? 'product' : 'products'}</span>
+          </DataTableExpandToggle>
+        )
+      },
     },
     {
       id: 'units',
@@ -347,6 +363,11 @@ export function WarehouseList({ onOpenWarehouse }: { onOpenWarehouse: (id: numbe
         appearance="management"
         data={filteredWarehouses}
         columns={columns}
+        renderExpandedRow={(warehouse) =>
+          expandedWarehouseIds.has(warehouse.id) ? (
+            <WarehouseProducts warehouseId={warehouse.id} warehouseName={warehouse.name} />
+          ) : null
+        }
         onRowClick={(warehouse) => onOpenWarehouse(warehouse.id)}
         rowClassName={() => 'hover:bg-accent focus-within:bg-accent'}
         isLoading={warehousesQuery.isLoading || stockQuery.isLoading}

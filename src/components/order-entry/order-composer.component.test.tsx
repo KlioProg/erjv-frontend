@@ -109,6 +109,30 @@ beforeEach(() => {
 })
 
 describe('purchase composer', () => {
+  it('places each product unit beside its quantity instead of beneath the selected product name', async () => {
+    const user = userEvent.setup()
+    render(
+      <PurchaseModal
+        {...purchaseProps}
+        products={[products[0], { ...products[1], unit: 'pieces' }]}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+      />,
+    )
+    for (const [product, unit] of [
+      [products[0], 'kg'],
+      [products[1], 'piece(s)'],
+    ] as const) {
+      await user.click(screen.getByRole('button', { name: `Add ${product.name}` }))
+      const input = screen.getByRole('textbox', { name: `Quantity for ${product.name}` })
+      const row = within(input.closest('tr')!)
+      const cells = row.getAllByRole('cell')
+      expect(within(cells[0]).queryByText(unit)).toBeNull()
+      expect(within(cells[1]).getByText(unit)).toBeTruthy()
+      expect(input.getAttribute('aria-describedby')).toBeTruthy()
+    }
+  })
+
   it('returns keyboard focus to the launching control after the workspace closes', async () => {
     function Launcher() {
       const [open, setOpen] = useState(false)

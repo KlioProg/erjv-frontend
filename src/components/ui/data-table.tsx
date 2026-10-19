@@ -26,6 +26,8 @@ export type ColumnAlign = 'left' | 'center' | 'right'
 
 export type SortDirection = 'asc' | 'desc'
 
+const SKELETON_CELL_WIDTH_CLASSES = ['w-3/4', 'w-1/2', 'w-2/3', 'w-3/5', 'w-4/5']
+
 export interface SortConfig {
   key: string
   direction: SortDirection
@@ -108,7 +110,7 @@ export interface DataTableProps<T> {
   /** Indicates whether data is currently loading */
   isLoading?: boolean
 
-  /** Custom message or spinner component during loading */
+  /** Accessible announcement for the loading state */
   loadingMessage?: ReactNode
 
   /** Custom empty state card or message when data is empty */
@@ -137,7 +139,7 @@ export interface DataTableProps<T> {
   /** Callback fired when page changes */
   onPageChange?: (newPage: number) => void
 
-  /** Page size (rows per page). Defaults to 10 */
+  /** Initial rows per page; controlled when onPageSizeChange is supplied. Defaults to 10 */
   pageSize?: number
 
   /** Available page size options */
@@ -288,7 +290,8 @@ export function DataTable<T>({
 
   const activeSort = controlledSort !== undefined ? controlledSort : internalSort
   const activePage = controlledPage !== undefined ? controlledPage : internalPage
-  const activePageSize = controlledPageSize !== undefined ? controlledPageSize : internalPageSize
+  const isPageSizeControlled = controlledPageSize !== undefined && onPageSizeChange !== undefined
+  const activePageSize = isPageSizeControlled ? controlledPageSize : internalPageSize
 
   // Map columns with deterministic IDs
   const resolvedColumns = useMemo(() => {
@@ -371,7 +374,7 @@ export function DataTable<T>({
   }
 
   const handlePageSizeSelect = (newSize: number) => {
-    if (controlledPageSize === undefined) {
+    if (!isPageSizeControlled) {
       setInternalPageSize(newSize)
     }
     onPageSizeChange?.(newSize)
@@ -391,15 +394,82 @@ export function DataTable<T>({
   // Loading View
   if (isLoading) {
     return (
-      <div role="status" className={cn('overflow-hidden rounded-lg border bg-card', className)}>
+      <div
+        role="status"
+        className={cn(
+          'ui-typography rounded-lg border border-border overflow-hidden bg-card flex flex-col',
+          appearance === 'management' && 'management-table shadow-none',
+          className,
+        )}
+      >
         <span className="sr-only">{loadingMessage}</span>
-        <div aria-hidden="true">
-          <div className="h-11 border-b bg-secondary" />
-          <div className="flex flex-col gap-4 p-4">
-            <Skeleton className="h-8" />
-            <Skeleton className="h-8" />
-            <Skeleton className="h-8" />
-          </div>
+        <div aria-hidden="true" className="overflow-x-auto">
+          <Table
+            className={cn(
+              appearance === 'management'
+                ? '[&_td]:px-4 [&_th]:px-4'
+                : '[&_td]:px-2 [&_th]:px-2 [&_td:first-child]:pl-3 [&_th:first-child]:pl-3 [&_td:last-child]:pr-3 [&_th:last-child]:pr-3',
+              tableClassName,
+            )}
+          >
+            <TableHeader className="bg-secondary">
+              <TableRow>
+                {resolvedColumns.map((column) => {
+                  const widthStyle =
+                    column.width != null
+                      ? {
+                          width:
+                            typeof column.width === 'number' ? `${column.width}px` : column.width,
+                        }
+                      : undefined
+
+                  return (
+                    <TableHead
+                      key={column.resolvedId}
+                      style={widthStyle}
+                      className={cn(getAlignmentClass(column.align), column.headerClassName)}
+                    >
+                      <Skeleton className="h-3 w-3/5" />
+                    </TableHead>
+                  )
+                })}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {Array.from({ length: 7 }, (_, rowIndex) => (
+                <TableRow key={rowIndex} className="h-12">
+                  {resolvedColumns.map((column, columnIndex) => {
+                    const widthStyle =
+                      column.width != null
+                        ? {
+                            width:
+                              typeof column.width === 'number'
+                                ? `${column.width}px`
+                                : column.width,
+                          }
+                        : undefined
+                    const widthClass =
+                      SKELETON_CELL_WIDTH_CLASSES[
+                        (rowIndex + columnIndex) % SKELETON_CELL_WIDTH_CLASSES.length
+                      ]
+
+                    return (
+                      <TableCell
+                        key={column.resolvedId}
+                        style={widthStyle}
+                        className={cn(
+                          getAlignmentClass(column.align),
+                          column.className,
+                        )}
+                      >
+                        <Skeleton className={cn('h-3.5', widthClass)} />
+                      </TableCell>
+                    )
+                  })}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </div>
       </div>
     )

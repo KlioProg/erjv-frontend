@@ -1,3 +1,4 @@
+import { formatProductUnit } from '@/lib/product-unit'
 import type { OrderSubmissionProps } from '@/hooks/use-order-submission'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -64,22 +65,43 @@ export function PurchaseModal({
       id: 'product',
       header: 'Product',
       className: 'order-entry-product',
-      cell: ({ row }) => <ProductIdentity name={row.name} variety={row.variety} unit={row.unit} />,
+      cell: ({ row }) => <ProductIdentity name={row.name} variety={row.variety} />,
     },
     {
       id: 'quantity',
       header: 'Quantity',
       align: 'right',
-      width: 100,
+      width: 140,
       cell: ({ row }) => (
-        <OrderDecimalInput
-          mobileLabel="Quantity"
-          aria-label={`Quantity for ${row.name}`}
-          value={row.quantity}
-          aria-invalid={!!quantityError(row.quantity)}
-          ref={(input) => form.focus.quantityRef(row.inventoryItemId, input)}
-          onChange={(event) => form.updateLine(row.inventoryItemId, 'quantity', event.target.value)}
-        />
+        <div className="flex min-w-0 flex-col gap-1">
+          <span
+            aria-hidden="true"
+            className="order-entry-mobile-label text-xs text-muted-foreground"
+          >
+            Quantity
+          </span>
+          <div className="flex min-w-0 items-center gap-2">
+            <div className="min-w-0 flex-1">
+              <OrderDecimalInput
+                mobileLabel=""
+                aria-label={`Quantity for ${row.name}`}
+                aria-describedby={`purchase-quantity-unit-${row.inventoryItemId}`}
+                value={row.quantity}
+                aria-invalid={!!quantityError(row.quantity)}
+                ref={(input) => form.focus.quantityRef(row.inventoryItemId, input)}
+                onChange={(event) =>
+                  form.updateLine(row.inventoryItemId, 'quantity', event.target.value)
+                }
+              />
+            </div>
+            <span
+              id={`purchase-quantity-unit-${row.inventoryItemId}`}
+              className="max-w-16 text-left text-xs leading-4 text-muted-foreground [overflow-wrap:anywhere]"
+            >
+              {formatProductUnit(row.unit)}
+            </span>
+          </div>
+        </div>
       ),
     },
     {

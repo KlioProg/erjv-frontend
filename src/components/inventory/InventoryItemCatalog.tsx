@@ -1,15 +1,11 @@
+import {
+  DataTableExpandedSection,
+  DataTableExpandToggle,
+} from '@/components/ui/DataTableExpandedSection'
 import { formatProductUnit } from '@/lib/product-unit'
 import { PageToolbar } from '@/components/ui/ManagementPage'
 import { useState, useMemo, useEffect, useRef } from 'react'
-import {
-  Package,
-  Plus,
-  Search,
-  Tag,
-  ArrowRight,
-  ChevronDown,
-  Warehouse as WarehouseIcon,
-} from 'lucide-react'
+import { Package, Plus, Search, Tag, ArrowRight, Warehouse as WarehouseIcon } from 'lucide-react'
 import {
   buildStockWarnings,
   filterStockWarnings,
@@ -364,24 +360,18 @@ export function InventoryItemCatalog({
         }
         const isExpanded = Boolean(warningScope) || expandedProductIds.has(row.id)
         return (
-          <Button
-            variant="outline"
-            size="sm"
+          <DataTableExpandToggle
             disabled={Boolean(warningScope)}
-            onClick={() => toggleProductLocations(row.id)}
-            aria-expanded={isExpanded}
-            aria-controls={`inventory-locations-${row.id}`}
-            aria-label={`${isExpanded ? 'Hide' : 'Show'} stock by location for ${row.name}`}
-            className="h-8 max-w-full gap-1 px-1.5 text-[13px] sm:px-2 pointer-coarse:min-h-11"
+            onToggle={() => toggleProductLocations(row.id)}
+            expanded={isExpanded}
+            controls={`inventory-locations-${row.id}`}
+            ariaLabel={`${isExpanded ? 'Hide' : 'Show'} stock by location for ${row.name}`}
           >
             <span className="sm:hidden">{warehouseCount} loc.</span>
             <span className="hidden sm:inline">
               {warehouseCount} {warehouseCount === 1 ? 'Warehouse' : 'Warehouses'}
             </span>
-            <ChevronDown
-              className={`size-3.5 shrink-0 transition-transform duration-150 ${isExpanded ? 'rotate-180' : ''}`}
-            />
-          </Button>
+          </DataTableExpandToggle>
         )
       },
     },
@@ -405,13 +395,11 @@ export function InventoryItemCatalog({
       return null
 
     return (
-      <div
+      <DataTableExpandedSection
         id={`inventory-locations-${product.id}`}
-        role="region"
-        aria-label={`Stock by location for ${String(product.name ?? 'product')}`}
-        className="min-w-0 bg-background px-3 py-3 sm:px-7"
+        title="Stock by location"
+        ariaLabel={`Stock by location for ${String(product.name ?? 'product')}`}
       >
-        <h2 className="mb-2 text-base font-semibold">Stock by location</h2>
         <div className="divide-y divide-border">
           {[...stockData.allocations]
             .filter(
@@ -432,7 +420,7 @@ export function InventoryItemCatalog({
                 tabIndex={-1}
                 aria-label={`Stock location ${stock.warehouse?.name || `Warehouse #${stock.warehouseId}`} for ${product.name}`}
                 className={cn(
-                  'flex min-w-0 flex-col gap-2 rounded-md px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                  'grid min-h-11 min-w-0 gap-x-4 gap-y-1 py-1 sm:grid-cols-[minmax(0,1fr)_18rem] sm:items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                   stockCondition(parseStockCents(stock.quantity)) === 'OUT' &&
                     product.isActive &&
                     'bg-destructive/5',
@@ -451,7 +439,7 @@ export function InventoryItemCatalog({
                     className="h-auto min-h-8 p-0 text-left text-sm font-medium pointer-coarse:min-h-11"
                   />
                 </div>
-                <div className="flex min-w-0 items-center justify-between gap-2 pl-6 sm:justify-end sm:pl-0">
+                <div className="grid min-w-0 grid-cols-[1rem_minmax(0,1fr)_minmax(0,4rem)_auto] items-center gap-2 pl-6 sm:pl-0">
                   {product.isActive && (
                     <StockIndicator
                       condition={stockCondition(parseStockCents(stock.quantity))}
@@ -464,9 +452,9 @@ export function InventoryItemCatalog({
                       parseStockCents(stock.quantity) === null ? stock.quantity : undefined
                     }
                     tooltipSuffix={formatProductUnit(product.unit, 'units')}
-                    className="text-sm font-normal tabular-nums sm:max-w-44 sm:text-right"
+                    className="col-start-2 text-right text-sm font-normal tabular-nums"
                   />
-                  <span className="shrink-0 text-xs text-muted-foreground">
+                  <span className="col-start-3 min-w-0 text-xs text-muted-foreground [overflow-wrap:anywhere]">
                     {formatProductUnit(product.unit, 'units')}
                   </span>
                   {onOpenWarehouse && (
@@ -475,7 +463,7 @@ export function InventoryItemCatalog({
                       size="sm"
                       onClick={() => onOpenWarehouse(stock.warehouseId)}
                       aria-label={`View inventory in ${String(stock.warehouse?.name ?? 'warehouse')}`}
-                      className="h-8 shrink-0 gap-1 px-2 text-[13px] text-primary-text pointer-coarse:min-h-11"
+                      className="col-start-4 h-8 shrink-0 gap-1 px-2 text-[13px] text-primary-text pointer-coarse:min-h-11"
                     >
                       View <ArrowRight className="size-3.5" />
                     </Button>
@@ -484,18 +472,7 @@ export function InventoryItemCatalog({
               </div>
             ))}
         </div>
-        <div className="mt-2 flex min-w-0 items-center justify-end gap-1 text-sm font-medium">
-          <span className="shrink-0">
-            {warningScope ? 'Product total (all warehouses):' : 'Total:'}
-          </span>
-          <OverflowValue
-            value={formatStockCents(stockData.totalCents)}
-            tooltipSuffix={formatProductUnit(product.unit, 'units')}
-            className="text-right tabular-nums"
-          />
-          <span className="shrink-0">{formatProductUnit(product.unit, 'units')}</span>
-        </div>
-      </div>
+      </DataTableExpandedSection>
     )
   }
 

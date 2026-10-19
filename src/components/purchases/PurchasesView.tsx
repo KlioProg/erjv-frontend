@@ -593,17 +593,22 @@ export function PurchasesView({
                   onClick={() => void ordersQuery.refetch()}
                   disabled={ordersQuery.isFetching}
                 >
-                  Retry
+                  {ordersQuery.isFetching ? 'Retrying...' : 'Retry'}
                 </Button>
               </AlertDescription>
             </Alert>
           ) : isLoadingPOs ? (
-            <Card className="flex min-h-[300px] items-center justify-center p-8">
-              <div className="flex flex-col items-center gap-2">
-                <Clock className="size-6 animate-spin text-primary" />
-                <p className="text-sm text-muted-foreground">Loading purchase orders...</p>
-              </div>
-            </Card>
+            <DataTable
+              appearance="management"
+              data={orderRows}
+              columns={orderColumns}
+              getRowKey={({ po }) => po.id}
+              isLoading
+              loadingMessage="Loading purchase orders..."
+              pageSize={10}
+              pageSizeOptions={[10, 25, 50, 100]}
+              tableClassName="table-fixed min-w-[1040px] xl:min-w-[1120px]"
+            />
           ) : filteredOrders.length === 0 ? (
             <Card className="flex min-h-[340px] items-center justify-center border-border bg-card shadow-none">
               <div className="flex flex-col items-center justify-center text-center">
@@ -684,7 +689,7 @@ export function PurchasesView({
                   onClick={() => void suppliersQuery.refetch()}
                   disabled={suppliersQuery.isFetching}
                 >
-                  Retry
+                  {suppliersQuery.isFetching ? 'Retrying...' : 'Retry'}
                 </Button>
               </AlertDescription>
             </Alert>

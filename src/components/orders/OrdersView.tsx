@@ -1,13 +1,12 @@
 import { PageHeader, PageToolbar } from '@/components/ui/ManagementPage'
 import { SalesOrderCancelModal } from './SalesOrderCancelModal'
 import { useState, useMemo } from 'react'
-import { CheckCircle2, Eye, MoreHorizontal, Plus, Receipt, Search, XCircle } from 'lucide-react'
+import { CheckCircle2, Eye, MoreHorizontal, Plus, ReceiptText, Search, XCircle } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { Spinner } from '@/components/ui/spinner'
 import { StatusTabNav } from '@/components/ui/StatusTabNav'
 import { OrderModal, type OrderFormValues } from './OrderModal'
 import { buildSalesOrderPayload } from '@/features/crm/sales-order-entry.utils'
@@ -545,23 +544,26 @@ export function OrdersView({
               onClick={() => void ordersQuery.refetch()}
               disabled={ordersQuery.isFetching}
             >
-              Retry
+              {ordersQuery.isFetching ? 'Retrying...' : 'Retry'}
             </Button>
           </AlertDescription>
         </Alert>
       ) : isLoadingOrders ? (
-        <Card className="flex min-h-[360px] items-center justify-center border-border bg-card shadow-none">
-          <div className="flex flex-col items-center justify-center text-center gap-2">
-            <Spinner className="size-6 text-primary" />
-            <span className="text-sm text-muted-foreground">
-              Loading sales orders from database...
-            </span>
-          </div>
-        </Card>
+        <DataTable
+          appearance="management"
+          data={orderRows}
+          columns={salesOrderColumns}
+          getRowKey={({ order }) => order.id}
+          isLoading
+          loadingMessage="Loading sales orders..."
+          pageSize={10}
+          pageSizeOptions={[10, 25, 50, 100]}
+          tableClassName="table-fixed min-w-[760px] lg:min-w-[960px]"
+        />
       ) : filteredOrders.length === 0 ? (
         <Card className="flex min-h-[360px] items-center justify-center border-border bg-card shadow-none">
           <div className="flex flex-col items-center justify-center text-center">
-            <Receipt className="size-8 text-muted-foreground" />
+            <ReceiptText className="size-8 text-muted-foreground" />
             <span className="text-sm font-semibold text-foreground mt-2">
               {searchTerm.trim()
                 ? `No ${activeStatus.toLowerCase()} orders match "${searchTerm.trim()}"`

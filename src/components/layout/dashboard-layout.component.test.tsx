@@ -23,6 +23,8 @@ it('opens mobile navigation as a modal and restores focus when Escape closes it'
   )
   const trigger = screen.getByRole('button', { name: 'Open navigation' })
   await user.click(trigger)
+  expect(document.body.hasAttribute('data-scroll-locked')).toBe(true)
+  expect(getComputedStyle(document.body).overflow).toBe('hidden')
   const dialog = screen.getByRole('dialog', { name: 'Navigation' })
   const toggles = screen.getAllByRole('button', { name: 'Deliveries', hidden: true })
   expect(new Set(toggles.map((toggle) => toggle.getAttribute('aria-controls'))).size).toBe(
@@ -37,4 +39,13 @@ it('opens mobile navigation as a modal and restores focus when Escape closes it'
   await user.keyboard('{Escape}')
   expect(screen.queryByRole('dialog')).toBeNull()
   expect(document.activeElement).toBe(trigger)
+  expect(document.body.hasAttribute('data-scroll-locked')).toBe(false)
+
+  const account = screen.getByRole('button', { name: 'Account menu' })
+  await user.click(account)
+  expect(document.body.hasAttribute('data-scroll-locked')).toBe(true)
+  expect(getComputedStyle(document.body).overflow).toBe('hidden')
+  await user.keyboard('{Escape}')
+  expect(document.body.hasAttribute('data-scroll-locked')).toBe(false)
+  expect(document.activeElement).toBe(account)
 })

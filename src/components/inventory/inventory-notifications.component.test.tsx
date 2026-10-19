@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import { apiClient } from '@/lib/api-client'
 import { AppRoutes } from '@/routing/AppRoutes'
 import { InventoryHub } from './InventoryHub'
+import { WarehouseList } from '@/components/operations/WarehouseList'
 import { WarehouseInventory } from '@/components/operations/WarehouseInventory'
 import { StockNotifications } from '@/components/layout/StockNotifications'
 import { useCompleteIncomingDelivery } from '@/features/logistics/incoming-deliveries.hooks'
@@ -541,6 +542,7 @@ describe('inventory and global stock warnings', () => {
     const locations = within(
       screen.getByRole('region', { name: 'Stock by location for Beta Mixed' }),
     )
+    expect(locations.queryByText(/^(Total:|Product total)/)).toBeNull()
     expect(locations.getByRole('img', { name: 'Out of stock at Store' })).toBeTruthy()
     expect(locations.queryByRole('img', { name: /Main Warehouse/ })).toBeNull()
     await user.click(locations.getByRole('button', { name: 'View inventory in Store' }))
@@ -701,5 +703,103 @@ describe('inventory and global stock warnings', () => {
     await waitFor(() => expect(screen.queryByText('Alpha Empty')).toBeNull())
     await user.click(screen.getByRole('button', { name: /^Active/ }))
     expect(await screen.findByText('Alpha Empty')).toBeTruthy()
+  })
+})
+
+describe('warehouse product expansion', () => {
+  it('keeps expansion attached to warehouse IDs through sorting, pagination and search', async () => {
+    const user = userEvent.setup()
+    const adapter = apiClient.defaults.adapter as import('axios').AxiosAdapter
+    apiClient.defaults.adapter = async (config) => {
+      if (config.url === '/warehouses')
+        return {
+          data: Array.from({ length: 12 }, (_, index) =>
+            location(index + 1, `Warehouse ${String(index + 1).padStart(2, '0')}`),
+          ).reverse(),
+          status: 200,
+          statusText: 'OK',
+          headers: {},
+          config,
+        }
+      return adapter(config)
+    }
+    mount(<WarehouseList onOpenWarehouse={vi.fn()} />)
+    await screen.findByRole('button', { name: 'Show products for Warehouse 12' })
+    const table = screen.getByRole('table')
+    await user.click(screen.getByRole('button', { name: 'Warehouse' }))
+    expect(within(table).getAllByRole('row')[1].textContent).toContain('Warehouse 01')
+    await user.click(screen.getByRole('button', { name: 'Show products for Warehouse 01' }))
+    const region = await screen.findByRole('region', { name: 'Products at Warehouse 01' })
+    await within(region).findByText('Alpha Empty')
+    await user.click(screen.getByRole('button', { name: 'Next Page' }))
+    expect(screen.queryByRole('region', { name: 'Products at Warehouse 01' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Show products for Warehouse 11' })).toBeTruthy()
+    await user.click(screen.getByRole('button', { name: 'Previous Page' }))
+    expect(await screen.findByRole('region', { name: 'Products at Warehouse 01' })).toBeTruthy()
+    const search = screen.getByRole('textbox', { name: 'Search warehouses' })
+    await user.type(search, 'Warehouse 02')
+    expect(screen.queryByRole('region', { name: 'Products at Warehouse 01' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Show products for Warehouse 02' })).toBeTruthy()
+    await user.clear(search)
+    expect(await screen.findByRole('region', { name: 'Products at Warehouse 01' })).toBeTruthy()
+  })
+
+  it('loads only expanded warehouses, preserves independent expansion and displays exact units and quantities', async () => {
+    const user = userEvent.setup()
+    stocks = [stock(1, 1, 1, '3429.25'), stock(2, 2, 1, '158'), stock(3, 3, 2, '0')]
+    stocks[1].inventoryItem.unit = 'pieces'
+    const openWarehouse = vi.fn()
+    mount(<WarehouseList onOpenWarehouse={openWarehouse} />)
+    const store = await screen.findByRole('button', { name: 'Show products for Store' })
+    expect(requests.some((r) => r.url.startsWith('/stock-items/warehouses/'))).toBe(false)
+    store.focus()
+    await user.keyboard('{Enter}')
+    const region = await screen.findByRole('region', { name: 'Products at Store' })
+    expect(await within(region).findByText('3,429.25')).toBeTruthy()
+    expect(within(region).getByRole('heading', { name: 'Products at Store' })).toBeTruthy()
+    expect(within(region).queryByText(/Total products:/)).toBeNull()
+    expect(document.activeElement).toBe(store)
+    expect(within(region).getByText('piece(s)')).toBeTruthy()
+    expect(within(region).getByText('158')).toBeTruthy()
+    expect(store.getAttribute('aria-expanded')).toBe('true')
+    expect(store.getAttribute('aria-controls')).toBe(region.id)
+    expect(openWarehouse).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: 'Show products for Main Warehouse' }))
+    const main = await screen.findByRole('region', { name: 'Products at Main Warehouse' })
+    expect(await within(main).findByText('Gamma Small')).toBeTruthy()
+    expect(within(main).getByText('0')).toBeTruthy()
+    await user.click(store)
+    expect(screen.queryByRole('region', { name: 'Products at Store' })).toBeNull()
+    expect(screen.getByRole('region', { name: 'Products at Main Warehouse' })).toBeTruthy()
+    await user.click(screen.getByText('Store'))
+    expect(openWarehouse).toHaveBeenCalledWith(1)
+  })
+
+  it('handles empty stock, loading and a failed request with retry', async () => {
+    const user = userEvent.setup()
+    stocks = []
+    mount(<WarehouseList onOpenWarehouse={vi.fn()} />)
+    const store = await screen.findByRole('button', { name: 'Show products for Store' })
+    const adapter = apiClient.defaults.adapter as import('axios').AxiosAdapter
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    apiClient.defaults.adapter = async (config) => {
+      if (config.url === '/stock-items/warehouses/1') await gate
+      return adapter(config)
+    }
+    failStock = true
+    await user.click(store)
+    const region = screen.getByRole('region', { name: 'Products at Store' })
+    expect(within(region).getByRole('status').textContent).toContain('Loading products')
+    expect(within(region).queryByText(/Total products:/)).toBeNull()
+    await act(async () => release())
+    expect(await within(region).findByRole('alert')).toBeTruthy()
+    expect(within(region).queryByText(/Total products:/)).toBeNull()
+    failStock = false
+    await user.click(within(region).getByRole('button', { name: 'Retry' }))
+    expect(await within(region).findByText('No products in this warehouse.')).toBeTruthy()
+    expect(within(region).queryByText(/Total products:/)).toBeNull()
   })
 })

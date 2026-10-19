@@ -167,6 +167,19 @@ export function DeliveriesHub({
     completeOutgoing,
     cancelOutgoing,
   ].some((mutation) => mutation.isPending)
+  const hasDeliveryError =
+    view === 'incoming'
+      ? incomingQuery.isError
+      : view === 'outgoing'
+        ? outgoingQuery.isError
+        : incomingQuery.isError || outgoingQuery.isError
+  const isLoadingDeliveries =
+    view === 'incoming'
+      ? incomingQuery.isLoading
+      : view === 'outgoing'
+        ? outgoingQuery.isLoading
+        : incomingQuery.isLoading || outgoingQuery.isLoading
+  const isFetchingDeliveries = incomingQuery.isFetching || outgoingQuery.isFetching
   const rows = buildDeliveryRows({
     incoming,
     outgoing,
@@ -414,11 +427,7 @@ export function DeliveriesHub({
           </Button>
         </p>
       )}
-      {(view === 'incoming'
-        ? incomingQuery.isError
-        : view === 'outgoing'
-          ? outgoingQuery.isError
-          : incomingQuery.isError || outgoingQuery.isError) && (
+      {hasDeliveryError && (
         <Alert variant="destructive">
           <AlertDescription>
             Some deliveries could not be loaded.{' '}
@@ -429,32 +438,33 @@ export function DeliveriesHub({
                 void incomingQuery.refetch()
                 void outgoingQuery.refetch()
               }}
+              disabled={isFetchingDeliveries}
             >
-              Retry
+              {isFetchingDeliveries ? 'Retrying...' : 'Retry'}
             </Button>
           </AlertDescription>
         </Alert>
       )}
-      <DeliveryTable
-        rows={filtered}
-        view={view}
-        isLoading={
-          view === 'incoming'
-            ? incomingQuery.isLoading
-            : view === 'outgoing'
-              ? outgoingQuery.isLoading
-              : incomingQuery.isLoading || outgoingQuery.isLoading
-        }
-        canManage={canManage}
-        pending={pending}
-        onView={(row) =>
-          row.type === 'Incoming'
-            ? setViewIncomingId(row.record.id)
-            : setViewOutgoingId(row.record.id)
-        }
-        onViewOrder={(row) => setViewOrder({ type: row.type, id: row.orderId })}
-        onAction={handleAction}
-      />
+      {hasDeliveryError && filtered.length === 0 && !isLoadingDeliveries ? (
+        <div className="flex min-h-[360px] items-center justify-center rounded-lg border border-border bg-card px-4 py-12 text-center text-sm text-muted-foreground">
+          Delivery records are unavailable until the request succeeds.
+        </div>
+      ) : (
+        <DeliveryTable
+          rows={filtered}
+          view={view}
+          isLoading={isLoadingDeliveries}
+          canManage={canManage}
+          pending={pending}
+          onView={(row) =>
+            row.type === 'Incoming'
+              ? setViewIncomingId(row.record.id)
+              : setViewOutgoingId(row.record.id)
+          }
+          onViewOrder={(row) => setViewOrder({ type: row.type, id: row.orderId })}
+          onAction={handleAction}
+        />
+      )}
       {canManage && createType === 'Incoming' && (
         <ScheduleIncomingDeliveryModal
           key={orderScope ?? 'incoming'}

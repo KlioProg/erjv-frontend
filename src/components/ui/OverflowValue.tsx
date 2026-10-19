@@ -1,4 +1,5 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { Slot } from '@radix-ui/react-slot'
 import { createPortal } from 'react-dom'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -10,6 +11,8 @@ type OverflowValueProps = {
   tooltipSuffix?: string
   showFullValueOnHover?: boolean
   onActivate?: () => void
+  asChild?: boolean
+  children?: ReactNode
 }
 
 /** Reveals clipped text or optional alternate details on hover, focus, or touch. */
@@ -20,6 +23,8 @@ export function OverflowValue({
   tooltipSuffix,
   showFullValueOnHover = false,
   onActivate,
+  asChild = false,
+  children,
 }: OverflowValueProps) {
   const text = value == null || value === '' ? '—' : String(value)
   const fullText = fullValue == null || fullValue === '' ? text : String(fullValue)
@@ -37,7 +42,7 @@ export function OverflowValue({
   const canReveal = clipped || hasHiddenOriginal || (showFullValueOnHover && hasAlternateValue)
 
   useLayoutEffect(() => {
-    const element = ref.current
+    const element = ref.current?.querySelector<HTMLElement>('[data-overflow-text]') ?? ref.current
     if (!element) return
     const measure = () => setClipped(element.scrollWidth > element.clientWidth + 1)
     measure()
@@ -86,12 +91,24 @@ export function OverflowValue({
     },
     onFocus: show,
     onBlur: () => setOpen(false),
+    onKeyDown: (event: React.KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false)
+    },
   }
   const textClass = cn('block min-w-0 max-w-full truncate', className)
 
   return (
     <>
-      {onActivate ? (
+      {asChild ? (
+        <Slot
+          ref={(element) => {
+            ref.current = element
+          }}
+          {...common}
+        >
+          {children}
+        </Slot>
+      ) : onActivate ? (
         <Button
           ref={(element) => {
             ref.current = element

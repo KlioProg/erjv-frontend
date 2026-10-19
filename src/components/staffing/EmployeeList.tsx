@@ -19,7 +19,6 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { DataTableActions } from '@/components/ui/DataTableActions'
-import { Spinner } from '@/components/ui/spinner'
 import {
   useAllEmployees,
   useDeactivateEmployee,
@@ -32,7 +31,7 @@ import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal'
 
 export function EmployeeList() {
   const [activeTab, setActiveTab] = useState<'ACTIVE' | 'ARCHIVED'>('ACTIVE')
-  const { data: allEmployees = [], isLoading, error, refetch } = useAllEmployees()
+  const { data: allEmployees = [], isLoading, isFetching, error, refetch } = useAllEmployees()
   const deactivateMutation = useDeactivateEmployee({
     onViewArchive: () => setActiveTab('ARCHIVED'),
   })
@@ -277,10 +276,16 @@ export function EmployeeList() {
       {/* Employees Table Card */}
       <div className="min-w-0">
         {isLoading ? (
-          <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-2">
-            <Spinner className="size-6 text-primary" />
-            <p className="text-xs">Loading employee directory...</p>
-          </div>
+          <DataTable
+            appearance="management"
+            data={filteredEmployees}
+            columns={employeeColumns}
+            getRowKey={(row) => row.id}
+            isLoading
+            loadingMessage="Loading employee directory..."
+            pageSizeOptions={[10, 25, 50, 100]}
+            tableClassName="min-w-[980px]"
+          />
         ) : error ? (
           <div className="flex flex-col items-center justify-center py-14 px-4 text-center">
             <AlertCircle className="mb-3 size-6 text-destructive" />
@@ -293,10 +298,11 @@ export function EmployeeList() {
               variant="outline"
               size="sm"
               onClick={() => refetch()}
+              disabled={isFetching}
               className="mt-4 gap-2 text-ui font-medium border-border/80 hover:bg-muted cursor-pointer"
             >
               <RotateCcw className="size-3.5" />
-              Try Again
+              {isFetching ? 'Retrying...' : 'Try Again'}
             </Button>
           </div>
         ) : filteredEmployees.length === 0 ? (

@@ -21,8 +21,10 @@ import {
 import { ArchiveTabNav } from '@/components/ui/ArchiveTabNav'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
+import { Skeleton } from '@/components/ui/skeleton'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -47,6 +49,7 @@ import type {
   WarehouseSummary,
 } from '@/features/logistics/stock-items.types'
 import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal'
+import { getErrorMessage } from '@/lib/api-client'
 
 export interface InventoryStockListProps {
   onNavigateToLowStock?: () => void
@@ -74,9 +77,12 @@ export function InventoryStockList({
   onArchiveTabChange,
   hideArchiveNav = false,
 }: InventoryStockListProps = {}) {
-  const { data: allProducts = [], isLoading: isLoadingProducts } = useAllProducts()
-  const { data: stockItems = [], isLoading: isLoadingStock } = useStockItems()
-  const { data: warehouses = [] } = useWarehouses()
+  const productsQuery = useAllProducts()
+  const stockQuery = useStockItems()
+  const warehousesQuery = useWarehouses()
+  const { data: allProducts = [] } = productsQuery
+  const { data: stockItems = [] } = stockQuery
+  const { data: warehouses = [] } = warehousesQuery
 
   const [internalActiveTab, setInternalActiveTab] = useState<'ACTIVE' | 'ARCHIVED'>('ACTIVE')
   const activeTab = controlledActiveTab ?? internalActiveTab
@@ -291,7 +297,16 @@ export function InventoryStockList({
     }
   }
 
-  const isLoading = isLoadingProducts || isLoadingStock
+  const isLoading =
+    productsQuery.isLoading || stockQuery.isLoading || warehousesQuery.isLoading
+  const hasQueryError = productsQuery.isError || stockQuery.isError || warehousesQuery.isError
+  const queryError = productsQuery.error ?? stockQuery.error ?? warehousesQuery.error
+  const isFetching = productsQuery.isFetching || stockQuery.isFetching || warehousesQuery.isFetching
+  const retryFailedQueries = () => {
+    if (productsQuery.isError) void productsQuery.refetch()
+    if (stockQuery.isError) void stockQuery.refetch()
+    if (warehousesQuery.isError) void warehousesQuery.refetch()
+  }
 
   // Column definitions for Warehouse Stock DataTable
   const tableColumns = useMemo<ColumnDef<FlatWarehouseStockItem>[]>(() => {
@@ -609,6 +624,23 @@ export function InventoryStockList({
         </div>
       </div>
 
+      {hasQueryError && (
+        <Alert variant="destructive">
+          <AlertDescription>
+            Warehouse stock could not be loaded. {getErrorMessage(queryError)}
+            <Button
+              variant="outline"
+              size="sm"
+              className="ml-2"
+              onClick={retryFailedQueries}
+              disabled={isFetching}
+            >
+              {isFetching ? 'Retrying...' : 'Retry'}
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Main View: Table Mode or Card Mode */}
       {viewMode === 'table' ? (
         <DataTable
@@ -619,21 +651,53 @@ export function InventoryStockList({
           pagination={true}
           pageSizeOptions={[10, 25, 50, 100]}
           emptyContent={
-            <Card className="border-0 bg-transparent shadow-none">
-              <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-                <WarehouseIcon className="size-10 text-muted-foreground/50 mb-3" />
-                <h3 className="text-base font-semibold text-foreground">
-                  No warehouse stock records found
-                </h3>
-                <p className="text-xs text-muted-foreground mt-1 max-w-xs">
-                  {searchTerm || selectedWarehouseFilter !== 'ALL'
-                    ? 'No stock allocations match your search filter or selected warehouse.'
-                    : 'Allocate products to warehouse facilities to track real-time stock balances.'}
-                </p>
-              </CardContent>
-            </Card>
+            hasQueryError ? (
+              <div className="flex min-h-64 items-center justify-center px-4 py-12 text-center text-sm text-destructive">
+                Warehouse stock records are unavailable until the request succeeds.
+              </div>
+            ) : (
+              <Card className="border-0 bg-transparent shadow-none">
+                <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+                  <WarehouseIcon className="size-10 text-muted-foreground/50 mb-3" />
+                  <h3 className="text-base font-semibold text-foreground">
+                    No warehouse stock records found
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-1 max-w-xs">
+                    {searchTerm || selectedWarehouseFilter !== 'ALL'
+                      ? 'No stock allocations match your search filter or selected warehouse.'
+                      : 'Allocate products to warehouse facilities to track real-time stock balances.'}
+                  </p>
+                </CardContent>
+              </Card>
+            )
           }
         />
+      ) : isLoading ? (
+        <div role="status" className="flex flex-col gap-4">
+          <span className="sr-only">Loading warehouse stock inventory records...</span>
+          {Array.from({ length: 3 }, (_, index) => (
+            <Card key={index} aria-hidden="true" className="overflow-hidden border-border">
+              <div className="flex items-center gap-4 p-5">
+                <Skeleton className="size-10 shrink-0 rounded-full" />
+                <div className="min-w-0 flex-1 space-y-2">
+                  <Skeleton className="h-4 w-2/5" />
+                  <Skeleton className="h-3 w-1/4" />
+                </div>
+                <div className="hidden w-40 space-y-2 sm:block">
+                  <Skeleton className="h-3 w-3/4" />
+                  <Skeleton className="h-4 w-1/2" />
+                </div>
+              </div>
+            </Card>
+          ))}
+        </div>
+      ) : hasQueryError ? (
+        <div
+          role="alert"
+          className="flex min-h-[360px] items-center justify-center rounded-lg border border-border bg-card px-4 py-12 text-center text-sm text-destructive"
+        >
+          Warehouse inventory items are unavailable until the request succeeds.
+        </div>
       ) : (
         /* Card Mode */
         <div className="flex flex-col gap-4">

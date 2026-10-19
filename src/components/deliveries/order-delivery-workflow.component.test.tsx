@@ -149,6 +149,7 @@ let failCreation: boolean
 let failCancellation: boolean
 let requestGate: { url: string; wait: Promise<void> } | undefined
 let failReceipt: boolean
+let failIncomingQuery: boolean
 let requests: { method: string; url: string; body: Record<string, unknown> }[]
 const originalAdapter = apiClient.defaults.adapter
 
@@ -194,6 +195,7 @@ beforeEach(() => {
   failCancellation = false
   requestGate = undefined
   failReceipt = false
+  failIncomingQuery = false
   requests = []
   apiClient.defaults.adapter = async (config) => {
     const url = config.url || ''
@@ -201,6 +203,10 @@ beforeEach(() => {
     const body = typeof config.data === 'string' ? JSON.parse(config.data) : config.data || {}
     requests.push({ method, url, body })
     if (method !== 'get' && requestGate?.url === url) await requestGate.wait
+    if (method === 'get' && url === '/incoming-deliveries' && failIncomingQuery) {
+      failIncomingQuery = false
+      throw { isAxiosError: true, code: 'ERR_NETWORK', message: 'Connection failed' }
+    }
     let data: unknown = []
     if (method === 'get') {
       const collections: Record<string, unknown> = {
@@ -1035,6 +1041,23 @@ describe('order to delivery workflow', () => {
     expect(within(dialog).getByText('Test Mango')).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Confirm Purchase Order' })).toBeNull()
     expect(mutations()).toHaveLength(0)
+  })
+
+  it('distinguishes an unavailable delivery list from an empty list and retries', async () => {
+    incoming = []
+    failIncomingQuery = true
+    const user = userEvent.setup()
+    mount(<DeliveriesHub initialTab="incoming" />)
+
+    expect(await screen.findByText('Some deliveries could not be loaded.')).toBeTruthy()
+    expect(screen.getByText('Delivery records are unavailable until the request succeeds.')).toBeTruthy()
+    expect(screen.queryByText('No incoming deliveries found')).toBeNull()
+
+    await user.click(screen.getByRole('button', { name: 'Retry' }))
+    expect(await screen.findByText('No incoming deliveries found')).toBeTruthy()
+    expect(
+      screen.queryByText('Delivery records are unavailable until the request succeeds.'),
+    ).toBeNull()
   })
 
   it('keeps staff delivery access read-only with accessible detail references', async () => {
