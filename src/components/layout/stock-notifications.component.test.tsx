@@ -75,6 +75,11 @@ it('shows warehouse-scoped severity dots independently of the selected category 
   expect(dot('Out of stock')).toBeNull()
   expect(dot('Low stock')).toBeTruthy()
   expect(dot('All warnings')).toBeNull()
+  for (const name of ['All warnings', 'Out of stock', 'Low stock']) {
+    await user.click(screen.getByRole('menuitemradio', { name }))
+    expect(screen.getByRole('menuitemradio', { name }).getAttribute('aria-checked')).toBe('true')
+    expect(dot('All warnings')).toBeNull()
+  }
 })
 
 it('removes dots as warning data clears, including a selected empty category', async () => {
@@ -85,9 +90,23 @@ it('removes dots as warning data clears, including a selected empty category', a
   state.warnings = []
   view.rerender(<StockNotifications onOpenInventory={vi.fn()} />)
   for (const name of ['All warnings', 'Out of stock', 'Low stock']) {
+    await user.click(screen.getByRole('menuitemradio', { name }))
+    expect(screen.getByRole('menuitemradio', { name }).getAttribute('aria-checked')).toBe('true')
     expect(dot(name)).toBeNull()
     expect(screen.getByRole('menuitemradio', { name }).querySelector('svg')).toBeNull()
   }
+})
+
+it('preserves arrow-key selection in the equal-width filters', async () => {
+  const user = userEvent.setup()
+  render(<StockNotifications onOpenInventory={vi.fn()} />)
+  await user.click(screen.getByRole('button', { name: /Stock notifications/ }))
+  screen.getByRole('menuitemradio', { name: 'Out of stock' }).focus()
+  await user.keyboard('{ArrowDown}{Enter}')
+  expect(
+    screen.getByRole('menuitemradio', { name: 'Low stock' }).getAttribute('aria-checked'),
+  ).toBe('true')
+  expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: 'Low stock' }))
 })
 
 it.each(['loading', 'unavailable'] as const)(

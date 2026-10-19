@@ -1050,7 +1050,9 @@ describe('order to delivery workflow', () => {
     mount(<DeliveriesHub initialTab="incoming" />)
 
     expect(await screen.findByText('Some deliveries could not be loaded.')).toBeTruthy()
-    expect(screen.getByText('Delivery records are unavailable until the request succeeds.')).toBeTruthy()
+    expect(
+      screen.getByText('Delivery records are unavailable until the request succeeds.'),
+    ).toBeTruthy()
     expect(screen.queryByText('No incoming deliveries found')).toBeNull()
 
     await user.click(screen.getByRole('button', { name: 'Retry' }))
@@ -1073,4 +1075,32 @@ describe('order to delivery workflow', () => {
     expect(within(screen.getByRole('dialog')).getByText('IN-21')).toBeTruthy()
     expect(requests.filter((request) => request.method !== 'get')).toHaveLength(0)
   })
+})
+
+it('keeps history search and filters in a logical keyboard order and preserves date reset', async () => {
+  const user = userEvent.setup()
+  mount(<DeliveriesHub initialTab="history" />)
+  await screen.findByRole('button', { name: 'View delivery OUT-7' })
+  const search = screen.getByRole('textbox', { name: 'Search deliveries' })
+  search.focus()
+  for (const control of [
+    screen.getByRole('button', { name: 'Clear Filters' }),
+    screen.getByRole('combobox', { name: 'Status' }),
+    screen.getByRole('combobox', { name: 'Warehouse' }),
+    screen.getByLabelText('From Date'),
+    screen.getByLabelText('To Date'),
+    screen.getByRole('combobox', { name: 'Direction' }),
+  ]) {
+    await user.tab()
+    expect(document.activeElement).toBe(control)
+  }
+  const from = screen.getByLabelText('From Date') as HTMLInputElement
+  const to = screen.getByLabelText('To Date') as HTMLInputElement
+  fireEvent.change(from, { target: { value: '2099-01-01' } })
+  expect(to.min).toBe('2099-01-01')
+  expect(screen.queryByRole('button', { name: 'View delivery OUT-7' })).toBeNull()
+  await user.click(screen.getByRole('button', { name: 'Clear Filters' }))
+  expect(from.value).toBe('')
+  expect(to.value).toBe('')
+  expect(await screen.findByRole('button', { name: 'View delivery OUT-7' })).toBeTruthy()
 })

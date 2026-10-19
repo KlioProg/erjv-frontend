@@ -151,7 +151,7 @@ export function StockNotifications({
                 aria-label="Warning status"
                 value={warningFilter}
                 onValueChange={(value) => setWarningFilter(value as StockWarningFilter)}
-                className="flex flex-wrap"
+                className="grid grid-cols-3 gap-1"
               >
                 {(
                   [
@@ -164,21 +164,22 @@ export function StockNotifications({
                     key={value}
                     value={value}
                     onSelect={(event) => event.preventDefault()}
-                    indicator={
-                      value !== 'ALL' &&
-                      filterStockWarnings(warnings, {
-                        warningFilter: value,
-                        warehouseId: warehouse?.id,
-                      }).length > 0 ? (
-                        <span
-                          aria-hidden="true"
-                          className={`size-1.5 rounded-full ${value === 'OUT' ? 'bg-destructive' : 'bg-status-warning-foreground'}`}
-                        />
-                      ) : null
-                    }
-                    className="text-xs data-[state=checked]:bg-accent"
+                    indicator={null}
+                    className="min-w-0 justify-center px-1 text-xs data-[state=checked]:bg-accent"
                   >
-                    {label}
+                    <span className="relative min-w-0 max-w-[calc(100%-1.5rem)] whitespace-normal text-center">
+                      {label}
+                      {value !== 'ALL' &&
+                        filterStockWarnings(warnings, {
+                          warningFilter: value,
+                          warehouseId: warehouse?.id,
+                        }).length > 0 && (
+                          <span
+                            aria-hidden="true"
+                            className={`pointer-events-none absolute left-full top-1/2 ml-1.5 size-1.5 -translate-y-1/2 rounded-full ${value === 'OUT' ? 'bg-destructive' : 'bg-status-warning-foreground'}`}
+                          />
+                        )}
+                    </span>
                   </DropdownMenuRadioItem>
                 ))}
               </DropdownMenuRadioGroup>

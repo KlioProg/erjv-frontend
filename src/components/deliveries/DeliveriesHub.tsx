@@ -81,12 +81,12 @@ function DeliveryFilter({
   options: { value: string; label: string }[]
 }) {
   return (
-    <div className="flex min-w-0 flex-col gap-1.5">
-      <Label className="text-[13px]" htmlFor={`delivery-filter-${label}`}>
+    <div className="flex min-w-0 flex-col gap-2">
+      <Label className="text-[13px] font-medium" htmlFor={`delivery-filter-${label}`}>
         {label}
       </Label>
       <Select value={value} onValueChange={onChange}>
-        <SelectTrigger id={`delivery-filter-${label}`} className="h-9 text-[13px]">
+        <SelectTrigger id={`delivery-filter-${label}`} className="h-10 min-w-0 text-[13px]">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -291,21 +291,71 @@ export function DeliveriesHub({
           </span>
         )}
       </p>
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        {view === 'history' && (
-          <DeliveryFilter
-            label="Direction"
-            value={type}
-            onChange={(value) => {
-              setType(value)
-              setStatus('ALL')
-            }}
-            options={[
-              { value: 'ALL', label: 'All' },
-              ...['Incoming', 'Outgoing'].map((value) => ({ value, label: value })),
-            ]}
+      <PageToolbar className="[&>div:first-child]:max-w-xl!">
+        <div className="relative min-w-0 flex-1 sm:min-w-64">
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            aria-label="Search deliveries"
+            placeholder="Search delivery, order, supplier, customer, or vehicle..."
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            className="h-10 pl-9 text-[13px]"
           />
-        )}
+        </div>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setType('ALL')
+              setStatus('ALL')
+              setWarehouseId('ALL')
+              setSearch('')
+              setFromDate('')
+              setToDate('')
+              setOrderScope(null)
+            }}
+          >
+            Clear Filters
+          </Button>
+          {canManage && view !== 'history' && (
+            <div className="flex flex-wrap gap-2">
+              {view === 'incoming' && (
+                <Button
+                  size="sm"
+                  variant="default"
+                  disabled={
+                    !purchaseOrders.some((order) =>
+                      ['CONFIRMED', 'PARTIALLY_RECEIVED'].includes(order.status),
+                    )
+                  }
+                  onClick={() => setCreateType('Incoming')}
+                >
+                  <ArrowDownToLine data-icon="inline-start" />
+                  Schedule Incoming
+                </Button>
+              )}
+              {view === 'outgoing' && (
+                <Button
+                  size="sm"
+                  disabled={
+                    !salesOrders.some((order) =>
+                      ['CONFIRMED', 'PARTIALLY_DELIVERED'].includes(order.status),
+                    )
+                  }
+                  onClick={() => setCreateType('Outgoing')}
+                >
+                  <Plus data-icon="inline-start" />
+                  Schedule Outgoing
+                </Button>
+              )}
+            </div>
+          )}
+        </div>
+      </PageToolbar>
+      <div
+        className={`grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 ${view === 'history' ? 'xl:grid-cols-5' : ''}`}
+      >
         <DeliveryFilter
           label="Status"
           value={status}
@@ -327,94 +377,46 @@ export function DeliveriesHub({
             })),
           ]}
         />
-      </div>
-      <PageToolbar>
-        <div className="relative flex-1">
-          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+        <div className="flex min-w-0 flex-col gap-2">
+          <Label htmlFor="delivery-date-from" className="text-[13px] font-medium">
+            From Date
+          </Label>
           <Input
-            aria-label="Search deliveries"
-            placeholder="Search delivery, order, supplier, customer, or vehicle..."
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            className="h-9 pl-9 text-[13px]"
+            id="delivery-date-from"
+            type="date"
+            value={fromDate}
+            onChange={(event) => setFromDate(event.target.value)}
+            className="h-10 min-w-0 text-[13px]"
           />
         </div>
-        <div className="flex flex-1 gap-3 sm:max-w-sm">
-          <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-            <Label htmlFor="delivery-date-from" className="text-[13px]">
-              From Date
-            </Label>
-            <Input
-              id="delivery-date-from"
-              type="date"
-              value={fromDate}
-              onChange={(event) => setFromDate(event.target.value)}
-              className="h-9 text-[13px]"
-            />
-          </div>
-          <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-            <Label htmlFor="delivery-date-to" className="text-[13px]">
-              To Date
-            </Label>
-            <Input
-              id="delivery-date-to"
-              type="date"
-              value={toDate}
-              min={fromDate || undefined}
-              onChange={(event) => setToDate(event.target.value)}
-              className="h-9 text-[13px]"
-            />
-          </div>
+        <div className="flex min-w-0 flex-col gap-2">
+          <Label htmlFor="delivery-date-to" className="text-[13px] font-medium">
+            To Date
+          </Label>
+          <Input
+            id="delivery-date-to"
+            type="date"
+            value={toDate}
+            min={fromDate || undefined}
+            onChange={(event) => setToDate(event.target.value)}
+            className="h-10 min-w-0 text-[13px]"
+          />
         </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => {
-            setType('ALL')
-            setStatus('ALL')
-            setWarehouseId('ALL')
-            setSearch('')
-            setFromDate('')
-            setToDate('')
-            setOrderScope(null)
-          }}
-        >
-          Clear Filters
-        </Button>
-        {canManage && view !== 'history' && (
-          <div className="flex flex-wrap gap-2">
-            {view === 'incoming' && (
-              <Button
-                size="sm"
-                variant="default"
-                disabled={
-                  !purchaseOrders.some((order) =>
-                    ['CONFIRMED', 'PARTIALLY_RECEIVED'].includes(order.status),
-                  )
-                }
-                onClick={() => setCreateType('Incoming')}
-              >
-                <ArrowDownToLine data-icon="inline-start" />
-                Schedule Incoming
-              </Button>
-            )}
-            {view === 'outgoing' && (
-              <Button
-                size="sm"
-                disabled={
-                  !salesOrders.some((order) =>
-                    ['CONFIRMED', 'PARTIALLY_DELIVERED'].includes(order.status),
-                  )
-                }
-                onClick={() => setCreateType('Outgoing')}
-              >
-                <Plus data-icon="inline-start" />
-                Schedule Outgoing
-              </Button>
-            )}
-          </div>
+        {view === 'history' && (
+          <DeliveryFilter
+            label="Direction"
+            value={type}
+            onChange={(value) => {
+              setType(value)
+              setStatus('ALL')
+            }}
+            options={[
+              { value: 'ALL', label: 'All' },
+              ...['Incoming', 'Outgoing'].map((value) => ({ value, label: value })),
+            ]}
+          />
         )}
-      </PageToolbar>
+      </div>
       {orderScope !== null && (
         <p className="text-xs text-muted-foreground">
           {view === 'incoming' ? 'Incoming' : 'Outgoing'} deliveries for{' '}
