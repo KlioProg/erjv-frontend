@@ -115,7 +115,10 @@ export function OverflowValue({
           }}
           type="button"
           variant="link"
-          onClick={onActivate}
+          onClick={(event) => {
+            event.stopPropagation()
+            onActivate()
+          }}
           aria-label={fullText}
           className={textClass}
           {...common}

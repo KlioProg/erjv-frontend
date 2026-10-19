@@ -407,7 +407,7 @@ describe('inventory and global stock warnings', () => {
     expect(screen.queryByRole('button', { name: /Edit wholesale price/ })).toBeNull()
   })
 
-  it('prioritizes empty and low warehouse stock before pagination without a status column', async () => {
+  it('prioritizes empty warehouse stock without inventing low-stock thresholds', async () => {
     const user = userEvent.setup()
     const onBack = vi.fn()
     products = [
@@ -437,10 +437,10 @@ describe('inventory and global stock warnings', () => {
       visibleRows()
         .slice(0, 4)
         .map((row) => within(row).getAllByRole('cell')[0].textContent),
-    ).toEqual(['Zulu Empty', 'Omega Fractional', 'Yield Low', 'Alpha Healthy'])
+    ).toEqual(['Zulu Empty', 'Alpha Healthy', 'Healthy 0', 'Healthy 1'])
     expect(screen.getByRole('img', { name: 'Out of stock: Zulu Empty in Store' })).toBeTruthy()
-    expect(screen.getByRole('img', { name: 'Low stock: Yield Low in Store' })).toBeTruthy()
-    expect(within(visibleRows()[1]).getByText('0.05')).toBeTruthy()
+    expect(screen.queryByRole('img', { name: /Low stock:/ })).toBeNull()
+    expect(within(visibleRows()[1]).getByText('20.01')).toBeTruthy()
     expect(within(visibleRows()[3]).queryByRole('img')).toBeNull()
     expect(screen.queryByText('In Stock')).toBeNull()
 
@@ -773,6 +773,7 @@ describe('warehouse product expansion', () => {
     expect(screen.getByRole('region', { name: 'Products at Main Warehouse' })).toBeTruthy()
     await user.click(screen.getByText('Store'))
     expect(openWarehouse).toHaveBeenCalledWith(1)
+    expect(openWarehouse).toHaveBeenCalledOnce()
   })
 
   it('handles empty stock, loading and a failed request with retry', async () => {
@@ -802,4 +803,35 @@ describe('warehouse product expansion', () => {
     expect(await within(region).findByText('No products in this warehouse.')).toBeTruthy()
     expect(within(region).queryByText(/Total products:/)).toBeNull()
   })
+})
+
+it('keeps 17 kg unclassified as low stock and zero-stock warnings consistent across warehouse filters', async () => {
+  const user = userEvent.setup()
+  products = [product(1, 'Lakatan Banana'), product(2, 'Empty Mango'), product(3, 'Normal Coconut')]
+  products[0].unit = 'kg'
+  stocks = [stock(1, 1, 1, '17'), stock(2, 2, 1, '0'), stock(3, 3, 2, '100')]
+  stocks[0].reservedQuantity = '17'
+  stocks[0].inventoryItem.unit = 'kg'
+  mount(
+    <>
+      <WarehouseInventory warehouse={warehouses[0]} onBack={vi.fn()} />
+      <StockNotifications onOpenInventory={vi.fn()} />
+    </>,
+  )
+  const row = (await screen.findByText('Lakatan Banana')).closest('tr')!
+  expect(within(row).getByText('17')).toBeTruthy()
+  expect(within(row).getByText('kg')).toBeTruthy()
+  expect(within(row).queryByRole('img')).toBeNull()
+  expect(screen.getByRole('img', { name: 'Out of stock: Empty Mango in Store' })).toBeTruthy()
+  await user.click(await screen.findByRole('button', { name: /1 unresolved/ }))
+  await user.click(screen.getByRole('menuitemradio', { name: 'Low stock' }))
+  expect(screen.getByText(/No low-stock items can be identified/)).toBeTruthy()
+  await user.click(screen.getByRole('menuitemradio', { name: 'Out of stock' }))
+  expect(screen.getByRole('menuitem', { name: /Out of stock: Empty Mango, Store, 0/ })).toBeTruthy()
+  await user.click(screen.getByRole('combobox', { name: 'Warning warehouse' }))
+  await user.click(screen.getByRole('option', { name: 'Main Warehouse' }))
+  expect(screen.getByText('No out-of-stock items for the selected warehouse.')).toBeTruthy()
+  await user.click(screen.getByRole('combobox', { name: 'Warning warehouse' }))
+  await user.click(screen.getByRole('option', { name: 'Store' }))
+  expect(screen.getByRole('menuitem', { name: /Out of stock: Empty Mango, Store, 0/ })).toBeTruthy()
 })

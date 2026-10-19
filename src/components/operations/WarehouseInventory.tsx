@@ -24,9 +24,6 @@ import { stockCondition, stockConditionRank } from '@/features/logistics/stock-w
 import { StockIndicator } from '@/components/inventory/StockIndicator'
 import { cn } from '@/lib/utils'
 
-// Retain this screen's existing display cutoff; this is not an API reorder policy.
-const WAREHOUSE_LOW_STOCK_CENTS = 2000n
-
 type StockRow = {
   stock: StockItemWithInventoryItem
   quantityCents: bigint | null
@@ -47,8 +44,8 @@ export function WarehouseInventory({
         .map((stock) => ({ stock, quantityCents: parseStockCents(stock.quantity) }))
         .sort(
           (a, b) =>
-            stockConditionRank[stockCondition(a.quantityCents, WAREHOUSE_LOW_STOCK_CENTS)] -
-              stockConditionRank[stockCondition(b.quantityCents, WAREHOUSE_LOW_STOCK_CENTS)] ||
+            stockConditionRank[stockCondition(a.quantityCents)] -
+              stockConditionRank[stockCondition(b.quantityCents)] ||
             (a.stock.inventoryItem?.name ?? '').localeCompare(b.stock.inventoryItem?.name ?? '') ||
             a.stock.id - b.stock.id,
         ),
@@ -112,7 +109,7 @@ export function WarehouseInventory({
         sortable: true,
         sortKey: (row) => stockSortKey(row.quantityCents),
         cell: ({ row }) => {
-          const condition = stockCondition(row.quantityCents, WAREHOUSE_LOW_STOCK_CENTS)
+          const condition = stockCondition(row.quantityCents)
           const warning =
             condition === 'OUT' ? 'Out of stock' : condition === 'LOW' ? 'Low stock' : null
           return (
@@ -250,7 +247,7 @@ export function WarehouseInventory({
             columns={columns}
             getRowKey={(row) => row.stock.id}
             rowClassName={(row) => {
-              const condition = stockCondition(row.quantityCents, WAREHOUSE_LOW_STOCK_CENTS)
+              const condition = stockCondition(row.quantityCents)
               return condition === 'OUT'
                 ? 'bg-destructive/5 hover:bg-destructive/10'
                 : condition === 'LOW'

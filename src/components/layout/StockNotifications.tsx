@@ -164,7 +164,19 @@ export function StockNotifications({
                     key={value}
                     value={value}
                     onSelect={(event) => event.preventDefault()}
-                    className="text-xs"
+                    indicator={
+                      value !== 'ALL' &&
+                      filterStockWarnings(warnings, {
+                        warningFilter: value,
+                        warehouseId: warehouse?.id,
+                      }).length > 0 ? (
+                        <span
+                          aria-hidden="true"
+                          className={`size-1.5 rounded-full ${value === 'OUT' ? 'bg-destructive' : 'bg-status-warning-foreground'}`}
+                        />
+                      ) : null
+                    }
+                    className="text-xs data-[state=checked]:bg-accent"
                   >
                     {label}
                   </DropdownMenuRadioItem>
