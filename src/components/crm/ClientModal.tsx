@@ -67,11 +67,12 @@ function ClientFormContent({ client, onClose }: { client: Client | null; onClose
     }
 
     if (!isEditing) {
-      let backendMatches: Client[] = []
+      let backendMatches: Client[]
       try {
         backendMatches = await searchClientsByNameApi(cleanName)
-      } catch {
-        // Ignore
+      } catch (err) {
+        setErrorMsg(getErrorMessage(err))
+        return
       }
 
       const backendInactive = backendMatches.find(

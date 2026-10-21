@@ -34,7 +34,7 @@ export interface PurchaseOrderRecord {
   id: number
   orderNumber: string
   status: PurchaseOrderStatus
-  supplierId: number
+  supplierId: number | null
   orderedAt: string
   expectedAt: string | null
   confirmedAt: string | null
@@ -57,12 +57,14 @@ export interface PurchaseOrderLineCommand {
 }
 
 export interface CreatePurchaseOrderPayload {
-  supplierId: number
+  supplierId?: number | null
   expectedAt?: string | Date | null
   externalReference?: string | null
   notes?: string | null
   items: PurchaseOrderLineCommand[]
 }
+
+export type UpdatePurchaseOrderDraftPayload = Partial<CreatePurchaseOrderPayload>
 
 export interface PurchaseOrderFilter {
   status?: PurchaseOrderStatus

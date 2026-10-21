@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import type { Supplier } from './suppliers.types'
-import type { CreatePurchaseOrderPayload } from './purchase-orders.types'
+import type { CreatePurchaseOrderPayload, PurchaseOrderRecord } from './purchase-orders.types'
 import type { PurchaseLine } from './purchase-order-entry.types'
 import type { InventoryItemResponse } from '@/features/products/products.types'
 import { lineSubtotal, orderAmounts } from '@/lib/order-amounts'
@@ -24,17 +24,40 @@ export function usePurchaseOrderEntry({
   onConfirm,
   onConfirmed,
   savedDraft,
+  draftOrder,
+  onUpdateDraft,
   onClose,
 }: {
   suppliers: Supplier[]
   products: InventoryItemResponse[]
   onClose: () => void
+  draftOrder?: PurchaseOrderRecord
+  onUpdateDraft?: (
+    id: number,
+    payload: CreatePurchaseOrderPayload,
+  ) => Promise<{ id: number; orderNumber: string; status: string }>
 } & OrderSubmissionProps<CreatePurchaseOrderPayload>) {
-  const [supplierId, setSupplierId] = useState('')
-  const [reference, setReference] = useState('')
-  const [expectedAt, setExpectedAt] = useState('')
-  const [notes, setNotes] = useState('')
-  const [lines, setLines] = useState<PurchaseLine[]>([])
+  const [supplierId, setSupplierId] = useState(
+    () => (draftOrder?.supplierId != null ? String(draftOrder.supplierId) : ''),
+  )
+  const [reference, setReference] = useState(() => draftOrder?.externalReference ?? '')
+  const [expectedAt, setExpectedAt] = useState(
+    () => (draftOrder?.expectedAt ? draftOrder.expectedAt.slice(0, 10) : ''),
+  )
+  const [notes, setNotes] = useState(() => draftOrder?.notes ?? '')
+  const [lines, setLines] = useState<PurchaseLine[]>(() =>
+    draftOrder
+      ? draftOrder.items.map((item) => ({
+          inventoryItemId: item.inventoryItemId,
+          name: `Item #${item.inventoryItemId}`,
+          unitCost: item.unitPrice,
+          quantity: item.quantity,
+          discountRate: item.discountRate,
+          taxRate: item.taxRate,
+          notes: item.notes,
+        }))
+      : [],
+  )
   const [error, setError] = useState('')
   const submission = useOrderSubmission({ onConfirm, onConfirmed, savedDraft, onClose })
   const focus = useOrderItemFocus(lines)
@@ -73,8 +96,10 @@ export function usePurchaseOrderEntry({
       await submission.submit(() => Promise.reject(new Error('Draft already saved.')), confirm)
       return
     }
-    if (!suppliers.some((supplier) => supplier.isActive && String(supplier.id) === supplierId))
-      return setError('Select an active supplier.')
+    const selectedSupplier = suppliers.find((supplier) => String(supplier.id) === supplierId)
+    if (supplierId && !selectedSupplier)
+      return setError('Choose a supplier that is available in the supplier list.')
+    if (confirm && !selectedSupplier?.isActive) return setError('Select an active supplier to confirm.')
     if (!lines.length) return setError('Add at least one product to the purchase order.')
     const dateError = expectedDateError(expectedAt)
     if (dateError) return setError(dateError)
@@ -88,24 +113,28 @@ export function usePurchaseOrderEntry({
       if (invalid) return setError(`${line.name}: ${invalid}`)
     }
     setError('')
-    await submission.submit(
-      () =>
-        onSubmit(
-          {
-            supplierId: Number(supplierId),
-            expectedAt: expectedAt ? new Date(expectedAt).toISOString() : null,
-            externalReference: reference.trim() || undefined,
-            notes: notes.trim() || undefined,
-            items: lines.map((line) => ({
-              inventoryItemId: line.inventoryItemId,
-              quantity: line.quantity,
-              unitPrice: line.unitCost,
-            })),
-          },
-          confirm ? 'confirm' : 'draft',
-        ),
-      confirm,
-    )
+    const payload: CreatePurchaseOrderPayload = {
+      supplierId: supplierId ? Number(supplierId) : null,
+      expectedAt: expectedAt ? new Date(expectedAt).toISOString() : null,
+      externalReference: reference.trim() || undefined,
+      notes: notes.trim() || undefined,
+      items: lines.map((line) => ({
+        inventoryItemId: line.inventoryItemId,
+        quantity: line.quantity,
+        unitPrice: line.unitCost,
+        ...(line.discountRate !== undefined ? { discountRate: line.discountRate } : {}),
+        ...(line.taxRate !== undefined ? { taxRate: line.taxRate } : {}),
+        ...(line.notes !== undefined ? { notes: line.notes } : {}),
+      })),
+    }
+    const updateDraft = onUpdateDraft
+    if (draftOrder && !updateDraft)
+      return setError('Updating saved purchase order drafts is unavailable.')
+    await submission.submit(() => {
+      if (!draftOrder) return onSubmit(payload, confirm ? 'confirm' : 'draft')
+      if (!updateDraft) return Promise.reject(new Error('Draft update is unavailable.'))
+      return updateDraft(draftOrder.id, payload)
+    }, confirm)
   }
   return {
     supplierId,

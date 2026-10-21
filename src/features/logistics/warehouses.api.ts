@@ -11,17 +11,13 @@ export async function fetchWarehousesApi(params?: FetchParams): Promise<Warehous
 }
 
 export async function fetchWarehouseByNameApi(name: string): Promise<Warehouse | null> {
-  try {
-    const { data } = await apiClient.get<Warehouse>(
-      `/warehouses/name/${encodeURIComponent(name.trim())}`,
-    )
-    return data
-  } catch {
-    return null
-  }
+  const { data } = await apiClient.get<Warehouse>(
+    `/warehouses/name/${encodeURIComponent(name.trim())}`,
+  )
+  return data
 }
 
-export async function fetchWarehouseByIdApi(id: number): Promise<Warehouse> {
+export async function fetchWarehouseByIdApi(id: number): Promise<Warehouse | null> {
   const { data } = await apiClient.get<Warehouse>(`/warehouses/${id}`)
   return data
 }

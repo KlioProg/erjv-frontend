@@ -244,7 +244,9 @@ export function ScheduleIncomingDeliveryModal({
   }
 
   const selectedSupplierName = selectedPO
-    ? supplierMap.get(selectedPO.supplierId)?.name || `Supplier #${selectedPO.supplierId}`
+    ? selectedPO.supplierId == null
+      ? 'No supplier'
+      : supplierMap.get(selectedPO.supplierId)?.name || `Supplier #${selectedPO.supplierId}`
     : 'No supplier'
 
   return (
@@ -308,7 +310,7 @@ export function ScheduleIncomingDeliveryModal({
                   <SelectContent className={deliveryFormStyles.popover}>
                     <SelectGroup>
                       {eligiblePOs.map(({ po, remaining }) => {
-                        const sup = supplierMap.get(po.supplierId)
+                        const sup = po.supplierId == null ? undefined : supplierMap.get(po.supplierId)
 
                         return (
                           <SelectItem

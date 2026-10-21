@@ -16,7 +16,7 @@ export async function fetchAvailableVehiclesApi(): Promise<DeliveryVehicle[]> {
   return extractArray<DeliveryVehicle>(response.data)
 }
 
-export async function fetchVehicleByIdApi(id: number): Promise<DeliveryVehicle> {
+export async function fetchVehicleByIdApi(id: number): Promise<DeliveryVehicle | null> {
   const { data } = await apiClient.get<DeliveryVehicle>(`/delivery-vehicles/${id}`)
   return data
 }
@@ -24,14 +24,10 @@ export async function fetchVehicleByIdApi(id: number): Promise<DeliveryVehicle> 
 export async function fetchVehicleByPlateNumberApi(
   plateNumber: string,
 ): Promise<DeliveryVehicle | null> {
-  try {
-    const { data } = await apiClient.get<DeliveryVehicle>(
-      `/delivery-vehicles/plate-number/${encodeURIComponent(plateNumber.trim())}`,
-    )
-    return data
-  } catch {
-    return null
-  }
+  const { data } = await apiClient.get<DeliveryVehicle>(
+    `/delivery-vehicles/plate-number/${encodeURIComponent(plateNumber.trim())}`,
+  )
+  return data
 }
 
 export async function createVehicleApi(
@@ -60,6 +56,7 @@ export async function updateVehicleDetailsApi(
     ...(payload.plateNumber ? { plateNumber: payload.plateNumber.trim().toUpperCase() } : {}),
     ...(payload.vehicleType ? { vehicleType: payload.vehicleType.trim() } : {}),
     ...(payload.model !== undefined ? { model: payload.model?.trim() || null } : {}),
+    ...(payload.capacity === null ? { capacity: null } : {}),
     ...(parsedCap !== null && !isNaN(parsedCap) ? { capacity: parsedCap.toFixed(2) } : {}),
   }
 

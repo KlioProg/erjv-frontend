@@ -12,7 +12,9 @@ export async function fetchIncomingDeliveriesApi(
   return extractArray<IncomingDeliveryRecord>(response.data)
 }
 
-export async function fetchIncomingDeliveryByIdApi(id: number): Promise<IncomingDeliveryRecord> {
+export async function fetchIncomingDeliveryByIdApi(
+  id: number,
+): Promise<IncomingDeliveryRecord | null> {
   const { data } = await apiClient.get<IncomingDeliveryRecord>(`/incoming-deliveries/${id}`)
   return data
 }
@@ -20,14 +22,10 @@ export async function fetchIncomingDeliveryByIdApi(id: number): Promise<Incoming
 export async function fetchIncomingDeliveryByNumberApi(
   deliveryNumber: string,
 ): Promise<IncomingDeliveryRecord | null> {
-  try {
-    const { data } = await apiClient.get<IncomingDeliveryRecord>(
-      `/incoming-deliveries/number/${encodeURIComponent(deliveryNumber.trim())}`,
-    )
-    return data
-  } catch {
-    return null
-  }
+  const { data } = await apiClient.get<IncomingDeliveryRecord>(
+    `/incoming-deliveries/number/${encodeURIComponent(deliveryNumber.trim())}`,
+  )
+  return data
 }
 
 export async function createIncomingDeliveryApi(

@@ -2,7 +2,6 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { buildSalesOrderPayload } from './sales-order-entry.utils.ts'
 import { orderAmounts } from '../../lib/order-amounts.ts'
-import { eligibleSalesSources, salesAllocationError } from './sales-order-entry.schema.ts'
 
 test('sales command retains edited decimals and delivery metadata without warehouse fields', () => {
   const lines = [
@@ -76,73 +75,20 @@ test('each product omits legacy sources and gets the supported line rates', () =
   assert.equal(payload.notes, undefined)
 })
 
-const stocks = [
-  { id: 11, inventoryItemId: 7, warehouseId: 1, quantity: '10.00', reservedQuantity: '2.50' },
-  { id: 12, inventoryItemId: 7, warehouseId: 2, quantity: '5.00', reservedQuantity: '0' },
-]
-const warehouses = [
-  { id: 1, isActive: true },
-  { id: 2, isActive: true },
-]
 const line = { productId: 7, quantity: '10.00', unitPrice: '20', name: 'Test item' }
 
-test('allocation validation permits unfinished drafts but requires complete sources for confirmation', () => {
-  assert.equal(salesAllocationError(line, stocks, warehouses, false), undefined)
-  assert.match(salesAllocationError(line, stocks, warehouses).message, /Select a stock source/)
-  const split = {
-    ...line,
-    allocations: [
-      { key: 1, stockItemId: 11, quantity: '7.50' },
-      { key: 2, stockItemId: 12, quantity: '2.50' },
-    ],
-  }
-  assert.equal(salesAllocationError(split, stocks, warehouses), undefined)
-  split.allocations[1].quantity = '2.49'
-  assert.match(
-    salesAllocationError(split, stocks, warehouses).message,
-    /equal the ordered quantity/,
-  )
-  split.allocations[1].stockItemId = 11
-  assert.match(salesAllocationError(split, stocks, warehouses).message, /already selected/)
-  split.allocations[0].quantity = '7.51'
-  assert.match(salesAllocationError(split, stocks, warehouses).message, /Only 7.50/)
-})
-
-test('unknown, depleted, inactive and wrong-product sources are unavailable', () => {
-  assert.deepEqual(
-    eligibleSalesSources(
-      7,
-      [
-        { ...stocks[0], quantity: 'unknown' },
-        { ...stocks[0], reservedQuantity: 'unknown' },
-        { ...stocks[0], reservedQuantity: '10' },
-        { ...stocks[0], inventoryItemId: 8 },
-        stocks[1],
-      ],
-      [{ id: 2, isActive: false }],
-    ),
-    [],
-  )
-})
-
-test('sales payload preserves explicit decimal allocations without UI keys or warehouse IDs', () => {
+test('sales payload leaves fulfillment source selection to delivery preparation', () => {
   const payload = buildSalesOrderPayload({
     clientId: 1,
     deliveryAddress: 'Address',
     discountRate: '10.00',
     taxRate: '12.00',
     lines: [
-      {
-        ...line,
-        allocations: [
-          { key: 99, stockItemId: 11, quantity: '7.50' },
-          { key: 100, stockItemId: 12, quantity: '2.50' },
-        ],
-      },
+      line,
     ],
   })
-  assert.deepEqual(payload.items[0].allocations, [
-    { stockItemId: 11, quantity: '7.50' },
-    { stockItemId: 12, quantity: '2.50' },
-  ])
+  assert.equal(payload.items[0].quantity, '10.00')
+  assert.equal('allocations' in payload.items[0], false)
+  assert.equal('stockItemId' in payload.items[0], false)
+  assert.equal('warehouseId' in payload.items[0], false)
 })

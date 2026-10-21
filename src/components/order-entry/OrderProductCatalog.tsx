@@ -48,17 +48,9 @@ export function OrderProductCatalog({
       ),
     [products, search],
   )
-  const isAddDisabled = (product: InventoryItemResponse) => {
-    const available =
-      stockMap.get(product.id)?.availableCents ?? (stockMap.has(product.id) ? null : 0n)
-    return (
-      busy ||
-      (sales &&
-        (!!state.stockLoading || !!state.stockError || available === null || available <= 0n))
-    )
-  }
+  const isAddDisabled = () => busy
   const addProduct = (product: InventoryItemResponse) => {
-    if (!isAddDisabled(product)) onAdd(product)
+    if (!isAddDisabled()) onAdd(product)
   }
   const columns: ColumnDef<InventoryItemResponse>[] = [
     {
@@ -79,11 +71,11 @@ export function OrderProductCatalog({
             title={
               busy
                 ? 'Order is read-only'
-                : isAddDisabled(row)
+                : isAddDisabled()
                   ? `No available stock for ${row.name}`
                   : `Add ${row.name}`
             }
-            disabled={isAddDisabled(row)}
+            disabled={isAddDisabled()}
             onClick={() => addProduct(row)}
           >
             <Plus aria-hidden="true" className="size-4" />
@@ -181,8 +173,8 @@ export function OrderProductCatalog({
             columns={columns}
             getRowKey={(product) => product.id}
             onRowClick={addProduct}
-            rowClassName={(product) =>
-              isAddDisabled(product) ? 'cursor-default hover:bg-transparent' : 'hover:bg-accent'
+            rowClassName={() =>
+              isAddDisabled() ? 'cursor-default hover:bg-transparent' : 'hover:bg-accent'
             }
             isLoading={state.productsLoading}
             loadingMessage="Loading products…"

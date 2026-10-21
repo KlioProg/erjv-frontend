@@ -9,11 +9,13 @@ import {
   fetchStockItemByPairApi,
   fetchStockItemsApi,
   increaseStockQuantityApi,
+  setReorderThresholdApi,
   setStockQuantityApi,
 } from './stock-items.api'
 import type {
   AdjustStockQuantityPayload,
   CreateStockItemPayload,
+  SetReorderThresholdPayload,
   SetStockQuantityPayload,
 } from './stock-items.types'
 import { getErrorMessage, type FetchParams } from '@/lib/api-client'
@@ -86,6 +88,23 @@ export function useSetStockQuantity() {
       void queryClient.invalidateQueries({ queryKey: ['products'] })
       void queryClient.invalidateQueries({ queryKey: ['warehouses'] })
       toast.success('Stock quantity updated')
+    },
+    onError: (err) => {
+      toast.error(getErrorMessage(err))
+    },
+  })
+}
+
+export function useSetReorderThreshold() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: number; payload: SetReorderThresholdPayload }) =>
+      setReorderThresholdApi(id, payload),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: STOCK_ITEMS_QUERY_KEY })
+      void queryClient.invalidateQueries({ queryKey: ['products'] })
+      void queryClient.invalidateQueries({ queryKey: ['warehouses'] })
+      toast.success('Reorder threshold updated')
     },
     onError: (err) => {
       toast.error(getErrorMessage(err))

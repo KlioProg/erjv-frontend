@@ -6,18 +6,14 @@ export async function fetchClientsApi(params?: FetchParams): Promise<Client[]> {
   return extractArray<Client>(response.data)
 }
 
-export async function fetchClientByIdApi(id: number): Promise<Client> {
+export async function fetchClientByIdApi(id: number): Promise<Client | null> {
   const { data } = await apiClient.get<Client>(`/clients/${id}`)
   return data
 }
 
 export async function searchClientsByNameApi(name: string): Promise<Client[]> {
-  try {
-    const response = await apiClient.get(`/clients/search/${encodeURIComponent(name.trim())}`)
-    return extractArray<Client>(response.data)
-  } catch {
-    return []
-  }
+  const response = await apiClient.get(`/clients/search/${encodeURIComponent(name.trim())}`)
+  return extractArray<Client>(response.data)
 }
 
 export async function createClientApi(payload: CreateClientPayload): Promise<Client> {

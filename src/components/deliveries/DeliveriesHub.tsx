@@ -195,7 +195,16 @@ export function DeliveriesHub({
     if (!deliveryBelongsToView(row, view)) return false
     if (view === 'history' && type !== 'ALL' && row.type !== type) return false
     if (status !== 'ALL' && row.status !== status) return false
-    if (warehouseId !== 'ALL' && row.record.warehouseId !== Number(warehouseId)) return false
+    if (warehouseId !== 'ALL') {
+      const selectedWarehouseId = Number(warehouseId)
+      const matchesWarehouse =
+        row.type === 'Incoming'
+          ? row.record.warehouseId === selectedWarehouseId
+          : row.record.items.some(
+              (item) => item.stockItem?.warehouseId === selectedWarehouseId,
+            )
+      if (!matchesWarehouse) return false
+    }
     if (orderScope !== null && row.orderId !== orderScope) return false
     const day = localDeliveryDay(row.date)
     if (fromDate && (!day || day < fromDate)) return false
@@ -269,7 +278,7 @@ export function DeliveriesHub({
             ? 'Completed and cancelled deliveries remain available for review.'
             : view === 'incoming'
               ? 'Arrange supplier shipments and receive goods into a destination warehouse.'
-              : 'Arrange customer shipments from confirmed order allocations.'
+              : 'Prepare customer shipments by choosing available stock sources for each order item.'
         }
       >
         {view === 'history'

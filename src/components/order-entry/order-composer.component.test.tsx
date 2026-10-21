@@ -6,6 +6,7 @@ import { PurchaseModal } from '@/components/purchases/PurchaseModal'
 import { OrderModal } from '@/components/orders/OrderModal'
 import { OrderProductCatalog } from './OrderProductCatalog'
 import { buildSalesOrderPayload } from '@/features/crm/sales-order-entry.utils'
+import type { PurchaseOrderRecord } from '@/features/logistics/purchase-orders.types'
 import type { InventoryItemResponse } from '@/features/products/products.types'
 import type { StockItem } from '@/features/logistics/stock-items.types'
 
@@ -18,7 +19,7 @@ const products: InventoryItemResponse[] = [
     variety: 'Carabao',
     description: 'Fresh orchard harvest',
     unit: 'kg',
-    unitPrice: 100,
+    unitPrice: '100.00',
     isActive: true,
     ...timestamps,
   },
@@ -28,7 +29,7 @@ const products: InventoryItemResponse[] = [
     variety: 'Lakatan',
     description: 'Locally grown',
     unit: 'kg',
-    unitPrice: 80,
+    unitPrice: '80.00',
     isActive: true,
     ...timestamps,
   },
@@ -59,7 +60,7 @@ const suppliers = [
     contactPerson: null,
     phone: null,
     email: null,
-    address: null,
+    address: 'Davao',
     isActive: true,
     ...timestamps,
   },
@@ -226,6 +227,99 @@ describe('purchase composer', () => {
     expect(onClose).toHaveBeenCalledOnce()
   })
 
+  it('saves a supplier-less draft without relaxing the confirmation requirement', async () => {
+    const user = userEvent.setup()
+    const onClose = vi.fn()
+    const onSubmit = vi.fn().mockResolvedValue({
+      id: 8,
+      orderNumber: 'PO-8',
+      status: 'DRAFT',
+    })
+    render(<PurchaseModal {...purchaseProps} onClose={onClose} onSubmit={onSubmit} />)
+    await user.click(screen.getByRole('button', { name: 'Add Test Mango' }))
+    await user.type(screen.getByRole('textbox', { name: 'Unit cost for Test Mango' }), '12.34')
+    await user.click(screen.getByRole('button', { name: 'Save Draft' }))
+    await waitFor(() => expect(onClose).toHaveBeenCalledOnce())
+    expect(onSubmit).toHaveBeenCalledWith(
+      {
+        supplierId: null,
+        expectedAt: null,
+        items: [{ inventoryItemId: 1, quantity: '1', unitPrice: '12.34' }],
+      },
+      'draft',
+    )
+    expect(screen.queryByRole('button', { name: 'Confirm Purchase Order' })).toBeNull()
+  })
+
+  it('updates an existing purchase draft while preserving its saved line terms', async () => {
+    const user = userEvent.setup()
+    const onClose = vi.fn()
+    const draftOrder: PurchaseOrderRecord = {
+      id: 7,
+      orderNumber: 'PO-DRAFT-7',
+      status: 'DRAFT',
+      supplierId: 1,
+      orderedAt: '2026-10-01T00:00:00.000Z',
+      expectedAt: '2026-10-15T00:00:00.000Z',
+      confirmedAt: null,
+      completedAt: null,
+      cancelledAt: null,
+      externalReference: 'INV-7',
+      notes: 'Existing order notes',
+      ...timestamps,
+      items: [
+        {
+          id: 70,
+          purchaseOrderId: 7,
+          lineNumber: 1,
+          inventoryItemId: 1,
+          quantity: '2',
+          unitPrice: '12.00',
+          discountRate: '5.00',
+          discountAmount: '1.20',
+          taxRate: '12.00',
+          taxAmount: '2.74',
+          subtotalAmount: '24.00',
+          taxableAmount: '22.80',
+          totalAmount: '25.54',
+          notes: 'Line terms',
+          ...timestamps,
+        },
+      ],
+    }
+    const onUpdateDraft = vi.fn().mockResolvedValue(draftOrder)
+    render(
+      <PurchaseModal
+        {...purchaseProps}
+        draftOrder={draftOrder}
+        onUpdateDraft={onUpdateDraft}
+        onClose={onClose}
+        onSubmit={vi.fn()}
+      />,
+    )
+    expect(screen.getByRole('heading', { name: 'Edit Draft PO-DRAFT-7' })).toBeTruthy()
+    await user.clear(screen.getByRole('textbox', { name: 'Unit cost for Test Mango' }))
+    await user.type(screen.getByRole('textbox', { name: 'Unit cost for Test Mango' }), '13.20')
+    await user.click(screen.getByRole('button', { name: 'Save Draft' }))
+    await waitFor(() => expect(onClose).toHaveBeenCalledOnce())
+    expect(onUpdateDraft).toHaveBeenCalledWith(7, {
+      supplierId: 1,
+      expectedAt: '2026-10-15T00:00:00.000Z',
+      externalReference: 'INV-7',
+      notes: 'Existing order notes',
+      items: [
+        {
+          inventoryItemId: 1,
+          quantity: '2',
+          unitPrice: '13.20',
+          discountRate: '5.00',
+          taxRate: '12.00',
+          notes: 'Line terms',
+        },
+      ],
+    })
+  })
+
   it('keeps one mobile workspace and retains editor values and catalog search across switches', async () => {
     vi.mocked(window.matchMedia).mockReturnValue({
       matches: false,
@@ -381,7 +475,7 @@ describe('sales composer', () => {
     expect(onClose).toHaveBeenCalledOnce()
   })
 
-  it('reveals missing sources on confirmation, then creates and confirms a fully allocated order', async () => {
+  it('creates and confirms a sales order without selecting warehouse sources', async () => {
     const user = userEvent.setup()
     const onSubmit = vi.fn().mockResolvedValue({ id: 42, orderNumber: 'SO-42', status: 'DRAFT' })
     const onConfirm = vi
@@ -391,39 +485,45 @@ describe('sales composer', () => {
       <OrderModal {...salesProps} onClose={vi.fn()} onSubmit={onSubmit} onConfirm={onConfirm} />,
     )
     await user.click(screen.getByRole('button', { name: 'Add Test Mango' }))
-    expect(screen.queryByRole('combobox', { name: /Warehouse source/ })).toBeNull()
+    expect(screen.queryByRole('group', { name: /stock sources/i })).toBeNull()
     await user.click(screen.getByRole('button', { name: 'Search and choose a customer' }))
     await user.click(screen.getByRole('menuitem', { name: 'Test Customer' }))
     const confirm = screen.getByRole('button', { name: 'Confirm Order' })
-    expect(confirm.matches(':disabled')).toBe(false)
     await user.click(confirm)
-    expect(onSubmit).not.toHaveBeenCalled()
-    expect(onConfirm).not.toHaveBeenCalled()
-    const source = screen.getByRole('combobox', { name: 'Warehouse source 1 for Test Mango' })
-    expect(document.activeElement).toBe(source)
-    expect(source.getAttribute('aria-invalid')).toBe('true')
-    await user.click(source)
-    await user.click(screen.getByRole('option', { name: /Warehouse 1/ }))
-    await user.click(screen.getByRole('button', { name: 'Done' }))
-    expect(document.activeElement).toBe(
-      screen.getByRole('button', { name: 'Stock source for Test Mango' }),
-    )
-    expect(screen.queryByRole('combobox', { name: /Warehouse source/ })).toBeNull()
-    await user.clear(screen.getByRole('textbox', { name: 'Quantity for Test Mango' }))
-    await user.type(screen.getByRole('textbox', { name: 'Quantity for Test Mango' }), '2.25')
-    await user.click(screen.getByRole('button', { name: 'Add Test Mango' }))
-    await user.click(confirm)
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledOnce())
     expect(onSubmit).toHaveBeenCalledOnce()
-    expect(buildSalesOrderPayload(onSubmit.mock.calls[0][0]).items[0].allocations).toEqual([
-      { stockItemId: 11, quantity: '2.25' },
-    ])
+    expect(buildSalesOrderPayload(onSubmit.mock.calls[0][0]).items[0]).toEqual({
+      inventoryItemId: 1,
+      quantity: '1',
+      unitPrice: '100.00',
+      discountRate: '0.00',
+      taxRate: '12.00',
+    })
+    expect('allocations' in buildSalesOrderPayload(onSubmit.mock.calls[0][0]).items[0]).toBe(false)
     expect(onConfirm).toHaveBeenCalledWith(42)
-    expect(screen.getByRole('button', { name: 'Remove Test Mango' }).matches(':disabled')).toBe(
-      true,
-    )
   })
 
-  it('edits split sources with exact totals, stock limits and preserved quantities', async () => {
+  it('allows creating a sales order for products with no available stock', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn().mockResolvedValue({ id: 43, orderNumber: 'SO-43', status: 'DRAFT' })
+    render(
+      <OrderModal
+        {...salesProps}
+        stockItems={[]}
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+      />,
+    )
+    await user.click(screen.getByRole('button', { name: 'Add Test Banana with a long product identity for order entry' }))
+    await user.click(screen.getByRole('button', { name: 'Search and choose a customer' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Test Customer' }))
+    await user.click(screen.getByRole('button', { name: 'Save Draft' }))
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledOnce())
+    expect(buildSalesOrderPayload(onSubmit.mock.calls[0][0]).items[0].inventoryItemId).toBe(2)
+    expect('allocations' in buildSalesOrderPayload(onSubmit.mock.calls[0][0]).items[0]).toBe(false)
+  })
+
+  it('saves edited sales quantities without adding fulfillment sources', async () => {
     const user = userEvent.setup()
     const onSubmit = vi.fn().mockResolvedValue({ id: 1, orderNumber: 'SO-1', status: 'DRAFT' })
     render(<OrderModal {...salesProps} onClose={vi.fn()} onSubmit={onSubmit} />)
@@ -433,99 +533,12 @@ describe('sales composer', () => {
     const quantity = screen.getByRole('textbox', { name: 'Quantity for Test Mango' })
     await user.clear(quantity)
     await user.type(quantity, '12.50')
-    await user.click(screen.getByRole('button', { name: 'Stock source for Test Mango' }))
-    await user.click(screen.getByRole('combobox', { name: 'Warehouse source 1 for Test Mango' }))
-    await user.click(screen.getByRole('option', { name: /Warehouse 1/ }))
-    await user.click(screen.getByRole('button', { name: 'Done' }))
-    expect(screen.getByText('Only 10.00 is available from this warehouse.')).toBeTruthy()
-    await user.click(screen.getByRole('button', { name: 'Split across warehouses' }))
-    const first = screen.getByRole('textbox', { name: 'Source quantity 1 for Test Mango' })
-    await user.clear(first)
-    await user.type(first, '10.00')
-    const second = screen.getByRole('combobox', { name: 'Warehouse source 2 for Test Mango' })
-    await user.click(second)
-    expect(
-      screen.getByRole('option', { name: /Warehouse 1/ }).getAttribute('data-disabled'),
-    ).not.toBeNull()
-    await user.click(screen.getByRole('option', { name: /Warehouse 2/ }))
-    await user.type(
-      screen.getByRole('textbox', { name: 'Source quantity 2 for Test Mango' }),
-      '2.50',
-    )
-    await user.click(screen.getByRole('button', { name: 'Done' }))
-    expect(screen.queryByRole('group', { name: 'Stock sources for Test Mango' })).toBeNull()
-    await user.clear(quantity)
-    await user.type(quantity, '13.00')
-    expect(document.activeElement).toBe(quantity)
-    await user.click(screen.getByRole('button', { name: 'Add Test Mango' }))
-    await user.click(screen.getByRole('button', { name: 'Stock source for Test Mango' }))
-    expect(
-      (
-        screen.getByRole('textbox', {
-          name: 'Source quantity 1 for Test Mango',
-        }) as HTMLInputElement
-      ).value,
-    ).toBe('10.00')
-    expect(
-      (
-        screen.getByRole('textbox', {
-          name: 'Source quantity 2 for Test Mango',
-        }) as HTMLInputElement
-      ).value,
-    ).toBe('2.50')
-    await user.click(screen.getByRole('button', { name: 'Done' }))
-    expect(screen.getByText('Source quantities must equal the ordered quantity.')).toBeTruthy()
-    await user.clear(quantity)
-    await user.type(quantity, '12.50')
-    await user.click(screen.getByRole('button', { name: 'Done' }))
     await user.click(screen.getByRole('button', { name: 'Save Draft' }))
-    expect(buildSalesOrderPayload(onSubmit.mock.calls[0][0]).items[0].allocations).toEqual([
-      { stockItemId: 11, quantity: '10.00' },
-      { stockItemId: 12, quantity: '2.50' },
-    ])
-  })
-
-  it('keeps new sources unselected and supports removing a split source', async () => {
-    const user = userEvent.setup()
-    render(<OrderModal {...salesProps} onClose={vi.fn()} onSubmit={vi.fn()} />)
-    await user.click(screen.getByRole('button', { name: 'Add Test Mango' }))
-    await user.click(screen.getByRole('button', { name: 'Stock source for Test Mango' }))
-    expect(
-      screen.getByRole('combobox', { name: 'Warehouse source 1 for Test Mango' }).textContent,
-    ).toContain('Select warehouse')
-    await user.click(screen.getByRole('combobox', { name: 'Warehouse source 1 for Test Mango' }))
-    await user.click(screen.getByRole('option', { name: /Warehouse 1/ }))
-    await user.click(screen.getByRole('button', { name: 'Split across warehouses' }))
-    await user.click(screen.getByRole('button', { name: 'Remove source 2 for Test Mango' }))
-    expect(screen.queryByRole('textbox', { name: /Source quantity/ })).toBeNull()
-    await user.click(screen.getByRole('button', { name: 'Done' }))
-    expect(
-      screen.getByRole('button', { name: 'Stock source for Test Mango' }).textContent,
-    ).toContain('Warehouse 1')
-  })
-
-  it('does not automatically allocate the only available warehouse', async () => {
-    const user = userEvent.setup()
-    render(
-      <OrderModal
-        {...salesProps}
-        stockItems={stocks.slice(0, 1)}
-        onClose={vi.fn()}
-        onSubmit={vi.fn()}
-      />,
-    )
-    await user.click(screen.getByRole('button', { name: 'Add Test Mango' }))
-    const summary = screen.getByRole('button', { name: 'Stock source for Test Mango' })
-    expect(summary.textContent).toContain('Set stock source')
-    await user.click(summary)
-    const source = screen.getByRole('combobox', { name: 'Warehouse source 1 for Test Mango' })
-    expect(source.textContent).toContain('Select warehouse')
-    expect(screen.queryByRole('button', { name: 'Split across warehouses' })).toBeNull()
-    await user.click(source)
-    await user.click(screen.getByRole('option', { name: /Warehouse 1/ }))
-    await user.click(screen.getByRole('button', { name: 'Remove source 1 for Test Mango' }))
-    expect(source.textContent).toContain('Select warehouse')
-    expect(document.activeElement).toBe(source)
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledOnce())
+    const item = buildSalesOrderPayload(onSubmit.mock.calls[0][0]).items[0]
+    expect(item.quantity).toBe('12.50')
+    expect('allocations' in item).toBe(false)
+    expect(screen.queryByRole('combobox', { name: /warehouse source/i })).toBeNull()
   })
 
   it('preserves mobile catalog state and optional details through collapse, failure and retry', async () => {
@@ -625,28 +638,28 @@ describe('shared catalog', () => {
     },
   )
 
-  it('applies the same unavailable and read-only guards to whole-row additions', async () => {
+  it('keeps whole-row sales additions stock-independent and respects read-only state', async () => {
     const user = userEvent.setup()
     const onAdd = vi.fn()
     const props = { products, stockItems: stocks, onAdd, busy: false, sales: true }
     const { rerender } = render(<OrderProductCatalog {...props} state={{ stockLoading: true }} />)
     await user.click(screen.getByText('Test Mango'))
-    expect(onAdd).not.toHaveBeenCalled()
+    expect(onAdd).toHaveBeenCalledTimes(1)
     rerender(<OrderProductCatalog {...props} state={{ stockError: 'Disconnected' }} />)
     await user.click(screen.getByText('Test Mango'))
-    expect(onAdd).not.toHaveBeenCalled()
+    expect(onAdd).toHaveBeenCalledTimes(2)
     rerender(<OrderProductCatalog {...props} />)
     await user.click(screen.getByText(products[1].name))
-    expect(onAdd).not.toHaveBeenCalled()
+    expect(onAdd).toHaveBeenCalledTimes(3)
     rerender(<OrderProductCatalog {...props} stockItems={[{ ...stocks[0], quantity: 'bad' }]} />)
     await user.click(screen.getByText('Test Mango'))
-    expect(onAdd).not.toHaveBeenCalled()
+    expect(onAdd).toHaveBeenCalledTimes(4)
     rerender(<OrderProductCatalog {...props} busy />)
     await user.click(screen.getByText('Test Mango'))
-    expect(onAdd).not.toHaveBeenCalled()
+    expect(onAdd).toHaveBeenCalledTimes(4)
     rerender(<OrderProductCatalog {...props} sales={false} busy />)
     await user.click(screen.getByText('Test Mango'))
-    expect(onAdd).not.toHaveBeenCalled()
+    expect(onAdd).toHaveBeenCalledTimes(4)
     rerender(
       <OrderProductCatalog
         {...props}
@@ -656,7 +669,7 @@ describe('shared catalog', () => {
       />,
     )
     await user.click(screen.getByText(products[1].name))
-    expect(onAdd).toHaveBeenCalledOnce()
+    expect(onAdd).toHaveBeenCalledTimes(5)
     expect(onAdd).toHaveBeenCalledWith(products[1])
   })
 
@@ -706,7 +719,7 @@ describe('shared catalog', () => {
     expect(screen.getByText('No products match your search.')).toBeTruthy()
   })
 
-  it('renders loading and retry states and prevents sales selection without known available stock', async () => {
+  it('renders loading and retry states while keeping sales order item selection independent of stock', async () => {
     const user = userEvent.setup()
     const onRetry = vi.fn()
     const props = { products, stockItems: stocks, onAdd: vi.fn(), sales: true, busy: false }
@@ -717,14 +730,17 @@ describe('shared catalog', () => {
     rerender(<OrderProductCatalog {...props} state={{ stockError: 'Disconnected', onRetry }} />)
     expect(
       (screen.getByRole('button', { name: 'Add Test Mango' }) as HTMLButtonElement).disabled,
-    ).toBe(true)
+    ).toBe(false)
     await user.click(screen.getByRole('button', { name: 'Retry' }))
     expect(onRetry).toHaveBeenCalledOnce()
+    await user.click(screen.getByRole('button', { name: 'Add Test Mango' }))
     rerender(<OrderProductCatalog {...props} />)
     expect(
       (screen.getByRole('button', { name: `Add ${products[1].name}` }) as HTMLButtonElement)
         .disabled,
-    ).toBe(true)
+    ).toBe(false)
+    await user.click(screen.getByRole('button', { name: `Add ${products[1].name}` }))
+    expect(props.onAdd).toHaveBeenCalledTimes(2)
     expect(screen.getByRole('button', { name: 'Available Stock' })).toBeTruthy()
     expect(screen.getByText('17 kg')).toBeTruthy()
     expect(screen.getByText('20 kg on hand')).toBeTruthy()

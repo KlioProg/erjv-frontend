@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState, type FormEvent } from 'react'
+import { X } from 'lucide-react'
 import { toast } from 'sonner'
 import { DeliveryFormDialog, DeliveryFormFooter } from './shared/DeliveryFormDialog'
 import { deliveryFormStyles } from './shared/delivery-form.styles'
@@ -27,19 +28,16 @@ import { useClients } from '@/features/crm/clients.hooks'
 import { useStockItems } from '@/features/logistics/stock-items.hooks'
 import { useProducts } from '@/features/products/products.hooks'
 import { DeliveryUtils } from '@/features/logistics/delivery-utils'
-import { deliveryQuantityError } from '@/features/logistics/delivery-quantities'
 import {
   canPrepareOutgoing,
   outgoingOrderBalances,
   remainingOutgoingItemCount,
-  outgoingSourceCapacity,
-  outgoingLinesForQuantity,
+  outgoingLinesForSources,
   type OutgoingItemBalance,
 } from '@/features/logistics/outgoing-order-balance'
-import { parseOrderDecimal } from '@/lib/order-amounts'
-import { formatStockCents, parseStockCents } from '@/features/logistics/stock-display'
+import type { OutgoingDeliveryLineCommand } from '@/features/logistics/outgoing-deliveries.types'
+import { decimalString, parseOrderDecimal } from '@/lib/order-amounts'
 import { getErrorMessage } from '@/lib/api-client'
-import { DeliveryQuantityTable } from './DeliveryQuantityTable'
 
 interface ScheduleDeliveryModalProps {
   open: boolean
@@ -51,7 +49,11 @@ function getInitialScheduledAt(): string {
   date.setDate(date.getDate() + 1)
   return DeliveryUtils.toDateTimeInput(date)
 }
-const formatQuantity = (value: string | null) => formatStockCents(parseStockCents(value))
+function formatQuantity(value: string | null | undefined): string {
+  const parsed = parseOrderDecimal(value ?? '')
+  return parsed === null ? '—' : decimalString(parsed)
+}
+type DeliverySourceSelection = { key: number; stockItemId: string; quantity: string }
 
 export function ScheduleDeliveryModal({
   open,
@@ -68,8 +70,8 @@ export function ScheduleDeliveryModal({
   const deliveriesQuery = useOutgoingDeliveries()
   const orders = useMemo(() => ordersQuery.data ?? [], [ordersQuery.data])
   const clients = clientsQuery.data ?? []
-  const warehouses = warehousesQuery.data ?? []
-  const stocks = stocksQuery.data ?? []
+  const warehouses = useMemo(() => warehousesQuery.data ?? [], [warehousesQuery.data])
+  const stocks = useMemo(() => stocksQuery.data ?? [], [stocksQuery.data])
   const deliveries = useMemo(() => deliveriesQuery.data ?? [], [deliveriesQuery.data])
   const vehicles = vehiclesQuery.data ?? []
   const employees = employeesQuery.data ?? []
@@ -89,12 +91,13 @@ export function ScheduleDeliveryModal({
   const [selectedOrderId, setSelectedOrderId] = useState(
     preselectedOrderId ? String(preselectedOrderId) : '',
   )
-  const [warehouseId, setWarehouseId] = useState('')
   const [vehicleId, setVehicleId] = useState('none')
   const [driverId, setDriverId] = useState('none')
   const [scheduledAt, setScheduledAt] = useState(getInitialScheduledAt)
   const [notes, setNotes] = useState('')
-  const [quantities, setQuantities] = useState<Record<number, string>>({})
+  const [sourceSelections, setSourceSelections] = useState<
+    Record<number, DeliverySourceSelection[]>
+  >({})
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [assignmentsOpen, setAssignmentsOpen] = useState(false)
   const [notesOpen, setNotesOpen] = useState(false)
@@ -102,8 +105,7 @@ export function ScheduleDeliveryModal({
     id: number
     number: string
     balances: OutgoingItemBalance[]
-    capacities: Record<number, string | null>
-    warehouseName: string
+    items: Array<{ salesOrderItemId: number; stockItemId: number; quantity: string }>
   } | null>(null)
   const [completed, setCompleted] = useState<'DRAFT' | 'SCHEDULED' | null>(null)
   const [phase, setPhase] = useState<'checking' | 'creating' | 'scheduling' | null>(null)
@@ -114,8 +116,14 @@ export function ScheduleDeliveryModal({
   }
   const readOnly = busy || unavailable || !!savedDraft
   const balancesByOrder = useMemo(
-    () => new Map(orders.map((order) => [order.id, outgoingOrderBalances(order, deliveries)])),
-    [orders, deliveries],
+    () =>
+      new Map(
+        orders.map((order) => [
+          order.id,
+          outgoingOrderBalances(order, deliveries, stocks, warehouses),
+        ]),
+      ),
+    [orders, deliveries, stocks, warehouses],
   )
   const eligibleOrders = orders.filter(
     (order) =>
@@ -123,13 +131,10 @@ export function ScheduleDeliveryModal({
       remainingOutgoingItemCount(balancesByOrder.get(order.id) ?? []) > 0,
   )
   const selectedOrder = orders.find((order) => String(order.id) === selectedOrderId)
-  const balances =
-    savedDraft?.balances ?? (selectedOrder ? (balancesByOrder.get(selectedOrder.id) ?? []) : [])
+  const balances = savedDraft?.balances ?? (selectedOrder ? (balancesByOrder.get(selectedOrder.id) ?? []) : [])
   const remainingItems = balances.filter(
     (balance) =>
-      balance.remaining === null ||
-      (parseOrderDecimal(balance.remaining) ?? 0n) > 0n ||
-      (parseOrderDecimal(quantities[balance.item.id] ?? '') ?? 0n) > 0n,
+      balance.remaining === null || (parseOrderDecimal(balance.remaining) ?? 0n) > 0n,
   )
   const selectedEligible =
     !!selectedOrder && eligibleOrders.some((order) => order.id === selectedOrder.id)
@@ -138,18 +143,70 @@ export function ScheduleDeliveryModal({
       canPrepareOutgoing(order) &&
       (balancesByOrder.get(order.id) ?? []).some((balance) => balance.remaining === null),
   )
-  const sourceWarehouses = warehouses.filter(
-    (warehouse) =>
-      warehouse.isActive &&
-      balances.some(
-        (balance) =>
-          (parseOrderDecimal(
-            outgoingSourceCapacity(balance, warehouse.id, stocks, warehouses) ?? '',
-          ) ?? 0n) > 0n,
+  const initialSourceSelections = (balance: OutgoingItemBalance): DeliverySourceSelection[] => {
+    const firstSource = balance.sources.find(
+      (source) => source.remaining !== null && (parseOrderDecimal(source.remaining) ?? 0n) > 0n,
+    )
+    return firstSource
+      ? [
+          {
+            key: firstSource.stock.id,
+            stockItemId: String(firstSource.stock.id),
+            quantity: firstSource.remaining ?? '',
+          },
+        ]
+      : []
+  }
+  const getSelections = (balance: OutgoingItemBalance) => {
+    if (savedDraft) {
+      return savedDraft.items
+        .filter((item) => item.salesOrderItemId === balance.item.id)
+        .map((item, index) => ({
+          key: index,
+          stockItemId: String(item.stockItemId),
+          quantity: item.quantity,
+        }))
+    }
+    return sourceSelections[balance.item.id] ?? initialSourceSelections(balance)
+  }
+  const updateSourceSelection = (
+    itemId: number,
+    key: number,
+    field: 'stockItemId' | 'quantity',
+    value: string,
+  ) => {
+    const balance = balances.find((candidate) => candidate.item.id === itemId)
+    setSourceSelections((current) => ({
+      ...current,
+      [itemId]: (current[itemId] ?? (balance ? initialSourceSelections(balance) : [])).map((source) =>
+        source.key === key ? { ...source, [field]: value } : source,
       ),
-  )
-  const quantityFor = (balance: OutgoingItemBalance, capacity: string | null) =>
-    quantities[balance.item.id] ?? capacity ?? ''
+    }))
+    setErrors({})
+  }
+  const addSourceSelection = (balance: OutgoingItemBalance) => {
+    const current = sourceSelections[balance.item.id] ?? initialSourceSelections(balance)
+    const selectedIds = new Set(current.map((source) => source.stockItemId))
+    const next = balance.sources.find(
+      (source) =>
+        source.remaining !== null &&
+        (parseOrderDecimal(source.remaining) ?? 0n) > 0n &&
+        !selectedIds.has(String(source.stock.id)),
+    )
+    if (!next) return
+    const key = next.stock.id
+    setSourceSelections((existing) => ({
+      ...existing,
+      [balance.item.id]: [
+        ...(existing[balance.item.id] ?? initialSourceSelections(balance)),
+        {
+          key,
+          stockItemId: String(next.stock.id),
+          quantity: next.remaining ?? '',
+        },
+      ],
+    }))
+  }
   const orderLabel = (order: (typeof orders)[number]) =>
     `${order.orderNumber} · ${clients.find((client) => client.id === order.clientId)?.name || `Customer #${order.clientId}`}`
   const failField = (field: string, message: string) => {
@@ -178,10 +235,6 @@ export function ScheduleDeliveryModal({
         failField('sales-order', 'Choose a Sales Order to fulfill.')
         return
       }
-      if (!warehouseId) {
-        failField('warehouse', 'Choose the source warehouse for this delivery.')
-        return
-      }
       if (
         (intent === 'schedule' && !scheduledAt) ||
         (scheduledAt && !Number.isFinite(new Date(scheduledAt).getTime()))
@@ -189,19 +242,6 @@ export function ScheduleDeliveryModal({
         failField('scheduled-at', 'Enter a valid scheduled date and time.')
         return
       }
-      // Retain the displayed plan if the fresh balance changes during submission.
-      setQuantities((previous) => ({
-        ...Object.fromEntries(
-          balances.map((balance) => [
-            balance.item.id,
-            quantityFor(
-              balance,
-              outgoingSourceCapacity(balance, Number(warehouseId), stocks, warehouses),
-            ),
-          ]),
-        ),
-        ...previous,
-      }))
       // Check the complete current order/delivery/stock response immediately before POST.
       const [freshOrders, freshWarehouses, freshStocks, freshDeliveries] = await refresh()
       if (
@@ -220,7 +260,12 @@ export function ScheduleDeliveryModal({
         )
         return
       }
-      const freshBalances = outgoingOrderBalances(order, freshDeliveries.data!)
+      const freshBalances = outgoingOrderBalances(
+        order,
+        freshDeliveries.data!,
+        freshStocks.data!,
+        freshWarehouses.data!,
+      )
       if (freshBalances.some((balance) => balance.remaining === null)) {
         failField(
           'sales-order',
@@ -235,42 +280,53 @@ export function ScheduleDeliveryModal({
         )
         return
       }
-      const selectedWarehouse = Number(warehouseId)
-      const items = []
+      const items: OutgoingDeliveryLineCommand[] = []
       for (const balance of freshBalances) {
-        const capacity = outgoingSourceCapacity(
-          balance,
-          selectedWarehouse,
-          freshStocks.data!,
-          freshWarehouses.data!,
-        )
-        // Use the quantities displayed before refresh; do not silently replace an employee's plan.
-        const displayed = balances.find((candidate) => candidate.item.id === balance.item.id)
-        const oldCapacity = displayed
-          ? outgoingSourceCapacity(displayed, selectedWarehouse, stocks, warehouses)
-          : '0'
-        const quantity = quantities[balance.item.id] ?? oldCapacity ?? ''
-        const issue = deliveryQuantityError(quantity, capacity)
-        if (issue) {
-          setErrors({
-            warehouse:
-              'Shipment balances changed or the quantity exceeds this source. Review the remaining quantities.',
-            [`quantity-${balance.item.id}`]: issue,
-          })
-          requestAnimationFrame(() =>
-            document.getElementById(`delivery-quantity-${balance.item.id}`)?.focus(),
+        const selected = getSelections(balance)
+        const quantities = selected.filter((source) => {
+          const value = parseOrderDecimal(source.quantity)
+          return value !== null && value > 0n
+        })
+        if (quantities.length !== selected.length) {
+          const invalid = selected.find(
+            (source) => parseOrderDecimal(source.quantity) === null,
           )
+          if (invalid) {
+            setErrors({
+              [`quantity-${balance.item.id}-${invalid.key}`]:
+                'Enter a quantity with up to two decimal places, or 0 to skip this source.',
+            })
+            requestAnimationFrame(() =>
+              document
+                .getElementById(`delivery-quantity-${balance.item.id}-${invalid.key}`)
+                ?.focus(),
+            )
+            return
+          }
+        }
+        if (!quantities.length) continue
+        try {
+          items.push(
+            ...outgoingLinesForSources(
+              balance,
+              quantities.map((source) => ({
+                stockItemId: Number(source.stockItemId),
+                quantity: source.quantity,
+              })),
+            ),
+          )
+        } catch (cause) {
+          setErrors({
+            [`quantity-${balance.item.id}`]:
+              cause instanceof Error
+                ? cause.message
+                : 'Shipment quantities changed. Review this item.',
+          })
           return
         }
-        items.push(
-          ...outgoingLinesForQuantity(balance, selectedWarehouse, quantity, freshStocks.data!),
-        )
       }
       if (!items.length) {
-        failField(
-          'warehouse',
-          'Enter a positive shipment quantity from an eligible source warehouse.',
-        )
+        failField('sales-order', 'Enter a positive shipment quantity from an available source.')
         return
       }
       if (vehicleId !== 'none') {
@@ -306,7 +362,6 @@ export function ScheduleDeliveryModal({
       setPhase('creating')
       const created = await createDelivery.mutateAsync({
         salesOrderId: order.id,
-        warehouseId: selectedWarehouse,
         deliveryVehicleId: vehicleId === 'none' ? null : Number(vehicleId),
         driverEmployeeId: driverId === 'none' ? null : Number(driverId),
         scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
@@ -321,20 +376,7 @@ export function ScheduleDeliveryModal({
         id: created.id,
         number: created.deliveryNumber,
         balances: freshBalances,
-        capacities: Object.fromEntries(
-          freshBalances.map((balance) => [
-            balance.item.id,
-            outgoingSourceCapacity(
-              balance,
-              selectedWarehouse,
-              freshStocks.data!,
-              freshWarehouses.data!,
-            ),
-          ]),
-        ),
-        warehouseName:
-          freshWarehouses.data!.find((warehouse) => warehouse.id === selectedWarehouse)?.name ??
-          `Warehouse #${selectedWarehouse}`,
+        items,
       })
       if (intent === 'schedule') {
         setPhase('scheduling')
@@ -365,10 +407,10 @@ export function ScheduleDeliveryModal({
     event.preventDefault()
     void submit('schedule')
   }
-  const fieldError = (field: string) =>
-    errors[field] ? (
+  const fieldError = (field: string, message = errors[field]) =>
+    message ? (
       <p id={`delivery-${field}-error`} role="alert" className="text-xs text-destructive">
-        {errors[field]}
+        {message}
       </p>
     ) : null
   const vehicleSummary =
@@ -390,7 +432,7 @@ export function ScheduleDeliveryModal({
       onClose={dismiss}
       busy={busy}
       title="Schedule Outgoing Delivery"
-      description="Choose a sales order, review shipment quantities, and set the source and schedule."
+      description="Choose a sales order, select stock sources for each item, and set the schedule."
     >
       {completed ? (
         <div className={deliveryFormStyles.form}>
@@ -472,8 +514,6 @@ export function ScheduleDeliveryModal({
                       value={selectedEligible ? selectedOrderId : ''}
                       onValueChange={(id) => {
                         setSelectedOrderId(id)
-                        setWarehouseId('')
-                        setQuantities({})
                         setErrors({})
                       }}
                       getOptionValue={(order) => String(order.id)}
@@ -531,66 +571,6 @@ export function ScheduleDeliveryModal({
                     </p>
                   )}
                 </div>
-                {selectedOrder && (selectedEligible || savedDraft) && (
-                  <div className={deliveryFormStyles.field}>
-                    <Label htmlFor="delivery-warehouse" className={deliveryFormStyles.label}>
-                      Source Warehouse <span className="text-primary">*</span>
-                    </Label>
-                    {savedDraft ? (
-                      <Input
-                        id="delivery-warehouse"
-                        readOnly
-                        value={savedDraft.warehouseName}
-                        className={deliveryFormStyles.control}
-                      />
-                    ) : (
-                      <Select
-                        value={warehouseId}
-                        onValueChange={(id) => {
-                          if (id) {
-                            setWarehouseId(id)
-                            setErrors({})
-                          }
-                        }}
-                      >
-                        <SelectTrigger
-                          id="delivery-warehouse"
-                          aria-invalid={!!errors.warehouse}
-                          aria-describedby={
-                            errors.warehouse ? 'delivery-warehouse-error' : undefined
-                          }
-                          className={deliveryFormStyles.control}
-                        >
-                          <SelectValue placeholder="Choose a source warehouse" />
-                        </SelectTrigger>
-                        <SelectContent className={deliveryFormStyles.popover}>
-                          {sourceWarehouses.map((warehouse) => (
-                            <SelectItem
-                              key={warehouse.id}
-                              value={String(warehouse.id)}
-                              className={deliveryFormStyles.option}
-                            >
-                              {warehouse.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    )}
-                    {fieldError('warehouse')}
-                    {!savedDraft &&
-                      (sourceWarehouses.length === 0 ? (
-                        <p role="status" className="text-xs text-destructive">
-                          No eligible source stock is available. Review the order's saved sources
-                          and current warehouse stock.
-                        </p>
-                      ) : (
-                        <p className="text-xs text-muted-foreground">
-                          One warehouse per delivery. Choose from this order's available stock
-                          sources.
-                        </p>
-                      ))}
-                  </div>
-                )}
               </div>
               {!selectedOrder && !unavailable && (
                 <p role="status" className={deliveryFormStyles.empty}>
@@ -599,45 +579,220 @@ export function ScheduleDeliveryModal({
               )}
               {selectedOrder && (selectedEligible || savedDraft) && (
                 <>
-                  <section aria-label="Shipment quantities" className="flex min-w-0 flex-col gap-2">
-                    <h2 className={deliveryFormStyles.sectionTitle}>Shipment quantities</h2>
-                    <DeliveryQuantityTable
-                      compact
-                      direction="Outgoing"
-                      disabled={readOnly}
-                      rows={remainingItems.map((balance) => {
-                        const product = products.find(
-                          (candidate) => candidate.id === balance.item.inventoryItemId,
-                        )
-                        const capacity = savedDraft
-                          ? savedDraft.capacities[balance.item.id]
-                          : warehouseId
-                            ? outgoingSourceCapacity(
-                                balance,
-                                Number(warehouseId),
-                                stocks,
-                                warehouses,
+                  <section aria-label="Shipment sources and quantities" className="flex min-w-0 flex-col gap-3">
+                    <h2 className={deliveryFormStyles.sectionTitle}>Shipment sources and quantities</h2>
+                    {remainingItems.map((balance) => {
+                      const product = products.find(
+                        (candidate) => candidate.id === balance.item.inventoryItemId,
+                      )
+                      const selections = getSelections(balance)
+                      const availableSources = balance.sources.filter(
+                        (source) =>
+                          source.remaining !== null &&
+                          (parseOrderDecimal(source.remaining) ?? 0n) > 0n,
+                      )
+
+                      return (
+                        <div
+                          key={balance.item.id}
+                          className="rounded-lg border border-border/70 p-3"
+                        >
+                          <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+                            <h3 className="text-sm font-medium">
+                              {product?.name || `Product #${balance.item.inventoryItemId}`}
+                              {product?.variety ? ` - ${product.variety}` : ''}
+                            </h3>
+                            <p className="text-xs text-muted-foreground">
+                              Ordered {formatQuantity(balance.item.quantity)} · Arranged{' '}
+                              {formatQuantity(balance.committed)} · Remaining{' '}
+                              {formatQuantity(balance.remaining)} {product?.unit || 'units'}
+                            </p>
+                          </div>
+                          <div className="flex flex-col gap-2">
+                            {selections.map((selection) => {
+                              const selectedSource = balance.sources.find(
+                                (source) => String(source.stock.id) === selection.stockItemId,
                               )
-                            : balance.remaining
-                        return {
-                          id: balance.item.id,
-                          name: product?.name || `Product #${balance.item.inventoryItemId}`,
-                          variety: product?.variety,
-                          unit: product?.unit || 'units',
-                          ordered: balance.item.quantity,
-                          committed: balance.committed ?? '',
-                          remaining: balance.remaining,
-                          quantityLimit: capacity,
-                          quantity: quantityFor(balance, capacity),
-                          detail: `Ordered ${formatQuantity(balance.item.quantity)} · Arranged ${formatQuantity(balance.committed)}${warehouseId ? ` · From this source: ${formatQuantity(capacity)}` : ''}`,
-                        }
-                      })}
-                      onChange={(id, quantity) =>
-                        setQuantities((previous) => ({ ...previous, [id]: quantity }))
-                      }
-                    />
+                              const sourceError = errors[`source-${balance.item.id}-${selection.key}`]
+                              const quantityError =
+                                errors[`quantity-${balance.item.id}-${selection.key}`]
+
+                              return (
+                                <div
+                                  key={selection.key}
+                                  className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_10rem_auto]"
+                                >
+                                  <div className={deliveryFormStyles.field}>
+                                    <Label
+                                      htmlFor={`delivery-source-${balance.item.id}-${selection.key}`}
+                                      className={deliveryFormStyles.label}
+                                    >
+                                      Stock source
+                                    </Label>
+                                    <Select
+                                      value={selection.stockItemId}
+                                      disabled={readOnly}
+                                      onValueChange={(stockItemId) => {
+                                        const source = balance.sources.find(
+                                          (candidate) =>
+                                            String(candidate.stock.id) === stockItemId,
+                                        )
+                                        setSourceSelections((current) => ({
+                                          ...current,
+                                          [balance.item.id]: (
+                                            current[balance.item.id] ??
+                                            initialSourceSelections(balance)
+                                          ).map(
+                                            (entry) =>
+                                              entry.key === selection.key
+                                                ? {
+                                                    ...entry,
+                                                    stockItemId,
+                                                    quantity: source?.remaining ?? '',
+                                                  }
+                                                : entry,
+                                          ),
+                                        }))
+                                        setErrors({})
+                                      }}
+                                    >
+                                      <SelectTrigger
+                                        id={`delivery-source-${balance.item.id}-${selection.key}`}
+                                        aria-invalid={!!sourceError}
+                                        aria-describedby={
+                                          sourceError
+                                            ? `delivery-source-${balance.item.id}-${selection.key}-error`
+                                            : undefined
+                                        }
+                                        className={deliveryFormStyles.control}
+                                      >
+                                        <SelectValue placeholder="Choose stock source" />
+                                      </SelectTrigger>
+                                      <SelectContent className={deliveryFormStyles.popover}>
+                                        {availableSources.map((source) => {
+                                          const stockItemId = String(source.stock.id)
+                                          const alreadySelected = selections.some(
+                                            (entry) =>
+                                              entry.key !== selection.key &&
+                                              entry.stockItemId === stockItemId,
+                                          )
+                                          const warehouse = warehouses.find(
+                                            (candidate) =>
+                                              candidate.id === source.stock.warehouseId,
+                                          )
+                                          return (
+                                            <SelectItem
+                                              key={stockItemId}
+                                              value={stockItemId}
+                                              disabled={alreadySelected}
+                                              className={deliveryFormStyles.option}
+                                            >
+                                              {warehouse?.name || `Warehouse #${source.stock.warehouseId}`}
+                                              {' · Available '}
+                                              {formatQuantity(source.remaining)}
+                                            </SelectItem>
+                                          )
+                                        })}
+                                      </SelectContent>
+                                    </Select>
+                                    {fieldError(
+                                      `source-${balance.item.id}-${selection.key}`,
+                                      sourceError,
+                                    )}
+                                    <p className="text-xs text-muted-foreground">
+                                      Available: {formatQuantity(selectedSource?.remaining)}
+                                    </p>
+                                  </div>
+                                  <div className={deliveryFormStyles.field}>
+                                    <Label
+                                      htmlFor={`delivery-quantity-${balance.item.id}-${selection.key}`}
+                                      className={deliveryFormStyles.label}
+                                    >
+                                      Quantity ({product?.unit || 'units'})
+                                    </Label>
+                                    <Input
+                                      id={`delivery-quantity-${balance.item.id}-${selection.key}`}
+                                      aria-label={`Quantity to ship for ${product?.name || 'product'}`}
+                                      type="number"
+                                      min="0"
+                                      step="0.01"
+                                      max={selectedSource?.remaining ?? undefined}
+                                      value={selection.quantity}
+                                      disabled={readOnly}
+                                      onChange={(event) =>
+                                        updateSourceSelection(
+                                          balance.item.id,
+                                          selection.key,
+                                          'quantity',
+                                          event.target.value,
+                                        )
+                                      }
+                                      aria-invalid={!!quantityError}
+                                      aria-describedby={
+                                        quantityError
+                                          ? `delivery-quantity-${balance.item.id}-${selection.key}-error`
+                                          : undefined
+                                      }
+                                      className={deliveryFormStyles.control}
+                                    />
+                                    {fieldError(
+                                      `quantity-${balance.item.id}-${selection.key}`,
+                                      quantityError,
+                                    )}
+                                  </div>
+                                  {fieldError(`quantity-${balance.item.id}`)}
+                                  {!readOnly && (
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="sm"
+                                      className="self-end"
+                                      aria-label={`Remove stock source for ${product?.name || 'product'}`}
+                                      onClick={() => {
+                                        setSourceSelections((current) => ({
+                                          ...current,
+                                          [balance.item.id]: (
+                                            current[balance.item.id] ??
+                                            initialSourceSelections(balance)
+                                          ).filter((entry) => entry.key !== selection.key),
+                                        }))
+                                        setErrors({})
+                                      }}
+                                    >
+                                      <X className="size-4" />
+                                    </Button>
+                                  )}
+                                </div>
+                              )
+                            })}
+                          </div>
+                          {!readOnly && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="mt-3"
+                              disabled={
+                                selections.length >= availableSources.length ||
+                                availableSources.length === 0
+                              }
+                              onClick={() => addSourceSelection(balance)}
+                            >
+                              Add stock source
+                            </Button>
+                          )}
+                          {availableSources.length === 0 && !readOnly && (
+                            <p role="status" className="mt-2 text-xs text-destructive">
+                              No available stock source can fulfill this item.
+                            </p>
+                          )}
+                        </div>
+                      )
+                    })}
                     <p className="text-xs text-muted-foreground">
-                      Enter 0 to skip a product. Quantities are limited by the selected source.
+                      Each item can be fulfilled from multiple warehouses. The combined quantity
+                      cannot exceed its remaining ordered quantity or the selected sources' current
+                      availability.
                     </p>
                   </section>
                   <div className={`${deliveryFormStyles.field} sm:max-w-sm`}>
@@ -802,7 +957,7 @@ export function ScheduleDeliveryModal({
               <Button
                 type="button"
                 variant="secondary"
-                disabled={busy || unavailable || !selectedEligible || !warehouseId}
+                disabled={busy || unavailable || !selectedEligible}
                 onClick={() => void submit('draft')}
                 className={deliveryFormStyles.button}
               >
@@ -813,7 +968,7 @@ export function ScheduleDeliveryModal({
               type="submit"
               variant="primary-contrast"
               className={deliveryFormStyles.button}
-              disabled={busy || (!savedDraft && (unavailable || !selectedEligible || !warehouseId))}
+              disabled={busy || (!savedDraft && (unavailable || !selectedEligible))}
             >
               {phase === 'checking'
                 ? 'Checking quantities...'

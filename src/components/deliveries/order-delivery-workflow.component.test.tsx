@@ -64,16 +64,6 @@ const salesFixture: SalesOrderRecord = {
       ...line,
       id: 10,
       salesOrderId: 1,
-      allocations: [
-        {
-          id: 11,
-          salesOrderItemId: 10,
-          stockItemId: 1,
-          quantity: '1.25',
-          releasedAt: null,
-          ...stamps,
-        },
-      ],
     },
   ],
 }
@@ -117,7 +107,6 @@ const outgoingFixture = (
   id,
   deliveryNumber: `OUT-${id}`,
   salesOrderId: 1,
-  warehouseId: 1,
   status,
   deliveryVehicleId: null,
   driverEmployeeId: null,
@@ -131,9 +120,10 @@ const outgoingFixture = (
     {
       id: id * 10,
       outgoingDeliveryId: id,
-      salesOrderAllocationId: 11,
+      salesOrderItemId: 10,
+      stockItemId: 1,
       quantity: '0.50',
-      salesOrderAllocation: { stockItemId: 1, salesOrderItemId: 10, quantity: '1.25' },
+      stockItem: { warehouseId: 1 },
       ...stamps,
     },
   ],
@@ -152,6 +142,15 @@ let failReceipt: boolean
 let failIncomingQuery: boolean
 let requests: { method: string; url: string; body: Record<string, unknown> }[]
 const originalAdapter = apiClient.defaults.adapter
+
+it('displays the authoritative zero total of a fully discounted sales order', async () => {
+  sales[0].items[0].totalAmount = '0.00'
+  sales[0].items[0].discountRate = '100.00'
+  mount(<OrdersView />)
+  const row = await screen.findByRole('row', { name: /SO-TEST/ })
+  expect(within(row).getByText('₱0.00')).toBeTruthy()
+  expect(within(row).queryByText('₱25.00')).toBeNull()
+})
 
 function mount(ui: ReactNode) {
   const queryClient = new QueryClient({
@@ -381,12 +380,7 @@ describe.each(['Sales', 'Purchase'])('%s composer confirmation', (kind) => {
       }),
     )
     await user.click(await screen.findByRole('button', { name: 'Add Test Mango' }))
-    if (salesOrder) {
-      await user.click(screen.getByRole('button', { name: 'Stock source for Test Mango' }))
-      await user.click(screen.getByRole('combobox', { name: 'Warehouse source 1 for Test Mango' }))
-      await user.click(screen.getByRole('option', { name: /Test Warehouse/ }))
-      await user.click(screen.getByRole('button', { name: 'Done' }))
-    } else {
+    if (!salesOrder) {
       await user.type(screen.getByRole('textbox', { name: 'Unit cost for Test Mango' }), '12.34')
     }
     await user.click(screen.getByText('Additional details'))
@@ -568,7 +562,6 @@ describe('order to delivery workflow', () => {
       id: 12,
       lineNumber: 2,
       quantity: '0.75',
-      allocations: [],
     })
     const user = userEvent.setup()
     mount(<OrdersView />)
@@ -840,10 +833,12 @@ describe('order to delivery workflow', () => {
     const user = userEvent.setup()
     const close = vi.fn()
     mount(<ScheduleDeliveryModal open preselectedOrderId={1} onClose={close} />)
-    const quantity = await screen.findByRole('textbox', { name: 'Quantity to ship for Test Mango' })
+    const quantity = await screen.findByRole('spinbutton', {
+      name: 'Quantity to ship for Test Mango',
+    })
     expect((quantity as HTMLInputElement).value).toBe('0.75')
-    await user.click(screen.getByRole('combobox', { name: /Source Warehouse/ }))
-    await user.click(screen.getByRole('option', { name: 'Test Warehouse' }))
+    await user.click(screen.getByRole('combobox', { name: 'Stock source' }))
+    await user.click(screen.getByRole('option', { name: /Test Warehouse/ }))
     await user.click(screen.getByRole('button', { name: 'Schedule Delivery' }))
     expect(await screen.findByText('Schedule retry required.')).toBeTruthy()
     expect(close).not.toHaveBeenCalled()
@@ -852,7 +847,9 @@ describe('order to delivery workflow', () => {
     await waitFor(() => expect(close).toHaveBeenCalledOnce())
     const creates = requests.filter((request) => request.method === 'post')
     expect(creates).toHaveLength(1)
-    expect(creates[0].body.items).toEqual([{ salesOrderAllocationId: 11, quantity: '0.75' }])
+    expect(creates[0].body.items).toEqual([
+      { salesOrderItemId: 10, stockItemId: 1, quantity: '0.75' },
+    ])
     expect(
       requests.filter((request) => request.url === '/outgoing-deliveries/90/schedule'),
     ).toHaveLength(2)

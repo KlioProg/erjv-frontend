@@ -20,7 +20,7 @@ import { formatStockCents, parseStockCents, stockSortKey } from '@/features/logi
 import type { StockItemWithInventoryItem } from '@/features/logistics/stock-items.types'
 import type { Warehouse } from '@/features/logistics/warehouses.types'
 import { getErrorMessage } from '@/lib/api-client'
-import { stockCondition, stockConditionRank } from '@/features/logistics/stock-warnings'
+import { stockConditionForItem, stockConditionRank } from '@/features/logistics/stock-warnings'
 import { StockIndicator } from '@/components/inventory/StockIndicator'
 import { cn } from '@/lib/utils'
 
@@ -44,8 +44,8 @@ export function WarehouseInventory({
         .map((stock) => ({ stock, quantityCents: parseStockCents(stock.quantity) }))
         .sort(
           (a, b) =>
-            stockConditionRank[stockCondition(a.quantityCents)] -
-              stockConditionRank[stockCondition(b.quantityCents)] ||
+            stockConditionRank[stockConditionForItem(a.stock)] -
+              stockConditionRank[stockConditionForItem(b.stock)] ||
             (a.stock.inventoryItem?.name ?? '').localeCompare(b.stock.inventoryItem?.name ?? '') ||
             a.stock.id - b.stock.id,
         ),
@@ -109,7 +109,7 @@ export function WarehouseInventory({
         sortable: true,
         sortKey: (row) => stockSortKey(row.quantityCents),
         cell: ({ row }) => {
-          const condition = stockCondition(row.quantityCents)
+          const condition = stockConditionForItem(row.stock)
           const warning =
             condition === 'OUT' ? 'Out of stock' : condition === 'LOW' ? 'Low stock' : null
           return (
@@ -133,6 +133,9 @@ export function WarehouseInventory({
                 />
               </div>
               {warning && <span className="text-xs font-medium">{warning}</span>}
+              {condition === 'NORMAL' && row.stock.reorderThreshold == null && (
+                <span className="text-xs text-muted-foreground">Threshold not set</span>
+              )}
             </div>
           )
         },
@@ -247,7 +250,7 @@ export function WarehouseInventory({
             columns={columns}
             getRowKey={(row) => row.stock.id}
             rowClassName={(row) => {
-              const condition = stockCondition(row.quantityCents)
+              const condition = stockConditionForItem(row.stock)
               return condition === 'OUT'
                 ? 'bg-destructive/5 hover:bg-destructive/10'
                 : condition === 'LOW'

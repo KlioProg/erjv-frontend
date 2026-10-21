@@ -22,7 +22,10 @@ import type { PurchaseLine } from '@/features/logistics/purchase-order-entry.typ
 import type { StockItem } from '@/features/logistics/stock-items.types'
 import type { Supplier } from '@/features/logistics/suppliers.types'
 import type { InventoryItemResponse } from '@/features/products/products.types'
-import type { CreatePurchaseOrderPayload } from '@/features/logistics/purchase-orders.types'
+import type {
+  CreatePurchaseOrderPayload,
+  PurchaseOrderRecord,
+} from '@/features/logistics/purchase-orders.types'
 import { formatOrderCurrency, lineSubtotal } from '@/lib/order-amounts'
 import { priceError, quantityError } from '@/lib/order-entry.schema'
 
@@ -36,6 +39,11 @@ type PurchaseModalProps = OrderSubmissionProps<CreatePurchaseOrderPayload> & {
   stockItems?: StockItem[]
   catalogState?: OrderCatalogState
   processedBy: string
+  draftOrder?: PurchaseOrderRecord
+  onUpdateDraft?: (
+    id: number,
+    payload: CreatePurchaseOrderPayload,
+  ) => Promise<PurchaseOrderRecord>
 }
 
 export function PurchaseModal({
@@ -50,6 +58,8 @@ export function PurchaseModal({
   stockItems = [],
   catalogState,
   processedBy,
+  draftOrder,
+  onUpdateDraft,
 }: PurchaseModalProps) {
   const form = usePurchaseOrderEntry({
     suppliers,
@@ -58,7 +68,18 @@ export function PurchaseModal({
     onConfirm,
     onConfirmed,
     savedDraft,
+    draftOrder,
+    onUpdateDraft,
     onClose,
+  })
+  const displayLines = form.lines.map((line) => {
+    const product = products.find((candidate) => candidate.id === line.inventoryItemId)
+    return {
+      ...line,
+      name: product?.name || line.name,
+      variety: product?.variety ?? line.variety,
+      unit: product?.unit ?? line.unit,
+    }
   })
   const columns: ColumnDef<PurchaseLine>[] = [
     {
@@ -156,8 +177,18 @@ export function PurchaseModal({
       open={open}
       onClose={onClose}
       onSubmit={form.submit}
-      title={savedDraft ? 'Confirm Purchase Order' : 'Create Purchase Order'}
-      description="Choose catalog products, then enter the supplier's cost and quantity."
+      title={
+        draftOrder
+          ? `Edit Draft ${draftOrder.orderNumber}`
+          : savedDraft
+            ? 'Confirm Purchase Order'
+            : 'Create Purchase Order'
+      }
+      description={
+        draftOrder
+          ? 'Update the saved draft, then save it or confirm the purchase order.'
+          : "Choose catalog products, then enter the supplier's cost and quantity. A supplier is required only when confirming."
+      }
       submission={form.submission}
       busy={form.busy}
       error={form.error}
@@ -178,10 +209,13 @@ export function PurchaseModal({
       {(openCatalog) => (
         <>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <OrderField id="po-supplier" label="Supplier" required>
+            <OrderField id="po-supplier" label="Supplier (optional for drafts)">
               <SearchableDropdown
                 id="po-supplier"
-                options={suppliers.filter((supplier) => supplier.isActive)}
+                options={suppliers.filter(
+                  (supplier) =>
+                    supplier.isActive || String(supplier.id) === form.supplierId,
+                )}
                 value={form.supplierId}
                 onValueChange={form.setSupplierId}
                 getOptionValue={(supplier) => String(supplier.id)}
@@ -234,7 +268,7 @@ export function PurchaseModal({
               Enter supplier cost per unit. Quantities and costs support two decimal places.
             </p>
             <OrderItemsTable
-              data={form.lines}
+              data={displayLines}
               columns={columns}
               getRowKey={(line) => line.inventoryItemId}
             />

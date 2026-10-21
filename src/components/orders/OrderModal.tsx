@@ -15,7 +15,6 @@ import {
 import { useSalesOrderEntry } from '@/features/crm/sales-order-entry.hooks'
 import { SalesOrderCustomerInformation, SalesOrderAdditionalDetails } from './SalesOrderDetails'
 import { SalesOrderTotals } from './SalesOrderTotals'
-import { SalesOrderSourceEditor, SalesOrderSourceSummary } from './SalesOrderSources'
 import type {
   EditableSalesOrder,
   OrderFormValues,
@@ -58,21 +57,14 @@ export function OrderModal({
   savedDraft,
   clients,
   products,
-  warehouses = [],
   stockItems = [],
   catalogState,
   cashier,
   order,
-  onNavigateToPurchases,
-  onNavigateToDeliveries,
-  onNavigateToInventory,
 }: OrderModalProps) {
   const form = useSalesOrderEntry({
     clients,
     products,
-    stockItems,
-    warehouses,
-    sourcesKnown: !catalogState?.stockLoading && !catalogState?.stockError,
     cashier,
     order,
     onSubmit,
@@ -87,10 +79,7 @@ export function OrderModal({
       header: 'Product',
       className: 'order-entry-product',
       cell: ({ row }) => (
-        <>
-          <ProductIdentity name={row.name} variety={row.variety} unit={row.unit} />
-          <SalesOrderSourceSummary line={row} warehouses={warehouses} form={form} />
-        </>
+        <ProductIdentity name={row.name} variety={row.variety} unit={row.unit} />
       ),
     },
     {
@@ -198,70 +187,10 @@ export function OrderModal({
             <p className="text-xs text-muted-foreground">
               Quantities and prices support two decimal places.
             </p>
-            {form.unavailableProduct && (
-              <div className="flex flex-col gap-2 text-xs">
-                <p>{form.unavailableProduct.name}: no unreserved stock available.</p>
-                {stockItems
-                  .filter((stock) => stock.inventoryItemId === form.unavailableProduct?.id)
-                  .map((stock) => (
-                    <p key={stock.id} className="text-muted-foreground">
-                      {warehouses.find((warehouse) => warehouse.id === stock.warehouseId)?.name ||
-                        `Warehouse #${stock.warehouseId}`}
-                      : {stock.quantity} on hand · {stock.reservedQuantity || '0'} reserved
-                    </p>
-                  ))}
-                <div className="flex flex-wrap gap-2">
-                  {onNavigateToDeliveries && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        onClose()
-                        onNavigateToDeliveries()
-                      }}
-                    >
-                      Inbound Receiving
-                    </Button>
-                  )}
-                  {onNavigateToPurchases && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        onClose()
-                        onNavigateToPurchases()
-                      }}
-                    >
-                      New Purchase Order
-                    </Button>
-                  )}
-                  {onNavigateToInventory && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        onClose()
-                        onNavigateToInventory()
-                      }}
-                    >
-                      Inventory Hub
-                    </Button>
-                  )}
-                </div>
-              </div>
-            )}
             <OrderItemsTable
               data={form.lines}
               columns={columns}
               getRowKey={(line) => line.productId}
-              renderExpandedRow={(line) =>
-                form.expandedSource === line.productId ? (
-                  <SalesOrderSourceEditor line={line} warehouses={warehouses} form={form} />
-                ) : null
-              }
             />
           </section>
           <SalesOrderTotals form={form} />

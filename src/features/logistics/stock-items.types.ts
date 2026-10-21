@@ -3,7 +3,7 @@ export type InventoryItemSummary = {
   name: string
   unit?: string
   variety?: string | null
-  unitPrice?: number
+  unitPrice?: string
 }
 
 export type WarehouseSummary = {
@@ -16,6 +16,9 @@ export type StockItem = {
   id: number
   quantity: string
   reservedQuantity?: string
+  availableQuantity?: string
+  reorderThreshold?: string | null
+  stockStatus?: 'NORMAL' | 'LOW' | 'OUT' | 'UNCONFIGURED'
   inventoryItemId: number
   warehouseId: number
   createdAt: string
@@ -47,4 +50,8 @@ export type SetStockQuantityPayload = {
 
 export type AdjustStockQuantityPayload = {
   amount: string
+}
+
+export type SetReorderThresholdPayload = {
+  reorderThreshold: string | null
 }

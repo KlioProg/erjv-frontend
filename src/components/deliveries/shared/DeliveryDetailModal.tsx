@@ -39,7 +39,7 @@ export function DeliveryDetailModal({ deliveryId, open, onClose }: DeliveryDetai
   const clientsQuery = useAllClients()
   const productsQuery = useAllProducts()
   const delivery = deliveryQuery.data
-  const warehouse = warehousesQuery.data?.find((w) => w.id === delivery?.warehouseId)
+  const warehouses = warehousesQuery.data ?? []
   const vehicle = vehiclesQuery.data?.find((v) => v.id === delivery?.deliveryVehicleId)
   const driver = employeesQuery.data?.find((e) => e.id === delivery?.driverEmployeeId)
   const order = ordersQuery.data?.find((o) => o.id === delivery?.salesOrderId)
@@ -55,16 +55,22 @@ export function DeliveryDetailModal({ deliveryId, open, onClose }: DeliveryDetai
   const referencesFailed = referenceQueries.some((query) => query.isError)
 
   function cargoProduct(item: OutgoingDeliveryItemRecord) {
-    const orderItem = order?.items.find(
-      (line) =>
-        line.allocations?.some((allocation) => allocation.id === item.salesOrderAllocationId) ||
-        line.id === item.salesOrderAllocation?.salesOrderItemId,
-    )
+    const orderItem = order?.items.find((line) => line.id === item.salesOrderItemId)
     return {
       orderItem,
       product: productsQuery.data?.find((product) => product.id === orderItem?.inventoryItemId),
     }
   }
+  const sourceWarehouseNames = [
+    ...new Set(
+      (delivery?.items ?? []).map((item) => {
+        const id = item.stockItem?.warehouseId
+        return id === undefined
+          ? 'Warehouse unavailable'
+          : (warehouses.find((candidate) => candidate.id === id)?.name ?? `Warehouse #${id}`)
+      }),
+    ),
+  ]
 
   const columns: ColumnDef<OutgoingDeliveryItemRecord>[] = [
     {
@@ -83,7 +89,12 @@ export function DeliveryDetailModal({ deliveryId, open, onClose }: DeliveryDetai
             </p>
             {product?.variety && <p className="text-xs text-muted-foreground">{product.variety}</p>}
             <p className="text-xs text-muted-foreground">
-              Allocation #{row.salesOrderAllocationId}
+              Source:{' '}
+              {row.stockItem?.warehouseId === undefined
+                ? 'Warehouse unavailable'
+                : warehouses.find(
+                    (candidate) => candidate.id === row.stockItem?.warehouseId,
+                  )?.name ?? `Warehouse #${row.stockItem.warehouseId}`}
             </p>
           </div>
         )
@@ -214,9 +225,8 @@ export function DeliveryDetailModal({ deliveryId, open, onClose }: DeliveryDetai
                 </h2>
                 <dl className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
                   <DeliveryDetailField
-                    label="Warehouse"
-                    value={warehouse?.name || `Warehouse #${delivery.warehouseId}`}
-                    secondary={warehouse ? warehouse.address || 'No location specified' : undefined}
+                    label="Source warehouses"
+                    value={sourceWarehouseNames.join(', ') || 'No source records'}
                   />
                   <DeliveryDetailField
                     label="Scheduled Time"

@@ -427,7 +427,14 @@ export function useRegisterUser() {
       })
 
       if (payload.employeeId) {
-        await linkEmployeeUserApi(payload.employeeId, newUser.id)
+        try {
+          await linkEmployeeUserApi(payload.employeeId, newUser.id)
+        } catch (err) {
+          toast.warning('Account created; staff profile could not be linked.', {
+            description: `${getErrorMessage(err)} Link the existing account from Staff Directory.`,
+            duration: 10000,
+          })
+        }
       }
 
       return newUser

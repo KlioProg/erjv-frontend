@@ -6,22 +6,13 @@ export type SalesOrderOutgoingMethod = 'CLIENT_PICKUP' | 'DELIVERY'
 
 /**
  * Sales-to-Logistics handoff contract for the next phase, separate from API payloads.
- * Logistics resolves customer, destination and allocations from salesOrderId.
+ * Logistics resolves customer and destination from salesOrderId; stock sources
+ * are selected per order item during delivery preparation.
  * Client Pickup requires no company vehicle; Delivery assigns one in Logistics.
  */
 export interface SalesOrderFulfillmentPlan {
   salesOrderId: SalesOrderRecord['id']
   outgoingMethod: SalesOrderOutgoingMethod
-}
-
-export interface SalesOrderAllocationRecord {
-  id: number
-  salesOrderItemId: number
-  stockItemId: number
-  quantity: string
-  releasedAt: string | null
-  createdAt: string
-  updatedAt: string
 }
 
 export interface SalesOrderItemRecord {
@@ -41,7 +32,6 @@ export interface SalesOrderItemRecord {
   notes: string | null
   createdAt: string
   updatedAt: string
-  allocations: SalesOrderAllocationRecord[]
 }
 
 export interface SalesOrderRecord {
@@ -62,11 +52,6 @@ export interface SalesOrderRecord {
   items: SalesOrderItemRecord[]
 }
 
-export interface SalesOrderAllocationCommand {
-  stockItemId: number
-  quantity: string
-}
-
 export interface SalesOrderLineCommand {
   inventoryItemId: number
   quantity: string
@@ -74,7 +59,6 @@ export interface SalesOrderLineCommand {
   discountRate?: string
   taxRate?: string
   notes?: string | null
-  allocations?: SalesOrderAllocationCommand[]
 }
 
 export interface CreateSalesOrderPayload {

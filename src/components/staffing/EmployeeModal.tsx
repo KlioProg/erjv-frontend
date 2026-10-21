@@ -26,6 +26,8 @@ import {
   useUpdateEmployeeProfile,
   useReactivateEmployee,
   useUsers,
+  useLinkEmployeeUser,
+  useUnlinkEmployeeUser,
 } from '@/features/staffing/staffing.hooks'
 import type { Employee } from '@/features/staffing/staffing.types'
 import { USER_ROLES } from '@/features/auth/roles'
@@ -49,7 +51,9 @@ function EmployeeFormContent({
   const createMutation = useCreateEmployee()
   const updateMutation = useUpdateEmployeeProfile()
   const reactivateMutation = useReactivateEmployee()
-  const { data: users = [] } = useUsers()
+  const linkMutation = useLinkEmployeeUser()
+  const unlinkMutation = useUnlinkEmployeeUser()
+  const { data: users = [], isLoading: usersLoading, error: usersError } = useUsers()
 
   const [firstName, setFirstName] = useState(employee?.firstName || '')
   const [lastName, setLastName] = useState(employee?.lastName || '')
@@ -69,6 +73,7 @@ function EmployeeFormContent({
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
+    if (isPending) return
     setErrorMsg('')
     setDeactivatedEmployeeMatch(null)
 
@@ -113,6 +118,10 @@ function EmployeeFormContent({
             hireDate: parsedHireDate,
           },
         })
+        if (userId !== employee.userId) {
+          if (userId !== null) await linkMutation.mutateAsync({ id: employee.id, userId })
+          else await unlinkMutation.mutateAsync(employee.id)
+        }
       } else {
         await createMutation.mutateAsync({
           firstName: firstName.trim(),
@@ -138,7 +147,11 @@ function EmployeeFormContent({
   }
 
   const isPending =
-    createMutation.isPending || updateMutation.isPending || reactivateMutation.isPending
+    linkMutation.isPending ||
+    unlinkMutation.isPending ||
+    createMutation.isPending ||
+    updateMutation.isPending ||
+    reactivateMutation.isPending
 
   return (
     <>
@@ -303,28 +316,35 @@ function EmployeeFormContent({
             </div>
           </div>
 
-          {!isEditing && (
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="emp-user" className="text-ui font-medium">
-                Link User Account
-              </Label>
-              <Select value={selectedUserId} onValueChange={setSelectedUserId}>
-                <SelectTrigger id="emp-user">
-                  <SelectValue placeholder="Select user (optional)" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    <SelectItem value="none">No linked account</SelectItem>
-                    {users.map((u) => (
-                      <SelectItem key={u.id} value={String(u.id)}>
-                        {u.email} ({u.role || USER_ROLES.UNKNOWN})
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            </div>
-          )}
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="emp-user" className="text-ui font-medium">
+              Link User Account
+            </Label>
+            <Select
+              value={selectedUserId}
+              onValueChange={setSelectedUserId}
+              disabled={isPending || usersLoading || !!usersError}
+            >
+              <SelectTrigger id="emp-user">
+                <SelectValue placeholder="Select user (optional)" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectItem value="none">No linked account</SelectItem>
+                  {users.map((u) => (
+                    <SelectItem key={u.id} value={String(u.id)}>
+                      {u.email} ({u.role || USER_ROLES.UNKNOWN})
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+            {usersError && (
+              <p role="alert" className="text-xs text-destructive">
+                {getErrorMessage(usersError)}
+              </p>
+            )}
+          </div>
         </div>
 
         <DialogFooter className="gap-2.5 mt-4 pt-3 border-t">

@@ -7,8 +7,13 @@ import {
   fetchPurchaseOrderByIdApi,
   fetchPurchaseOrderByNumberApi,
   fetchPurchaseOrdersApi,
+  updatePurchaseOrderDraftApi,
 } from './purchase-orders.api'
-import type { CreatePurchaseOrderPayload, PurchaseOrderFilter } from './purchase-orders.types'
+import type {
+  CreatePurchaseOrderPayload,
+  PurchaseOrderFilter,
+  UpdatePurchaseOrderDraftPayload,
+} from './purchase-orders.types'
 import { getErrorMessage } from '@/lib/api-client'
 
 export const PURCHASE_ORDERS_QUERY_KEY = ['purchase-orders'] as const
@@ -63,6 +68,21 @@ export function useConfirmPurchaseOrder() {
         toast.success('Order confirmed', {
           description: `Purchase order ${order.orderNumber}. Prepare it in Incoming Deliveries.`,
         })
+    },
+    onError: (err) => {
+      toast.error(getErrorMessage(err))
+    },
+  })
+}
+
+export function useUpdatePurchaseOrderDraft() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: number; payload: UpdatePurchaseOrderDraftPayload }) =>
+      updatePurchaseOrderDraftApi(id, payload),
+    onSuccess: (order) => {
+      void queryClient.invalidateQueries({ queryKey: PURCHASE_ORDERS_QUERY_KEY })
+      toast.success(`Draft "${order.orderNumber}" updated`)
     },
     onError: (err) => {
       toast.error(getErrorMessage(err))

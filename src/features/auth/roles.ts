@@ -5,6 +5,7 @@ import { Sparkles, Shield, User, HelpCircle, type LucideIcon } from 'lucide-reac
  * Single source of truth for system user roles in ERJV Frontend.
  */
 export const USER_ROLES = {
+  SUPERADMIN: 'SUPERADMIN',
   ADMIN: 'ADMIN', // Top Tier (formerly OWNER)
   MANAGER: 'MANAGER', // Operations Tier (formerly ADMIN)
   STAFF: 'STAFF', // Base Tier
@@ -26,6 +27,14 @@ export interface RoleConfig {
  * Centralized Role Metadata for UI (Badges, Labels, Icons, Descriptions)
  */
 export const ROLE_DETAILS: Record<UserRole, RoleConfig> = {
+  [USER_ROLES.SUPERADMIN]: {
+    role: USER_ROLES.SUPERADMIN,
+    label: 'SUPERADMIN',
+    title: 'Super Administrator',
+    description: 'Protected system administrator with account administration and audit access.',
+    badgeClass: 'bg-primary-subtle text-primary-text border-border',
+    icon: Sparkles,
+  },
   [USER_ROLES.ADMIN]: {
     role: USER_ROLES.ADMIN,
     label: 'ADMIN',
@@ -40,8 +49,7 @@ export const ROLE_DETAILS: Record<UserRole, RoleConfig> = {
     label: 'MANAGER',
     title: 'Operations Manager',
     description: 'Can manage warehouses, inventory items, transport fleet, and clients.',
-    badgeClass:
-      'bg-secondary text-foreground border-border hover:bg-muted active:bg-muted',
+    badgeClass: 'bg-secondary text-foreground border-border hover:bg-muted active:bg-muted',
     icon: Shield,
   },
   [USER_ROLES.STAFF]: {
