@@ -98,6 +98,7 @@ export function PurchasesView({
 
   const { user, isAdmin, isManager } = useAuth()
   const canManage = isAdmin || isManager
+  const canConfirmPurchaseOrder = isAdmin
   const processedBy = user?.fullName || user?.email || 'Current User'
 
   // Data queries
@@ -130,7 +131,7 @@ export function PurchasesView({
   const reactivateSupplierMutation = useReactivateSupplier()
 
   const confirmPurchaseOrder = async (id: number) => {
-    if (!canManage || confirmPOMutation.isPending) return
+    if (!canConfirmPurchaseOrder || confirmPOMutation.isPending) return
     try {
       await confirmPOMutation.mutateAsync(id)
       setSelectedOrderId(null)
@@ -380,7 +381,7 @@ export function PurchasesView({
           className="flex items-center justify-end gap-1"
           onClick={(event) => event.stopPropagation()}
         >
-          {po.status === 'DRAFT' && canManage && (
+          {po.status === 'DRAFT' && canConfirmPurchaseOrder && (
             <Button
               type="button"
               size="sm"
@@ -749,7 +750,9 @@ export function PurchasesView({
           statusBadge={renderStatusBadge(selectedOrder.status)}
           onClose={() => setSelectedOrderId(null)}
           onNavigateToDeliveries={onNavigateToDeliveries}
-          onConfirm={canManage ? () => void confirmPurchaseOrder(selectedOrder.id) : undefined}
+          onConfirm={
+            canConfirmPurchaseOrder ? () => void confirmPurchaseOrder(selectedOrder.id) : undefined
+          }
           confirming={confirmPOMutation.isPending}
         />
       )}
@@ -764,7 +767,7 @@ export function PurchasesView({
           }}
           onSubmit={handleCreatePO}
           onUpdateDraft={editingOrder ? handleUpdateDraft : undefined}
-          onConfirm={(id) => confirmPOMutation.mutateAsync(id)}
+          onConfirm={canConfirmPurchaseOrder ? (id) => confirmPOMutation.mutateAsync(id) : undefined}
           suppliers={suppliers}
           products={products}
           stockItems={stockItems}
