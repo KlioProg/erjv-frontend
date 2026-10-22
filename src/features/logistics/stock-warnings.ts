@@ -29,7 +29,7 @@ export function filterStockWarnings(
   )
 }
 
-/** LOW is valid only with an authoritative threshold; today's API supplies none. */
+/** LOW is valid only with the warehouse threshold returned by the stock API. */
 export function stockCondition(
   quantity: bigint | null,
   reorderThreshold: bigint | null = null,
@@ -39,6 +39,18 @@ export function stockCondition(
   return reorderThreshold !== null && reorderThreshold >= 0n && quantity <= reorderThreshold
     ? 'LOW'
     : 'NORMAL'
+}
+
+export function stockConditionForItem(
+  stock: Pick<StockItem, 'quantity' | 'reorderThreshold' | 'stockStatus'>,
+): StockCondition {
+  if (stock.stockStatus === 'OUT') return 'OUT'
+  if (stock.stockStatus === 'LOW') return 'LOW'
+  if (stock.stockStatus === 'NORMAL' || stock.stockStatus === 'UNCONFIGURED')
+    return parseStockCents(stock.quantity) === 0n ? 'OUT' : 'NORMAL'
+  const threshold =
+    stock.reorderThreshold == null ? null : parseStockCents(stock.reorderThreshold)
+  return stockCondition(parseStockCents(stock.quantity), threshold)
 }
 
 export const stockConditionRank: Record<StockCondition, number> = {
@@ -66,7 +78,11 @@ export function buildStockWarnings(
     const product = productMap.get(stock.inventoryItemId)
     const location = warehouseMap.get(stock.warehouseId)
     const quantity = parseStockCents(stock.quantity)
-    const severity = stockCondition(quantity)
+    const threshold =
+      stock.reorderThreshold === null || stock.reorderThreshold === undefined
+        ? null
+        : parseStockCents(stock.reorderThreshold)
+    const severity = stockConditionForItem(stock)
     if (!product || !location || quantity === null || (severity !== 'OUT' && severity !== 'LOW'))
       continue
     const id = `stock:${product.id}:${location.id}:${severity}`
@@ -79,6 +95,7 @@ export function buildStockWarnings(
       unit: product.unit || 'units',
       quantityCents: quantity,
       severity,
+      ...(threshold === null ? {} : { reorderThresholdCents: threshold }),
     })
   }
   return [...warnings.values()].sort(

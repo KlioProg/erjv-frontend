@@ -1,7 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useContext, useEffect, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { getErrorMessage } from '@/lib/api-client'
+import { AUTH_SESSION_EXPIRED_EVENT, getErrorMessage } from '@/lib/api-client'
 import { getProfileApi, loginApi, registerApi } from './auth.api'
 import type { LoginRequest, RegisterRequest, SafeUserResponse } from './auth.types'
 import { USER_ROLES, type UserRole } from './roles'
@@ -19,6 +19,7 @@ type AuthContextType = {
   login: (payload: LoginRequest, rememberMe?: boolean) => Promise<void>
   register: (payload: RegisterRequest) => Promise<SafeUserResponse>
   logout: () => void
+  syncUser: (updated: SafeUserResponse) => void
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -26,14 +27,10 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 export function normalizeUserRole(rawRole: unknown): UserRole {
   if (!rawRole) return USER_ROLES.UNKNOWN
   const str = String(rawRole).trim().toUpperCase()
+  if (str === USER_ROLES.SUPERADMIN || str === 'SUPER_ADMIN') return USER_ROLES.SUPERADMIN
 
   // 1. Top Tier: ADMIN (also maps legacy OWNER so OWNER is never shown in frontend)
-  if (
-    str === USER_ROLES.ADMIN ||
-    str === 'OWNER' ||
-    str === 'SUPER_ADMIN' ||
-    str === 'SUPERADMIN'
-  ) {
+  if (str === USER_ROLES.ADMIN || str === 'OWNER') {
     return USER_ROLES.ADMIN
   }
 
@@ -99,13 +96,15 @@ export function normalizeUser(
     jobTitle:
       (userObj.jobTitle as string) ||
       (rawUser.jobTitle as string) ||
-      (resolvedRole === USER_ROLES.ADMIN
-        ? 'Enterprise Administrator'
-        : resolvedRole === USER_ROLES.MANAGER
-          ? 'Operations Manager'
-          : resolvedRole === USER_ROLES.STAFF
-            ? 'Staff Member'
-            : 'Unverified Account'),
+      (resolvedRole === USER_ROLES.SUPERADMIN
+        ? 'Super Administrator'
+        : resolvedRole === USER_ROLES.ADMIN
+          ? 'Enterprise Administrator'
+          : resolvedRole === USER_ROLES.MANAGER
+            ? 'Operations Manager'
+            : resolvedRole === USER_ROLES.STAFF
+              ? 'Staff Member'
+              : 'Unverified Account'),
     bio: (userObj.bio as string) || (rawUser.bio as string) || null,
     role: resolvedRole,
     isActive: userObj.isActive !== false && rawUser.isActive !== false,
@@ -121,6 +120,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string | null>(() => localStorage.getItem('erjv_access_token'))
   const [user, setUser] = useState<SafeUserResponse | null>(null)
   const [isLoading, setIsLoading] = useState<boolean>(true)
+
+  useEffect(() => {
+    const expireSession = () => {
+      queryClient.clear()
+      setToken(null)
+      setUser(null)
+    }
+    window.addEventListener(AUTH_SESSION_EXPIRED_EVENT, expireSession)
+    return () => window.removeEventListener(AUTH_SESSION_EXPIRED_EVENT, expireSession)
+  }, [queryClient])
 
   useEffect(() => {
     let isMounted = true
@@ -154,12 +163,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return
       }
 
-      if (token) {
+      if (currentToken) {
         try {
           const profile = await getProfileApi()
           if (isMounted) {
-            const normalized = normalizeUser(profile)
-            setUser(normalized)
+            if (profile?.id && profile.isActive) {
+              setUser(normalizeUser(profile))
+            } else {
+              localStorage.removeItem('erjv_access_token')
+              localStorage.removeItem('erjv_session_expiry')
+              setToken(null)
+              setUser(null)
+            }
           }
         } catch (err: unknown) {
           const status =
@@ -199,7 +214,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       isMounted = false
     }
-  }, [token])
+  }, [])
 
   const login = async (payload: LoginRequest, rememberMe: boolean = false) => {
     const cleanEmail = payload.email.trim().toLowerCase()
@@ -214,24 +229,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       queryClient.clear()
       localStorage.setItem('erjv_access_token', accessToken)
+      const profile = await getProfileApi()
+      if (!profile?.id || !profile.isActive)
+        throw new Error('An active account could not be verified. Please sign in again.')
+      setUser(normalizeUser(profile))
       setToken(accessToken)
-
-      let profile: SafeUserResponse | null = null
-      try {
-        profile = await getProfileApi()
-      } catch {
-        try {
-          const parts = accessToken.split('.')
-          if (parts.length === 3) {
-            profile = JSON.parse(atob(parts[1]))
-          }
-        } catch {
-          // Ignore
-        }
-      }
-
-      const normalized = normalizeUser(profile || { email: cleanEmail })
-      setUser(normalized)
 
       const expiryTime = Date.now() + ONE_DAY_MS
       localStorage.setItem('erjv_session_expiry', String(expiryTime))
@@ -281,7 +283,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const userRecord = user as unknown as Record<string, unknown> | null
   const userRole = normalizeUserRole(user?.role || userRecord?.userRole || userRecord?.roleName)
-  const isAdmin = userRole === USER_ROLES.ADMIN
+  const isAdmin = userRole === USER_ROLES.ADMIN || userRole === USER_ROLES.SUPERADMIN
   const isManager = userRole === USER_ROLES.MANAGER
   const isStaff = userRole === USER_ROLES.STAFF
   const canManageStaff = isAdmin || isManager
@@ -302,6 +304,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         login,
         register,
         logout,
+        syncUser: (updated) =>
+          setUser((current) =>
+            current?.id === updated.id ? normalizeUser({ ...current, ...updated }) : current,
+          ),
       }}
     >
       {children}

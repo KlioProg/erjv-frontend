@@ -41,6 +41,7 @@ import { useWarehouses } from '@/features/logistics/warehouses.hooks'
 import type { StockItemWithRelations } from '@/features/logistics/stock-items.types'
 import type { InventoryItemResponse } from '@/features/products/products.types'
 import { getErrorMessage } from '@/lib/api-client'
+import { parseStockCents } from '@/features/logistics/stock-display'
 
 export type StockAdjustModalProps = {
   stockItem?: StockItemWithRelations | null
@@ -84,10 +85,11 @@ function StockAdjustContent({
     selectedWarehouseId || (activeWarehouses[0]?.id ? String(activeWarehouses[0].id) : '')
 
   const activeWhId = stockItem ? stockItem.warehouseId : Number(effectiveWarehouseId)
-  const { data: pairStockItem, isLoading: isLoadingPair } = useStockItemByPair(
-    inventoryItem?.id,
-    !stockItem && activeWhId > 0 ? activeWhId : undefined,
-  )
+  const {
+    data: pairStockItem,
+    isLoading: isLoadingPair,
+    error: pairError,
+  } = useStockItemByPair(inventoryItem?.id, !stockItem && activeWhId > 0 ? activeWhId : undefined)
 
   const effectiveStock = stockItem || pairStockItem || null
   const isExistingStock = !!effectiveStock
@@ -99,7 +101,8 @@ function StockAdjustContent({
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
   const currentQty = effectiveStock ? parseFloat(effectiveStock.quantity) : 0
-  const parsedVal = parseFloat(amount) || 0
+  const amountCents = parseStockCents(amount)
+  const parsedVal = amountCents === null ? NaN : Number(amountCents) / 100
 
   // Live balance calculation
   const calculatedNewQty = useMemo(() => {
@@ -125,6 +128,11 @@ function StockAdjustContent({
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setErrorMsg(null)
+    if (isPending || isLoadingPair) return
+    if (pairError) {
+      setErrorMsg(getErrorMessage(pairError))
+      return
+    }
 
     if (isNaN(parsedVal) || parsedVal < 0) {
       setErrorMsg('Please enter a valid non-negative quantity.')
@@ -201,10 +209,12 @@ function StockAdjustContent({
         </DialogDescription>
       </DialogHeader>
 
-      {errorMsg && (
+      {(errorMsg || pairError) && (
         <Alert variant="destructive" className="py-2.5 px-3 my-1">
           <AlertCircle className="size-4" />
-          <AlertDescription className="text-xs font-semibold">{errorMsg}</AlertDescription>
+          <AlertDescription className="text-xs font-semibold">
+            {errorMsg || getErrorMessage(pairError)}
+          </AlertDescription>
         </Alert>
       )}
 
@@ -414,6 +424,7 @@ function StockAdjustContent({
             disabled={
               isPending ||
               isLoadingPair ||
+              !!pairError ||
               (!stockItem && activeWarehouses.length === 0) ||
               isDecreaseExceeding ||
               isNaN(parsedVal) ||

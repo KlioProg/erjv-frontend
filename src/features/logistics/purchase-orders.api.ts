@@ -3,6 +3,7 @@ import type {
   CreatePurchaseOrderPayload,
   PurchaseOrderFilter,
   PurchaseOrderRecord,
+  UpdatePurchaseOrderDraftPayload,
 } from './purchase-orders.types'
 
 export async function fetchPurchaseOrdersApi(
@@ -12,7 +13,7 @@ export async function fetchPurchaseOrdersApi(
   return extractArray<PurchaseOrderRecord>(response.data)
 }
 
-export async function fetchPurchaseOrderByIdApi(id: number): Promise<PurchaseOrderRecord> {
+export async function fetchPurchaseOrderByIdApi(id: number): Promise<PurchaseOrderRecord | null> {
   const { data } = await apiClient.get<PurchaseOrderRecord>(`/purchase-orders/${id}`)
   return data
 }
@@ -20,21 +21,17 @@ export async function fetchPurchaseOrderByIdApi(id: number): Promise<PurchaseOrd
 export async function fetchPurchaseOrderByNumberApi(
   orderNumber: string,
 ): Promise<PurchaseOrderRecord | null> {
-  try {
-    const { data } = await apiClient.get<PurchaseOrderRecord>(
-      `/purchase-orders/number/${encodeURIComponent(orderNumber.trim())}`,
-    )
-    return data
-  } catch {
-    return null
-  }
+  const { data } = await apiClient.get<PurchaseOrderRecord>(
+    `/purchase-orders/number/${encodeURIComponent(orderNumber.trim())}`,
+  )
+  return data
 }
 
 export async function createPurchaseOrderApi(
   payload: CreatePurchaseOrderPayload,
 ): Promise<PurchaseOrderRecord> {
   const cleanPayload = {
-    supplierId: payload.supplierId,
+    ...(payload.supplierId != null ? { supplierId: payload.supplierId } : {}),
     ...(payload.expectedAt ? { expectedAt: new Date(payload.expectedAt).toISOString() } : {}),
     ...(payload.externalReference?.trim()
       ? { externalReference: payload.externalReference.trim() }
@@ -55,6 +52,39 @@ export async function createPurchaseOrderApi(
   }
 
   const { data } = await apiClient.post<PurchaseOrderRecord>('/purchase-orders', cleanPayload)
+  return data
+}
+
+export async function updatePurchaseOrderDraftApi(
+  id: number,
+  payload: UpdatePurchaseOrderDraftPayload,
+): Promise<PurchaseOrderRecord> {
+  const cleanPayload = {
+    ...(payload.supplierId !== undefined ? { supplierId: payload.supplierId } : {}),
+    ...(payload.expectedAt !== undefined
+      ? { expectedAt: payload.expectedAt ? new Date(payload.expectedAt).toISOString() : null }
+      : {}),
+    ...(payload.externalReference !== undefined
+      ? { externalReference: payload.externalReference?.trim() || null }
+      : {}),
+    ...(payload.notes !== undefined ? { notes: payload.notes?.trim() || null } : {}),
+    ...(payload.items
+      ? {
+          items: payload.items.map((item) => ({
+            inventoryItemId: item.inventoryItemId,
+            quantity: String(item.quantity),
+            unitPrice: String(item.unitPrice),
+            ...(item.discountRate !== undefined ? { discountRate: String(item.discountRate) } : {}),
+            ...(item.taxRate !== undefined ? { taxRate: String(item.taxRate) } : {}),
+            ...(item.notes !== undefined ? { notes: item.notes } : {}),
+          })),
+        }
+      : {}),
+  }
+  const { data } = await apiClient.patch<PurchaseOrderRecord>(
+    `/purchase-orders/${id}/draft`,
+    cleanPayload,
+  )
   return data
 }
 

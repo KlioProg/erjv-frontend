@@ -20,20 +20,16 @@ export async function fetchEmployeesApi(params?: FetchParams): Promise<Employee[
   return extractArray<Employee>(response.data)
 }
 
-export async function fetchEmployeeByIdApi(id: number): Promise<Employee> {
+export async function fetchEmployeeByIdApi(id: number): Promise<Employee | null> {
   const { data } = await apiClient.get<Employee>(`/employees/${id}`)
   return data
 }
 
 export async function fetchEmployeeByEmailApi(email: string): Promise<Employee | null> {
-  try {
-    const { data } = await apiClient.get<Employee>(
-      `/employees/email/${encodeURIComponent(email.trim())}`,
-    )
-    return data
-  } catch {
-    return null
-  }
+  const { data } = await apiClient.get<Employee>(
+    `/employees/email/${encodeURIComponent(email.trim())}`,
+  )
+  return data
 }
 
 export async function createEmployeeApi(payload: CreateEmployeePayload): Promise<Employee> {
@@ -99,18 +95,14 @@ export async function fetchJobsApi(params?: FetchParams): Promise<Job[]> {
   return extractArray<Job>(response.data)
 }
 
-export async function fetchJobByIdApi(id: number): Promise<Job> {
+export async function fetchJobByIdApi(id: number): Promise<Job | null> {
   const { data } = await apiClient.get<Job>(`/jobs/${id}`)
   return data
 }
 
 export async function fetchJobByNameApi(name: string): Promise<Job | null> {
-  try {
-    const { data } = await apiClient.get<Job>(`/jobs/name/${encodeURIComponent(name.trim())}`)
-    return data
-  } catch {
-    return null
-  }
+  const { data } = await apiClient.get<Job>(`/jobs/name/${encodeURIComponent(name.trim())}`)
+  return data
 }
 
 export async function createJobApi(payload: CreateJobPayload): Promise<Job> {
@@ -178,14 +170,10 @@ export async function fetchEmployeeJobApi(
   employeeId: number,
   jobId: number,
 ): Promise<EmployeeJobResponseDto | null> {
-  try {
-    const { data } = await apiClient.get<EmployeeJobResponseDto>(
-      `/employee-jobs/employees/${employeeId}/jobs/${jobId}`,
-    )
-    return data
-  } catch {
-    return null
-  }
+  const { data } = await apiClient.get<EmployeeJobResponseDto>(
+    `/employee-jobs/employees/${employeeId}/jobs/${jobId}`,
+  )
+  return data
 }
 
 export async function unassignEmployeeJobApi(
@@ -226,25 +214,17 @@ export async function reactivateUserApi(id: number): Promise<UserAccount> {
 }
 
 export async function fetchUserByEmailApi(email: string): Promise<UserAccount | null> {
-  try {
-    const { data } = await apiClient.get<UserAccount>(
-      `/users/email/${encodeURIComponent(email.trim())}`,
-    )
-    if (!data || typeof data !== 'object' || !('id' in data)) return null
-    return data
-  } catch {
-    return null
-  }
+  const { data } = await apiClient.get<UserAccount>(
+    `/users/email/${encodeURIComponent(email.trim())}`,
+  )
+  if (!data || typeof data !== 'object' || !('id' in data)) return null
+  return data
 }
 
 export async function fetchUserByIdApi(id: number): Promise<UserAccount | null> {
-  try {
-    const { data } = await apiClient.get<UserAccount>(`/users/${id}`)
-    if (!data || typeof data !== 'object' || !('id' in data)) return null
-    return data
-  } catch {
-    return null
-  }
+  const { data } = await apiClient.get<UserAccount>(`/users/${id}`)
+  if (!data || typeof data !== 'object' || !('id' in data)) return null
+  return data
 }
 
 export async function updateUserEmailApi(id: number, email: string): Promise<UserAccount> {

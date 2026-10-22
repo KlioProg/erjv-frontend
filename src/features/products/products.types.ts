@@ -3,7 +3,7 @@ export type InventoryItemResponse = {
   name: string
   variety?: string | null
   unit?: string
-  unitPrice: number
+  unitPrice: string
   description: string | null
   isActive: boolean
   createdAt: string

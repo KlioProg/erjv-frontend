@@ -6,20 +6,16 @@ export async function fetchSuppliersApi(params?: FetchParams): Promise<Supplier[
   return extractArray<Supplier>(response.data)
 }
 
-export async function fetchSupplierByIdApi(id: number): Promise<Supplier> {
+export async function fetchSupplierByIdApi(id: number): Promise<Supplier | null> {
   const { data } = await apiClient.get<Supplier>(`/suppliers/${id}`)
   return data
 }
 
 export async function fetchSupplierByCodeApi(code: string): Promise<Supplier | null> {
-  try {
-    const { data } = await apiClient.get<Supplier>(
-      `/suppliers/code/${encodeURIComponent(code.trim())}`,
-    )
-    return data
-  } catch {
-    return null
-  }
+  const { data } = await apiClient.get<Supplier>(
+    `/suppliers/code/${encodeURIComponent(code.trim())}`,
+  )
+  return data
 }
 
 export async function createSupplierApi(payload: CreateSupplierPayload): Promise<Supplier> {
@@ -29,7 +25,7 @@ export async function createSupplierApi(payload: CreateSupplierPayload): Promise
     ...(payload.contactPerson?.trim() ? { contactPerson: payload.contactPerson.trim() } : {}),
     ...(payload.phone?.trim() ? { phone: payload.phone.trim() } : {}),
     ...(payload.email?.trim() ? { email: payload.email.trim() } : {}),
-    ...(payload.address?.trim() ? { address: payload.address.trim() } : {}),
+    address: payload.address.trim(),
   }
   const { data } = await apiClient.post<Supplier>('/suppliers', cleanPayload)
   return data
@@ -42,9 +38,11 @@ export async function updateSupplierApi(
   const cleanPayload = {
     ...(payload.code !== undefined ? { code: payload.code.trim().toUpperCase() } : {}),
     ...(payload.name !== undefined ? { name: payload.name.trim() } : {}),
-    ...(payload.contactPerson !== undefined ? { contactPerson: payload.contactPerson.trim() } : {}),
-    ...(payload.phone !== undefined ? { phone: payload.phone.trim() } : {}),
-    ...(payload.email !== undefined ? { email: payload.email.trim() } : {}),
+    ...(payload.contactPerson !== undefined
+      ? { contactPerson: payload.contactPerson?.trim() || null }
+      : {}),
+    ...(payload.phone !== undefined ? { phone: payload.phone?.trim() || null } : {}),
+    ...(payload.email !== undefined ? { email: payload.email?.trim() || null } : {}),
     ...(payload.address !== undefined ? { address: payload.address.trim() } : {}),
   }
   const { data } = await apiClient.patch<Supplier>(`/suppliers/${id}`, cleanPayload)

@@ -14,6 +14,7 @@ import {
   Archive,
   RotateCcw,
   AlertTriangle,
+  SlidersHorizontal,
   ChevronRight,
   Table as TableIcon,
   LayoutGrid,
@@ -43,6 +44,7 @@ import { useWarehouses } from '@/features/logistics/warehouses.hooks'
 import { useAuth } from '@/features/auth/AuthContext'
 import { InventoryItemModal } from './InventoryItemModal'
 import { StockAdjustModal } from './StockAdjustModal'
+import { ReorderThresholdModal } from './ReorderThresholdModal'
 import type { InventoryItemResponse } from '@/features/products/products.types'
 import type {
   StockItemWithRelations,
@@ -66,8 +68,8 @@ interface FlatWarehouseStockItem {
   availableUnits: number
   allocatedUnits: number
   totalUnits: number
-  reorderLevel: number
-  status: 'IN_STOCK' | 'LOW_STOCK' | 'OUT_OF_STOCK'
+  reorderLevel: number | null
+  status: 'IN_STOCK' | 'LOW_STOCK' | 'OUT_OF_STOCK' | 'UNCONFIGURED'
   updatedAt: string
 }
 
@@ -100,7 +102,7 @@ export function InventoryStockList({
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedWarehouseFilter, setSelectedWarehouseFilter] = useState<string>('ALL')
 
-  // Compute all low stock allocations (quantity <= 20) across facilities
+  // Use backend classifications so inventory and notifications agree.
   const lowStockAllocations = useMemo(() => {
     return stockItems
       .map((stock) => {
@@ -111,14 +113,19 @@ export function InventoryStockList({
           id: stock.id,
           stock,
           qty,
-          isOut: qty <= 0,
-          isCritical: qty > 0 && qty <= 10,
+          status:
+            stock.stockStatus ??
+            (qty <= 0
+              ? 'OUT'
+              : stock.reorderThreshold != null && qty <= Number(stock.reorderThreshold)
+                ? 'LOW'
+                : 'NORMAL'),
           prodName: prod?.name || `Item #${stock.inventoryItemId}`,
           prodVariety: prod?.variety,
           whName: wh?.name ? wh.name.split(' ')[0] : `WH #${stock.warehouseId}`,
         }
       })
-      .filter((item) => item.qty <= 20)
+      .filter((item) => item.status === 'LOW' || item.status === 'OUT')
       .sort((a, b) => a.qty - b.qty)
   }, [stockItems, allProducts, warehouses])
 
@@ -134,6 +141,8 @@ export function InventoryStockList({
   const [selectedProductForEdit, setSelectedProductForEdit] =
     useState<InventoryItemResponse | null>(null)
   const [selectedStockForAdjust, setSelectedStockForAdjust] =
+    useState<StockItemWithRelations | null>(null)
+  const [selectedStockForThreshold, setSelectedStockForThreshold] =
     useState<StockItemWithRelations | null>(null)
   const [selectedProductForAllocate, setSelectedProductForAllocate] =
     useState<InventoryItemResponse | null>(null)
@@ -204,15 +213,20 @@ export function InventoryStockList({
         const warehouse = warehouses.find((w) => w.id === s.warehouseId) || s.warehouse
         const total = parseFloat(s.quantity || '0')
         const allocated = parseFloat(s.reservedQuantity || '0')
-        const available = Math.max(0, total - allocated)
-        const reorderLevel = 20
-
-        let status: 'IN_STOCK' | 'LOW_STOCK' | 'OUT_OF_STOCK' = 'IN_STOCK'
-        if (total <= 0) {
-          status = 'OUT_OF_STOCK'
-        } else if (total <= reorderLevel) {
-          status = 'LOW_STOCK'
-        }
+        const available = Number(s.availableQuantity ?? Math.max(0, total - allocated))
+        const reorderLevel =
+          s.reorderThreshold == null || !Number.isFinite(Number(s.reorderThreshold))
+            ? null
+            : Number(s.reorderThreshold)
+        const status: FlatWarehouseStockItem['status'] =
+          s.stockStatus === 'OUT' || total <= 0
+            ? 'OUT_OF_STOCK'
+            : s.stockStatus === 'LOW' ||
+                (s.stockStatus === undefined && reorderLevel !== null && total <= reorderLevel)
+              ? 'LOW_STOCK'
+              : s.stockStatus === 'UNCONFIGURED' || reorderLevel === null
+                ? 'UNCONFIGURED'
+                : 'IN_STOCK'
 
         return {
           id: s.id,
@@ -297,8 +311,7 @@ export function InventoryStockList({
     }
   }
 
-  const isLoading =
-    productsQuery.isLoading || stockQuery.isLoading || warehousesQuery.isLoading
+  const isLoading = productsQuery.isLoading || stockQuery.isLoading || warehousesQuery.isLoading
   const hasQueryError = productsQuery.isError || stockQuery.isError || warehousesQuery.isError
   const queryError = productsQuery.error ?? stockQuery.error ?? warehousesQuery.error
   const isFetching = productsQuery.isFetching || stockQuery.isFetching || warehousesQuery.isFetching
@@ -415,9 +428,9 @@ export function InventoryStockList({
               <Boxes className="size-3 text-primary-text" />
               <span
                 className={
-                  row.totalUnits === 0
+                  row.status === 'OUT_OF_STOCK'
                     ? 'text-destructive'
-                    : row.totalUnits <= row.reorderLevel
+                    : row.status === 'LOW_STOCK'
                       ? 'text-status-warning-foreground'
                       : 'text-foreground'
                 }
@@ -437,7 +450,9 @@ export function InventoryStockList({
         align: 'center',
         cell: ({ row }) => (
           <Badge variant="secondary" className="text-xs px-2 py-0.5 rounded-lg">
-            {row.reorderLevel} {formatProductUnit(row.product?.unit, 'units')}
+            {row.reorderLevel === null
+              ? 'Not set'
+              : `${row.reorderLevel} ${formatProductUnit(row.product?.unit, 'units')}`}
           </Badge>
         ),
       },
@@ -464,6 +479,13 @@ export function InventoryStockList({
               </span>
             )
           }
+          if (row.status === 'UNCONFIGURED') {
+            return (
+              <Badge variant="outline" className="text-xs">
+                Threshold not set
+              </Badge>
+            )
+          }
           return (
             <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-md bg-status-success text-status-success-foreground border border-status-success-foreground/30">
               <span className="size-1.5 rounded-full bg-status-success-foreground shrink-0" />
@@ -478,7 +500,7 @@ export function InventoryStockList({
               id: 'actions',
               header: 'Actions',
               align: 'right' as const,
-              width: 130,
+              width: 230,
               cell: ({ row }: { row: FlatWarehouseStockItem }) => (
                 <div className="flex items-center justify-end gap-1">
                   <Button
@@ -489,6 +511,16 @@ export function InventoryStockList({
                   >
                     <ArrowUpDown className="size-3 text-muted-foreground" />
                     Adjust
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setSelectedStockForThreshold(row.stock)}
+                    className="h-8 px-2 text-[13px] font-medium rounded-lg gap-1"
+                    aria-label={`Set reorder threshold for ${row.product?.name ?? 'item'} at ${row.warehouse?.name ?? 'warehouse'}`}
+                  >
+                    <SlidersHorizontal className="size-3 text-muted-foreground" />
+                    Threshold
                   </Button>
                   <Button
                     variant="ghost"
@@ -771,18 +803,14 @@ export function InventoryStockList({
                               className={`size-3.5 ${
                                 totalStockUnits === 0
                                   ? 'text-destructive'
-                                  : totalStockUnits <= 20
-                                    ? 'text-status-warning-foreground'
-                                    : 'text-primary-text'
+                                  : 'text-primary-text'
                               }`}
                             />
                             <span
                               className={
                                 totalStockUnits === 0
                                   ? 'text-destructive'
-                                  : totalStockUnits <= 20
-                                    ? 'text-status-warning-foreground'
-                                    : 'text-foreground'
+                                  : 'text-foreground'
                               }
                             >
                               {totalStockUnits.toLocaleString()}{' '}
@@ -799,7 +827,7 @@ export function InventoryStockList({
                           </span>
                           <span className="text-sm font-medium text-foreground block">
                             ₱
-                            {prod.unitPrice.toLocaleString('en-US', {
+                            {Number(prod.unitPrice).toLocaleString('en-US', {
                               minimumFractionDigits: 2,
                               maximumFractionDigits: 2,
                             })}
@@ -907,8 +935,13 @@ export function InventoryStockList({
                             stock.warehouse || warehouses.find((w) => w.id === stock.warehouseId)
                           const whDisplayName = wh?.name || `Warehouse #${stock.warehouseId}`
                           const qtyNum = parseFloat(stock.quantity || '0')
-                          const isOut = qtyNum <= 0
-                          const isLow = qtyNum > 0 && qtyNum <= 20
+                          const isOut = stock.stockStatus === 'OUT' || qtyNum <= 0
+                          const isLow =
+                            stock.stockStatus === 'LOW' ||
+                            (stock.stockStatus === undefined &&
+                              stock.reorderThreshold != null &&
+                              qtyNum > 0 &&
+                              qtyNum <= Number(stock.reorderThreshold))
 
                           return (
                             <div
@@ -971,6 +1004,16 @@ export function InventoryStockList({
                                     Adjust
                                   </Button>
                                   <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setSelectedStockForThreshold(stock)}
+                                    className="h-8 px-2 text-[13px] font-medium rounded-md gap-1"
+                                    aria-label={`Set reorder threshold for ${prod.name} at ${whDisplayName}`}
+                                  >
+                                    <SlidersHorizontal className="size-3 text-muted-foreground" />
+                                    Threshold
+                                  </Button>
+                                  <Button
                                     variant="ghost"
                                     size="icon"
                                     onClick={() =>
@@ -1014,6 +1057,21 @@ export function InventoryStockList({
           setSelectedProductForAllocate(null)
         }}
       />
+      {selectedStockForThreshold && (
+        <ReorderThresholdModal
+          stock={selectedStockForThreshold}
+          productName={
+            selectedStockForThreshold.inventoryItem?.name ??
+            `Item #${selectedStockForThreshold.inventoryItemId}`
+          }
+          warehouseName={
+            selectedStockForThreshold.warehouse?.name ??
+            `Warehouse #${selectedStockForThreshold.warehouseId}`
+          }
+          open
+          onClose={() => setSelectedStockForThreshold(null)}
+        />
+      )}
 
       {/* Product Archive Confirmation Modal */}
       <ConfirmDeleteModal

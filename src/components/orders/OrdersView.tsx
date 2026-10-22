@@ -239,11 +239,7 @@ export function OrdersView({
       })
       .join(', ')
     const itemLabel = items.length === 1 ? itemSummary : `${items.length} items`
-    const orderTotal = items.reduce((sum, item) => {
-      const itemTotal =
-        parseFloat(item.totalAmount) || parseFloat(item.unitPrice) * parseFloat(item.quantity) || 0
-      return sum + itemTotal
-    }, 0)
+    const orderTotal = items.reduce((sum, item) => sum + Number(item.totalAmount), 0)
     const activeDelivery = outgoingDeliveries.find(
       (delivery) => delivery.salesOrderId === order.id && delivery.status !== 'CANCELLED',
     )

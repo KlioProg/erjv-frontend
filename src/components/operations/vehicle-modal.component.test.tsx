@@ -5,8 +5,28 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { apiClient } from '@/lib/api-client'
 import { VehicleModal } from './VehicleModal'
 import type { DeliveryVehicle } from '@/features/logistics/delivery-vehicles.types'
+import { AxiosError } from 'axios'
+import { updateVehicleDetailsApi } from '@/features/logistics/delivery-vehicles.api'
 
 const originalAdapter = apiClient.defaults.adapter
+
+it('blocks vehicle creation when the plate lookup fails', async () => {
+  apiClient.defaults.adapter = async (config) => {
+    if (config.url?.includes('/plate-number/')) throw new AxiosError('Network Error')
+    if (config.method === 'post') writes.push({ method: 'post', data: JSON.parse(config.data) })
+    return { config, status: 200, statusText: 'OK', headers: {}, data: [] }
+  }
+  mount(null)
+  await userEvent.setup().type(screen.getByLabelText(/Plate Number/), 'ABC-1234')
+  await userEvent.setup().click(screen.getByRole('button', { name: 'Add Vehicle' }))
+  expect((await screen.findByRole('alert')).textContent).toMatch(/connect|network/i)
+  expect(writes).toEqual([])
+})
+
+it('preserves explicit null when clearing vehicle capacity', async () => {
+  await updateVehicleDetailsApi(1, { capacity: null })
+  expect(writes[0].data).toEqual({ capacity: null })
+})
 let saved: DeliveryVehicle | null
 let writes: { method: string; data: Record<string, unknown> }[]
 

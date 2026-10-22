@@ -10,6 +10,7 @@ import {
   buildStockWarnings,
   filterStockWarnings,
   stockCondition,
+  stockConditionForItem,
   stockConditionRank,
   type InventoryNavigationTarget,
   type InventoryWarningTarget,
@@ -421,7 +422,7 @@ export function InventoryItemCatalog({
                 aria-label={`Stock location ${stock.warehouse?.name || `Warehouse #${stock.warehouseId}`} for ${product.name}`}
                 className={cn(
                   'grid min-h-11 min-w-0 gap-x-4 gap-y-1 py-1 sm:grid-cols-[minmax(0,1fr)_18rem] sm:items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                  stockCondition(parseStockCents(stock.quantity)) === 'OUT' &&
+                  stockConditionForItem(stock) === 'OUT' &&
                     product.isActive &&
                     'bg-destructive/5',
                   focusTarget?.productId === product.id &&
@@ -442,8 +443,8 @@ export function InventoryItemCatalog({
                 <div className="grid min-w-0 grid-cols-[1rem_minmax(0,1fr)_minmax(0,4rem)_auto] items-center gap-2 pl-6 sm:pl-0">
                   {product.isActive && (
                     <StockIndicator
-                      condition={stockCondition(parseStockCents(stock.quantity))}
-                      label={`Out of stock at ${stock.warehouse?.name || `Warehouse #${stock.warehouseId}`}`}
+                      condition={stockConditionForItem(stock)}
+                      label={`${stockConditionForItem(stock) === 'LOW' ? 'Low stock' : 'Out of stock'} at ${stock.warehouse?.name || `Warehouse #${stock.warehouseId}`}`}
                     />
                   )}
                   <OverflowValue

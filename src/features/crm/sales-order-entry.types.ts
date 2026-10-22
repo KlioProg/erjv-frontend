@@ -1,9 +1,4 @@
 export type OrderStatus = 'Completed' | 'Active' | 'Cancelled'
-export type OrderAllocationDraft = {
-  key: number
-  stockItemId?: number
-  quantity: string
-}
 export type OrderLine = {
   productId: number
   name: string
@@ -11,7 +6,6 @@ export type OrderLine = {
   unit?: string | null
   unitPrice: string
   quantity: string
-  allocations?: OrderAllocationDraft[]
 }
 export type OrderFormValues = {
   clientId: number

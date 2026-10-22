@@ -95,13 +95,8 @@ export function OrderDetailDrawer({
   )
 
   const productMap = useMemo(() => new Map((products || []).map((p) => [p.id, p])), [products])
-  const warehouseMap = useMemo(
-    () => new Map((warehouses || []).map((w) => [w.id, w])),
-    [warehouses],
-  )
   const vehicleMap = useMemo(() => new Map((vehicles || []).map((v) => [v.id, v])), [vehicles])
   const employeeMap = useMemo(() => new Map((employees || []).map((e) => [e.id, e])), [employees])
-  const stockMap = useMemo(() => new Map((stockItems || []).map((s) => [s.id, s])), [stockItems])
 
   // Find active outgoing deliveries tied to this order
   const tiedDeliveries = useMemo(() => {
@@ -609,15 +604,6 @@ export function OrderDetailDrawer({
                     const product = item?.inventoryItemId
                       ? productMap.get(item.inventoryItemId)
                       : null
-                    const allocations = item?.allocations || []
-                    const allocation = allocations[0]
-                    const stock = allocation?.stockItemId
-                      ? stockMap.get(allocation.stockItemId)
-                      : null
-                    const warehouse = stock?.warehouseId
-                      ? warehouseMap.get(stock.warehouseId)
-                      : null
-
                     return (
                       <div
                         key={item.id ?? item.lineNumber ?? idx}
@@ -640,15 +626,9 @@ export function OrderDetailDrawer({
                               </span>{' '}
                               @ ₱{parseFloat(item.unitPrice || '0').toFixed(2)}
                             </span>
-                            {warehouse ? (
-                              <span className="text-muted-foreground">
-                                • Fulfilling from {warehouse.name}
-                              </span>
-                            ) : (
-                              <span className="text-muted-foreground">
-                                • Direct fulfillment / Unassigned warehouse
-                              </span>
-                            )}
+                            <span className="text-muted-foreground">
+                              • Warehouse is selected during delivery preparation
+                            </span>
                           </div>
                         </div>
                         <div className="text-foreground text-sm tabular-nums">

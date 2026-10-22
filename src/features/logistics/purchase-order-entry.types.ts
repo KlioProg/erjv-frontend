@@ -5,4 +5,7 @@ export type PurchaseLine = {
   unit?: string
   unitCost: string
   quantity: string
+  discountRate?: string
+  taxRate?: string
+  notes?: string | null
 }

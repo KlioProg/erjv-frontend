@@ -40,7 +40,6 @@ import {
 import { useAuth, normalizeUserRole } from '@/features/auth/AuthContext'
 import { USER_ROLES, ROLE_DETAILS, type UserRole } from '@/features/auth/roles'
 import { toast } from 'sonner'
-import { useQueryClient } from '@tanstack/react-query'
 import { Button } from '../ui/button'
 import { ArchiveTabNav } from '@/components/ui/ArchiveTabNav'
 import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal'
@@ -103,7 +102,7 @@ const RoleBadgeDisplay = forwardRef<HTMLButtonElement, RoleBadgeProps>(
 RoleBadgeDisplay.displayName = 'RoleBadgeDisplay'
 
 export function UserRolesList() {
-  const { isAdmin, user: currentUser } = useAuth()
+  const { isAdmin, user: currentUser, syncUser } = useAuth()
   const { data: users = [], isLoading, isFetching, error, refetch } = useAllUsers()
 
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false)
@@ -113,7 +112,6 @@ export function UserRolesList() {
 
   const { data: employees = [] } = useEmployees()
   const updateRoleMutation = useUpdateUserRole()
-  const queryClient = useQueryClient()
 
   const [searchQuery, setSearchQuery] = useState('')
   const [updatingId, setUpdatingId] = useState<number | null>(null)
@@ -121,6 +119,10 @@ export function UserRolesList() {
 
   const activeUsers = users.filter((u) => u.isActive !== false)
   const archivedUsers = users.filter((u) => u.isActive === false)
+  const lastAdminId =
+    activeUsers.filter((u) => u.role === USER_ROLES.ADMIN).length === 1
+      ? activeUsers.find((u) => u.role === USER_ROLES.ADMIN)?.id
+      : undefined
   const currentUsers = activeTab === 'ACTIVE' ? activeUsers : archivedUsers
 
   const filteredUsers = currentUsers.filter(
@@ -142,9 +144,8 @@ export function UserRolesList() {
     }
     setUpdatingId(userId)
     try {
-      await updateRoleMutation.mutateAsync({ id: userId, role })
-      queryClient.invalidateQueries({ queryKey: ['users'] })
-      queryClient.invalidateQueries({ queryKey: ['employees'] })
+      const updated = await updateRoleMutation.mutateAsync({ id: userId, role })
+      syncUser(updated)
       toast.success(`Role updated to ${role} for ${targetName}!`)
     } catch (err: unknown) {
       toast.error(getErrorMessage(err))
@@ -182,6 +183,8 @@ export function UserRolesList() {
     const isArchived = u.isActive === false
     const userRole = normalizeUserRole(u.role || (u as unknown as Record<string, unknown>).userRole)
     const isSelf = currentUser?.id === u.id
+    const isSuperadmin = userRole === USER_ROLES.SUPERADMIN
+    const isLastAdmin = u.id === lastAdminId
     switch (column) {
       case 'account':
         return (
@@ -234,7 +237,7 @@ export function UserRolesList() {
       case 'role':
         return (
           <>
-            {isAdmin && !isArchived ? (
+            {isAdmin && !isArchived && !isSuperadmin ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <RoleBadgeDisplay role={userRole} interactive={true} isUpdating={isUpdating} />
@@ -256,6 +259,7 @@ export function UserRolesList() {
                       {userRole === USER_ROLES.ADMIN && <Check className="size-3.5 text-primary" />}
                     </DropdownMenuItem>
                     <DropdownMenuItem
+                      disabled={isLastAdmin}
                       onClick={() => handleRoleChange(u.id, USER_ROLES.MANAGER, displayName)}
                       className="flex items-center justify-between gap-2 px-2 py-2 text-ui cursor-pointer rounded-md"
                     >
@@ -268,6 +272,7 @@ export function UserRolesList() {
                       )}
                     </DropdownMenuItem>
                     <DropdownMenuItem
+                      disabled={isLastAdmin}
                       onClick={() => handleRoleChange(u.id, USER_ROLES.STAFF, displayName)}
                       className="flex items-center justify-between gap-2 px-2 py-2 text-ui cursor-pointer rounded-md"
                     >
@@ -321,6 +326,7 @@ export function UserRolesList() {
           </>
         )
       case 'actions':
+        if (!isAdmin || isSuperadmin) return null
         return (
           <>
             {isArchived ? (
@@ -351,7 +357,7 @@ export function UserRolesList() {
             ) : (
               <DataTableActions
                 onArchive={() => handleDeactivate(u)}
-                isPending={isSelf || deactivateUser.isPending}
+                isPending={isSelf || isLastAdmin || deactivateUser.isPending}
               />
             )}
           </>

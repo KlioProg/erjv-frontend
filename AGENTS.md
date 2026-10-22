@@ -119,3 +119,17 @@ Do not generate lengthy plans, documentation, or post-implementation proposals u
 - For UI verification, use `list_gates` and run applicable checks. Report actual results. Skipped or unavailable checks are not passes.
 - Do not load the toolkit for backend-only tasks, routine refactors, or unrelated work.
 - Keep existing project workflows and tests authoritative.
+
+
+## Efficient Skill Usage
+
+- Treat installed skills as optional task-specific guidance.
+- Use at most one relevant skill for routine tasks.
+- Combine skills only when their responsibilities differ materially.
+- Do not invoke broad planning or review workflows by default.
+- Do not read entire skill reference directories.
+- Read only relevant files and supporting instructions.
+- Prefer existing project patterns over generic skill recommendations.
+- Perform focused verification proportional to the change.
+- Stop after the requested task is completed.
+- Preserve correctness, security, and existing business rules.

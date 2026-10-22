@@ -60,6 +60,7 @@ export function useCreateOutgoingDelivery(options?: { notifySuccess?: boolean })
     onSuccess: (newDelivery) => {
       void queryClient.invalidateQueries({ queryKey: DELIVERIES_QUERY_KEY })
       void queryClient.invalidateQueries({ queryKey: SALES_ORDERS_QUERY_KEY })
+      void queryClient.invalidateQueries({ queryKey: STOCK_ITEMS_QUERY_KEY })
       if (options?.notifySuccess !== false)
         toast.success(`Delivery shipment "${newDelivery.deliveryNumber}" created successfully`)
     },

@@ -10,24 +10,20 @@ export async function fetchProductsApi(params?: FetchParams): Promise<InventoryI
   return extractArray<InventoryItemResponse>(response.data)
 }
 
-export async function fetchProductByIdApi(id: number): Promise<InventoryItemResponse> {
+export async function fetchProductByIdApi(id: number): Promise<InventoryItemResponse | null> {
   const { data } = await apiClient.get<InventoryItemResponse>(`/inventory-items/${id}`)
   return data
 }
 
 export async function fetchProductByNameApi(name: string): Promise<InventoryItemResponse | null> {
   if (!name || !name.trim()) return null
-  try {
-    const { data } = await apiClient.get<InventoryItemResponse>(
-      `/inventory-items/name/${encodeURIComponent(name.trim())}`,
-    )
-    if (data && typeof data === 'object' && 'id' in data && data.id) {
-      return data
-    }
-    return null
-  } catch {
-    return null
+  const { data } = await apiClient.get<InventoryItemResponse>(
+    `/inventory-items/name/${encodeURIComponent(name.trim())}`,
+  )
+  if (data && typeof data === 'object' && 'id' in data && data.id) {
+    return data
   }
+  return null
 }
 
 export async function createProductApi(

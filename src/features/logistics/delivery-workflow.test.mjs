@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
+  buildDeliveryRows,
   deliveryBelongsToView,
   formatDeliverySchedule,
   getDeliveryActions,
@@ -82,6 +83,39 @@ test('delivery views separate active directions from all terminal records', () =
       assert.equal(deliveryBelongsToView({ type, status }, type.toLowerCase()), false)
     }
   }
+})
+
+test('outgoing delivery rows show all source warehouses without assuming one delivery warehouse', () => {
+  const [row] = buildDeliveryRows({
+    incoming: [],
+    outgoing: [
+      {
+        id: 3,
+        deliveryNumber: 'OUT-3',
+        salesOrderId: 8,
+        status: 'SCHEDULED',
+        deliveryVehicleId: null,
+        driverEmployeeId: null,
+        scheduledAt: null,
+        items: [
+          { stockItem: { warehouseId: 1 } },
+          { stockItem: { warehouseId: 2 } },
+          { stockItem: { warehouseId: 1 } },
+        ],
+      },
+    ],
+    purchaseOrders: [],
+    salesOrders: [{ id: 8, orderNumber: 'SO-8', clientId: 6 }],
+    suppliers: [],
+    clients: [{ id: 6, name: 'Customer' }],
+    warehouses: [
+      { id: 1, name: 'Store' },
+      { id: 2, name: 'Main Warehouse' },
+    ],
+    vehicles: [],
+    employees: [],
+  })
+  assert.equal(row.warehouse, 'Store, Main Warehouse')
 })
 
 test('only inspected backend transitions are exposed for each direction', () => {

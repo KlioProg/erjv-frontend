@@ -15,6 +15,27 @@ export const apiClient = axios.create({
   timeout: 30000,
 })
 
+export const AUTH_SESSION_EXPIRED_EVENT = 'erjv:session-expired'
+
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error: unknown) => {
+    if (
+      axios.isAxiosError(error) &&
+      error.response?.status === 401 &&
+      error.config?.url !== '/auth/login'
+    ) {
+      const token = localStorage.getItem('erjv_access_token')
+      if (token && error.config?.headers.Authorization === `Bearer ${token}`) {
+        localStorage.removeItem('erjv_access_token')
+        localStorage.removeItem('erjv_session_expiry')
+        window.dispatchEvent(new Event(AUTH_SESSION_EXPIRED_EVENT))
+      }
+    }
+    return Promise.reject(error)
+  },
+)
+
 // Attach JWT access token to outgoing requests if present
 apiClient.interceptors.request.use((config) => {
   const token = localStorage.getItem('erjv_access_token')

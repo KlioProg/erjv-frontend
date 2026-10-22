@@ -5,7 +5,7 @@ export type Supplier = {
   contactPerson: string | null
   phone: string | null
   email: string | null
-  address: string | null
+  address: string
   isActive: boolean
   createdAt: string
   updatedAt: string
@@ -14,10 +14,10 @@ export type Supplier = {
 export type CreateSupplierPayload = {
   code: string
   name: string
-  contactPerson?: string
-  phone?: string
-  email?: string
-  address?: string
+  contactPerson?: string | null
+  phone?: string | null
+  email?: string | null
+  address: string
 }
 
 export type UpdateSupplierPayload = Partial<CreateSupplierPayload>

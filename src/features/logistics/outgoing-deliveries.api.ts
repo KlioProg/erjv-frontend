@@ -15,7 +15,9 @@ export async function fetchOutgoingDeliveriesApi(
   return extractArray<OutgoingDeliveryRecord>(response.data)
 }
 
-export async function fetchOutgoingDeliveryByIdApi(id: number): Promise<OutgoingDeliveryRecord> {
+export async function fetchOutgoingDeliveryByIdApi(
+  id: number,
+): Promise<OutgoingDeliveryRecord | null> {
   const { data } = await apiClient.get<OutgoingDeliveryRecord>(`/outgoing-deliveries/${id}`)
   return data
 }
@@ -23,14 +25,10 @@ export async function fetchOutgoingDeliveryByIdApi(id: number): Promise<Outgoing
 export async function fetchOutgoingDeliveryByNumberApi(
   deliveryNumber: string,
 ): Promise<OutgoingDeliveryRecord | null> {
-  try {
-    const { data } = await apiClient.get<OutgoingDeliveryRecord>(
-      `/outgoing-deliveries/number/${encodeURIComponent(deliveryNumber.trim())}`,
-    )
-    return data
-  } catch {
-    return null
-  }
+  const { data } = await apiClient.get<OutgoingDeliveryRecord>(
+    `/outgoing-deliveries/number/${encodeURIComponent(deliveryNumber.trim())}`,
+  )
+  return data
 }
 
 export async function createOutgoingDeliveryApi(
@@ -38,13 +36,13 @@ export async function createOutgoingDeliveryApi(
 ): Promise<OutgoingDeliveryRecord> {
   const cleanPayload: Record<string, unknown> = {
     salesOrderId: payload.salesOrderId,
-    warehouseId: payload.warehouseId,
     ...(payload.deliveryVehicleId ? { deliveryVehicleId: payload.deliveryVehicleId } : {}),
     ...(payload.driverEmployeeId ? { driverEmployeeId: payload.driverEmployeeId } : {}),
     ...(payload.scheduledAt ? { scheduledAt: new Date(payload.scheduledAt).toISOString() } : {}),
     ...(payload.notes?.trim() ? { notes: payload.notes.trim() } : {}),
     items: payload.items.map((item) => ({
-      salesOrderAllocationId: item.salesOrderAllocationId,
+      salesOrderItemId: item.salesOrderItemId,
+      stockItemId: item.stockItemId,
       quantity: String(item.quantity),
     })),
   }

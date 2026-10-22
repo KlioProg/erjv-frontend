@@ -34,6 +34,10 @@ import {
   dispatchOutgoingDeliveryApi,
 } from '@/features/logistics/outgoing-deliveries.api'
 import {
+  outgoingLinesForAvailableSources,
+  outgoingOrderBalances,
+} from '@/features/logistics/outgoing-order-balance'
+import {
   DELIVERIES_QUERY_KEY,
   SALES_ORDERS_QUERY_KEY,
 } from '@/features/logistics/outgoing-deliveries.hooks'
@@ -72,23 +76,24 @@ export function QuickDispatchModal({
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
 
-  // Map stock items to find which warehouse the allocated stock resides in
-  const stockMap = useMemo(() => new Map(stockItems.map((s) => [s.id, s])), [stockItems])
-  const warehouseMap = useMemo(() => new Map(warehouses.map((w) => [w.id, w])), [warehouses])
-
-  // Derive warehouse from the first allocated stock item
-  const fulfillmentWarehouseId = useMemo(() => {
-    for (const item of order?.items || []) {
-      for (const alloc of item?.allocations || []) {
-        const stock = stockMap.get(alloc.stockItemId)
-        if (stock?.warehouseId) return stock.warehouseId
-      }
-    }
-    return warehouses[0]?.id || 1
-  }, [order, stockMap, warehouses])
-
-  const warehouseName =
-    warehouseMap.get(fulfillmentWarehouseId)?.name || `Warehouse #${fulfillmentWarehouseId}`
+  const balances = useMemo(
+    () => outgoingOrderBalances(order, deliveries, stockItems, warehouses),
+    [order, deliveries, stockItems, warehouses],
+  )
+  const warehouseNames = useMemo(() => {
+    const stockMap = new Map(stockItems.map((stock) => [stock.id, stock]))
+    const sourceIds = new Set(
+      balances.flatMap((balance) =>
+        outgoingLinesForAvailableSources(balance).map((line) => line.stockItemId),
+      ),
+    )
+    return [...new Set(
+      [...sourceIds]
+        .map((id) => stockMap.get(id)?.warehouseId)
+        .filter((id): id is number => id !== undefined)
+        .map((id) => warehouses.find((warehouse) => warehouse.id === id)?.name ?? `Warehouse #${id}`),
+    )]
+  }, [balances, stockItems, warehouses])
 
   const availableVehicles = useMemo(
     () =>
@@ -106,15 +111,10 @@ export function QuickDispatchModal({
     [employees, deliveries],
   )
 
-  // Collect all allocations for this order to dispatch
-  const allocationsToDeliver = useMemo(() => {
-    return (order?.items || []).flatMap((item) =>
-      (item?.allocations || []).map((alloc) => ({
-        salesOrderAllocationId: alloc.id,
-        quantity: alloc.quantity,
-      })),
-    )
-  }, [order])
+  const sourcesToDeliver = useMemo(
+    () => balances.flatMap(outgoingLinesForAvailableSources),
+    [balances],
+  )
 
   const handleDispatch = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -139,8 +139,8 @@ export function QuickDispatchModal({
       return
     }
 
-    if (allocationsToDeliver.length === 0) {
-      setErrorMessage('This order has no allocated stock items to deliver.')
+    if (sourcesToDeliver.length === 0) {
+      setErrorMessage('No available warehouse stock remains for this order.')
       return
     }
 
@@ -152,12 +152,11 @@ export function QuickDispatchModal({
       // Step 1: Create the outgoing delivery record tied to this sales order
       const delivery = await createOutgoingDeliveryApi({
         salesOrderId: order.id,
-        warehouseId: fulfillmentWarehouseId,
         deliveryVehicleId: vehicleId,
         driverEmployeeId: driverId,
         scheduledAt: scheduledAt ? new Date(scheduledAt).toISOString() : new Date().toISOString(),
         notes: notes.trim() || undefined,
-        items: allocationsToDeliver,
+        items: sourcesToDeliver,
       })
 
       // Step 2: Schedule the delivery
@@ -215,7 +214,9 @@ export function QuickDispatchModal({
           <div className="rounded-lg bg-secondary p-4 text-sm flex flex-col gap-2">
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">Fulfilling Warehouse:</span>
-              <span className="font-medium text-foreground">{warehouseName}</span>
+              <span className="font-medium text-foreground">
+                {warehouseNames.length ? warehouseNames.join(', ') : 'No available source'}
+              </span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">Cargo Items:</span>

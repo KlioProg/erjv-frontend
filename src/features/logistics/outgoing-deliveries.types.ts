@@ -1,27 +1,26 @@
 export type OutgoingDeliveryStatus =
   'DRAFT' | 'SCHEDULED' | 'DISPATCHED' | 'DELIVERED' | 'CANCELLED'
 
-export interface OutgoingDeliveryAllocationSummary {
-  stockItemId: number
-  salesOrderItemId: number
-  quantity: string
-}
-
 export interface OutgoingDeliveryItemRecord {
   id: number
   outgoingDeliveryId: number
-  salesOrderAllocationId: number
+  salesOrderItemId: number
+  stockItemId: number
   quantity: string
   createdAt: string
   updatedAt: string
-  salesOrderAllocation: OutgoingDeliveryAllocationSummary
+  salesOrderItem?: {
+    inventoryItemId: number
+    quantity: string
+    unitPrice: string
+  }
+  stockItem?: { warehouseId: number }
 }
 
 export interface OutgoingDeliveryRecord {
   id: number
   deliveryNumber: string
   salesOrderId: number
-  warehouseId: number
   deliveryVehicleId: number | null
   driverEmployeeId: number | null
   status: OutgoingDeliveryStatus
@@ -36,13 +35,13 @@ export interface OutgoingDeliveryRecord {
 }
 
 export interface OutgoingDeliveryLineCommand {
-  salesOrderAllocationId: number
+  salesOrderItemId: number
+  stockItemId: number
   quantity: string
 }
 
 export interface CreateOutgoingDeliveryPayload {
   salesOrderId: number
-  warehouseId: number
   deliveryVehicleId?: number | null
   driverEmployeeId?: number | null
   scheduledAt?: string | Date | null

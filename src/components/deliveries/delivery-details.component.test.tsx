@@ -14,7 +14,6 @@ const deliveryFixture: OutgoingDeliveryRecord = {
   id: 10,
   deliveryNumber: 'OD-000010',
   salesOrderId: 11,
-  warehouseId: 3,
   deliveryVehicleId: 4,
   driverEmployeeId: 5,
   status: 'DISPATCHED',
@@ -28,9 +27,10 @@ const deliveryFixture: OutgoingDeliveryRecord = {
     {
       id: 100,
       outgoingDeliveryId: 10,
-      salesOrderAllocationId: 81,
+      salesOrderItemId: 80,
+      stockItemId: 7,
       quantity: '0.05',
-      salesOrderAllocation: { stockItemId: 7, salesOrderItemId: 80, quantity: '1.25' },
+      stockItem: { warehouseId: 3 },
       ...stamps,
     },
   ],
@@ -66,16 +66,6 @@ const orderFixture: SalesOrderRecord = {
       totalAmount: '25.00',
       notes: null,
       ...stamps,
-      allocations: [
-        {
-          id: 81,
-          salesOrderItemId: 80,
-          stockItemId: 7,
-          quantity: '1.25',
-          releasedAt: null,
-          ...stamps,
-        },
-      ],
     },
   ],
 }
@@ -230,7 +220,6 @@ describe('outgoing delivery details', () => {
     expect(within(dialog).getByText('Sales Order SO-000011')).toBeTruthy()
     expect(within(dialog).getByText(orderFixture.deliveryAddress)).toBeTruthy()
     expect(within(dialog).getByText('Archived Warehouse')).toBeTruthy()
-    expect(within(dialog).getByText('Warehouse road, Davao City')).toBeTruthy()
     expect(within(dialog).getByText('Ana Cruz')).toBeTruthy()
     expect(within(dialog).getByText('09123456789')).toBeTruthy()
     expect(within(dialog).getByText('ABC-1234 (Truck)')).toBeTruthy()
@@ -244,7 +233,7 @@ describe('outgoing delivery details', () => {
         .getAllByRole('columnheader')
         .map((cell) => cell.textContent),
     ).toEqual(['Item', 'Quantity to Deliver'])
-    for (const text of [productName, 'Carabao', '0.05', 'kg', 'Allocation #81']) {
+    for (const text of [productName, 'Carabao', '0.05', 'kg']) {
       expect(within(table).getByText(text)).toBeTruthy()
     }
     expect(within(dialog).getByText(/Keep the cargo dry/).textContent).toBe(delivery.notes)
@@ -271,7 +260,7 @@ describe('outgoing delivery details', () => {
     records['/clients'] = []
     mount()
     await screen.findByText('Customer #6')
-    expect(screen.getByText('Warehouse #3')).toBeTruthy()
+    expect(screen.getByText('No source records')).toBeTruthy()
     expect(screen.getAllByText('Unassigned')).toHaveLength(2)
     expect(screen.getByText('No cargo items recorded.')).toBeTruthy()
     expect(screen.queryByText('Delivery notes')).toBeNull()
@@ -285,7 +274,6 @@ describe('outgoing delivery details', () => {
       'Some linked details could not be loaded. Saved references remain visible.',
     )
     expect(screen.getByText('Product #2')).toBeTruthy()
-    expect(screen.getByText('Allocation #81')).toBeTruthy()
     expect(screen.getByText('0.05')).toBeTruthy()
     expect(screen.getByText('Unit unavailable')).toBeTruthy()
     failedUrl = undefined

@@ -11,20 +11,13 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import type { Supplier } from '@/features/logistics/suppliers.types'
+import type { CreateSupplierPayload, Supplier } from '@/features/logistics/suppliers.types'
 import { getErrorMessage } from '@/lib/api-client'
 
 type SupplierModalProps = {
   open: boolean
   onClose: () => void
-  onSubmit: (values: {
-    code: string
-    name: string
-    contactPerson?: string
-    phone?: string
-    email?: string
-    address?: string
-  }) => Promise<void>
+  onSubmit: (values: CreateSupplierPayload) => Promise<void>
   supplier?: Supplier | null
   isSubmitting?: boolean
 }
@@ -56,10 +49,10 @@ export function SupplierModal({
       await onSubmit({
         code: code.trim() || `SUP-${Date.now().toString(36).toUpperCase()}`,
         name: name.trim(),
-        contactPerson: contactPerson.trim() || undefined,
-        phone: phone.trim() || undefined,
-        email: email.trim() || undefined,
-        address: address.trim() || undefined,
+        contactPerson: contactPerson.trim() || null,
+        phone: phone.trim() || null,
+        email: email.trim() || null,
+        address: address.trim(),
       })
       onClose()
     } catch (err: unknown) {

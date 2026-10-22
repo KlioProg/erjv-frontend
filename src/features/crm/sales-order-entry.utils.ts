@@ -14,14 +14,6 @@ export function buildSalesOrderPayload(values: OrderFormValues): CreateSalesOrde
       unitPrice: line.unitPrice,
       discountRate: values.discountRate,
       taxRate: values.taxRate,
-      ...(line.allocations?.length
-        ? {
-            allocations: line.allocations.map(({ stockItemId, quantity }) => ({
-              stockItemId: stockItemId!,
-              quantity,
-            })),
-          }
-        : {}),
     })),
   }
 }

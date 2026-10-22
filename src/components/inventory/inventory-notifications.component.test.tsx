@@ -42,7 +42,7 @@ const product = (id: number, name: string, isActive = true): InventoryItemRespon
   name,
   isActive,
   unit: 'sacks',
-  unitPrice: 20,
+  unitPrice: '20.00',
   description: 'Inventory test',
   variety: null,
   ...dates,

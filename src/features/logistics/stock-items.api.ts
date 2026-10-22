@@ -2,6 +2,7 @@ import { apiClient, extractArray, type FetchParams } from '@/lib/api-client'
 import type {
   AdjustStockQuantityPayload,
   CreateStockItemPayload,
+  SetReorderThresholdPayload,
   SetStockQuantityPayload,
   StockItem,
   StockItemWithInventoryItem,
@@ -36,41 +37,31 @@ export async function fetchStockItemByPairApi(
   inventoryItemId: number,
   warehouseId: number,
 ): Promise<StockItem | null> {
-  try {
-    const { data } = await apiClient.get<StockItem>(
-      `/stock-items/pair/${inventoryItemId}/${warehouseId}`,
-    )
-    if (!data || typeof data !== 'object' || !('id' in data)) {
-      return null
-    }
-    return data
-  } catch {
+  const { data } = await apiClient.get<StockItem>(
+    `/stock-items/pair/${inventoryItemId}/${warehouseId}`,
+  )
+  if (!data || typeof data !== 'object' || !('id' in data)) {
     return null
   }
+  return data
 }
 
 export async function fetchStockItemByIdApi(id: number): Promise<StockItem | null> {
-  try {
-    const { data } = await apiClient.get<StockItem>(`/stock-items/${id}`)
-    if (!data || typeof data !== 'object' || !('id' in data)) {
-      return null
-    }
-    return data
-  } catch {
+  const { data } = await apiClient.get<StockItem>(`/stock-items/${id}`)
+  if (!data || typeof data !== 'object' || !('id' in data)) {
     return null
   }
+  return data
 }
 
-export async function createStockItemApi(
-  payload: CreateStockItemPayload,
-): Promise<StockItemWithRelations> {
+export async function createStockItemApi(payload: CreateStockItemPayload): Promise<StockItem> {
   const cleanPayload = {
     inventoryItemId: Number(payload.inventoryItemId),
     warehouseId: Number(payload.warehouseId),
     quantity: payload.quantity ? parseFloat(payload.quantity).toFixed(2) : '0.00',
   }
 
-  const { data } = await apiClient.post<StockItemWithRelations>('/stock-items', cleanPayload)
+  const { data } = await apiClient.post<StockItem>('/stock-items', cleanPayload)
   return data
 }
 
@@ -80,6 +71,17 @@ export async function setStockQuantityApi(
 ): Promise<StockItem> {
   const { data } = await apiClient.patch<StockItem>(`/stock-items/${id}/quantity`, {
     quantity: parseFloat(payload.quantity).toFixed(2),
+  })
+  return data
+}
+
+export async function setReorderThresholdApi(
+  id: number,
+  payload: SetReorderThresholdPayload,
+): Promise<StockItem> {
+  const { data } = await apiClient.patch<StockItem>(`/stock-items/${id}/reorder-threshold`, {
+    reorderThreshold:
+      payload.reorderThreshold === null ? null : parseFloat(payload.reorderThreshold).toFixed(2),
   })
   return data
 }

@@ -73,11 +73,12 @@ function ItemFormContent({
     }
 
     if (!isEditing) {
-      let backendMatch: InventoryItemResponse | null = null
+      let backendMatch: InventoryItemResponse | null
       try {
         backendMatch = await fetchProductByNameApi(cleanName)
-      } catch {
-        // Ignore
+      } catch (err) {
+        setErrorMsg(getErrorMessage(err))
+        return
       }
 
       if (

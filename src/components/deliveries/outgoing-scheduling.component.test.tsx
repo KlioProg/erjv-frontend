@@ -22,10 +22,6 @@ function order(id: number, status: SalesOrderRecord['status'] = 'CONFIRMED'): Sa
         id: id * 10,
         inventoryItemId: 1,
         quantity: '100',
-        allocations: [
-          { id: id * 100 + 1, stockItemId: 1, quantity: '60', releasedAt: null },
-          { id: id * 100 + 2, stockItemId: 2, quantity: '40', releasedAt: null },
-        ],
       },
     ],
   } as SalesOrderRecord
@@ -34,19 +30,28 @@ function shipment(
   id: number,
   salesOrderId: number,
   status: OutgoingDeliveryRecord['status'],
-  allocationId: number,
+  sourceCode: number,
   quantity: string,
 ): OutgoingDeliveryRecord {
+  const stockItemId = sourceCode % 10
   return {
     id,
     salesOrderId,
     status,
-    warehouseId: 1,
     deliveryNumber: `OD-${id}`,
     deliveryVehicleId: null,
     driverEmployeeId: null,
     ...dates,
-    items: [{ salesOrderAllocationId: allocationId, quantity }],
+    items: [
+      {
+        id: id * 10,
+        outgoingDeliveryId: id,
+        salesOrderItemId: salesOrderId * 10,
+        stockItemId,
+        quantity,
+        ...dates,
+      },
+    ],
   } as OutgoingDeliveryRecord
 }
 let orders: SalesOrderRecord[]
@@ -81,8 +86,8 @@ beforeEach(() => {
     shipment(50, 5, 'DELIVERED', 501, '60'),
   ]
   stocks = [
-    { id: 1, warehouseId: 1, inventoryItemId: 1, quantity: '100', reservedQuantity: '100' },
-    { id: 2, warehouseId: 2, inventoryItemId: 1, quantity: '100', reservedQuantity: '40' },
+    { id: 1, warehouseId: 1, inventoryItemId: 1, quantity: '100', reservedQuantity: '40' },
+    { id: 2, warehouseId: 2, inventoryItemId: 1, quantity: '100', reservedQuantity: '0' },
   ]
   requests = []
   scheduleFailures = 0
@@ -169,9 +174,9 @@ function mount(preselectedOrderId?: number) {
   )
   return { ...view, queryClient, close }
 }
-async function selectWarehouse(user: ReturnType<typeof userEvent.setup>, name = 'Store') {
-  await user.click(await screen.findByRole('combobox', { name: /Source Warehouse/ }))
-  await user.click(screen.getByRole('option', { name }))
+async function selectSource(user: ReturnType<typeof userEvent.setup>, name = 'Store') {
+  await user.click(await screen.findByRole('combobox', { name: 'Stock source' }))
+  await user.click(screen.getByRole('option', { name: new RegExp(name) }))
 }
 const creates = () => requests.filter((request) => request.method === 'post')
 const schedules = () => requests.filter((request) => request.method === 'patch')
@@ -181,18 +186,18 @@ describe('outgoing scheduling refinement', () => {
     scheduleFailures = 1
     const user = userEvent.setup()
     mount(5)
-    await selectWarehouse(user, 'Main Warehouse')
+    await selectSource(user, 'Main Warehouse')
     await user.click(screen.getByRole('button', { name: 'Schedule Delivery' }))
     expect(await screen.findByText('Schedule unavailable.')).toBeTruthy()
-    const quantity = screen.getByRole('textbox', {
+    const quantity = screen.getByRole('spinbutton', {
       name: 'Quantity to ship for Rice',
     }) as HTMLInputElement
     expect(quantity.value).toBe('40.00')
     expect(quantity.disabled).toBe(true)
     expect(quantity.getAttribute('aria-invalid')).toBe('false')
     expect(
-      (screen.getByRole('textbox', { name: /Source Warehouse/ }) as HTMLInputElement).value,
-    ).toBe('Main Warehouse')
+      screen.getByRole('combobox', { name: 'Stock source' }).textContent,
+    ).toContain('Main Warehouse')
     await user.click(screen.getByRole('button', { name: 'Retry Schedule' }))
     expect(await screen.findByText('Delivery scheduled')).toBeTruthy()
     expect(creates()).toHaveLength(1)
@@ -201,7 +206,7 @@ describe('outgoing scheduling refinement', () => {
   it('reveals an unavailable optional assignment and focuses its selector instead of hiding the error', async () => {
     const user = userEvent.setup()
     mount(1)
-    await selectWarehouse(user)
+    await selectSource(user)
     await user.click(screen.getByText('Vehicle & Driver (Optional)'))
     await user.click(screen.getByRole('combobox', { name: 'Assign Vehicle (Optional)' }))
     await user.click(screen.getByRole('option', { name: 'ABC-123' }))
@@ -226,7 +231,7 @@ describe('outgoing scheduling refinement', () => {
     await waitFor(() =>
       expect(screen.queryByText('Loading orders and shipment balances...')).toBeNull(),
     )
-    expect(screen.queryByRole('combobox', { name: /Source Warehouse/ })).toBeNull()
+    expect(screen.queryByRole('combobox', { name: 'Stock source' })).toBeNull()
     await user.click(screen.getByRole('button', { name: 'Sales Order to Fulfill' }))
     expect(screen.queryByRole('menuitem', { name: /SO-0002/ })).toBeNull()
     expect(screen.queryByRole('menuitem', { name: /SO-0003|SO-0004/ })).toBeNull()
@@ -236,12 +241,8 @@ describe('outgoing scheduling refinement', () => {
     const result = screen.getByRole('menuitem', { name: /SO-0019/ })
     result.focus()
     await user.keyboard('{Enter}')
-    expect(await screen.findByRole('textbox', { name: 'Quantity to ship for Rice' })).toBeTruthy()
-    expect(screen.getAllByRole('columnheader').map((header) => header.textContent)).toEqual([
-      'Product',
-      'Remaining',
-      'This Delivery',
-    ])
+    expect(await screen.findByRole('spinbutton', { name: 'Quantity to ship for Rice' })).toBeTruthy()
+    expect(screen.getByRole('combobox', { name: 'Stock source' })).toBeTruthy()
     expect(screen.queryByRole('checkbox')).toBeNull()
     expect(creates()).toHaveLength(0)
   })
@@ -249,8 +250,8 @@ describe('outgoing scheduling refinement', () => {
   it('saves a draft without scheduling and preserves optional assignments and instructions across collapse', async () => {
     const user = userEvent.setup()
     const { close } = mount(1)
-    await selectWarehouse(user)
-    const quantity = screen.getByRole('textbox', { name: 'Quantity to ship for Rice' })
+    await selectSource(user)
+    const quantity = screen.getByRole('spinbutton', { name: 'Quantity to ship for Rice' })
     expect((quantity as HTMLInputElement).value).toBe('60.00')
     await user.clear(quantity)
     await user.type(quantity, '0.05')
@@ -272,11 +273,10 @@ describe('outgoing scheduling refinement', () => {
     expect(schedules()).toHaveLength(0)
     expect(creates()[0].body).toMatchObject({
       salesOrderId: 1,
-      warehouseId: 1,
       deliveryVehicleId: 1,
       driverEmployeeId: 1,
       notes: 'Use loading gate',
-      items: [{ salesOrderAllocationId: 101, quantity: '0.05' }],
+      items: [{ salesOrderItemId: 10, stockItemId: 1, quantity: '0.05' }],
     })
     await user.click(screen.getByRole('button', { name: 'Done' }))
     expect(close).toHaveBeenCalledOnce()
@@ -285,11 +285,13 @@ describe('outgoing scheduling refinement', () => {
   it('creates then schedules exactly the saved ID, refreshes remaining quantities and reopening excludes a fully arranged order', async () => {
     const user = userEvent.setup()
     const view = mount(5)
-    await selectWarehouse(user, 'Main Warehouse')
+    await selectSource(user, 'Main Warehouse')
     await user.click(screen.getByRole('button', { name: 'Schedule Delivery' }))
     expect(await screen.findByText('Delivery scheduled')).toBeTruthy()
     expect(creates()).toHaveLength(1)
-    expect(creates()[0].body.items).toEqual([{ salesOrderAllocationId: 502, quantity: '40.00' }])
+    expect(creates()[0].body.items).toEqual([
+      { salesOrderItemId: 50, stockItemId: 2, quantity: '40.00' },
+    ])
     expect(schedules().map((request) => request.url)).toEqual(['/outgoing-deliveries/90/schedule'])
     expect(orders.find((candidate) => candidate.id === 5)?.status).toBe('PARTIALLY_DELIVERED')
     view.unmount()
@@ -313,7 +315,7 @@ describe('outgoing scheduling refinement', () => {
       }),
     }
     mount(1)
-    await selectWarehouse(user)
+    await selectSource(user)
     const form = screen.getByRole('button', { name: 'Schedule Delivery' }).closest('form')!
     fireEvent.submit(form)
     fireEvent.submit(form)
@@ -322,7 +324,7 @@ describe('outgoing scheduling refinement', () => {
     await act(async () => release())
     expect(await screen.findByText('Schedule unavailable.')).toBeTruthy()
     expect(
-      (screen.getByRole('textbox', { name: 'Quantity to ship for Rice' }) as HTMLInputElement)
+      (screen.getByRole('spinbutton', { name: 'Quantity to ship for Rice' }) as HTMLInputElement)
         .disabled,
     ).toBe(true)
     gate = {
@@ -343,7 +345,7 @@ describe('outgoing scheduling refinement', () => {
   it('refreshes a concurrent final scheduling change, blocks stale creation and never switches to another order', async () => {
     const user = userEvent.setup()
     mount(1)
-    await selectWarehouse(user)
+    await selectSource(user)
     deliveries.push(shipment(70, 1, 'DRAFT', 101, '60'), shipment(71, 1, 'SCHEDULED', 102, '40'))
     await user.click(screen.getByRole('button', { name: 'Schedule Delivery' }))
     expect(
@@ -352,7 +354,7 @@ describe('outgoing scheduling refinement', () => {
       ),
     ).toBeTruthy()
     expect(creates()).toHaveLength(0)
-    expect(screen.queryByRole('textbox', { name: 'Quantity to ship for Rice' })).toBeNull()
+    expect(screen.queryByRole('spinbutton', { name: 'Quantity to ship for Rice' })).toBeNull()
     await user.click(screen.getByRole('button', { name: 'Sales Order to Fulfill' }))
     expect(screen.queryByRole('menuitem', { name: /SO-0001/ })).toBeNull()
     expect(screen.getByRole('menuitem', { name: /SO-0005/ })).toBeTruthy()
@@ -361,20 +363,24 @@ describe('outgoing scheduling refinement', () => {
   it('retains an edited quantity on a partial conflict, shows its updated source limit and allows correction', async () => {
     const user = userEvent.setup()
     mount(1)
-    await selectWarehouse(user)
-    const quantity = screen.getByRole('textbox', { name: 'Quantity to ship for Rice' })
+    await selectSource(user)
+    const quantity = screen.getByRole('spinbutton', { name: 'Quantity to ship for Rice' })
     await user.clear(quantity)
     await user.type(quantity, '30')
-    deliveries.push(shipment(70, 1, 'DISPATCHED', 101, '40'))
+    deliveries.push(shipment(70, 1, 'DISPATCHED', 101, '80'))
     await user.click(screen.getByRole('button', { name: 'Schedule Delivery' }))
-    expect(await screen.findByText('Quantity exceeds the remaining 20.00.')).toBeTruthy()
+    expect(
+      await screen.findByText('Shipment quantity exceeds the remaining sales order quantity.'),
+    ).toBeTruthy()
     expect((quantity as HTMLInputElement).value).toBe('30')
     expect(creates()).toHaveLength(0)
     await user.clear(quantity)
     await user.type(quantity, '20')
     await user.click(screen.getByRole('button', { name: 'Save Draft' }))
     expect(await screen.findByText('Delivery draft saved')).toBeTruthy()
-    expect(creates()[0].body.items).toEqual([{ salesOrderAllocationId: 101, quantity: '20.00' }])
+    expect(creates()[0].body.items).toEqual([
+      { salesOrderItemId: 10, stockItemId: 1, quantity: '20.00' },
+    ])
   })
 
   it('releases cancelled shipment balances after refresh and handles fully scheduled preselection with a compact empty state', async () => {
@@ -391,10 +397,10 @@ describe('outgoing scheduling refinement', () => {
     await act(async () => {
       await queryClient.invalidateQueries({ queryKey: ['outgoing-deliveries'] })
     })
-    expect(await screen.findByRole('textbox', { name: 'Quantity to ship for Rice' })).toBeTruthy()
-    await selectWarehouse(user)
+    expect(await screen.findByRole('spinbutton', { name: 'Quantity to ship for Rice' })).toBeTruthy()
+    await selectSource(user)
     expect(
-      (screen.getByRole('textbox', { name: 'Quantity to ship for Rice' }) as HTMLInputElement)
+      (screen.getByRole('spinbutton', { name: 'Quantity to ship for Rice' }) as HTMLInputElement)
         .value,
     ).toBe('60.00')
   })
@@ -403,7 +409,7 @@ describe('outgoing scheduling refinement', () => {
     createFailure = true
     const user = userEvent.setup()
     mount(1)
-    await selectWarehouse(user)
+    await selectSource(user)
     await user.click(screen.getByText('Delivery instructions (Optional)'))
     await user.type(
       screen.getByRole('textbox', { name: 'Delivery Notes / Instructions' }),
@@ -432,7 +438,7 @@ describe('outgoing scheduling refinement', () => {
     expect(screen.queryByText(/No Sales Orders awaiting scheduling. Confirmed/)).toBeNull()
     stockFailure = false
     await user.click(screen.getByRole('button', { name: 'Retry loading' }))
-    await selectWarehouse(user)
+    await selectSource(user)
     expect(creates()).toHaveLength(0)
   })
 })

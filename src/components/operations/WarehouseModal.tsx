@@ -88,7 +88,7 @@ function WarehouseFormContent({
         })
       } else {
         // Pre-check if an archived warehouse with this name exists so user can restore it directly
-        const existingMatch = await fetchWarehouseByNameApi(cleanName).catch(() => null)
+        const existingMatch = await fetchWarehouseByNameApi(cleanName)
         if (existingMatch && existingMatch.isActive === false) {
           setDeactivatedWarehouseMatch(existingMatch)
           return

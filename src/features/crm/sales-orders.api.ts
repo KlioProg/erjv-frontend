@@ -10,7 +10,7 @@ export async function fetchSalesOrdersApi(filter?: SalesOrderFilter): Promise<Sa
   return extractArray<SalesOrderRecord>(response.data)
 }
 
-export async function fetchSalesOrderByIdApi(id: number): Promise<SalesOrderRecord> {
+export async function fetchSalesOrderByIdApi(id: number): Promise<SalesOrderRecord | null> {
   const { data } = await apiClient.get<SalesOrderRecord>(`/sales-orders/${id}`)
   return data
 }
@@ -18,14 +18,10 @@ export async function fetchSalesOrderByIdApi(id: number): Promise<SalesOrderReco
 export async function fetchSalesOrderByNumberApi(
   orderNumber: string,
 ): Promise<SalesOrderRecord | null> {
-  try {
-    const { data } = await apiClient.get<SalesOrderRecord>(
-      `/sales-orders/number/${encodeURIComponent(orderNumber.trim())}`,
-    )
-    return data
-  } catch {
-    return null
-  }
+  const { data } = await apiClient.get<SalesOrderRecord>(
+    `/sales-orders/number/${encodeURIComponent(orderNumber.trim())}`,
+  )
+  return data
 }
 
 export async function createSalesOrderApi(
@@ -46,10 +42,6 @@ export async function createSalesOrderApi(
       ...(item.discountRate ? { discountRate: String(item.discountRate) } : {}),
       ...(item.taxRate ? { taxRate: String(item.taxRate) } : {}),
       ...(item.notes?.trim() ? { notes: item.notes.trim() } : {}),
-      allocations: item.allocations?.map((alloc) => ({
-        stockItemId: alloc.stockItemId,
-        quantity: String(alloc.quantity),
-      })),
     })),
   }
 

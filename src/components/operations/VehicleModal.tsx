@@ -85,11 +85,12 @@ function VehicleFormContent({
     }
 
     if (!isEditing) {
-      let backendMatch: DeliveryVehicle | null = null
+      let backendMatch: DeliveryVehicle | null
       try {
         backendMatch = await fetchVehicleByPlateNumberApi(cleanPlate)
-      } catch {
-        // Ignore
+      } catch (err) {
+        setErrorMsg(getErrorMessage(err))
+        return
       }
 
       if (

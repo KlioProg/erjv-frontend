@@ -48,7 +48,17 @@ export function DispatchDeliveryModal({ delivery, open, onClose }: DispatchDeliv
 
   const order = delivery ? salesOrders.find((o) => o.id === delivery.salesOrderId) : null
   const client = order ? clients.find((c) => c.id === order.clientId) : null
-  const warehouse = delivery ? warehouses.find((w) => w.id === delivery.warehouseId) : null
+  const originWarehouses = delivery
+    ? [...new Set(
+        delivery.items.map((item) => {
+          const warehouseId = item.stockItem?.warehouseId
+          return warehouseId === undefined
+            ? 'Warehouse unavailable'
+            : warehouses.find((warehouse) => warehouse.id === warehouseId)?.name ??
+                `Warehouse #${warehouseId}`
+        }),
+      )]
+    : []
 
   const [selectedVehicleId, setSelectedVehicleId] = useState<string>(() =>
     delivery?.deliveryVehicleId ? String(delivery.deliveryVehicleId) : '',
@@ -165,7 +175,7 @@ export function DispatchDeliveryModal({ delivery, open, onClose }: DispatchDeliv
                 {order?.deliveryAddress || 'Client Destination Address'}
               </span>
               <span className="text-xs text-muted-foreground mt-1">
-                Origin: {warehouse?.name || `Warehouse #${delivery.warehouseId}`} •{' '}
+                Origin: {originWarehouses.join(', ') || 'Warehouse unavailable'} •{' '}
                 {delivery.items.length} items to transport
               </span>
             </div>

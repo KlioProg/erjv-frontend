@@ -35,6 +35,7 @@ import {
   useCreatePurchaseOrder,
   useConfirmPurchaseOrder,
   useCancelPurchaseOrder,
+  useUpdatePurchaseOrderDraft,
 } from '@/features/logistics/purchase-orders.hooks'
 import {
   useSuppliers,
@@ -43,7 +44,7 @@ import {
   useDeleteSupplier,
   useReactivateSupplier,
 } from '@/features/logistics/suppliers.hooks'
-import type { Supplier } from '@/features/logistics/suppliers.types'
+import type { CreateSupplierPayload, Supplier } from '@/features/logistics/suppliers.types'
 import type { CreatePurchaseOrderPayload } from '@/features/logistics/purchase-orders.types'
 import { useWarehouses } from '@/features/logistics/warehouses.hooks'
 import { useIncomingDeliveries } from '@/features/logistics/incoming-deliveries.hooks'
@@ -92,10 +93,12 @@ export function PurchasesView({
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null)
   const [supplierToArchive, setSupplierToArchive] = useState<Supplier | null>(null)
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null)
+  const [editingOrderId, setEditingOrderId] = useState<number | null>(null)
   const [orderToCancel, setOrderToCancel] = useState<PurchaseOrderRecord | null>(null)
 
   const { user, isAdmin, isManager } = useAuth()
   const canManage = isAdmin || isManager
+  const canConfirmPurchaseOrder = isAdmin
   const processedBy = user?.fullName || user?.email || 'Current User'
 
   // Data queries
@@ -112,9 +115,13 @@ export function PurchasesView({
   const { data: warehouses = [] } = useWarehouses()
   const { data: incomingDeliveries = [] } = useIncomingDeliveries()
   const selectedOrder = purchaseOrders.find((order) => order.id === selectedOrderId)
+  const editingOrder = purchaseOrders.find(
+    (order) => order.id === editingOrderId && order.status === 'DRAFT',
+  )
 
   // Mutations
   const createPOMutation = useCreatePurchaseOrder({ notifySuccess: false })
+  const updatePOMutation = useUpdatePurchaseOrderDraft()
   const confirmPOMutation = useConfirmPurchaseOrder()
   const cancelPOMutation = useCancelPurchaseOrder()
 
@@ -124,7 +131,7 @@ export function PurchasesView({
   const reactivateSupplierMutation = useReactivateSupplier()
 
   const confirmPurchaseOrder = async (id: number) => {
-    if (!canManage || confirmPOMutation.isPending) return
+    if (!canConfirmPurchaseOrder || confirmPOMutation.isPending) return
     try {
       await confirmPOMutation.mutateAsync(id)
       setSelectedOrderId(null)
@@ -171,7 +178,7 @@ export function PurchasesView({
 
       if (!searchTerm.trim()) return true
       const q = searchTerm.toLowerCase().trim()
-      const supplier = supplierMap.get(po.supplierId)
+      const supplier = po.supplierId == null ? undefined : supplierMap.get(po.supplierId)
       const supplierName = supplier?.name?.toLowerCase() || ''
       const orderNo = po.orderNumber.toLowerCase()
       const extRef = po.externalReference?.toLowerCase() || ''
@@ -214,14 +221,10 @@ export function PurchasesView({
     return order
   }
 
-  const handleSaveSupplier = async (values: {
-    code: string
-    name: string
-    contactPerson?: string
-    phone?: string
-    email?: string
-    address?: string
-  }) => {
+  const handleUpdateDraft = async (id: number, payload: CreatePurchaseOrderPayload) =>
+    updatePOMutation.mutateAsync({ id, payload })
+
+  const handleSaveSupplier = async (values: CreateSupplierPayload) => {
     if (selectedSupplier) {
       await updateSupplierMutation.mutateAsync({
         id: selectedSupplier.id,
@@ -271,13 +274,9 @@ export function PurchasesView({
   }
 
   const orderRows = filteredOrders.map((po) => {
-    const supplier = supplierMap.get(po.supplierId)
-    const supplierName = supplier?.name || `Supplier #${po.supplierId}`
-    const total = (po.items || []).reduce(
-      (sum, item) =>
-        sum + Number(item.totalAmount || Number(item.quantity) * Number(item.unitPrice)),
-      0,
-    )
+    const supplier = po.supplierId == null ? undefined : supplierMap.get(po.supplierId)
+    const supplierName = supplier?.name || (po.supplierId == null ? 'No supplier assigned' : `Supplier #${po.supplierId}`)
+    const total = (po.items || []).reduce((sum, item) => sum + Number(item.totalAmount), 0)
 
     const itemSummary = (po.items || [])
       .map((item) => {
@@ -382,7 +381,7 @@ export function PurchasesView({
           className="flex items-center justify-end gap-1"
           onClick={(event) => event.stopPropagation()}
         >
-          {po.status === 'DRAFT' && canManage && (
+          {po.status === 'DRAFT' && canConfirmPurchaseOrder && (
             <Button
               type="button"
               size="sm"
@@ -425,6 +424,16 @@ export function PurchasesView({
                   <Eye aria-hidden="true" className="mr-2 size-3.5" />
                   View Order
                 </DropdownMenuItem>
+                {canManage && po.status === 'DRAFT' && (
+                  <DropdownMenuItem
+                    onSelect={() => {
+                      setSelectedOrderId(null)
+                      setEditingOrderId(po.id)
+                    }}
+                  >
+                    Edit Draft
+                  </DropdownMenuItem>
+                )}
                 {canManage && ['DRAFT', 'CONFIRMED'].includes(po.status) && (
                   <>
                     <DropdownMenuSeparator />
@@ -730,27 +739,39 @@ export function PurchasesView({
       {selectedOrder && (
         <PurchaseOrderDetailModal
           order={selectedOrder}
-          supplier={supplierMap.get(selectedOrder.supplierId)}
+          supplier={
+            selectedOrder.supplierId == null
+              ? undefined
+              : supplierMap.get(selectedOrder.supplierId)
+          }
           products={products}
           warehouses={warehouses}
           incomingDeliveries={incomingDeliveries}
           statusBadge={renderStatusBadge(selectedOrder.status)}
           onClose={() => setSelectedOrderId(null)}
           onNavigateToDeliveries={onNavigateToDeliveries}
-          onConfirm={canManage ? () => void confirmPurchaseOrder(selectedOrder.id) : undefined}
+          onConfirm={
+            canConfirmPurchaseOrder ? () => void confirmPurchaseOrder(selectedOrder.id) : undefined
+          }
           confirming={confirmPOMutation.isPending}
         />
       )}
 
-      {isPurchaseModalOpen && canManage && (
+      {(isPurchaseModalOpen || editingOrder) && canManage && (
         <PurchaseModal
+          key={editingOrder?.id ?? 'new-purchase-order'}
           open
-          onClose={() => setIsPurchaseModalOpen(false)}
+          onClose={() => {
+            setIsPurchaseModalOpen(false)
+            setEditingOrderId(null)
+          }}
           onSubmit={handleCreatePO}
-          onConfirm={(id) => confirmPOMutation.mutateAsync(id)}
+          onUpdateDraft={editingOrder ? handleUpdateDraft : undefined}
+          onConfirm={canConfirmPurchaseOrder ? (id) => confirmPOMutation.mutateAsync(id) : undefined}
           suppliers={suppliers}
           products={products}
           stockItems={stockItems}
+          draftOrder={editingOrder}
           catalogState={{
             productsLoading: productsQuery.isLoading,
             stockLoading: stockQuery.isLoading,

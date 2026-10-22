@@ -3,39 +3,26 @@ import assert from 'node:assert/strict'
 import {
   canPrepareOutgoing,
   outgoingOrderBalances,
+  outgoingLinesForAvailableSources,
+  outgoingLinesForSources,
   remainingOutgoingItemCount,
-  outgoingSourceCapacity,
-  outgoingLinesForQuantity,
 } from './outgoing-order-balance.ts'
 
 const order = {
   id: 1,
   status: 'CONFIRMED',
   items: [
-    {
-      id: 10,
-      inventoryItemId: 1,
-      quantity: '100',
-      allocations: [
-        { id: 11, stockItemId: 1, quantity: '60', releasedAt: null },
-        { id: 12, stockItemId: 2, quantity: '40', releasedAt: null },
-      ],
-    },
-    {
-      id: 20,
-      inventoryItemId: 2,
-      quantity: '0.25',
-      allocations: [{ id: 21, stockItemId: 3, quantity: '0.25', releasedAt: null }],
-    },
+    { id: 10, inventoryItemId: 1, quantity: '100' },
+    { id: 20, inventoryItemId: 2, quantity: '0.25' },
   ],
 }
-const delivery = (status, allocationId, quantity, salesOrderId = 1) => ({
+const delivery = (status, salesOrderItemId, stockItemId, quantity, salesOrderId = 1) => ({
   salesOrderId,
   status,
-  items: [{ salesOrderAllocationId: allocationId, quantity }],
+  items: [{ salesOrderItemId, stockItemId, quantity }],
 })
 const stocks = [
-  { id: 1, warehouseId: 1, inventoryItemId: 1, quantity: '100', reservedQuantity: '100' },
+  { id: 1, warehouseId: 1, inventoryItemId: 1, quantity: '100', reservedQuantity: '40' },
   { id: 2, warehouseId: 2, inventoryItemId: 1, quantity: '100' },
   { id: 3, warehouseId: 1, inventoryItemId: 2, quantity: '0.20' },
 ]
@@ -50,52 +37,110 @@ test('outgoing eligibility follows deliverable states, not display labels', () =
   for (const status of ['DRAFT', 'CANCELLED', 'DELIVERED'])
     assert.equal(canPrepareOutgoing({ status }), false)
 })
-test('every non-cancelled shipment counts, including drafts, with per-item balances', () => {
+
+test('every non-cancelled delivery counts against its sales-order item', () => {
   const balances = outgoingOrderBalances(order, [
-    delivery('DRAFT', 11, '10'),
-    delivery('SCHEDULED', 11, '20'),
-    delivery('DISPATCHED', 11, '10'),
-    delivery('DELIVERED', 12, '20'),
-    delivery('CANCELLED', 12, '20'),
-    delivery('SCHEDULED', 11, '100', 99),
-    delivery('DELIVERED', 21, '0.20'),
-  ])
+    delivery('DRAFT', 10, 1, '10'),
+    delivery('SCHEDULED', 10, 1, '20'),
+    delivery('DISPATCHED', 10, 1, '10'),
+    delivery('DELIVERED', 10, 2, '20'),
+    delivery('CANCELLED', 10, 2, '20'),
+    delivery('SCHEDULED', 10, 1, '100', 99),
+    delivery('DELIVERED', 20, 3, '0.20'),
+  ], stocks, warehouses)
+
   assert.equal(balances[0].committed, '60.00')
   assert.equal(balances[0].remaining, '40.00')
   assert.equal(balances[1].remaining, '0.05')
   assert.equal(remainingOutgoingItemCount(balances), 2)
-  assert.equal(outgoingSourceCapacity(balances[0], 1, stocks, warehouses), '20.00')
-  assert.equal(outgoingSourceCapacity(balances[0], 2, stocks, warehouses), '20.00')
+  assert.equal(balances[0].sources[0].remaining, '40.00')
+  assert.equal(balances[0].sources[1].remaining, '40.00')
 })
-test('fully arranged differs from delivered and cancellation makes quantities eligible again', () => {
+
+test('cancelled deliveries restore ordered quantities and source choices allow split fulfillment', () => {
   const arranged = [
-    delivery('DRAFT', 11, '60'),
-    delivery('SCHEDULED', 12, '40'),
-    delivery('DISPATCHED', 21, '0.25'),
+    delivery('DRAFT', 10, 1, '60'),
+    delivery('SCHEDULED', 10, 2, '40'),
+    delivery('DISPATCHED', 20, 3, '0.25'),
   ]
-  assert.equal(remainingOutgoingItemCount(outgoingOrderBalances(order, arranged)), 0)
+  assert.equal(remainingOutgoingItemCount(outgoingOrderBalances(order, arranged, stocks, warehouses)), 0)
   arranged[0].status = 'CANCELLED'
-  assert.equal(remainingOutgoingItemCount(outgoingOrderBalances(order, arranged)), 1)
-  assert.equal(order.status, 'CONFIRMED')
+  const [firstBalance] = outgoingOrderBalances(order, arranged, stocks, warehouses)
+  assert.equal(firstBalance.remaining, '60.00')
+  assert.deepEqual(
+    outgoingLinesForSources(firstBalance, [
+      { stockItemId: 1, quantity: '30' },
+      { stockItemId: 2, quantity: '30' },
+    ]),
+    [
+      { salesOrderItemId: 10, stockItemId: 1, quantity: '30.00' },
+      { salesOrderItemId: 10, stockItemId: 2, quantity: '30.00' },
+    ],
+  )
 })
-test('sources use their own saved allocation and physical stock without double-deducting reservations', () => {
-  const balances = outgoingOrderBalances(order, [])
-  assert.equal(outgoingSourceCapacity(balances[0], 1, stocks, warehouses), '60.00')
-  assert.equal(outgoingSourceCapacity(balances[1], 1, stocks, warehouses), '0.20')
-  assert.equal(outgoingSourceCapacity(balances[0], 99, stocks, warehouses), null)
-  assert.deepEqual(outgoingLinesForQuantity(balances[0], 2, '0.05', stocks), [
-    { salesOrderAllocationId: 12, quantity: '0.05' },
+
+test('source selection validates aggregate quantities, per-source availability and duplicates', () => {
+  const [balance] = outgoingOrderBalances(order, [], stocks, warehouses)
+  assert.throws(() =>
+    outgoingLinesForSources(balance, [
+      { stockItemId: 1, quantity: '61' },
+    ]),
+  )
+  assert.throws(() =>
+    outgoingLinesForSources(balance, [
+      { stockItemId: 1, quantity: '60' },
+      { stockItemId: 2, quantity: '41' },
+    ]),
+  )
+  assert.throws(() =>
+    outgoingLinesForSources(balance, [
+      { stockItemId: 1, quantity: '10' },
+      { stockItemId: 1, quantity: '10' },
+    ]),
+  )
+  assert.throws(() =>
+    outgoingLinesForSources(balance, [
+      { stockItemId: 99, quantity: '1' },
+    ]),
+  )
+  assert.deepEqual(outgoingLinesForAvailableSources(balance), [
+    { salesOrderItemId: 10, stockItemId: 1, quantity: '60.00' },
+    { salesOrderItemId: 10, stockItemId: 2, quantity: '40.00' },
   ])
-  assert.throws(() => outgoingLinesForQuantity(balances[0], 2, '40.01', stocks))
 })
-test('unknown and very large quantities remain exact and never become fully arranged', () => {
-  const unknown = outgoingOrderBalances(order, [delivery('SCHEDULED', 11, 'bad')])
+
+test('unknown, malformed and very large quantities stay exact and block unsafe scheduling', () => {
+  const unknown = outgoingOrderBalances(
+    order,
+    [delivery('SCHEDULED', 10, 1, 'bad')],
+    stocks,
+    warehouses,
+  )
   assert.equal(unknown[0].remaining, null)
-  assert.equal(outgoingSourceCapacity(unknown[0], 1, stocks, warehouses), null)
-  const large = structuredClone(order)
-  large.items[0].quantity = '9999999999999999.99'
-  assert.equal(
-    outgoingOrderBalances(large, [delivery('SCHEDULED', 11, '0.05')])[0].remaining,
-    '9999999999999999.94',
+  assert.equal(remainingOutgoingItemCount(unknown), 1)
+  assert.throws(() =>
+    outgoingLinesForSources(unknown[0], [{ stockItemId: 1, quantity: '1' }]),
+  )
+
+  const largeOrder = {
+    id: 2,
+    status: 'CONFIRMED',
+    items: [{ id: 30, inventoryItemId: 3, quantity: '9999999999999999.99' }],
+  }
+  const large = outgoingOrderBalances(largeOrder, [], [
+    { id: 4, warehouseId: 1, inventoryItemId: 3, quantity: '9999999999999999.99' },
+  ], warehouses)
+  assert.equal(large[0].remaining, '9999999999999999.99')
+  assert.deepEqual(
+    outgoingLinesForSources(large[0], [
+      { stockItemId: 4, quantity: '9999999999999999.99' },
+    ]),
+    [
+      {
+        salesOrderItemId: 30,
+        stockItemId: 4,
+        quantity: '9999999999999999.99',
+      },
+    ],
   )
 })
