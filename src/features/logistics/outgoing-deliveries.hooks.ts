@@ -53,14 +53,15 @@ export function useOutgoingDeliveryByNumber(deliveryNumber?: string) {
   })
 }
 
-export function useCreateOutgoingDelivery() {
+export function useCreateOutgoingDelivery(options?: { notifySuccess?: boolean }) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (payload: CreateOutgoingDeliveryPayload) => createOutgoingDeliveryApi(payload),
     onSuccess: (newDelivery) => {
       void queryClient.invalidateQueries({ queryKey: DELIVERIES_QUERY_KEY })
       void queryClient.invalidateQueries({ queryKey: SALES_ORDERS_QUERY_KEY })
-      toast.success(`Delivery shipment "${newDelivery.deliveryNumber}" created successfully`)
+      if (options?.notifySuccess !== false)
+        toast.success(`Delivery shipment "${newDelivery.deliveryNumber}" created successfully`)
     },
     onError: (err) => {
       toast.error(getErrorMessage(err))
@@ -71,10 +72,18 @@ export function useCreateOutgoingDelivery() {
 export function useScheduleOutgoingDelivery() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (id: number) => scheduleOutgoingDeliveryApi(id),
+    mutationFn: async (id: number) => {
+      const delivery = await scheduleOutgoingDeliveryApi(id)
+      if (delivery.id !== id || delivery.status !== 'SCHEDULED')
+        throw new Error(
+          'The server did not confirm scheduling this delivery. Review it in Outgoing Deliveries before retrying.',
+        )
+      return delivery
+    },
     onSuccess: (delivery) => {
       void queryClient.invalidateQueries({ queryKey: DELIVERIES_QUERY_KEY })
       toast.success(`Delivery "${delivery.deliveryNumber}" scheduled successfully`)
+      void queryClient.invalidateQueries({ queryKey: SALES_ORDERS_QUERY_KEY })
     },
     onError: (err) => {
       toast.error(getErrorMessage(err))

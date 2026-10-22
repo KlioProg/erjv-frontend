@@ -18,7 +18,7 @@ export function VehicleStatusBadge({
   return (
     <Badge
       variant="outline"
-      className={`text-[10px] font-bold px-2 py-0.5 rounded-full inline-flex items-center gap-1.5 ${config.badgeClass} ${className}`}
+      className={`text-xs font-medium px-2 py-0.5 rounded-md inline-flex items-center gap-2 ${config.badgeClass} ${className}`}
       title={config.description}
     >
       {showDot && <span className={`size-1.5 rounded-full shrink-0 ${config.dotClass}`} />}

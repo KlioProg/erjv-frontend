@@ -1,13 +1,9 @@
 /* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useContext, useEffect, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { getErrorMessage } from '@/lib/api-client'
 import { getProfileApi, loginApi, registerApi } from './auth.api'
-import type {
-  LoginRequest,
-  RegisterRequest,
-  SafeUserResponse,
-  UpdateUserProfilePayload,
-} from './auth.types'
+import type { LoginRequest, RegisterRequest, SafeUserResponse } from './auth.types'
 import { USER_ROLES, type UserRole } from './roles'
 
 type AuthContextType = {
@@ -22,7 +18,6 @@ type AuthContextType = {
   canManageOperations: boolean
   login: (payload: LoginRequest, rememberMe?: boolean) => Promise<void>
   register: (payload: RegisterRequest) => Promise<SafeUserResponse>
-  updateProfile: (payload: UpdateUserProfilePayload) => Promise<SafeUserResponse>
   logout: () => void
 }
 
@@ -119,10 +114,10 @@ export function normalizeUser(
   }
 }
 
-const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000
 const ONE_DAY_MS = 24 * 60 * 60 * 1000
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const queryClient = useQueryClient()
   const [token, setToken] = useState<string | null>(() => localStorage.getItem('erjv_access_token'))
   const [user, setUser] = useState<SafeUserResponse | null>(null)
   const [isLoading, setIsLoading] = useState<boolean>(true)
@@ -217,6 +212,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         throw new Error('No access token returned by server.')
       }
 
+      queryClient.clear()
       localStorage.setItem('erjv_access_token', accessToken)
       setToken(accessToken)
 
@@ -237,7 +233,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const normalized = normalizeUser(profile || { email: cleanEmail })
       setUser(normalized)
 
-      const expiryTime = Date.now() + (rememberMe ? THIRTY_DAYS_MS : ONE_DAY_MS)
+      const expiryTime = Date.now() + ONE_DAY_MS
       localStorage.setItem('erjv_session_expiry', String(expiryTime))
       if (rememberMe) {
         localStorage.setItem('erjv_remember_me', 'true')
@@ -273,30 +269,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  const updateProfile = async (payload: UpdateUserProfilePayload): Promise<SafeUserResponse> => {
-    if (!user) {
-      throw new Error('No user is currently logged in.')
-    }
-
-    const isAdmin = user.role === 'ADMIN'
-    const newFullName =
-      isAdmin && payload.fullName !== undefined ? payload.fullName.trim() : user.fullName
-
-    const updatedUser: SafeUserResponse = {
-      ...user,
-      fullName: newFullName,
-      phone: payload.phone !== undefined ? payload.phone : user.phone,
-      avatarUrl: payload.avatarUrl !== undefined ? payload.avatarUrl : user.avatarUrl,
-      jobTitle: payload.jobTitle !== undefined ? payload.jobTitle : user.jobTitle,
-      bio: payload.bio !== undefined ? payload.bio : user.bio,
-      updatedAt: new Date().toISOString(),
-    }
-
-    setUser(updatedUser)
-    return updatedUser
-  }
-
   const logout = () => {
+    queryClient.clear()
     localStorage.removeItem('erjv_access_token')
     localStorage.removeItem('erjv_current_user')
     localStorage.removeItem('erjv_demo_user')
@@ -327,7 +301,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         canManageOperations,
         login,
         register,
-        updateProfile,
         logout,
       }}
     >

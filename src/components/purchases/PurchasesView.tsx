@@ -1,33 +1,35 @@
+import { PageHeader, PageToolbar } from '@/components/ui/ManagementPage'
+import { toast } from 'sonner'
 import { useState, useMemo } from 'react'
 import {
   Archive,
-  ArrowDownToLine,
   Building2,
   Check,
   CheckCircle2,
-  ChevronRight,
   Clock,
   Eye,
-  Info,
+  MoreHorizontal,
   Package,
   Plus,
   Search,
-  Truck,
-  X,
   XCircle,
 } from 'lucide-react'
 import { Card } from '@/components/ui/card'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { ArchiveTabNav } from '@/components/ui/ArchiveTabNav'
 import { StatusTabNav } from '@/components/ui/StatusTabNav'
 import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal'
+import type { PurchaseOrderRecord } from '@/features/logistics/purchase-orders.types'
 import { PurchaseModal } from './PurchaseModal'
 import { PurchaseOrderDetailModal } from './PurchaseOrderDetailModal'
 import { SupplierModal } from './SupplierModal'
 import { useAuth } from '@/features/auth/AuthContext'
 import { useProducts } from '@/features/products/products.hooks'
+import { useStockItems } from '@/features/logistics/stock-items.hooks'
+import { getErrorMessage } from '@/lib/api-client'
 import {
   usePurchaseOrders,
   useCreatePurchaseOrder,
@@ -46,8 +48,17 @@ import type { CreatePurchaseOrderPayload } from '@/features/logistics/purchase-o
 import { useWarehouses } from '@/features/logistics/warehouses.hooks'
 import { useIncomingDeliveries } from '@/features/logistics/incoming-deliveries.hooks'
 import { DataTable, type ColumnDef } from '@/components/ui/data-table'
-import { DirectoryStatusBadge } from '@/components/ui/DirectoryRowControls'
+import { OverflowValue } from '@/components/ui/OverflowValue'
 import { DataTableActions } from '@/components/ui/DataTableActions'
+import { cn } from '@/lib/utils'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 
 export type PurchaseTabFilter = 'Active' | 'Completed' | 'Cancelled'
 
@@ -55,7 +66,16 @@ export type PurchaseSection = 'orders' | 'suppliers'
 
 type PurchasesViewProps = {
   section?: PurchaseSection
-  onNavigateToDeliveries?: (purchaseOrderId?: number) => void
+  onNavigateToDeliveries?: (purchaseOrderId?: number, arrange?: boolean) => void
+}
+
+const purchaseStatusBadgeClassNames: Record<PurchaseOrderRecord['status'], string> = {
+  DRAFT: 'border-border/70! bg-muted/20 text-muted-foreground',
+  CONFIRMED: 'border-status-info-foreground/15! bg-status-info text-status-info-foreground',
+  PARTIALLY_RECEIVED:
+    'border-status-warning-foreground/15! bg-status-warning text-status-warning-foreground',
+  RECEIVED: 'border-status-success-foreground/15! bg-status-success text-status-success-foreground',
+  CANCELLED: 'border-destructive/15! bg-destructive/5 text-destructive',
 }
 
 export function PurchasesView({
@@ -72,22 +92,29 @@ export function PurchasesView({
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null)
   const [supplierToArchive, setSupplierToArchive] = useState<Supplier | null>(null)
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null)
+  const [orderToCancel, setOrderToCancel] = useState<PurchaseOrderRecord | null>(null)
 
-  const { user } = useAuth()
+  const { user, isAdmin, isManager } = useAuth()
+  const canManage = isAdmin || isManager
   const processedBy = user?.fullName || user?.email || 'Current User'
 
   // Data queries
-  const { data: purchaseOrders = [], isLoading: isLoadingPOs } = usePurchaseOrders()
-  const { data: suppliers = [], isLoading: isLoadingSuppliers } = useSuppliers({
+  const ordersQuery = usePurchaseOrders()
+  const { data: purchaseOrders = [], isLoading: isLoadingPOs } = ordersQuery
+  const suppliersQuery = useSuppliers({
     includeInactive: 'true',
   })
-  const { data: products = [] } = useProducts()
+  const { data: suppliers = [], isLoading: isLoadingSuppliers } = suppliersQuery
+  const stockQuery = useStockItems()
+  const { data: stockItems = [] } = stockQuery
+  const productsQuery = useProducts()
+  const { data: products = [] } = productsQuery
   const { data: warehouses = [] } = useWarehouses()
   const { data: incomingDeliveries = [] } = useIncomingDeliveries()
   const selectedOrder = purchaseOrders.find((order) => order.id === selectedOrderId)
 
   // Mutations
-  const createPOMutation = useCreatePurchaseOrder()
+  const createPOMutation = useCreatePurchaseOrder({ notifySuccess: false })
   const confirmPOMutation = useConfirmPurchaseOrder()
   const cancelPOMutation = useCancelPurchaseOrder()
 
@@ -95,6 +122,16 @@ export function PurchasesView({
   const updateSupplierMutation = useUpdateSupplier()
   const deleteSupplierMutation = useDeleteSupplier()
   const reactivateSupplierMutation = useReactivateSupplier()
+
+  const confirmPurchaseOrder = async (id: number) => {
+    if (!canManage || confirmPOMutation.isPending) return
+    try {
+      await confirmPOMutation.mutateAsync(id)
+      setSelectedOrderId(null)
+    } catch {
+      /* The mutation shows the API error; retain the order for retry. */
+    }
+  }
 
   const supplierMap = useMemo(() => {
     return new Map(suppliers.map((s) => [s.id, s]))
@@ -167,9 +204,14 @@ export function PurchasesView({
     )
   }, [activeSuppliers, archivedSuppliers, supplierView, searchTerm])
 
-  const handleCreatePO = async (payload: CreatePurchaseOrderPayload) => {
-    await createPOMutation.mutateAsync(payload)
-    setIsPurchaseModalOpen(false)
+  const handleCreatePO = async (
+    payload: CreatePurchaseOrderPayload,
+    intent: 'draft' | 'confirm' = 'draft',
+  ) => {
+    const order = await createPOMutation.mutateAsync(payload)
+    if (intent === 'draft')
+      toast.success('Draft saved', { description: `Purchase order ${order.orderNumber}.` })
+    return order
   }
 
   const handleSaveSupplier = async (values: {
@@ -192,62 +234,37 @@ export function PurchasesView({
     setSelectedSupplier(null)
   }
 
-  const renderStatusBadge = (status: string) => {
+  const renderStatusBadge = (status: PurchaseOrderRecord['status']) => {
+    const className = cn('whitespace-nowrap px-2', purchaseStatusBadgeClassNames[status])
     switch (status) {
       case 'DRAFT':
         return (
-          <Badge
-            variant="outline"
-            className="rounded-full bg-amber-500/10 text-amber-600 border-amber-500/20 px-2 py-0.5 text-[10px] font-semibold inline-flex items-center gap-1"
-          >
-            <Clock className="size-3" />
+          <Badge variant="outline" className={className}>
             Draft
           </Badge>
         )
       case 'CONFIRMED':
         return (
-          <Badge
-            variant="outline"
-            className="rounded-full bg-blue-500/10 text-blue-600 border-blue-500/20 px-2 py-0.5 text-[10px] font-semibold inline-flex items-center gap-1"
-          >
-            <CheckCircle2 className="size-3" />
+          <Badge variant="outline" className={className}>
             Confirmed
           </Badge>
         )
       case 'PARTIALLY_RECEIVED':
         return (
-          <Badge
-            variant="outline"
-            className="rounded-full bg-indigo-500/10 text-indigo-600 border-indigo-500/20 px-2 py-0.5 text-[10px] font-semibold inline-flex items-center gap-1"
-          >
-            <Truck className="size-3" />
+          <Badge variant="outline" className={className}>
             Partially Received
           </Badge>
         )
       case 'RECEIVED':
         return (
-          <Badge
-            variant="outline"
-            className="rounded-full bg-emerald-500/10 text-emerald-600 border-emerald-500/20 px-2 py-0.5 text-[10px] font-semibold inline-flex items-center gap-1"
-          >
-            <CheckCircle2 className="size-3" />
+          <Badge variant="outline" className={className}>
             Received
           </Badge>
         )
       case 'CANCELLED':
         return (
-          <Badge
-            variant="outline"
-            className="rounded-full bg-rose-500/10 text-rose-600 border-rose-500/20 px-2 py-0.5 text-[10px] font-semibold inline-flex items-center gap-1"
-          >
-            <XCircle className="size-3" />
+          <Badge variant="outline" className={className}>
             Cancelled
-          </Badge>
-        )
-      default:
-        return (
-          <Badge variant="outline" className="text-[10px]">
-            {status}
           </Badge>
         )
     }
@@ -270,12 +287,6 @@ export function PurchasesView({
       })
       .join(', ')
 
-    const orderDate = new Date(po.orderedAt).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    })
-
     const expectedDate = po.expectedAt
       ? new Date(po.expectedAt).toLocaleDateString('en-US', {
           year: 'numeric',
@@ -284,62 +295,71 @@ export function PurchasesView({
         })
       : 'Not set'
 
-    return { po, supplierName, total, itemSummary, orderDate, expectedDate }
+    return { po, supplierName, total, itemSummary, expectedDate }
   })
 
   const orderColumns: ColumnDef<(typeof orderRows)[number]>[] = [
     {
       id: 'number',
-      header: 'Order Number',
-      className: 'font-mono text-xs font-bold text-foreground',
-      cell: ({ row: { po, orderDate } }) => (
-        <>
-          <div className="flex items-center gap-1.5">
-            <Package className="size-3.5 text-primary" />
-            <span>{po.orderNumber}</span>
-          </div>
-          <span className="text-[10px] text-muted-foreground font-sans block mt-0.5">
-            {orderDate}
-          </span>
-        </>
+      header: 'Order',
+      width: 145,
+      className: 'min-w-[145px]',
+      cell: ({ row: { po } }) => (
+        <span className="whitespace-nowrap text-sm font-medium text-foreground">
+          {po.orderNumber}
+        </span>
       ),
     },
     {
       id: 'supplier',
       header: 'Supplier',
-      className: 'text-xs font-semibold text-foreground',
+      width: 190,
+      className: 'min-w-[160px] max-w-[230px]',
       cell: ({ row: { po, supplierName } }) => (
-        <>
-          <div>{supplierName}</div>
+        <div className="flex min-w-0 flex-col gap-1">
+          <span className="truncate text-sm font-medium text-foreground" title={supplierName}>
+            {supplierName}
+          </span>
           {po.externalReference && (
-            <div className="text-[10px] text-muted-foreground font-normal">
+            <span className="truncate text-xs text-muted-foreground" title={po.externalReference}>
               Ref: {po.externalReference}
-            </div>
+            </span>
           )}
-        </>
+        </div>
       ),
     },
     {
       id: 'items',
-      header: 'Ordered Materials',
-      className: 'text-xs text-foreground/90 max-w-[240px] truncate',
-      cell: ({ row: { itemSummary } }) => (
-        <>
-          <span title={itemSummary}>{itemSummary || 'No items listed'}</span>
-        </>
-      ),
+      header: 'Items',
+      width: 190,
+      className: 'max-w-[240px]',
+      cell: ({ row: { po, itemSummary } }) =>
+        (po.items?.length ?? 0) > 1 ? (
+          <OverflowValue
+            value={`${po.items?.length ?? 0} items`}
+            fullValue={itemSummary}
+            showFullValueOnHover
+            className="text-foreground"
+          />
+        ) : (
+          <span className="block truncate text-foreground" title={itemSummary}>
+            {itemSummary || 'No items listed'}
+          </span>
+        ),
     },
     {
       id: 'date',
       header: 'Expected Date',
-      className: 'text-xs text-muted-foreground',
-      cell: ({ row: { expectedDate } }) => <>{expectedDate}</>,
+      width: 135,
+      className: 'whitespace-nowrap tabular-nums text-foreground',
+      cell: ({ row: { expectedDate } }) => expectedDate,
     },
     {
       id: 'total',
-      header: 'Total Amount',
+      header: 'Total',
+      width: 115,
       align: 'right',
-      className: 'text-xs font-bold text-foreground text-right font-mono',
+      className: 'whitespace-nowrap tabular-nums text-foreground',
       cell: ({ row: { total } }) => (
         <>₱{total.toLocaleString('en-US', { minimumFractionDigits: 2 })}</>
       ),
@@ -347,114 +367,80 @@ export function PurchasesView({
     {
       id: 'status',
       header: 'Status',
-      align: 'center',
-      className: 'text-center',
+      width: 155,
+      className: 'whitespace-nowrap',
       cell: ({ row: { po } }) => <>{renderStatusBadge(po.status)}</>,
     },
     {
       id: 'actions',
       header: 'Actions',
+      width: 190,
       align: 'right',
-      className: 'text-right',
+      className: 'whitespace-nowrap',
       cell: ({ row: { po } }) => (
-        <>
-          <div className="flex items-center justify-end gap-1">
+        <div
+          className="flex items-center justify-end gap-1"
+          onClick={(event) => event.stopPropagation()}
+        >
+          {po.status === 'DRAFT' && canManage && (
             <Button
-              variant="ghost"
-              size="icon"
-              aria-label={`View purchase order ${po.orderNumber}`}
-              title="View Purchase Order"
-              onClick={() => setSelectedOrderId(po.id)}
+              type="button"
+              size="sm"
+              className="pointer-coarse:min-h-11"
+              disabled={confirmPOMutation.isPending}
+              onClick={() => void confirmPurchaseOrder(po.id)}
+              title="Confirm Purchase Order"
             >
-              <Eye data-icon="inline-start" />
+              <Check aria-hidden="true" data-icon="inline-start" />
+              Confirm
             </Button>
-            {po.status === 'DRAFT' && (
-              <>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-7 px-2 text-[11px] text-emerald-600 border-emerald-500/30 hover:bg-emerald-500/10"
-                  onClick={() => confirmPOMutation.mutate(po.id)}
-                  disabled={confirmPOMutation.isPending}
-                  title="Confirm Purchase Order"
-                >
-                  <Check className="size-3 mr-1" />
-                  Confirm
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 px-2 text-[11px] text-rose-600 hover:bg-rose-500/10"
-                  onClick={() => cancelPOMutation.mutate(po.id)}
-                  disabled={cancelPOMutation.isPending}
-                  title="Cancel Purchase Order"
-                >
-                  <X className="size-3 mr-1" />
-                  Cancel
-                </Button>
-              </>
-            )}
-            {po.status === 'CONFIRMED' && (
-              <div className="flex items-center justify-end gap-1.5">
-                {onNavigateToDeliveries ? (
-                  <button
-                    type="button"
-                    onClick={() => onNavigateToDeliveries(po.id)}
-                    className="group inline-flex items-center gap-1 rounded-md border border-border/80 bg-muted/40 px-2 py-1 text-[10px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted/70 transition-colors"
-                    title="Go to Deliveries → Incoming to schedule and receive materials"
-                  >
-                    <ArrowDownToLine className="size-3 text-primary group-hover:translate-y-0.5 transition-transform" />
-                    <span>Incoming Deliveries</span>
-                    <ChevronRight className="size-2.5 opacity-60" />
-                  </button>
-                ) : (
-                  <span
-                    className="inline-flex items-center gap-1 rounded-md border border-border/80 bg-muted/40 px-2 py-1 text-[10px] font-medium text-muted-foreground"
-                    title="Receive materials via Deliveries → Incoming"
-                  >
-                    <ArrowDownToLine className="size-3 text-primary" />
-                    <span>Incoming Deliveries</span>
-                  </span>
+          )}
+          {['CONFIRMED', 'PARTIALLY_RECEIVED'].includes(po.status) && onNavigateToDeliveries && (
+            <Button
+              type="button"
+              size="sm"
+              className="pointer-coarse:min-h-11"
+              onClick={() => onNavigateToDeliveries(po.id)}
+              title="Open Incoming Deliveries for this purchase order"
+            >
+              Incoming Deliveries
+            </Button>
+          )}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="size-8 text-muted-foreground pointer-coarse:size-11"
+                aria-label={`More actions for ${po.orderNumber}`}
+                title="More actions"
+              >
+                <MoreHorizontal aria-hidden="true" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-44">
+              <DropdownMenuGroup>
+                <DropdownMenuItem onSelect={() => setSelectedOrderId(po.id)}>
+                  <Eye aria-hidden="true" className="mr-2 size-3.5" />
+                  View Order
+                </DropdownMenuItem>
+                {canManage && ['DRAFT', 'CONFIRMED'].includes(po.status) && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      disabled={cancelPOMutation.isPending}
+                      onSelect={() => setOrderToCancel(po)}
+                      className="text-destructive focus:text-destructive"
+                    >
+                      Cancel Order
+                    </DropdownMenuItem>
+                  </>
                 )}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 px-2 text-[11px] text-rose-600 hover:bg-rose-500/10"
-                  onClick={() => cancelPOMutation.mutate(po.id)}
-                  disabled={cancelPOMutation.isPending}
-                  title="Cancel Purchase Order"
-                >
-                  <X className="size-3 mr-1" />
-                  Cancel
-                </Button>
-              </div>
-            )}
-            {po.status === 'PARTIALLY_RECEIVED' && (
-              <div className="flex items-center justify-end">
-                {onNavigateToDeliveries ? (
-                  <button
-                    type="button"
-                    onClick={() => onNavigateToDeliveries(po.id)}
-                    className="group inline-flex items-center gap-1 rounded-md border border-border/80 bg-muted/40 px-2 py-1 text-[10px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted/70 transition-colors"
-                    title="Go to Deliveries → Incoming to receive remaining cargo"
-                  >
-                    <ArrowDownToLine className="size-3 text-indigo-500 group-hover:translate-y-0.5 transition-transform" />
-                    <span>View Incoming</span>
-                    <ChevronRight className="size-2.5 opacity-60" />
-                  </button>
-                ) : (
-                  <span
-                    className="inline-flex items-center gap-1 rounded-md border border-border/80 bg-muted/40 px-2 py-1 text-[10px] font-medium text-muted-foreground"
-                    title="Receive remaining materials via Deliveries → Incoming"
-                  >
-                    <ArrowDownToLine className="size-3 text-indigo-500" />
-                    <span>View Incoming</span>
-                  </span>
-                )}
-              </div>
-            )}
-          </div>
-        </>
+              </DropdownMenuGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       ),
     },
   ]
@@ -463,50 +449,52 @@ export function PurchasesView({
     {
       id: 'supplier-0',
       header: 'Code',
-      className: 'font-mono text-xs font-bold text-foreground',
+      width: '12%',
+      sortable: true,
+      sortKey: 'code',
+      className: 'text-sm font-medium text-foreground',
       cell: ({ row: supplier }) => <>{supplier.code}</>,
     },
     {
       id: 'supplier-1',
       header: 'Company Name',
-      className: 'text-xs font-semibold text-foreground',
-      cell: ({ row: supplier }) => <>{supplier.name}</>,
+      width: '22%',
+      sortable: true,
+      sortKey: 'name',
+      className: 'text-sm font-medium text-foreground',
+      cell: ({ row: supplier }) => <OverflowValue value={supplier.name} />,
     },
     {
       id: 'supplier-2',
       header: 'Contact Person',
-      className: 'text-xs text-foreground/90',
+      width: '15%',
+      sortable: true,
+      sortKey: (supplier) => supplier.contactPerson || '',
+      className: 'text-sm text-foreground',
       cell: ({ row: supplier }) => <>{supplier.contactPerson || '—'}</>,
     },
     {
       id: 'supplier-3',
       header: 'Phone & Email',
-      className: 'text-xs text-muted-foreground',
+      width: '23%',
+      className: 'text-sm text-foreground',
       cell: ({ row: supplier }) => (
         <>
-          <div>{supplier.phone || '—'}</div>
-          {supplier.email && <div className="text-[10px] text-primary">{supplier.email}</div>}
+          <OverflowValue value={supplier.phone} />
+          {supplier.email && (
+            <OverflowValue value={supplier.email} className="text-xs text-muted-foreground" />
+          )}
         </>
       ),
     },
     {
       id: 'supplier-4',
       header: 'Address',
-      className: 'text-xs text-muted-foreground max-w-[200px] truncate',
-      cell: ({ row: supplier }) => (
-        <>
-          <span title={supplier.address || ''}>{supplier.address || '—'}</span>
-        </>
-      ),
-    },
-    {
-      id: 'supplier-5',
-      header: 'Status',
-      align: 'center',
-      className: 'text-center',
-      cell: ({ row: supplier }) => (
-        <DirectoryStatusBadge isActive={supplier.isActive !== false} inactiveLabel="Archived" />
-      ),
+      width: '20%',
+      sortable: true,
+      sortKey: (supplier) => supplier.address || '',
+      className: 'text-sm text-foreground max-w-[280px]',
+      cell: ({ row: supplier }) => <OverflowValue value={supplier.address} />,
     },
     {
       id: 'supplier-6',
@@ -538,9 +526,12 @@ export function PurchasesView({
   ]
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex min-w-0 flex-col gap-4">
       {section === 'orders' ? (
-        <div className="flex flex-col gap-5">
+        <div className="flex flex-col gap-4">
+          <PageHeader description="Manage supplier orders and track stock receiving.">
+            Purchase Orders
+          </PageHeader>
           <StatusTabNav
             activeTab={activeStatus}
             onTabChange={(tab) => setActiveStatus(tab as PurchaseTabFilter)}
@@ -569,62 +560,59 @@ export function PurchasesView({
             ]}
           />
 
-          {activeStatus === 'Active' && (
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 rounded-xl border border-border bg-background/60 px-3.5 py-2.5 text-xs text-muted-foreground">
-              <div className="flex items-center gap-2">
-                <Info className="size-4 text-muted-foreground shrink-0" />
-                <span>
-                  Delivered shipments are scheduled and received in{' '}
-                  <strong className="text-foreground font-semibold">Deliveries → Incoming</strong>.
-                </span>
-              </div>
-              {onNavigateToDeliveries && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => onNavigateToDeliveries()}
-                  className="h-7 text-xs font-semibold gap-1 px-2.5 shrink-0 bg-background hover:bg-muted"
-                >
-                  Go to Incoming Deliveries
-                  <ChevronRight className="size-3.5" />
-                </Button>
-              )}
-            </div>
-          )}
-
-          <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
+          <PageToolbar>
             <div className="relative w-full sm:w-80">
               <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
+                aria-label="Search purchase orders"
                 placeholder="Search order number, supplier, reference..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-9 h-9 text-xs"
+                className="pl-9 h-9 text-ui"
               />
             </div>
 
             <Button
               size="sm"
               onClick={() => setIsPurchaseModalOpen(true)}
-              disabled={!suppliers.some((supplier) => supplier.isActive)}
+              disabled={!canManage || !suppliers.some((supplier) => supplier.isActive)}
             >
               <Plus className="size-4" />
               Create Purchase Order
             </Button>
-          </div>
+          </PageToolbar>
 
-          {isLoadingPOs ? (
-            <Card className="flex min-h-[300px] items-center justify-center p-8">
-              <div className="flex flex-col items-center gap-2">
-                <Clock className="size-6 animate-spin text-primary" />
-                <p className="text-xs text-muted-foreground">Loading purchase orders...</p>
-              </div>
-            </Card>
+          {ordersQuery.isError ? (
+            <Alert variant="destructive">
+              <AlertDescription>
+                Purchase orders could not be loaded. {getErrorMessage(ordersQuery.error)}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="ml-2"
+                  onClick={() => void ordersQuery.refetch()}
+                  disabled={ordersQuery.isFetching}
+                >
+                  {ordersQuery.isFetching ? 'Retrying...' : 'Retry'}
+                </Button>
+              </AlertDescription>
+            </Alert>
+          ) : isLoadingPOs ? (
+            <DataTable
+              appearance="management"
+              data={orderRows}
+              columns={orderColumns}
+              getRowKey={({ po }) => po.id}
+              isLoading
+              loadingMessage="Loading purchase orders..."
+              pageSize={10}
+              pageSizeOptions={[10, 25, 50, 100]}
+              tableClassName="table-fixed min-w-[1040px] xl:min-w-[1120px]"
+            />
           ) : filteredOrders.length === 0 ? (
-            <Card className="flex min-h-[340px] items-center justify-center border-dashed bg-muted/20 shadow-xs">
+            <Card className="flex min-h-[340px] items-center justify-center border-border bg-card shadow-none">
               <div className="flex flex-col items-center justify-center text-center">
-                <Package className="size-8 text-muted-foreground/40 mb-2" />
+                <Package className="size-8 text-muted-foreground mb-2" />
                 <span className="text-sm font-semibold text-foreground">
                   {searchTerm.trim()
                     ? `No purchase orders match "${searchTerm.trim()}"`
@@ -641,15 +629,21 @@ export function PurchasesView({
             </Card>
           ) : (
             <DataTable
+              appearance="management"
               data={orderRows}
               columns={orderColumns}
               getRowKey={({ po }) => po.id}
-              pagination={false}
+              pageSize={10}
+              pageSizeOptions={[10, 25, 50, 100]}
+              tableClassName="table-fixed min-w-[1040px] xl:min-w-[1120px]"
             />
           )}
         </div>
       ) : (
-        <div className="flex flex-col gap-5">
+        <div className="flex min-w-0 flex-col gap-4">
+          <PageHeader description="Manage supplier details and purchasing contacts.">
+            Suppliers
+          </PageHeader>
           <ArchiveTabNav
             activeTab={supplierView}
             onTabChange={setSupplierView}
@@ -660,7 +654,7 @@ export function PurchasesView({
             activeIcon={<Building2 className="size-3.5" />}
             bannerDescription="Archived suppliers remain in past purchase orders and receiving records. Restore them to use them in new orders."
           />
-          <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
+          <PageToolbar>
             <div className="relative w-full sm:w-80">
               <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -668,7 +662,7 @@ export function PurchasesView({
                 placeholder="Search suppliers..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-9 h-9 text-xs"
+                className="pl-9 h-9 text-ui"
               />
             </div>
 
@@ -682,35 +676,54 @@ export function PurchasesView({
               <Plus className="size-4" />
               Add Supplier
             </Button>
-          </div>
+          </PageToolbar>
 
-          <DataTable
-            data={filteredSuppliers}
-            columns={supplierColumns}
-            getRowKey={(supplier) => supplier.id}
-            isLoading={isLoadingSuppliers}
-            loadingMessage="Loading supplier directory..."
-            pagination={false}
-            emptyContent={
-              <Card className="flex min-h-[340px] items-center justify-center border-dashed bg-muted/20 shadow-xs">
-                <div className="flex flex-col items-center justify-center text-center">
-                  <Building2 className="size-8 text-muted-foreground/40 mb-2" />
-                  <span className="text-sm font-semibold text-foreground">
-                    {searchTerm.trim()
-                      ? `No suppliers match "${searchTerm.trim()}"`
-                      : supplierView === 'ACTIVE'
-                        ? 'No active suppliers found'
-                        : 'No archived suppliers found'}
-                  </span>
-                  <p className="text-xs text-muted-foreground mt-1 max-w-xs">
-                    {supplierView === 'ACTIVE'
-                      ? 'Register suppliers to begin purchasing stock materials.'
-                      : 'Archived suppliers will appear here and can be restored.'}
-                  </p>
+          {suppliersQuery.isError ? (
+            <Alert variant="destructive">
+              <AlertDescription>
+                Suppliers could not be loaded. {getErrorMessage(suppliersQuery.error)}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="ml-2"
+                  onClick={() => void suppliersQuery.refetch()}
+                  disabled={suppliersQuery.isFetching}
+                >
+                  {suppliersQuery.isFetching ? 'Retrying...' : 'Retry'}
+                </Button>
+              </AlertDescription>
+            </Alert>
+          ) : (
+            <DataTable
+              appearance="management"
+              data={filteredSuppliers}
+              columns={supplierColumns}
+              getRowKey={(supplier) => supplier.id}
+              isLoading={isLoadingSuppliers}
+              loadingMessage="Loading supplier directory..."
+              tableClassName="min-w-[800px]"
+              pageSizeOptions={[10, 25, 50, 100]}
+              emptyContent={
+                <div className="flex min-h-64 items-center justify-center px-4 py-12">
+                  <div className="flex flex-col items-center justify-center text-center">
+                    <Building2 className="size-8 text-muted-foreground mb-2" />
+                    <span className="text-sm font-semibold text-foreground">
+                      {searchTerm.trim()
+                        ? `No suppliers match "${searchTerm.trim()}"`
+                        : supplierView === 'ACTIVE'
+                          ? 'No active suppliers found'
+                          : 'No archived suppliers found'}
+                    </span>
+                    <p className="text-xs text-muted-foreground mt-1 max-w-xs">
+                      {supplierView === 'ACTIVE'
+                        ? 'Register suppliers to begin purchasing stock materials.'
+                        : 'Archived suppliers will appear here and can be restored.'}
+                    </p>
+                  </div>
                 </div>
-              </Card>
-            }
-          />
+              }
+            />
+          )}
         </div>
       )}
 
@@ -724,16 +737,30 @@ export function PurchasesView({
           statusBadge={renderStatusBadge(selectedOrder.status)}
           onClose={() => setSelectedOrderId(null)}
           onNavigateToDeliveries={onNavigateToDeliveries}
+          onConfirm={canManage ? () => void confirmPurchaseOrder(selectedOrder.id) : undefined}
+          confirming={confirmPOMutation.isPending}
         />
       )}
 
-      {isPurchaseModalOpen && (
+      {isPurchaseModalOpen && canManage && (
         <PurchaseModal
           open
           onClose={() => setIsPurchaseModalOpen(false)}
           onSubmit={handleCreatePO}
+          onConfirm={(id) => confirmPOMutation.mutateAsync(id)}
           suppliers={suppliers}
           products={products}
+          stockItems={stockItems}
+          catalogState={{
+            productsLoading: productsQuery.isLoading,
+            stockLoading: stockQuery.isLoading,
+            productsError: productsQuery.error ? getErrorMessage(productsQuery.error) : undefined,
+            stockError: stockQuery.error ? getErrorMessage(stockQuery.error) : undefined,
+            onRetry: () => {
+              void productsQuery.refetch()
+              void stockQuery.refetch()
+            },
+          }}
           processedBy={processedBy}
         />
       )}
@@ -750,6 +777,18 @@ export function PurchasesView({
           isSubmitting={createSupplierMutation.isPending || updateSupplierMutation.isPending}
         />
       )}
+      <ConfirmDeleteModal
+        key={orderToCancel?.id ?? 'cancel-order'}
+        open={!!orderToCancel}
+        onClose={() => setOrderToCancel(null)}
+        onConfirm={async () => {
+          if (orderToCancel && canManage) await cancelPOMutation.mutateAsync(orderToCancel.id)
+        }}
+        title="Cancel Purchase Order"
+        description="Cancel this order if it has no stock movements. Physical stock is unchanged."
+        itemName={orderToCancel?.orderNumber}
+        confirmText="Cancel Order"
+      />
       <ConfirmDeleteModal
         open={supplierToArchive !== null}
         onClose={() => setSupplierToArchive(null)}

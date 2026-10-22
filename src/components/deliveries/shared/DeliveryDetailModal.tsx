@@ -1,20 +1,25 @@
+import { formatProductUnit } from '@/lib/product-unit'
+import type { ReactNode } from 'react'
 import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
-import { Truck, Warehouse, Package, Calendar, User, MapPin } from 'lucide-react'
+import { DataTable, type ColumnDef } from '@/components/ui/data-table'
 import { useOutgoingDeliveryById } from '@/features/logistics/outgoing-deliveries.hooks'
-import { useWarehouses } from '@/features/logistics/warehouses.hooks'
+import { useAllWarehouses } from '@/features/logistics/warehouses.hooks'
 import { useDeliveryVehicles } from '@/features/logistics/delivery-vehicles.hooks'
 import { useEmployees } from '@/features/staffing/staffing.hooks'
 import { useSalesOrders } from '@/features/crm/sales-orders.hooks'
-import { useClients } from '@/features/crm/clients.hooks'
-import { useProducts } from '@/features/products/products.hooks'
+import { useAllClients } from '@/features/crm/clients.hooks'
+import { useAllProducts } from '@/features/products/products.hooks'
+import type { OutgoingDeliveryItemRecord } from '@/features/logistics/outgoing-deliveries.types'
+import { getErrorMessage } from '@/lib/api-client'
 import { DeliveryStatusBadge } from './DeliveryStatusBadge'
 import { DeliveryTimeline } from './DeliveryTimeline'
 import { DeliveryUtils } from '@/features/logistics/delivery-utils'
@@ -26,209 +31,292 @@ interface DeliveryDetailModalProps {
 }
 
 export function DeliveryDetailModal({ deliveryId, open, onClose }: DeliveryDetailModalProps) {
-  const { data: delivery, isLoading, error } = useOutgoingDeliveryById(deliveryId || undefined)
-  const { data: warehouses = [] } = useWarehouses()
-  const { data: vehicles = [] } = useDeliveryVehicles({ includeInactive: 'true' })
-  const { data: employees = [] } = useEmployees({ includeInactive: 'true' })
-  const { data: salesOrders = [] } = useSalesOrders()
-  const { data: clients = [] } = useClients()
-  const { data: products = [] } = useProducts()
+  const deliveryQuery = useOutgoingDeliveryById(deliveryId || undefined)
+  const warehousesQuery = useAllWarehouses()
+  const vehiclesQuery = useDeliveryVehicles({ includeInactive: 'true' })
+  const employeesQuery = useEmployees({ includeInactive: 'true' })
+  const ordersQuery = useSalesOrders()
+  const clientsQuery = useAllClients()
+  const productsQuery = useAllProducts()
+  const delivery = deliveryQuery.data
+  const warehouse = warehousesQuery.data?.find((w) => w.id === delivery?.warehouseId)
+  const vehicle = vehiclesQuery.data?.find((v) => v.id === delivery?.deliveryVehicleId)
+  const driver = employeesQuery.data?.find((e) => e.id === delivery?.driverEmployeeId)
+  const order = ordersQuery.data?.find((o) => o.id === delivery?.salesOrderId)
+  const client = clientsQuery.data?.find((c) => c.id === order?.clientId)
+  const referenceQueries = [
+    warehousesQuery,
+    vehiclesQuery,
+    employeesQuery,
+    ordersQuery,
+    clientsQuery,
+    productsQuery,
+  ]
+  const referencesFailed = referenceQueries.some((query) => query.isError)
 
-  const warehouse = warehouses.find((w) => w.id === delivery?.warehouseId)
-  const vehicle = vehicles.find((v) => v.id === delivery?.deliveryVehicleId)
-  const driver = employees.find((e) => e.id === delivery?.driverEmployeeId)
-  const order = delivery ? salesOrders.find((o) => o.id === delivery.salesOrderId) : null
-  const client = order ? clients.find((c) => c.id === order.clientId) : null
+  function cargoProduct(item: OutgoingDeliveryItemRecord) {
+    const orderItem = order?.items.find(
+      (line) =>
+        line.allocations?.some((allocation) => allocation.id === item.salesOrderAllocationId) ||
+        line.id === item.salesOrderAllocation?.salesOrderItemId,
+    )
+    return {
+      orderItem,
+      product: productsQuery.data?.find((product) => product.id === orderItem?.inventoryItemId),
+    }
+  }
+
+  const columns: ColumnDef<OutgoingDeliveryItemRecord>[] = [
+    {
+      id: 'product',
+      header: 'Item',
+      width: '70%',
+      cell: ({ row, index }) => {
+        const { product, orderItem } = cargoProduct(row)
+        return (
+          <div className="flex min-w-0 flex-col gap-0.5 [overflow-wrap:anywhere]">
+            <p className="text-sm font-medium text-foreground">
+              {product?.name ||
+                (orderItem
+                  ? `Product #${orderItem.inventoryItemId}`
+                  : `Product line #${index + 1}`)}
+            </p>
+            {product?.variety && <p className="text-xs text-muted-foreground">{product.variety}</p>}
+            <p className="text-xs text-muted-foreground">
+              Allocation #{row.salesOrderAllocationId}
+            </p>
+          </div>
+        )
+      },
+    },
+    {
+      id: 'quantity',
+      header: 'Quantity to Deliver',
+      width: '30%',
+      align: 'right',
+      cell: ({ row }) => (
+        <div className="[overflow-wrap:anywhere]">
+          <p className="text-sm font-normal tabular-nums">{row.quantity}</p>
+          <p className="text-xs text-muted-foreground">
+            {formatProductUnit(cargoProduct(row).product?.unit, 'Unit unavailable')}
+          </p>
+        </div>
+      ),
+    },
+  ]
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-      <DialogContent className="max-h-[min(880px,calc(100vh-2rem))] overflow-y-auto sm:max-w-2xl gap-5 p-6">
-        <DialogHeader className="pb-1">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <div className="flex size-10 items-center justify-center rounded-2xl bg-primary/10 text-primary shadow-2xs">
-                <Truck className="size-5" />
-              </div>
-              <div>
-                <DialogTitle className="text-lg font-bold tracking-tight">
-                  {delivery?.deliveryNumber || 'Delivery Details'}
-                </DialogTitle>
-                <DialogDescription className="text-xs">
-                  Sales Order #{delivery?.salesOrderId || '—'}
-                </DialogDescription>
-              </div>
+      <DialogContent className="flex max-h-[min(880px,90dvh)] w-[calc(100vw-2rem)] max-w-3xl flex-col gap-0 overflow-hidden p-0 sm:max-w-3xl [&>button:last-child]:grid [&>button:last-child]:size-8 [&>button:last-child]:place-items-center pointer-coarse:[&>button:last-child]:size-11">
+        <DialogHeader className="shrink-0 px-5 py-5 pr-14 text-left sm:pl-6">
+          <div className="flex min-w-0 items-start justify-between gap-3">
+            <div className="min-w-0">
+              <DialogTitle className="text-xl font-semibold leading-6 [overflow-wrap:anywhere]">
+                {delivery?.deliveryNumber || 'Delivery Details'}
+              </DialogTitle>
+              <DialogDescription className="mt-1 text-xs">
+                {delivery
+                  ? `Sales Order ${order?.orderNumber || `#${delivery.salesOrderId}`}`
+                  : 'Outgoing delivery record'}
+              </DialogDescription>
             </div>
-            {delivery && <DeliveryStatusBadge status={delivery.status} />}
+            {delivery && (
+              <DeliveryStatusBadge
+                status={delivery.status}
+                className="mt-0.5 shrink-0"
+                showDot={false}
+              />
+            )}
           </div>
         </DialogHeader>
 
-        {isLoading ? (
-          <div className="flex min-h-[260px] items-center justify-center">
-            <Spinner className="size-8 text-primary" />
-          </div>
-        ) : error || !delivery ? (
-          <div className="flex min-h-[200px] flex-col items-center justify-center text-center text-xs text-muted-foreground">
-            <p className="font-semibold text-destructive">Failed to load delivery record.</p>
-            <p className="mt-1">The record may not exist or network connection was interrupted.</p>
-          </div>
-        ) : (
-          <div className="flex flex-col gap-5">
-            {/* Customer & Destination Card */}
-            {order && (
-              <div className="flex items-start gap-3 p-3.5 rounded-xl bg-muted/30 border border-border/80 text-xs">
-                <MapPin className="size-4 text-primary shrink-0 mt-0.5" />
-                <div className="flex flex-col min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-foreground text-sm">
-                      {client?.name || `Customer #${delivery.salesOrderId}`}
-                    </span>
-                    <span className="text-[11px] font-mono text-muted-foreground">
-                      Order #{order.orderNumber}
-                    </span>
-                  </div>
-                  <span className="text-foreground/85 font-medium text-xs mt-0.5">
-                    {order.deliveryAddress}
-                  </span>
-                </div>
-              </div>
-            )}
-
-            {/* Timeline */}
-            <DeliveryTimeline delivery={delivery} />
-
-            {/* Quick Summary Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="flex items-start gap-3 p-3.5 rounded-xl border border-border/80 bg-muted/10">
-                <Warehouse className="size-4 text-primary shrink-0 mt-0.5" />
-                <div className="flex flex-col text-xs">
-                  <span className="text-[10px] uppercase font-bold text-muted-foreground">
-                    Fulfillment Warehouse
-                  </span>
-                  <span className="font-bold text-foreground">
-                    {warehouse?.name || `Warehouse #${delivery.warehouseId}`}
-                  </span>
-                  <span className="text-[11px] text-muted-foreground truncate">
-                    {warehouse?.address || 'No location specified'}
-                  </span>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-3 p-3.5 rounded-xl border border-border/80 bg-muted/10">
-                <Truck className="size-4 text-blue-600 shrink-0 mt-0.5" />
-                <div className="flex flex-col text-xs">
-                  <span className="text-[10px] uppercase font-bold text-muted-foreground">
-                    Assigned Vehicle
-                  </span>
-                  <span className="font-bold text-foreground">
-                    {vehicle ? `${vehicle.plateNumber} (${vehicle.vehicleType})` : 'Unassigned'}
-                  </span>
-                  <span className="text-[11px] text-muted-foreground">
-                    {vehicle?.model ? `${vehicle.model} • ` : ''}Capacity:{' '}
-                    {vehicle?.capacity || 'Standard'}
-                  </span>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-3 p-3.5 rounded-xl border border-border/80 bg-muted/10">
-                <User className="size-4 text-purple-600 shrink-0 mt-0.5" />
-                <div className="flex flex-col text-xs">
-                  <span className="text-[10px] uppercase font-bold text-muted-foreground">
-                    Assigned Driver / Logistics Officer
-                  </span>
-                  <span className="font-bold text-foreground">
-                    {driver ? `${driver.firstName} ${driver.lastName}` : 'Unassigned'}
-                  </span>
-                  <span className="text-[11px] text-muted-foreground">
-                    {driver?.phone || driver?.email || 'No contact listed'}
-                  </span>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-3 p-3.5 rounded-xl border border-border/80 bg-muted/10">
-                <Calendar className="size-4 text-amber-600 shrink-0 mt-0.5" />
-                <div className="flex flex-col text-xs">
-                  <span className="text-[10px] uppercase font-bold text-muted-foreground">
-                    Target Scheduled Time
-                  </span>
-                  <span className="font-bold text-foreground">
-                    {DeliveryUtils.formatDateTime(delivery.scheduledAt)}
-                  </span>
-                  <span className="text-[11px] text-muted-foreground">
-                    Created: {DeliveryUtils.formatDateOnly(delivery.createdAt)}
-                  </span>
-                </div>
-              </div>
+        <div className="min-h-0 min-w-0 flex-1 overflow-y-auto px-5 pb-5 sm:px-6">
+          {deliveryQuery.isLoading ? (
+            <div
+              role="status"
+              className="flex min-h-64 items-center justify-center gap-2 text-xs text-muted-foreground"
+            >
+              <Spinner aria-hidden="true" className="size-5 text-primary-text" />
+              Loading delivery details...
             </div>
-
-            {/* Cargo Item Breakdown */}
-            <div className="flex flex-col gap-2 rounded-xl border border-border/80 overflow-hidden">
-              <div className="bg-muted/30 px-4 py-2.5 border-b border-border/70 flex items-center justify-between">
-                <span className="text-xs font-bold text-foreground flex items-center gap-2">
-                  <Package className="size-3.5 text-primary" />
-                  Cargo Item Lines ({delivery.items.length})
-                </span>
-              </div>
-              <div className="overflow-x-hidden">
-                <table className="w-full table-fixed text-xs">
-                  <thead className="bg-muted/20 text-left text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                    <tr>
-                      <th className="px-4 py-2 w-[50%]">Item</th>
-                      <th className="px-3 py-2 w-[25%]">Stock Allocation</th>
-                      <th className="px-4 py-2 text-right w-[25%]">Quantity to Deliver</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border/60">
-                    {delivery.items.map((item, index) => {
-                      const orderItem = order?.items.find(
-                        (oi) =>
-                          oi.allocations.some((a) => a.id === item.salesOrderAllocationId) ||
-                          oi.id === item.salesOrderAllocation?.salesOrderItemId,
-                      )
-                      const product = orderItem
-                        ? products.find((p) => p.id === orderItem.inventoryItemId)
-                        : null
-
-                      return (
-                        <tr key={item.id} className="hover:bg-muted/10">
-                          <td className="px-4 py-2.5 font-medium text-foreground">
-                            {product?.name || `Product Line #${index + 1}`}
-                            {product?.variety && (
-                              <span className="block text-[10px] text-muted-foreground">
-                                Variety: {product.variety}
-                              </span>
-                            )}
-                          </td>
-                          <td className="px-3 py-2.5 font-mono text-xs text-muted-foreground">
-                            Alloc #{item.salesOrderAllocationId}
-                          </td>
-                          <td className="px-4 py-2.5 font-mono font-bold text-right text-foreground">
-                            {item.quantity} {product?.unit || 'units'}
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
+          ) : deliveryQuery.isError || !delivery ? (
+            <div
+              role="alert"
+              className="flex min-h-48 flex-col items-center justify-center gap-2 text-center text-sm"
+            >
+              <p className="font-medium text-destructive">Failed to load delivery record.</p>
+              <p className="max-w-md text-xs text-muted-foreground">
+                {deliveryQuery.error
+                  ? getErrorMessage(deliveryQuery.error)
+                  : 'The delivery record is unavailable.'}
+              </p>
+              {!!deliveryId && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={deliveryQuery.isFetching}
+                  onClick={() => void deliveryQuery.refetch()}
+                >
+                  Retry
+                </Button>
+              )}
             </div>
+          ) : (
+            <div className="flex flex-col gap-5">
+              <section
+                aria-label="Customer and order"
+                className="flex min-w-0 flex-col gap-1 [overflow-wrap:anywhere]"
+              >
+                <h2 className="text-base font-semibold">
+                  {client?.name ||
+                    (order
+                      ? `Customer #${order.clientId}`
+                      : ordersQuery.isLoading
+                        ? 'Loading customer details...'
+                        : 'Customer details unavailable')}
+                </h2>
+                <p className="text-xs text-muted-foreground">
+                  {order?.deliveryAddress || 'Delivery address unavailable'}
+                </p>
+              </section>
 
-            {delivery.notes && (
-              <div className="p-3 rounded-xl bg-muted/20 border border-border/60 text-xs">
-                <span className="text-[10px] font-bold uppercase text-muted-foreground block mb-1">
-                  Delivery Notes
-                </span>
-                <p className="text-foreground whitespace-pre-wrap">{delivery.notes}</p>
-              </div>
-            )}
+              {referencesFailed && (
+                <div
+                  role="alert"
+                  className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-destructive"
+                >
+                  <p>Some linked details could not be loaded. Saved references remain visible.</p>
+                  <Button
+                    variant="link"
+                    size="sm"
+                    className="h-auto px-0 text-[13px]"
+                    onClick={() =>
+                      referenceQueries.forEach((query) => {
+                        if (query.isError) void query.refetch()
+                      })
+                    }
+                  >
+                    Retry linked details
+                  </Button>
+                </div>
+              )}
 
-            <div className="flex justify-end pt-2">
-              <Button variant="outline" size="sm" onClick={onClose}>
-                Close
-              </Button>
+              <section aria-label="Delivery progress" className="border-t border-border pt-4">
+                <DeliveryTimeline delivery={delivery} />
+              </section>
+
+              <section
+                aria-labelledby="delivery-details-heading"
+                className="border-t border-border pt-4"
+              >
+                <h2 id="delivery-details-heading" className="mb-3 text-base font-semibold">
+                  Delivery details
+                </h2>
+                <dl className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
+                  <DeliveryDetailField
+                    label="Warehouse"
+                    value={warehouse?.name || `Warehouse #${delivery.warehouseId}`}
+                    secondary={warehouse ? warehouse.address || 'No location specified' : undefined}
+                  />
+                  <DeliveryDetailField
+                    label="Scheduled Time"
+                    value={DeliveryUtils.formatDateTime(delivery.scheduledAt)}
+                  />
+                  <DeliveryDetailField
+                    label="Driver / Logistics Officer"
+                    value={
+                      driver
+                        ? `${driver.firstName} ${driver.lastName}`
+                        : delivery.driverEmployeeId
+                          ? `Employee #${delivery.driverEmployeeId}`
+                          : 'Unassigned'
+                    }
+                    secondary={
+                      driver ? driver.phone || driver.email || 'No contact listed' : undefined
+                    }
+                  />
+                  <DeliveryDetailField
+                    label="Vehicle"
+                    value={
+                      vehicle
+                        ? `${vehicle.plateNumber} (${vehicle.vehicleType})`
+                        : delivery.deliveryVehicleId
+                          ? `Vehicle #${delivery.deliveryVehicleId}`
+                          : 'Unassigned'
+                    }
+                    secondary={
+                      vehicle
+                        ? [vehicle.model, `Capacity: ${vehicle.capacity || 'Not recorded'}`]
+                            .filter(Boolean)
+                            .join(' / ')
+                        : undefined
+                    }
+                  />
+                </dl>
+              </section>
+
+              <section
+                aria-labelledby="delivery-cargo-heading"
+                className="border-t border-border pt-4"
+              >
+                <h2 id="delivery-cargo-heading" className="mb-3 text-base font-semibold">
+                  Cargo items ({delivery.items.length})
+                </h2>
+                <DataTable
+                  data={delivery.items}
+                  columns={columns}
+                  getRowKey={(item) => item.id}
+                  pagination={false}
+                  appearance="subtle"
+                  tableClassName="w-full table-fixed"
+                  emptyContent="No cargo items recorded."
+                />
+              </section>
+
+              {delivery.notes && (
+                <section aria-labelledby="delivery-notes-heading">
+                  <h2
+                    id="delivery-notes-heading"
+                    className="mb-1 text-base font-semibold text-muted-foreground"
+                  >
+                    Delivery notes
+                  </h2>
+                  <p className="whitespace-pre-wrap text-sm [overflow-wrap:anywhere]">
+                    {delivery.notes}
+                  </p>
+                </section>
+              )}
             </div>
-          </div>
-        )}
+          )}
+        </div>
+        <DialogFooter className="shrink-0 flex-row justify-end border-t border-border px-5 py-3 sm:px-6">
+          <Button variant="outline" size="sm" className="pointer-coarse:min-h-11" onClick={onClose}>
+            Close
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
+  )
+}
+
+function DeliveryDetailField({
+  label,
+  value,
+  secondary,
+}: {
+  label: string
+  value: ReactNode
+  secondary?: string
+}) {
+  return (
+    <div className="min-w-0 [overflow-wrap:anywhere]">
+      <dt className="text-xs text-muted-foreground">{label}</dt>
+      <dd className="mt-1 text-sm font-medium">
+        {value}
+        {secondary && (
+          <p className="mt-0.5 text-xs font-normal text-muted-foreground">{secondary}</p>
+        )}
+      </dd>
+    </div>
   )
 }

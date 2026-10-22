@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { Warehouse as WarehouseIcon, Building2, MapPin, Phone, RotateCcw } from 'lucide-react'
+import { Building2, MapPin, Phone, RotateCcw } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -135,9 +135,6 @@ function WarehouseFormContent({
   return (
     <>
       <DialogHeader>
-        <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary mb-1">
-          {isEditing ? <Building2 className="size-5" /> : <WarehouseIcon className="size-5" />}
-        </div>
         <DialogTitle>
           {isEditing ? 'Edit Warehouse Location' : 'Register New Warehouse'}
         </DialogTitle>
@@ -158,12 +155,10 @@ function WarehouseFormContent({
       )}
 
       {deactivatedWarehouseMatch && (
-        <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-950 dark:text-amber-200 flex items-start gap-3 shadow-2xs animate-in fade-in-0 zoom-in-95 slide-in-from-top-2 duration-300">
-          <div className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-amber-500/20 text-amber-700 dark:text-amber-300 mt-0.5">
-            <RotateCcw className="size-4 animate-in spin-in-180 duration-500" />
-          </div>
+        <div className="p-3.5 rounded-lg bg-status-warning border border-status-warning-foreground/30 text-status-warning-foreground flex items-start gap-3">
+          <RotateCcw className="mt-0.5 size-4 shrink-0 text-status-warning-foreground" />
           <div className="min-w-0 flex-1 text-xs [overflow-wrap:anywhere]">
-            <p className="font-bold text-foreground">Deactivated Warehouse Found</p>
+            <p className="font-medium text-foreground">Deactivated Warehouse Found</p>
             <p className="text-muted-foreground mt-0.5 leading-relaxed">
               An archived facility record for{' '}
               <strong className="text-foreground">{deactivatedWarehouseMatch.name}</strong> (
@@ -176,7 +171,7 @@ function WarehouseFormContent({
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-3.5 py-1">
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="wh-name" className="text-xs font-medium">
+          <Label htmlFor="wh-name" className="text-[13px] font-medium">
             Warehouse Name <span className="text-primary">*</span>
           </Label>
           <div className="relative">
@@ -197,7 +192,7 @@ function WarehouseFormContent({
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="wh-address" className="text-xs font-medium">
+          <Label htmlFor="wh-address" className="text-[13px] font-medium">
             Street Address / Location <span className="text-primary">*</span>
           </Label>
           <div className="relative">
@@ -215,15 +210,15 @@ function WarehouseFormContent({
 
         <div className="flex flex-col gap-1.5">
           <div className="flex items-center justify-between">
-            <Label htmlFor="wh-phone" className="text-xs font-medium">
+            <Label htmlFor="wh-phone" className="text-[13px] font-medium">
               Contact Number / Hotline
             </Label>
             {contactNumber && (
               <span
-                className={`text-[10px] font-semibold ${
+                className={`text-xs font-semibold ${
                   contactNumber.length === 11 && contactNumber.startsWith('09')
-                    ? 'text-emerald-600 dark:text-emerald-400'
-                    : 'text-amber-600 dark:text-amber-400'
+                    ? 'text-status-success-foreground'
+                    : 'text-status-warning-foreground'
                 }`}
               >
                 {contactNumber.length}/11 digits
@@ -253,7 +248,7 @@ function WarehouseFormContent({
               type="button"
               onClick={handleRestoreFoundWarehouse}
               disabled={isPending}
-              className="group gap-2 font-bold shadow-xs cursor-pointer transition-all duration-300 animate-in fade-in-0 zoom-in-95"
+              className="group gap-2 font-medium cursor-pointer"
             >
               {reactivateMutation.isPending ? (
                 <>
@@ -262,17 +257,13 @@ function WarehouseFormContent({
                 </>
               ) : (
                 <>
-                  <RotateCcw className="size-4 transition-transform duration-200 group-hover:-rotate-45" />
+                  <RotateCcw className="size-4" />
                   Reactivate Warehouse Facility
                 </>
               )}
             </Button>
           ) : (
-            <Button
-              type="submit"
-              disabled={isPending}
-              className="font-semibold shadow-xs cursor-pointer transition-all duration-300"
-            >
+            <Button type="submit" disabled={isPending} className="font-medium cursor-pointer">
               {isPending ? (
                 <>
                   <Spinner data-icon="inline-start" />

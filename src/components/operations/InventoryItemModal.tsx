@@ -1,11 +1,6 @@
+import { formatProductUnit } from '@/lib/product-unit'
 import { useState, type FormEvent } from 'react'
-import {
-  Package,
-  Tag,
-  FileText,
-  Sparkles,
-  RotateCcw,
-} from 'lucide-react'
+import { Package, Tag, FileText, Sparkles, RotateCcw } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -116,7 +111,9 @@ function ItemFormContent({
 
     const priceCents = parseStockCents(unitPrice)
     if (priceCents === null || priceCents > 999_999_999_999n) {
-      setErrorMsg('Enter a non-negative price with up to 2 decimals and 10 digits before the decimal point.')
+      setErrorMsg(
+        'Enter a non-negative price with up to 2 decimals and 10 digits before the decimal point.',
+      )
       return
     }
 
@@ -137,7 +134,6 @@ function ItemFormContent({
             unitPrice: unitPrice.trim(),
           })
         }
-
       } else {
         await createMutation.mutateAsync({
           name: name.trim(),
@@ -145,7 +141,6 @@ function ItemFormContent({
           unitPrice: unitPrice.trim(),
           description: description.trim() || null,
         })
-
       }
       onClose()
     } catch (err) {
@@ -161,19 +156,12 @@ function ItemFormContent({
   }
 
   const isPending =
-    createMutation.isPending ||
-    updateMutation.isPending ||
-    reactivateMutation.isPending
+    createMutation.isPending || updateMutation.isPending || reactivateMutation.isPending
 
   return (
     <>
       <DialogHeader className="pb-2">
-        <div className="flex size-11 items-center justify-center rounded-2xl bg-primary/10 text-primary mb-2 shadow-2xs">
-          {isEditing ? <Tag className="size-5" /> : <Package className="size-5" />}
-        </div>
-        <DialogTitle className="text-xl font-bold tracking-tight">
-          {isEditing ? 'Edit Catalog Product' : 'Register New Product'}
-        </DialogTitle>
+        <DialogTitle>{isEditing ? 'Edit Catalog Product' : 'Register New Product'}</DialogTitle>
         <DialogDescription className="text-xs text-muted-foreground leading-relaxed">
           {isEditing
             ? 'Update product details and pricing.'
@@ -188,12 +176,10 @@ function ItemFormContent({
       )}
 
       {deactivatedProductMatch && (
-        <div className="my-1 p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-950 dark:text-amber-200 flex items-start gap-3 shadow-2xs animate-in fade-in-0 zoom-in-95 slide-in-from-top-2 duration-300">
-          <div className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-amber-500/20 text-amber-700 dark:text-amber-300 mt-0.5">
-            <RotateCcw className="size-4 animate-in spin-in-180 duration-500" />
-          </div>
+        <div className="my-1 p-3.5 rounded-lg bg-status-warning border border-status-warning-foreground/30 text-status-warning-foreground flex items-start gap-3">
+          <RotateCcw className="mt-0.5 size-4 shrink-0 text-status-warning-foreground" />
           <div className="min-w-0 flex-1 text-xs [overflow-wrap:anywhere]">
-            <p className="font-bold text-foreground">Deactivated Product Found</p>
+            <p className="font-medium text-foreground">Deactivated Product Found</p>
             <p className="text-muted-foreground mt-0.5 leading-relaxed">
               An archived catalog item for{' '}
               <strong className="text-foreground">{deactivatedProductMatch.name}</strong> already
@@ -206,7 +192,7 @@ function ItemFormContent({
       <form onSubmit={handleSubmit} className="flex flex-col gap-4 py-2">
         {/* Product Name */}
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="item-name" className="text-xs font-semibold text-foreground/90">
+          <Label htmlFor="item-name" className="text-[13px] font-medium text-foreground">
             Product Item Name <span className="text-primary">*</span>
           </Label>
           <div className="relative">
@@ -228,7 +214,7 @@ function ItemFormContent({
 
         {/* Variety / Grade */}
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="item-variety" className="text-xs font-semibold text-foreground/90">
+          <Label htmlFor="item-variety" className="text-[13px] font-medium text-foreground">
             Variety / Grade (Optional)
           </Label>
           <div className="relative">
@@ -241,7 +227,7 @@ function ItemFormContent({
               className="pl-9 h-10 text-sm"
             />
           </div>
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-xs text-muted-foreground">
             Specific strain, grade, or packaging classification of the product.
           </p>
         </div>
@@ -249,18 +235,18 @@ function ItemFormContent({
         {/* Unit Price Field - Enhanced & Large */}
         <div className="flex flex-col gap-1.5">
           <div className="flex items-center justify-between">
-            <Label htmlFor="item-price" className="text-xs font-semibold text-foreground/90">
+            <Label htmlFor="item-price" className="text-[13px] font-medium text-foreground">
               Standard Wholesale Unit Price (₱ PHP){' '}
               {!isEditing && <span className="text-primary">*</span>}
             </Label>
-            <span className="text-[11px] font-bold text-emerald-600 flex items-center gap-1">
+            <span className="text-xs font-medium text-muted-foreground flex items-center gap-1">
               <Sparkles className="size-3" />
               Standard Selling Rate
             </span>
           </div>
 
           <div className="relative">
-            <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-bold text-lg text-primary pointer-events-none">
+            <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-medium text-sm text-muted-foreground pointer-events-none">
               ₱
             </span>
             <Input
@@ -271,7 +257,7 @@ function ItemFormContent({
               placeholder="1150.00"
               value={unitPrice}
               onChange={(e) => setUnitPrice(e.target.value)}
-              className="pl-9 h-11 text-base font-extrabold"
+              className="pl-9 h-11 text-base font-medium"
               required
             />
           </div>
@@ -279,7 +265,7 @@ function ItemFormContent({
 
         {/* Description */}
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="item-desc" className="text-xs font-semibold text-foreground/90">
+          <Label htmlFor="item-desc" className="text-[13px] font-medium text-foreground">
             Specifications, Units & Handling Notes
           </Label>
           <div className="relative">
@@ -289,7 +275,7 @@ function ItemFormContent({
               placeholder="e.g. 20 Liters sealed carboy container, commercial cooking oil, storage instructions..."
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className="pl-9 text-xs"
+              className="pl-9 text-[13px]"
               rows={2}
             />
           </div>
@@ -303,7 +289,7 @@ function ItemFormContent({
               size="sm"
               onClick={() => setIsConfirmDeleteOpen(true)}
               disabled={isPending}
-              className="text-xs font-semibold cursor-pointer"
+              className="text-[13px] font-medium cursor-pointer"
             >
               Delete Product
             </Button>
@@ -320,7 +306,7 @@ function ItemFormContent({
                 type="button"
                 onClick={handleRestoreFoundProduct}
                 disabled={isPending}
-                className="group gap-2 font-bold shadow-xs cursor-pointer transition-all duration-300 animate-in fade-in-0 zoom-in-95"
+                className="group gap-2 font-medium cursor-pointer"
               >
                 {reactivateMutation.isPending ? (
                   <>
@@ -329,17 +315,13 @@ function ItemFormContent({
                   </>
                 ) : (
                   <>
-                    <RotateCcw className="size-4 transition-transform duration-200 group-hover:-rotate-45" />
+                    <RotateCcw className="size-4" />
                     Reactivate Product
                   </>
                 )}
               </Button>
             ) : (
-              <Button
-                type="submit"
-                disabled={isPending}
-                className="font-semibold shadow-xs cursor-pointer transition-all duration-300"
-              >
+              <Button type="submit" disabled={isPending} className="font-medium cursor-pointer">
                 {isPending ? (
                   <>
                     <Spinner data-icon="inline-start" />
@@ -369,7 +351,7 @@ function ItemFormContent({
           title="Delete Product from Active Catalog"
           description="Are you sure you want to remove this product from the active catalog? It will no longer be available for point of sale billing."
           itemName={item.name}
-          itemDetails={`₱${Number(item.unitPrice || 0).toFixed(2)} / unit`}
+          itemDetails={`₱${Number(item.unitPrice || 0).toFixed(2)} / ${formatProductUnit(item.unit, 'unit')}`}
           confirmText="Delete Product"
           variant="destructive"
         />

@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { UserPlus, Mail, Lock, Eye, EyeOff, Shield, Sparkles, User, UserCheck } from 'lucide-react'
+import { UserPlus, Mail, Lock, Eye, EyeOff, Shield, UserCheck } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -14,6 +14,7 @@ import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -23,6 +24,27 @@ import { Spinner } from '@/components/ui/spinner'
 import { useRegisterUser, useEmployees, useUsers } from '@/features/staffing/staffing.hooks'
 import { USER_ROLES, type UserRole } from '@/features/auth/roles'
 import { getErrorMessage } from '@/lib/api-client'
+
+const registrationRoles = [
+  {
+    value: USER_ROLES.STAFF,
+    label: 'STAFF (Restricted)',
+    description: 'Standard POS sales and restricted operational access',
+  },
+  {
+    value: USER_ROLES.MANAGER,
+    label: 'MANAGER (Operations)',
+    description: 'Warehouse, inventory, logistics and team management',
+  },
+  {
+    value: USER_ROLES.ADMIN,
+    label: 'ADMIN (Administrator)',
+    description: 'Full administrative authority, user registration, and system configuration',
+  },
+]
+
+const dropdownLayout =
+  'w-[var(--radix-select-trigger-width)] max-w-[var(--radix-select-content-available-width)] max-h-[min(24rem,var(--radix-select-content-available-height))] [&_[data-radix-select-viewport]]:min-w-0'
 
 type RegisterUserModalProps = {
   open: boolean
@@ -43,6 +65,8 @@ export function RegisterUserModal({ open, onClose }: RegisterUserModalProps) {
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
+
+  const selectedRole = registrationRoles.find((option) => option.value === role)
 
   // Filter employees who do not yet have a linked user account
   const unlinkedEmployees = employees.filter((e) => !e.userId && e.isActive)
@@ -118,22 +142,15 @@ export function RegisterUserModal({ open, onClose }: RegisterUserModalProps) {
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && handleClose()}>
-      <DialogContent className="sm:max-w-md p-6 gap-5 bg-card">
-        <DialogHeader className="gap-1.5 text-left">
-          <div className="flex items-center gap-2">
-            <div className="size-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
-              <UserPlus className="size-4" />
-            </div>
-            <div>
-              <DialogTitle className="text-base font-semibold">Register User Account</DialogTitle>
-              <DialogDescription className="text-xs text-muted-foreground">
-                Provision a new user account and set initial access permissions.
-              </DialogDescription>
-            </div>
-          </div>
+      <DialogContent className="min-w-0 sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Register User Account</DialogTitle>
+          <DialogDescription>
+            Provision a new user account and set initial access permissions.
+          </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <form onSubmit={handleSubmit} className="flex min-w-0 flex-col gap-4">
           {errorMsg && (
             <Alert variant="destructive" className="py-2.5 px-3">
               <AlertDescription className="text-xs">{errorMsg}</AlertDescription>
@@ -141,8 +158,8 @@ export function RegisterUserModal({ open, onClose }: RegisterUserModalProps) {
           )}
 
           {/* Work Email */}
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="register-email" className="text-xs font-semibold text-foreground/90">
+          <div className="flex min-w-0 flex-col gap-2">
+            <Label htmlFor="register-email" className="text-ui font-medium text-foreground">
               Work Email Address
             </Label>
             <div className="relative">
@@ -156,7 +173,7 @@ export function RegisterUserModal({ open, onClose }: RegisterUserModalProps) {
                   setEmail(e.target.value)
                   if (errorMsg) setErrorMsg('')
                 }}
-                className="pl-9 text-xs h-10"
+                className="pl-9"
                 disabled={registerMutation.isPending}
                 autoFocus
               />
@@ -164,8 +181,8 @@ export function RegisterUserModal({ open, onClose }: RegisterUserModalProps) {
           </div>
 
           {/* System Role Selector */}
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="register-role" className="text-xs font-semibold text-foreground/90">
+          <div className="flex min-w-0 flex-col gap-2">
+            <Label htmlFor="register-role" className="text-ui font-medium text-foreground">
               System Role & Permissions
             </Label>
             <Select
@@ -175,77 +192,49 @@ export function RegisterUserModal({ open, onClose }: RegisterUserModalProps) {
             >
               <SelectTrigger
                 id="register-role"
-                className="h-auto min-h-[60px] py-3 px-3.5 text-xs rounded-xl border border-input bg-background/80 shadow-2xs [&>span]:line-clamp-none [&>span]:w-full [&>span]:text-left focus:ring-primary/20 cursor-pointer"
+                aria-describedby="register-role-description"
+                className="min-w-0 gap-2 text-left [&>span]:font-medium [&>svg]:shrink-0"
               >
-                <SelectValue placeholder="Select role" />
+                <SelectValue placeholder="Select role">{selectedRole?.label}</SelectValue>
               </SelectTrigger>
-              <SelectContent className="p-1">
-                <SelectItem
-                  value={USER_ROLES.STAFF}
-                  className="text-xs cursor-pointer py-2.5 px-3 rounded-lg"
-                >
-                  <div className="flex items-center gap-3 py-0.5">
-                    <div className="size-8 rounded-lg bg-muted flex items-center justify-center shrink-0">
-                      <User className="size-4 text-muted-foreground" />
-                    </div>
-                    <div className="flex flex-col text-left gap-0.5 min-w-0">
-                      <span className="font-semibold text-xs text-foreground leading-tight">
-                        STAFF (Restricted)
+              <SelectContent className={dropdownLayout} collisionPadding={16}>
+                <SelectGroup>
+                  {registrationRoles.map((option) => (
+                    <SelectItem
+                      key={option.value}
+                      value={option.value}
+                      textValue={option.label}
+                      className="min-w-0 py-3 [&>span:last-child]:min-w-0"
+                    >
+                      <span className="flex min-w-0 flex-col gap-1 whitespace-normal text-left wrap-anywhere">
+                        <span className="font-medium text-ui text-foreground leading-5">
+                          {option.label}
+                        </span>
+                        <span className="text-xs text-muted-foreground leading-4">
+                          {option.description}
+                        </span>
                       </span>
-                      <span className="text-[11px] text-muted-foreground leading-tight">
-                        Standard POS sales and restricted operational access
-                      </span>
-                    </div>
-                  </div>
-                </SelectItem>
-                <SelectItem
-                  value={USER_ROLES.MANAGER}
-                  className="text-xs cursor-pointer py-2.5 px-3 rounded-lg"
-                >
-                  <div className="flex items-center gap-3 py-0.5">
-                    <div className="size-8 rounded-lg bg-blue-500/10 flex items-center justify-center shrink-0">
-                      <Shield className="size-4 text-blue-600 dark:text-blue-400" />
-                    </div>
-                    <div className="flex flex-col text-left gap-0.5 min-w-0">
-                      <span className="font-semibold text-xs text-blue-600 dark:text-blue-400 leading-tight">
-                        MANAGER (Operations)
-                      </span>
-                      <span className="text-[11px] text-muted-foreground leading-tight">
-                        Warehouse, inventory, logistics and team management
-                      </span>
-                    </div>
-                  </div>
-                </SelectItem>
-                <SelectItem
-                  value={USER_ROLES.ADMIN}
-                  className="text-xs cursor-pointer py-2.5 px-3 rounded-lg"
-                >
-                  <div className="flex items-center gap-3 py-0.5">
-                    <div className="size-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                      <Sparkles className="size-4 text-primary" />
-                    </div>
-                    <div className="flex flex-col text-left gap-0.5 min-w-0">
-                      <span className="font-semibold text-xs text-primary leading-tight">
-                        ADMIN (Administrator)
-                      </span>
-                      <span className="text-[11px] text-muted-foreground leading-tight">
-                        Full administrative authority, user registration, and system configuration
-                      </span>
-                    </div>
-                  </div>
-                </SelectItem>
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
               </SelectContent>
             </Select>
+            <p
+              id="register-role-description"
+              className="text-xs leading-4 text-muted-foreground wrap-anywhere"
+            >
+              {selectedRole?.description}
+            </p>
           </div>
 
           {/* Link to Existing Employee (Optional) */}
           {unlinkedEmployees.length > 0 && (
-            <div className="flex flex-col gap-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="link-employee" className="text-xs font-semibold text-foreground/90">
+            <div className="flex min-w-0 flex-col gap-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <Label htmlFor="link-employee" className="text-ui font-medium text-foreground">
                   Link to Staff Profile (Optional)
                 </Label>
-                <span className="text-[10px] text-muted-foreground">
+                <span className="text-xs text-muted-foreground">
                   {unlinkedEmployees.length} unlinked profile
                   {unlinkedEmployees.length === 1 ? '' : 's'}
                 </span>
@@ -255,36 +244,45 @@ export function RegisterUserModal({ open, onClose }: RegisterUserModalProps) {
                 onValueChange={setSelectedEmployeeId}
                 disabled={registerMutation.isPending}
               >
-                <SelectTrigger id="link-employee" className="text-xs h-10 px-3">
+                <SelectTrigger
+                  id="link-employee"
+                  className="h-auto min-h-10 min-w-0 gap-2 text-left [&>span]:min-w-0 [&>span]:line-clamp-none [&_span]:whitespace-normal [&_span]:overflow-visible [&_span]:text-clip [&>svg]:shrink-0"
+                >
                   <SelectValue placeholder="Select staff profile (optional)" />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none" className="text-xs cursor-pointer py-2">
-                    <span className="text-muted-foreground italic">None (Standalone Account)</span>
-                  </SelectItem>
-                  {unlinkedEmployees.map((emp) => (
-                    <SelectItem
-                      key={emp.id}
-                      value={String(emp.id)}
-                      className="text-xs cursor-pointer py-2"
-                    >
-                      <div className="flex items-center gap-2">
-                        <UserCheck className="size-3.5 text-emerald-600 shrink-0" />
-                        <span>
-                          {emp.firstName} {emp.lastName}
-                        </span>
-                        <span className="text-[10px] text-muted-foreground">(Staff #{emp.id})</span>
-                      </div>
+                <SelectContent className={dropdownLayout} collisionPadding={16}>
+                  <SelectGroup>
+                    <SelectItem value="none" className="py-2">
+                      <span className="text-muted-foreground italic">
+                        None (Standalone Account)
+                      </span>
                     </SelectItem>
-                  ))}
+                    {unlinkedEmployees.map((emp) => (
+                      <SelectItem
+                        key={emp.id}
+                        value={String(emp.id)}
+                        className="min-w-0 py-2 [&>span:last-child]:min-w-0"
+                      >
+                        <div className="flex min-w-0 items-start gap-2 whitespace-normal wrap-anywhere">
+                          <UserCheck className="size-3.5 text-status-success-foreground shrink-0" />
+                          <span className="min-w-0">
+                            {emp.firstName} {emp.lastName}
+                          </span>
+                          <span className="shrink-0 text-xs text-muted-foreground">
+                            (Staff #{emp.id})
+                          </span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
                 </SelectContent>
               </Select>
             </div>
           )}
 
           {/* Password */}
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="register-password" className="text-xs font-semibold text-foreground/90">
+          <div className="flex min-w-0 flex-col gap-2">
+            <Label htmlFor="register-password" className="text-ui font-medium text-foreground">
               Initial Password
             </Label>
             <div className="relative">
@@ -298,13 +296,13 @@ export function RegisterUserModal({ open, onClose }: RegisterUserModalProps) {
                   setPassword(e.target.value)
                   if (errorMsg) setErrorMsg('')
                 }}
-                className="pl-9 pr-10 text-xs h-10"
+                className="pl-9 pr-10"
                 disabled={registerMutation.isPending}
                 minLength={8}
               />
               <button
                 type="button"
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-md p-1 text-muted-foreground hover:text-foreground focus-visible:outline-none cursor-pointer"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-md p-1 text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer"
                 onClick={() => setShowPassword(!showPassword)}
                 tabIndex={-1}
                 aria-label={showPassword ? 'Hide password' : 'Show password'}
@@ -315,8 +313,8 @@ export function RegisterUserModal({ open, onClose }: RegisterUserModalProps) {
           </div>
 
           {/* Confirm Password */}
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="register-confirm" className="text-xs font-semibold text-foreground/90">
+          <div className="flex min-w-0 flex-col gap-2">
+            <Label htmlFor="register-confirm" className="text-ui font-medium text-foreground">
               Confirm Password
             </Label>
             <div className="relative">
@@ -330,13 +328,13 @@ export function RegisterUserModal({ open, onClose }: RegisterUserModalProps) {
                   setConfirmPassword(e.target.value)
                   if (errorMsg) setErrorMsg('')
                 }}
-                className="pl-9 pr-10 text-xs h-10"
+                className="pl-9 pr-10"
                 disabled={registerMutation.isPending}
                 minLength={8}
               />
               <button
                 type="button"
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-md p-1 text-muted-foreground hover:text-foreground focus-visible:outline-none cursor-pointer"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-md p-1 text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer"
                 onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                 tabIndex={-1}
                 aria-label={showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
@@ -351,9 +349,9 @@ export function RegisterUserModal({ open, onClose }: RegisterUserModalProps) {
           </div>
 
           {/* Admin Notice Callout */}
-          <div className="rounded-xl border border-primary/20 bg-primary/5 p-3.5 text-[11px] text-muted-foreground leading-relaxed flex items-start gap-2.5 mt-1">
-            <Sparkles className="size-4 text-primary shrink-0 mt-0.5" />
-            <div>
+          <div className="flex min-w-0 items-start gap-3 rounded-lg bg-secondary p-4 text-xs leading-5 text-muted-foreground">
+            <Shield className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+            <div className="min-w-0 wrap-anywhere">
               <span className="font-semibold text-foreground">Admin Provisioning: </span>
               This account will be created immediately. The user can sign in right away using these
               credentials. You can modify their role or archive the account anytime.
@@ -371,12 +369,7 @@ export function RegisterUserModal({ open, onClose }: RegisterUserModalProps) {
             >
               Cancel
             </Button>
-            <Button
-              type="submit"
-              size="sm"
-              disabled={registerMutation.isPending}
-              className="gap-1.5 font-semibold cursor-pointer shadow-xs"
-            >
+            <Button type="submit" size="sm" disabled={registerMutation.isPending} className="gap-2">
               {registerMutation.isPending ? (
                 <>
                   <Spinner className="size-3.5" />

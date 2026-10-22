@@ -1,3 +1,4 @@
+import { PageHeader, PageToolbar } from '@/components/ui/ManagementPage'
 import { VehicleDetailModal } from '@/components/deliveries/shared/VehicleDetailModal'
 import {
   VEHICLE_CONDITION_LABELS as CONDITIONS,
@@ -127,8 +128,8 @@ export function VehicleList() {
       sortable: true,
       cell: ({ row }) => (
         <div className="flex flex-col gap-1">
-          <span className="font-semibold">{row.vehicle.model || row.vehicle.vehicleType}</span>
-          <span className="text-[11px] text-muted-foreground">
+          <span className="font-medium">{row.vehicle.model || row.vehicle.vehicleType}</span>
+          <span className="text-xs text-muted-foreground">
             {row.vehicle.capacity
               ? `${Number(row.vehicle.capacity).toLocaleString()} kg capacity`
               : 'Capacity not specified'}
@@ -141,7 +142,7 @@ export function VehicleList() {
       header: 'Plate Number',
       accessorFn: (row) => row.vehicle.plateNumber,
       sortable: true,
-      cell: ({ row }) => <span className="font-mono font-bold">{row.vehicle.plateNumber}</span>,
+      cell: ({ row }) => <span className="font-medium">{row.vehicle.plateNumber}</span>,
     },
     {
       id: 'type',
@@ -173,7 +174,7 @@ export function VehicleList() {
               key={delivery.id}
               variant="link"
               size="sm"
-              className="justify-start text-xs"
+              className="justify-start text-[13px]"
               onClick={() => setHistoryDeliveryId(delivery.id)}
             >
               {delivery.deliveryNumber}
@@ -274,45 +275,41 @@ export function VehicleList() {
       ),
     },
   ]
+  const countStatus = (status: VehicleStatus) =>
+    active.filter((row) => row.status === status).length
+  const availableCount = countStatus('AVAILABLE')
+  const inDeliveryCount = countStatus('IN_DELIVERY')
+  const maintenanceCount = countStatus('MAINTENANCE')
+  const outOfServiceCount = countStatus('OUT_OF_SERVICE')
+  const fleetOverview = [
+    { label: 'Total', count: active.length, valueClass: 'text-foreground' },
+    {
+      label: 'Available',
+      count: availableCount,
+      valueClass: availableCount > 0 ? 'text-primary-text' : 'text-muted-foreground',
+    },
+    {
+      label: 'In Delivery',
+      count: inDeliveryCount,
+      valueClass: inDeliveryCount > 0 ? 'text-foreground' : 'text-muted-foreground',
+    },
+    {
+      label: 'Maintenance',
+      count: maintenanceCount,
+      valueClass: maintenanceCount > 0 ? 'text-status-warning-foreground' : 'text-muted-foreground',
+    },
+    {
+      label: 'Out of Service',
+      count: outOfServiceCount,
+      valueClass: outOfServiceCount > 0 ? 'text-destructive' : 'text-muted-foreground',
+    },
+  ]
+
   return (
-    <div className="flex flex-col gap-5">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-bold tracking-tight">Vehicles</h1>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            Manage ERJV vehicles, their condition, and delivery assignments.
-          </p>
-        </div>
-        {canManage && activeTab === 'ACTIVE' && (
-          <Button
-            size="sm"
-            onClick={() => {
-              setEditVehicleId(null)
-              setIsModalOpen(true)
-            }}
-          >
-            <Plus data-icon="inline-start" />
-            Add Vehicle
-          </Button>
-        )}
-      </div>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-        {[
-          ['Total', active.length],
-          ['Available', active.filter((row) => row.status === 'AVAILABLE').length],
-          ['In Delivery', active.filter((row) => row.status === 'IN_DELIVERY').length],
-          ['Maintenance', active.filter((row) => row.status === 'MAINTENANCE').length],
-          ['Out of Service', active.filter((row) => row.status === 'OUT_OF_SERVICE').length],
-        ].map(([label, count]) => (
-          <div
-            key={label}
-            className="flex items-center justify-between gap-2 rounded-lg border border-border/80 bg-muted/20 p-3"
-          >
-            <span className="text-xs font-medium text-muted-foreground">{label}</span>
-            <span className="font-mono text-lg font-bold">{count}</span>
-          </div>
-        ))}
-      </div>
+    <div className="flex min-w-0 flex-col gap-4">
+      <PageHeader description="Manage vehicles, their condition, and delivery assignments.">
+        Vehicles
+      </PageHeader>
       <ArchiveTabNav
         activeTab={activeTab}
         onTabChange={setActiveTab}
@@ -323,7 +320,20 @@ export function VehicleList() {
         activeIcon={<Truck className="size-3.5" />}
         bannerDescription="Archived ERJV vehicles remain linked to their historical deliveries and can be restored."
       />
-      <div className="flex flex-col gap-3 sm:flex-row">
+      <dl
+        aria-label="Fleet status overview"
+        className="grid grid-cols-2 gap-3 rounded-lg border border-border bg-secondary/40 p-3 sm:grid-cols-3 lg:grid-cols-5"
+      >
+        {fleetOverview.map(({ label, count, valueClass }) => (
+          <div key={label} className="flex min-w-0 flex-col gap-1">
+            <dt className="truncate text-xs font-medium text-muted-foreground">{label}</dt>
+            <dd className={`text-lg font-semibold leading-6 tabular-nums ${valueClass}`}>
+              {count}
+            </dd>
+          </div>
+        ))}
+      </dl>
+      <PageToolbar>
         <div className="relative flex-1 sm:max-w-sm">
           <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -331,12 +341,12 @@ export function VehicleList() {
             placeholder="Search plate, model, type, assignment, or driver..."
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            className="h-9 pl-9 text-xs"
+            className="h-9 pl-9 text-[13px]"
           />
         </div>
         {activeTab === 'ACTIVE' && (
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger aria-label="Vehicle status filter" className="h-9 text-xs sm:w-44">
+            <SelectTrigger aria-label="Vehicle status filter" className="h-9 text-[13px] sm:w-44">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -353,7 +363,19 @@ export function VehicleList() {
             </SelectContent>
           </Select>
         )}
-      </div>
+        {canManage && activeTab === 'ACTIVE' && (
+          <Button
+            size="sm"
+            onClick={() => {
+              setEditVehicleId(null)
+              setIsModalOpen(true)
+            }}
+          >
+            <Plus data-icon="inline-start" />
+            Add Vehicle
+          </Button>
+        )}
+      </PageToolbar>
       {(vehicleQuery.isError || deliveryQuery.isError) && (
         <Alert variant="destructive">
           <AlertDescription>
@@ -372,6 +394,7 @@ export function VehicleList() {
         </Alert>
       )}
       <DataTable
+        appearance="management"
         data={filtered}
         columns={columns}
         getRowKey={(row) => row.vehicle.id}

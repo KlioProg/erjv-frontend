@@ -1,0 +1,136 @@
+import { formatProductUnit } from '@/lib/product-unit'
+import { forwardRef, type ComponentProps, type ReactNode } from 'react'
+import { Trash2 } from 'lucide-react'
+import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
+import { Label } from '@/components/ui/label'
+
+export function OrderField({
+  id,
+  label,
+  required,
+  children,
+  className = '',
+}: {
+  id: string
+  label: string
+  required?: boolean
+  children: ReactNode
+  className?: string
+}) {
+  return (
+    <div className={`flex min-w-0 flex-col gap-1.5 ${className}`}>
+      <Label htmlFor={id} className="text-[13px] font-medium">
+        {label}
+        {required && <span aria-hidden="true"> *</span>}
+      </Label>
+      {children}
+    </div>
+  )
+}
+
+export const OrderDecimalInput = forwardRef<
+  HTMLInputElement,
+  ComponentProps<typeof Input> & { currency?: boolean; mobileLabel: string }
+>(({ currency, mobileLabel, className = '', ...props }, ref) => (
+  <div className="flex min-w-0 flex-col gap-1">
+    {mobileLabel && (
+      <span aria-hidden="true" className="order-entry-mobile-label text-xs text-muted-foreground">
+        {mobileLabel}
+      </span>
+    )}
+    <div className="relative">
+      {currency && (
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 text-sm text-muted-foreground"
+        >
+          ₱
+        </span>
+      )}
+      <Input
+        {...props}
+        ref={ref}
+        type="text"
+        inputMode="decimal"
+        autoComplete="off"
+        className={`order-entry-input h-9 px-2 text-right text-sm tabular-nums ${currency ? 'pl-6' : ''} ${className}`}
+      />
+    </div>
+  </div>
+))
+OrderDecimalInput.displayName = 'OrderDecimalInput'
+
+export function RemoveOrderItem({ name, onRemove }: { name: string; onRemove: () => void }) {
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon"
+      className="size-9 text-destructive/80 hover:bg-destructive/10 hover:text-destructive pointer-coarse:size-11"
+      onClick={onRemove}
+      aria-label={`Remove ${name}`}
+      title={`Remove ${name}`}
+    >
+      <Trash2 aria-hidden="true" className="size-4" />
+    </Button>
+  )
+}
+
+export function ProductIdentity({
+  name,
+  variety,
+  unit,
+}: {
+  name: string
+  variety?: string | null
+  unit?: string | null
+}) {
+  const showVariety = variety && !name.toLocaleLowerCase().includes(variety.toLocaleLowerCase())
+  const secondary = [showVariety ? variety : null, formatProductUnit(unit)]
+    .filter(Boolean)
+    .join(' · ')
+  return (
+    <div className="min-w-0 whitespace-normal">
+      <p title={name} className="text-sm font-medium leading-5 wrap-break-word">
+        {name}
+      </p>
+      {secondary && <p className="text-xs leading-4 text-muted-foreground">{secondary}</p>}
+    </div>
+  )
+}
+
+export function ProductPickerOption({
+  name,
+  variety,
+  unit,
+  availability,
+  description,
+}: {
+  name: string
+  variety?: string | null
+  unit?: string
+  availability?: string
+  description?: string | null
+}) {
+  const secondary = [
+    variety && !name.toLocaleLowerCase().includes(variety.toLocaleLowerCase()) ? variety : null,
+    formatProductUnit(unit),
+    description,
+    availability,
+  ]
+    .filter(Boolean)
+    .join(' · ')
+  return (
+    <span className="flex min-w-0 flex-col gap-0.5">
+      <span title={name} className="truncate text-sm font-medium">
+        {name}
+      </span>
+      {secondary && (
+        <span title={secondary} className="truncate text-xs text-muted-foreground">
+          {secondary}
+        </span>
+      )}
+    </span>
+  )
+}

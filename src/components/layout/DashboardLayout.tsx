@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
+import { Link, NavLink } from 'react-router'
 import {
   Boxes,
   Warehouse as WarehouseIcon,
@@ -18,6 +19,7 @@ import {
   ReceiptText,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
@@ -28,29 +30,19 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { DeliveryNavigation } from './DeliveryNavigation'
 import { ErjvPosLogo } from '@/components/ui/ErjvPosLogo'
 import { useAuth } from '@/features/auth/AuthContext'
 import { USER_ROLES, ROLE_DETAILS } from '@/features/auth/roles'
-import { useProducts } from '@/features/products/products.hooks'
-import { ProductListModal } from '../products/ProductListModal'
-
-export type NavItemKey =
-  | 'inventory'
-  | 'warehouses'
-  | 'fleet'
-  | 'deliveries'
-  | 'purchases'
-  | 'suppliers'
-  | 'clients'
-  | 'employees'
-  | 'jobs'
-  | 'users'
-  | 'orders'
+import { StockNotifications } from './StockNotifications'
+import type { InventoryNavigationTarget } from '@/features/logistics/stock-warnings'
+import { routeForScreen, type NavItemKey } from '@/routes'
 
 type DashboardLayoutProps = {
-  currentTab: NavItemKey
-  onSelectTab: (tab: NavItemKey) => void
+  onNavigate: () => void
+  currentScreen?: NavItemKey
   children: React.ReactNode
+  onOpenInventory: (target: InventoryNavigationTarget) => void
 }
 
 type NavGroup = {
@@ -59,7 +51,7 @@ type NavGroup = {
     key: NavItemKey
     label: string
     icon: React.ComponentType<{ className?: string }>
-    requiresAdmin?: boolean
+    requiresStaffAccess?: boolean
   }[]
 }
 
@@ -67,7 +59,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     title: 'Sales',
     items: [
-      { key: 'clients', label: 'Customers', icon: Building2 },
+      { key: 'clients', label: 'Customers', icon: Users },
       { key: 'orders', label: 'Sales Orders', icon: ReceiptText },
     ],
   },
@@ -90,21 +82,24 @@ const NAV_GROUPS: NavGroup[] = [
   {
     title: 'Staffing & HR',
     items: [
-      { key: 'employees', label: 'Staff Directory', icon: Users, requiresAdmin: true },
-      { key: 'jobs', label: 'Job Positions', icon: Briefcase, requiresAdmin: true },
-      { key: 'users', label: 'User Roles & Access', icon: Shield, requiresAdmin: true },
+      { key: 'employees', label: 'Staff Directory', icon: Users, requiresStaffAccess: true },
+      { key: 'jobs', label: 'Job Positions', icon: Briefcase, requiresStaffAccess: true },
+      { key: 'users', label: 'User Roles & Access', icon: Shield, requiresStaffAccess: true },
     ],
   },
 ]
 
-export function DashboardLayout({ currentTab, onSelectTab, children }: DashboardLayoutProps) {
+export function DashboardLayout({
+  currentScreen,
+  onNavigate,
+  children,
+  onOpenInventory,
+}: DashboardLayoutProps) {
   const queryClient = useQueryClient()
   const { user, logout, isAdmin, isManager } = useAuth()
   const roleConfig =
     ROLE_DETAILS[user?.role || USER_ROLES.UNKNOWN] || ROLE_DETAILS[USER_ROLES.UNKNOWN]
-  const { data: products = [] } = useProducts()
   const [isMobileOpen, setIsMobileOpen] = useState(false)
-  const [isProductsModalOpen, setIsProductsModalOpen] = useState(false)
   const [isSidebarScrolling, setIsSidebarScrolling] = useState(false)
   const sidebarScrollTimeout = useRef<number | null>(null)
 
@@ -127,269 +122,286 @@ export function DashboardLayout({ currentTab, onSelectTab, children }: Dashboard
     }, 700)
   }
 
-  const handleSelectTab = (tab: NavItemKey) => {
-    onSelectTab(tab)
+  const handleNavigate = () => {
+    onNavigate()
     void queryClient.invalidateQueries()
   }
 
   const displayName = user?.fullName || (user?.email ? user.email.split('@')[0] : 'User Account')
   const userInitial = displayName.charAt(0).toUpperCase()
 
-  // Filter out admin-only items if user is Staff
+  // Staffing pages are available to admins and managers.
   const visibleGroups = NAV_GROUPS.map((group) => ({
     ...group,
-    items: group.items.filter((item) => !item.requiresAdmin || isAdmin || isManager),
+    items: group.items.filter((item) => !item.requiresStaffAccess || isAdmin || isManager),
   })).filter((group) => group.items.length > 0)
 
+  const deliveryView =
+    currentScreen === 'incoming-deliveries'
+      ? 'incoming'
+      : currentScreen === 'delivery-history'
+        ? 'history'
+        : currentScreen === 'outgoing-deliveries' || currentScreen === 'deliveries'
+          ? 'outgoing'
+          : null
   // Determine current section info
-  const currentGroup = NAV_GROUPS.find((g) => g.items.some((item) => item.key === currentTab))
-  const currentItem = currentGroup?.items.find((item) => item.key === currentTab)
+  const currentGroup = NAV_GROUPS.find((g) =>
+    g.items.some((item) => item.key === (deliveryView ? 'deliveries' : currentScreen)),
+  )
+  const currentItem = currentGroup?.items.find(
+    (item) => item.key === (deliveryView ? 'deliveries' : currentScreen),
+  )
 
-  return (
-    <div className="min-h-svh w-full bg-background flex text-foreground antialiased selection:bg-primary/20">
-      {/* Mobile Backdrop */}
-      {isMobileOpen && (
-        <div
-          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-xs lg:hidden"
-          onClick={() => setIsMobileOpen(false)}
-          aria-hidden="true"
-        />
-      )}
-
-      {/* Sidebar Navigation */}
-      <aside
-        data-sidebar
-        className={`fixed inset-y-0 left-0 z-50 flex w-60 flex-col justify-between border-r border-border/80 bg-card backdrop-blur-md transition-transform duration-300 lg:sticky lg:top-0 lg:h-screen lg:shrink-0 ${
-          isMobileOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full lg:translate-x-0'
-        }`}
-      >
-        {/* Sidebar Header & Nav list */}
-        <div className="flex flex-col min-h-0 flex-1">
-          <div className="flex h-16 shrink-0 items-center justify-between px-5 border-b border-border/70">
-            <ErjvPosLogo />
-            <Button
-              variant="ghost"
-              size="icon"
-              className="lg:hidden size-8 text-muted-foreground"
-              onClick={() => setIsMobileOpen(false)}
-            >
-              <X className="size-4" />
-            </Button>
-          </div>
-
-          {/* Nav List with a subtle native scrollbar */}
-          <nav
-            aria-label="Main navigation"
-            tabIndex={0}
-            data-scrolling={isSidebarScrolling}
-            onScroll={handleSidebarScroll}
-            className="scrollbar-subtle flex-1 flex flex-col gap-5 px-3.5 py-4 overflow-y-auto min-h-0"
+  const sidebarContent = (
+    <>
+      {/* Sidebar Header & Nav list */}
+      <div className="flex flex-col min-h-0 flex-1">
+        <div className="flex h-14 shrink-0 items-center justify-between px-5 border-b">
+          <ErjvPosLogo />
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="Close navigation"
+            className="lg:hidden size-8 text-muted-foreground"
+            onClick={() => setIsMobileOpen(false)}
           >
-            {visibleGroups.map((group) => (
-              <div key={group.title} className="flex flex-col gap-1.5">
-                <div className="px-3 text-[10px] font-bold tracking-wider uppercase text-muted-foreground/80">
-                  {group.title}
-                </div>
-                <div className="flex flex-col gap-0.5">
-                  {group.items.map((item) => {
-                    const Icon = item.icon
-                    const isActive = currentTab === item.key
+            <X className="size-4" />
+          </Button>
+        </div>
 
+        {/* Nav List with a subtle native scrollbar */}
+        <nav
+          aria-label="Main navigation"
+          tabIndex={0}
+          data-scrolling={isSidebarScrolling}
+          onScroll={handleSidebarScroll}
+          className="scrollbar-subtle flex-1 flex flex-col gap-6 px-3 py-5 overflow-y-auto min-h-0"
+        >
+          {visibleGroups.map((group) => (
+            <div key={group.title} className="flex flex-col gap-2">
+              <div className="px-3 text-xs font-medium text-muted-foreground">{group.title}</div>
+              <div className="flex flex-col gap-1">
+                {group.items.map((item) => {
+                  if (item.key === 'deliveries')
                     return (
-                      <button
+                      <DeliveryNavigation
                         key={item.key}
-                        aria-current={isActive ? 'page' : undefined}
-                        onClick={() => {
-                          handleSelectTab(item.key)
+                        view={deliveryView}
+                        onSelect={() => {
+                          handleNavigate()
                           setIsMobileOpen(false)
                         }}
-                        className={`group relative flex w-full items-center justify-between rounded-md px-3 py-2.5 text-xs font-semibold transition-all duration-150 cursor-pointer select-none active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
-                          isActive
-                            ? 'bg-accent text-foreground'
-                            : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
-                        }`}
-                      >
-                        <div className="flex items-center gap-3">
-                          <Icon
-                            className={`size-4 shrink-0 transition-transform group-hover:scale-110 ${
-                              isActive
-                                ? 'text-primary'
-                                : 'text-muted-foreground group-hover:text-foreground'
-                            }`}
-                          />
-                          <span>{item.label}</span>
-                        </div>
-
-                        {isActive && <ChevronRight className="size-3.5 text-muted-foreground" />}
-                      </button>
+                      />
                     )
-                  })}
-                </div>
-              </div>
-            ))}
-          </nav>
-        </div>
-
-        {/* Sidebar Footer / User Profile & Role Switcher - ALWAYS PINNED ON BOTTOM LEFT */}
-        <div className="p-3 bg-card shrink-0">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <div className="flex items-center justify-between gap-2.5 p-2 rounded-xl bg-card border border-border/70 cursor-pointer hover:bg-muted transition-colors">
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <Avatar className="size-9 border border-border bg-muted shrink-0">
-                    {user?.avatarUrl && (
-                      <AvatarImage
-                        src={user.avatarUrl}
-                        alt={displayName}
-                        className="object-cover"
-                      />
-                    )}
-                    <AvatarFallback className="bg-muted text-foreground font-extrabold text-xs">
-                      {userInitial}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex flex-col min-w-0 text-left">
-                    <span
-                      className="text-xs font-bold leading-snug text-foreground truncate max-w-[130px]"
-                      title={displayName}
+                  const Icon = item.icon
+                  return (
+                    <NavLink
+                      key={item.key}
+                      to={routeForScreen(item.key)}
+                      end={item.key !== 'warehouses'}
+                      onClick={() => {
+                        handleNavigate()
+                        setIsMobileOpen(false)
+                      }}
+                      className={({ isActive }) =>
+                        `group relative flex h-9 w-full items-center justify-between rounded-md px-3 py-2 text-ui font-medium transition-colors duration-150 cursor-pointer select-none pointer-coarse:min-h-11 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                          isActive
+                            ? 'bg-primary-subtle text-foreground'
+                            : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
+                        }`
+                      }
                     >
-                      {displayName}
-                    </span>
-                    <div className="flex items-center gap-1.5 mt-0.5">
-                      <span
-                        className={`inline-block size-1.5 rounded-full shrink-0 ${
-                          roleConfig.role === USER_ROLES.ADMIN
-                            ? 'bg-emerald-500'
-                            : roleConfig.role === USER_ROLES.MANAGER
-                              ? 'bg-blue-500'
-                              : roleConfig.role === USER_ROLES.STAFF
-                                ? 'bg-muted-foreground'
-                                : 'bg-rose-500'
-                        }`}
-                      />
-                      <span className="text-[10px] font-extrabold tracking-tight uppercase text-muted-foreground">
-                        {roleConfig.label}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-                <ChevronDown className="size-3.5 text-muted-foreground shrink-0" />
-              </div>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" side="top" className="w-64 mb-2">
-              <div className="px-2.5 py-2 text-xs text-muted-foreground flex flex-col gap-1 rounded-xl mx-1">
-                <span className="font-bold text-foreground truncate text-sm">{displayName}</span>
-                <span className="text-[11px] text-muted-foreground truncate font-mono">
-                  {user?.email || 'Logged In'}
-                </span>
-                <div className="flex items-center gap-1.5 mt-1">
-                  <Badge
-                    variant="outline"
-                    className={`font-bold text-[9px] py-0 px-1.5 ${roleConfig.badgeClass}`}
-                  >
-                    {roleConfig.label}
-                  </Badge>
-                  <span className="text-[10px] text-emerald-600 font-semibold">● Online</span>
-                </div>
-              </div>
-              <DropdownMenuSeparator />
-              <DropdownMenuGroup>
-                <DropdownMenuItem
-                  onClick={logout}
-                  className="text-destructive gap-2 text-xs cursor-pointer font-semibold py-2 hover:bg-muted focus:bg-muted focus:text-destructive"
-                >
-                  <LogOut className="size-3.5" />
-                  Sign Out
-                </DropdownMenuItem>
-              </DropdownMenuGroup>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </aside>
+                      <div className="flex items-center gap-3">
+                        <Icon
+                          className={`size-4 shrink-0 ${
+                            currentScreen === item.key
+                              ? 'text-primary'
+                              : 'text-muted-foreground group-hover:text-foreground'
+                          }`}
+                        />
+                        <span>{item.label}</span>
+                      </div>
 
-      {/* Main Content Viewport */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-x-hidden">
-        {/* Sticky Top Header */}
-        <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border/80 bg-background/85 backdrop-blur-md px-4 sm:px-8">
-          <div className="flex items-center gap-3">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="lg:hidden size-9 text-muted-foreground"
-              onClick={() => setIsMobileOpen(true)}
-            >
-              <Menu className="size-5" />
-            </Button>
-
-            <div className="flex flex-col select-none">
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <span className="font-medium">{currentGroup?.title}</span>
-                <span>/</span>
-                <span className="font-bold text-foreground">{currentItem?.label}</span>
+                      {currentScreen === item.key && item.key !== 'inventory' && (
+                        <ChevronRight className="size-3.5 text-muted-foreground" />
+                      )}
+                    </NavLink>
+                  )
+                })}
               </div>
             </div>
-          </div>
-
-          {/* Quick Header Actions */}
-          <div className="flex items-center gap-2.5">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setIsProductsModalOpen(true)}
-              className="text-xs font-semibold h-8.5 gap-1.5 shadow-2xs cursor-pointer"
-            >
-              <Package className="size-3.5 text-primary" />
-              <span className="hidden sm:inline">Product Catalog</span> ({products.length})
-            </Button>
-
-            <Badge
-              variant="outline"
-              className={`hidden sm:flex text-[11px] font-medium gap-1.5 ${
-                roleConfig.role === USER_ROLES.ADMIN
-                  ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20'
-                  : roleConfig.role === USER_ROLES.MANAGER
-                    ? 'bg-blue-500/10 text-blue-600 border-blue-500/20'
-                    : roleConfig.role === USER_ROLES.STAFF
-                      ? 'bg-muted/80 text-muted-foreground border-border'
-                      : 'bg-rose-500/10 text-rose-600 border-rose-500/20'
-              }`}
-            >
-              <span
-                className={`size-1.5 rounded-full ${
-                  roleConfig.role === USER_ROLES.ADMIN
-                    ? 'bg-emerald-500'
-                    : roleConfig.role === USER_ROLES.MANAGER
-                      ? 'bg-blue-500'
-                      : roleConfig.role === USER_ROLES.STAFF
-                        ? 'bg-muted-foreground'
-                        : 'bg-rose-500'
-                } animate-pulse`}
-              />
-              {roleConfig.label} Mode
-            </Badge>
-          </div>
-        </header>
-
-        {/* Dynamic Main Body Content */}
-        <main className="flex-1 p-4 sm:p-8 max-w-7xl w-full mx-auto animate-in fade-in-50 duration-200">
-          {children}
-        </main>
-
-        {/* Global Footer */}
-        <footer className="border-t border-border/60 py-4 px-4 sm:px-8 text-center text-xs text-muted-foreground">
-          <div className="max-w-7xl mx-auto flex items-center justify-between">
-            <span className="font-medium tracking-tight">
-              ERJV POS Enterprise Operations Suite © {new Date().getFullYear()}
-            </span>
-            <span className="font-mono text-[11px] text-muted-foreground/80">
-              v1.0.0 (Production)
-            </span>
-          </div>
-        </footer>
+          ))}
+        </nav>
       </div>
 
-      {/* Global Product Catalog Modal */}
-      <ProductListModal open={isProductsModalOpen} onClose={() => setIsProductsModalOpen(false)} />
-    </div>
+      {/* Sidebar Footer / User Profile & Role Switcher - ALWAYS PINNED ON BOTTOM LEFT */}
+      <div className="p-3 border-t bg-card shrink-0">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              aria-label="Account menu"
+              className="flex w-full items-center justify-between gap-3 p-2 rounded-md bg-card cursor-pointer hover:bg-muted transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <Avatar className="size-9 border border-border bg-muted shrink-0">
+                  {user?.avatarUrl && (
+                    <AvatarImage src={user.avatarUrl} alt={displayName} className="object-cover" />
+                  )}
+                  <AvatarFallback className="bg-muted text-foreground font-semibold text-ui">
+                    {userInitial}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex flex-col min-w-0 text-left">
+                  <span
+                    className="text-ui font-medium leading-snug text-foreground truncate max-w-[130px]"
+                    title={displayName}
+                  >
+                    {displayName}
+                  </span>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <span className="text-xs text-muted-foreground">{roleConfig.label}</span>
+                  </div>
+                </div>
+              </div>
+              <ChevronDown className="size-3.5 text-muted-foreground shrink-0" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" side="top" className="w-64 mb-2">
+            <div className="px-2.5 py-2 text-xs text-muted-foreground flex flex-col gap-1 rounded-xl mx-1">
+              <span className="font-medium text-foreground truncate text-sm">{displayName}</span>
+              <span className="text-xs text-muted-foreground truncate">
+                {user?.email || 'Logged In'}
+              </span>
+              <div className="flex items-center gap-1.5 mt-1">
+                <Badge
+                  variant="outline"
+                  className={`font-medium text-xs py-0.5 px-2 ${roleConfig.badgeClass}`}
+                >
+                  {roleConfig.label}
+                </Badge>
+              </div>
+            </div>
+            <DropdownMenuSeparator />
+            <DropdownMenuGroup>
+              <DropdownMenuItem
+                onClick={logout}
+                className="text-destructive gap-2 text-ui cursor-pointer font-medium py-2 hover:bg-muted focus:bg-muted focus:text-destructive"
+              >
+                <LogOut className="size-3.5" />
+                Sign Out
+              </DropdownMenuItem>
+            </DropdownMenuGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    </>
+  )
+
+  useEffect(() => {
+    const desktop = window.matchMedia('(min-width: 1024px)')
+    const closeOnDesktop = (event: MediaQueryListEvent) => {
+      if (event.matches) setIsMobileOpen(false)
+    }
+    desktop.addEventListener('change', closeOnDesktop)
+    return () => desktop.removeEventListener('change', closeOnDesktop)
+  }, [])
+
+  return (
+    <Dialog open={isMobileOpen} onOpenChange={setIsMobileOpen}>
+      <div className="min-h-svh w-full bg-background flex text-foreground antialiased selection:bg-primary/20">
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-2 focus:z-50 focus:rounded-md focus:bg-card focus:p-3 focus:text-foreground focus:ring-2 focus:ring-ring"
+        >
+          Skip to content
+        </a>
+        {/* Sidebar Navigation */}
+        <aside
+          data-sidebar
+          className="sticky top-0 hidden h-dvh w-60 shrink-0 flex-col justify-between border-r bg-card lg:flex"
+        >
+          {sidebarContent}
+        </aside>
+
+        <DialogContent
+          data-sidebar
+          aria-describedby={undefined}
+          className="inset-y-0 left-0 top-0 flex h-dvh max-h-dvh w-60 max-w-[calc(100vw-2rem)] translate-x-0 translate-y-0 flex-col justify-between gap-0 rounded-none border-0 border-r p-0 [&>button:last-child]:hidden"
+        >
+          <DialogTitle className="sr-only">Navigation</DialogTitle>
+          {sidebarContent}
+        </DialogContent>
+
+        {/* Main Content Viewport */}
+        <div className="flex-1 flex flex-col min-w-0 overflow-x-hidden">
+          {/* Sticky Top Header */}
+          <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b bg-card px-4 sm:px-8">
+            <div className="flex min-w-0 items-center gap-3">
+              <DialogTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Open navigation"
+                  className="lg:hidden size-9 text-muted-foreground"
+                >
+                  <Menu className="size-5" />
+                </Button>
+              </DialogTrigger>
+
+              <nav
+                aria-label="Application breadcrumb"
+                className="flex min-w-0 flex-col select-none"
+              >
+                <div className="flex flex-wrap items-center gap-x-2 text-ui text-muted-foreground">
+                  {currentGroup && (
+                    <>
+                      <Link
+                        className="font-medium hover:text-foreground"
+                        to={routeForScreen(currentGroup.items[0].key)}
+                        onClick={handleNavigate}
+                      >
+                        {currentGroup.title}
+                      </Link>
+                      <span>/</span>
+                    </>
+                  )}
+                  <span aria-current="page" className="font-medium text-foreground">
+                    {deliveryView
+                      ? `Deliveries / ${deliveryView === 'incoming' ? 'Incoming' : deliveryView === 'outgoing' ? 'Outgoing' : 'History'}`
+                      : currentItem?.label}
+                  </span>
+                </div>
+              </nav>
+            </div>
+
+            <StockNotifications
+              onOpenInventory={(target) => {
+                onOpenInventory(target)
+                setIsMobileOpen(false)
+              }}
+            />
+          </header>
+
+          {/* Dynamic Main Body Content */}
+          <main
+            id="main-content"
+            tabIndex={-1}
+            className="flex-1 p-4 sm:p-8 max-w-[1600px] w-full mx-auto scroll-mt-16"
+          >
+            {children}
+          </main>
+
+          {/* Global Footer */}
+          <footer className="border-t border-border/60 py-4 px-4 sm:px-8 text-center text-xs text-muted-foreground">
+            <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-2">
+              <span className="font-medium tracking-tight">
+                ERJV POS Enterprise Operations Suite © {new Date().getFullYear()}
+              </span>
+            </div>
+          </footer>
+        </div>
+      </div>
+    </Dialog>
   )
 }

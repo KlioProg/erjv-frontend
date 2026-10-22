@@ -39,13 +39,13 @@ export function usePurchaseOrderByNumber(orderNumber?: string) {
   })
 }
 
-export function useCreatePurchaseOrder() {
+export function useCreatePurchaseOrder({ notifySuccess = true }: { notifySuccess?: boolean } = {}) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (payload: CreatePurchaseOrderPayload) => createPurchaseOrderApi(payload),
     onSuccess: (order) => {
       void queryClient.invalidateQueries({ queryKey: PURCHASE_ORDERS_QUERY_KEY })
-      toast.success(`Purchase Order "${order.orderNumber}" created successfully`)
+      if (notifySuccess) toast.success(`Purchase Order "${order.orderNumber}" created successfully`)
     },
     onError: (err) => {
       toast.error(getErrorMessage(err))
@@ -57,9 +57,12 @@ export function useConfirmPurchaseOrder() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (id: number) => confirmPurchaseOrderApi(id),
-    onSuccess: (order) => {
+    onSuccess: (order, id) => {
       void queryClient.invalidateQueries({ queryKey: PURCHASE_ORDERS_QUERY_KEY })
-      toast.success(`Purchase Order "${order.orderNumber}" has been confirmed`)
+      if (order.id === id && order.status === 'CONFIRMED')
+        toast.success('Order confirmed', {
+          description: `Purchase order ${order.orderNumber}. Prepare it in Incoming Deliveries.`,
+        })
     },
     onError: (err) => {
       toast.error(getErrorMessage(err))

@@ -1,3 +1,5 @@
+import { DataTableExpandToggle } from '@/components/ui/DataTableExpandedSection'
+import { PageHeader, PageOverview, PageToolbar } from '@/components/ui/ManagementPage'
 import { useMemo, useRef, useState } from 'react'
 import {
   AlertTriangle,
@@ -11,7 +13,6 @@ import {
 import { ArchiveTabNav } from '@/components/ui/ArchiveTabNav'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Badge } from '@/components/ui/badge'
 import { DataTable, type ColumnDef } from '@/components/ui/data-table'
 import { OverflowValue } from '@/components/ui/OverflowValue'
 import { DataTableActions } from '@/components/ui/DataTableActions'
@@ -35,8 +36,8 @@ import { useAuth } from '@/features/auth/AuthContext'
 import type { Warehouse } from '@/features/logistics/warehouses.types'
 import type { StockItem } from '@/features/logistics/stock-items.types'
 import { getErrorMessage } from '@/lib/api-client'
+import { WarehouseProducts } from './WarehouseProducts'
 import { WarehouseModal } from './WarehouseModal'
-import { WarehouseInventory } from './WarehouseInventory'
 import { formatStockCents, parseStockCents, stockSortKey } from '@/features/logistics/stock-display'
 
 type WarehouseStockSummary = { products: number; units: bigint }
@@ -61,7 +62,7 @@ function summarizeWarehouseStock(items: StockItem[]): WarehouseStockSummary {
   return { products, units }
 }
 
-export function WarehouseList({ initialWarehouseId }: { initialWarehouseId?: number | null } = {}) {
+export function WarehouseList({ onOpenWarehouse }: { onOpenWarehouse: (id: number) => void }) {
   const [activeTab, setActiveTab] = useState<'ACTIVE' | 'ARCHIVED'>('ACTIVE')
   const warehousesQuery = useAllWarehouses()
   const stockQuery = useStockItems()
@@ -69,8 +70,8 @@ export function WarehouseList({ initialWarehouseId }: { initialWarehouseId?: num
   const stockItems = useMemo(() => stockQuery.data ?? [], [stockQuery.data])
   const { isAdmin, isManager } = useAuth()
   const canManage = isAdmin || isManager
+  const [expandedWarehouseIds, setExpandedWarehouseIds] = useState<Set<number>>(new Set())
   const [searchTerm, setSearchTerm] = useState('')
-  const [selectedWarehouseId, setSelectedWarehouseId] = useState<number | null>(initialWarehouseId ?? null)
   const [editingWarehouse, setEditingWarehouse] = useState<Warehouse | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [warehouseToArchive, setWarehouseToArchive] = useState<Warehouse | null>(null)
@@ -89,7 +90,6 @@ export function WarehouseList({ initialWarehouseId }: { initialWarehouseId?: num
     () => allWarehouses.filter((warehouse) => warehouse.isActive === false),
     [allWarehouses],
   )
-  const selectedWarehouse = allWarehouses.find((warehouse) => warehouse.id === selectedWarehouseId)
   const warehouseTotals = useMemo(() => {
     const totals = new Map<number, { products: number; units: bigint | null }>()
     for (const stock of stockItems) {
@@ -101,17 +101,22 @@ export function WarehouseList({ initialWarehouseId }: { initialWarehouseId?: num
     }
     return totals
   }, [stockItems])
-  const getWarehouseUnits = (id: number): bigint | null => warehouseTotals.get(id)?.units === undefined
-    ? 0n
-    : warehouseTotals.get(id)!.units
+  const getWarehouseUnits = (id: number): bigint | null =>
+    warehouseTotals.get(id)?.units === undefined ? 0n : warehouseTotals.get(id)!.units
   const filteredWarehouses = useMemo(() => {
     const term = searchTerm.trim().toLowerCase()
     return (activeTab === 'ACTIVE' ? activeWarehouses : archivedWarehouses).filter(
       (warehouse) =>
         !term ||
-        String(warehouse.name ?? '').toLowerCase().includes(term) ||
-        String(warehouse.address ?? '').toLowerCase().includes(term) ||
-        String(warehouse.contactNumber ?? '').toLowerCase().includes(term),
+        String(warehouse.name ?? '')
+          .toLowerCase()
+          .includes(term) ||
+        String(warehouse.address ?? '')
+          .toLowerCase()
+          .includes(term) ||
+        String(warehouse.contactNumber ?? '')
+          .toLowerCase()
+          .includes(term),
     )
   }, [activeTab, activeWarehouses, archivedWarehouses, searchTerm])
 
@@ -165,28 +170,25 @@ export function WarehouseList({ initialWarehouseId }: { initialWarehouseId?: num
     {
       id: 'name',
       header: 'Warehouse',
-      width: '32%',
+      width: '36%',
       sortable: true,
       sortKey: 'name',
       cell: ({ row }) => (
         <div className="min-w-0">
           <div className="flex min-w-0 items-center gap-2">
-            <WarehouseIcon className="size-4 shrink-0 text-primary" />
+            <WarehouseIcon className="size-4 shrink-0 text-muted-foreground" />
             <OverflowValue
               value={row.name}
-              onActivate={() => setSelectedWarehouseId(row.id)}
-              className="h-auto p-0 text-left text-xs font-bold"
+              onActivate={() => onOpenWarehouse(row.id)}
+              className="h-auto min-h-8 p-0 text-left text-sm font-medium pointer-coarse:min-h-11"
             />
           </div>
-          <div className="mt-1 flex min-w-0 items-center gap-2 pl-6 text-[11px] sm:hidden">
+          <div className="mt-1 flex min-w-0 items-center gap-2 pl-6 text-xs sm:hidden">
             <OverflowValue
               value={formatStockCents(getWarehouseUnits(row.id))}
               tooltipSuffix="units"
               className="max-w-[55%] font-semibold tabular-nums"
             />
-            <Badge variant="outline" className="shrink-0 px-1.5 py-0 text-[10px]">
-              {row.isActive === false ? 'Archived' : 'Active'}
-            </Badge>
           </div>
         </div>
       ),
@@ -194,13 +196,13 @@ export function WarehouseList({ initialWarehouseId }: { initialWarehouseId?: num
     {
       id: 'location',
       header: 'Location',
-      width: '28%',
+      width: '32%',
       className: 'hidden lg:table-cell',
       headerClassName: 'hidden lg:table-cell',
       sortable: true,
       sortKey: 'address',
       cell: ({ row }) => (
-        <span className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+        <span className="flex min-w-0 items-center gap-1.5 text-sm text-muted-foreground">
           <MapPin className="size-3.5 shrink-0" />
           <OverflowValue value={row.address} />
         </span>
@@ -210,17 +212,33 @@ export function WarehouseList({ initialWarehouseId }: { initialWarehouseId?: num
       id: 'products',
       header: 'Products',
       width: '12%',
-      className: 'hidden lg:table-cell',
-      headerClassName: 'hidden lg:table-cell',
+      className: 'hidden sm:table-cell',
+      headerClassName: 'hidden sm:table-cell',
       align: 'right',
       sortable: true,
       sortKey: (row) => warehouseTotals.get(row.id)?.products || 0,
-      cell: ({ row }) => (
-        <div className="flex min-w-0 items-center justify-end gap-1 text-xs font-semibold">
-          <OverflowValue value={(warehouseTotals.get(row.id)?.products ?? 0).toLocaleString()} className="text-right tabular-nums" />
-          <span className="shrink-0">products</span>
-        </div>
-      ),
+      cell: ({ row }) => {
+        const expanded = expandedWarehouseIds.has(row.id)
+        const count = warehouseTotals.get(row.id)?.products ?? 0
+        return (
+          <DataTableExpandToggle
+            expanded={expanded}
+            controls={`warehouse-products-${row.id}`}
+            ariaLabel={`${expanded ? 'Hide' : 'Show'} products for ${row.name}`}
+            onToggle={() => {
+              setExpandedWarehouseIds((current) => {
+                const next = new Set(current)
+                if (next.has(row.id)) next.delete(row.id)
+                else next.add(row.id)
+                return next
+              })
+            }}
+          >
+            <span className="tabular-nums">{count.toLocaleString()}</span>
+            <span className="hidden xl:inline">{count === 1 ? 'product' : 'products'}</span>
+          </DataTableExpandToggle>
+        )
+      },
     },
     {
       id: 'units',
@@ -232,32 +250,14 @@ export function WarehouseList({ initialWarehouseId }: { initialWarehouseId?: num
       sortable: true,
       sortKey: (row) => stockSortKey(getWarehouseUnits(row.id)),
       cell: ({ row }) => (
-        <div className="flex min-w-0 items-center justify-end gap-1 text-xs font-semibold">
-          <OverflowValue value={formatStockCents(getWarehouseUnits(row.id))} tooltipSuffix="units" className="text-right tabular-nums" />
+        <div className="flex min-w-0 items-center justify-end gap-1 text-sm font-normal">
+          <OverflowValue
+            value={formatStockCents(getWarehouseUnits(row.id))}
+            tooltipSuffix="units"
+            className="text-right tabular-nums"
+          />
           <span className="hidden shrink-0 xl:inline">units</span>
         </div>
-      ),
-    },
-    {
-      id: 'status',
-      header: 'Status',
-      width: '8%',
-      className: 'hidden sm:table-cell',
-      headerClassName: 'hidden sm:table-cell',
-      align: 'center',
-      sortable: true,
-      sortKey: 'isActive',
-      cell: ({ row }) => (
-        <Badge
-          variant="outline"
-          className={
-            row.isActive === false
-              ? 'text-amber-600 border-amber-500/30'
-              : 'text-emerald-600 border-emerald-500/30'
-          }
-        >
-          {row.isActive === false ? 'Archived' : 'Active'}
-        </Badge>
       ),
     },
   ]
@@ -295,27 +295,32 @@ export function WarehouseList({ initialWarehouseId }: { initialWarehouseId?: num
     })
   }
 
-  if (selectedWarehouse)
-    return (
-      <WarehouseInventory
-        warehouse={selectedWarehouse}
-        onBack={() => setSelectedWarehouseId(null)}
-      />
-    )
-
   if (warehousesQuery.isError || stockQuery.isError)
     return (
-      <div role="alert" className="rounded-lg border border-destructive/30 p-3 text-xs text-destructive">
-        Warehouses and stock could not be loaded: {getErrorMessage(warehousesQuery.error ?? stockQuery.error)}
-        <Button variant="link" size="sm" onClick={() => {
-          if (warehousesQuery.isError) void warehousesQuery.refetch()
-          if (stockQuery.isError) void stockQuery.refetch()
-        }}>Retry</Button>
+      <div
+        role="alert"
+        className="rounded-lg border border-destructive/30 p-3 text-xs text-destructive"
+      >
+        Warehouses and stock could not be loaded:{' '}
+        {getErrorMessage(warehousesQuery.error ?? stockQuery.error)}
+        <Button
+          variant="link"
+          size="sm"
+          onClick={() => {
+            if (warehousesQuery.isError) void warehousesQuery.refetch()
+            if (stockQuery.isError) void stockQuery.refetch()
+          }}
+        >
+          Retry
+        </Button>
       </div>
     )
 
   return (
     <div className="flex flex-col gap-4">
+      <PageHeader description="Manage warehouse locations and review the stock held at each site.">
+        Warehouses
+      </PageHeader>
       <div className="min-w-0 overflow-x-auto">
         <ArchiveTabNav
           activeTab={activeTab}
@@ -328,7 +333,8 @@ export function WarehouseList({ initialWarehouseId }: { initialWarehouseId?: num
           bannerDescription="Archived warehouses retain their inventory records and can be restored."
         />
       </div>
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <PageOverview />
+      <PageToolbar>
         <div className="relative w-full sm:max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
           <Input
@@ -336,7 +342,7 @@ export function WarehouseList({ initialWarehouseId }: { initialWarehouseId?: num
             placeholder="Search warehouses or locations..."
             value={searchTerm}
             onChange={(event) => setSearchTerm(event.target.value)}
-            className="pl-9 h-9 text-xs"
+            className="pl-9 h-9 text-[13px]"
           />
         </div>
         {canManage && activeTab === 'ACTIVE' && (
@@ -352,12 +358,18 @@ export function WarehouseList({ initialWarehouseId }: { initialWarehouseId?: num
             Register Warehouse
           </Button>
         )}
-      </div>
+      </PageToolbar>
       <DataTable
+        appearance="management"
         data={filteredWarehouses}
         columns={columns}
-        onRowClick={(warehouse) => setSelectedWarehouseId(warehouse.id)}
-        rowClassName={() => 'hover:bg-primary/5 focus-within:bg-primary/5'}
+        renderExpandedRow={(warehouse) =>
+          expandedWarehouseIds.has(warehouse.id) ? (
+            <WarehouseProducts warehouseId={warehouse.id} warehouseName={warehouse.name} />
+          ) : null
+        }
+        onRowClick={(warehouse) => onOpenWarehouse(warehouse.id)}
+        rowClassName={() => 'hover:bg-accent focus-within:bg-accent'}
         isLoading={warehousesQuery.isLoading || stockQuery.isLoading}
         loadingMessage="Loading warehouses..."
         emptyContent={
@@ -379,7 +391,7 @@ export function WarehouseList({ initialWarehouseId }: { initialWarehouseId?: num
         <DialogContent className="sm:max-w-[440px]">
           <DialogHeader className="gap-2">
             <div
-              className={`mb-1 flex size-11 items-center justify-center rounded-xl ${archiveCheck?.status === 'blocked' || archiveCheck?.status === 'error' ? 'bg-amber-500/10 text-amber-600' : 'bg-destructive/10 text-destructive'}`}
+              className={`mb-1 flex size-5 items-center justify-center ${archiveCheck?.status === 'blocked' || archiveCheck?.status === 'error' ? 'text-status-warning-foreground' : 'text-destructive'}`}
             >
               {archiveCheck?.status === 'checking' ? (
                 <Spinner className="size-5" />
@@ -409,8 +421,8 @@ export function WarehouseList({ initialWarehouseId }: { initialWarehouseId?: num
             </DialogDescription>
           </DialogHeader>
           {archiveCheck?.status === 'blocked' && (
-            <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3.5 text-xs text-foreground">
-              <p className="break-all font-bold">{warehouseToArchive?.name}</p>
+            <div className="rounded-md border border-status-warning-foreground/30 bg-status-warning p-3.5 text-xs text-foreground">
+              <p className="break-all font-medium">{warehouseToArchive?.name}</p>
               <p className="mt-1">
                 {archiveCheck.products} {archiveCheck.products === 1 ? 'product' : 'products'} ·{' '}
                 {formatStockCents(archiveCheck.units)} units of inventory
@@ -420,7 +432,7 @@ export function WarehouseList({ initialWarehouseId }: { initialWarehouseId?: num
           {archiveCheck?.status === 'error' && archiveCheck.error && (
             <p
               role="alert"
-              className="rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive"
+              className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive"
             >
               {archiveCheck.error}
             </p>
@@ -440,7 +452,7 @@ export function WarehouseList({ initialWarehouseId }: { initialWarehouseId?: num
                 type="button"
                 size="sm"
                 onClick={() => {
-                  setSelectedWarehouseId(warehouseToArchive.id)
+                  onOpenWarehouse(warehouseToArchive.id)
                   closeArchiveDialog()
                 }}
               >

@@ -1,117 +1,92 @@
-import { CheckCircle2, Clock, Truck, Ban, FileText } from 'lucide-react'
+import { Ban, Check } from 'lucide-react'
 import type { OutgoingDeliveryRecord } from '@/features/logistics/outgoing-deliveries.types'
 import { DeliveryUtils } from '@/features/logistics/delivery-utils'
+import { cn } from '@/lib/utils'
 
-interface DeliveryTimelineProps {
-  delivery: OutgoingDeliveryRecord
-}
-
-export function DeliveryTimeline({ delivery }: DeliveryTimelineProps) {
-  const isCancelled = delivery.status === 'CANCELLED'
-
-  if (isCancelled) {
+export function DeliveryTimeline({ delivery }: { delivery: OutgoingDeliveryRecord }) {
+  if (delivery.status === 'CANCELLED') {
     return (
-      <div className="flex items-center gap-3 p-3.5 rounded-xl border border-rose-500/20 bg-rose-500/5 text-xs text-rose-700 dark:text-rose-400">
-        <Ban className="size-4 shrink-0 text-rose-600" />
-        <div className="flex flex-col">
-          <span className="font-bold">Shipment Cancelled</span>
-          <span className="text-[11px] text-muted-foreground">
-            Cancelled on {DeliveryUtils.formatDateTime(delivery.cancelledAt)}
-          </span>
+      <div role="note" className="flex items-start gap-2 text-sm text-destructive">
+        <Ban aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+        <div>
+          <p className="font-medium">Shipment cancelled</p>
+          {delivery.cancelledAt && (
+            <p className="mt-0.5 text-xs">{DeliveryUtils.formatDateTime(delivery.cancelledAt)}</p>
+          )}
+          <p className="mt-1 text-xs text-muted-foreground">
+            Created {DeliveryUtils.formatDateTime(delivery.createdAt)}
+          </p>
         </div>
       </div>
     )
   }
 
+  const current = DeliveryUtils.getStepIndex(delivery.status)
   const steps = [
-    {
-      key: 'DRAFT',
-      title: 'Draft Created',
-      date: delivery.createdAt,
-      icon: FileText,
-      completed: true,
-      active: delivery.status === 'DRAFT',
-    },
-    {
-      key: 'SCHEDULED',
-      title: 'Scheduled',
-      date: delivery.scheduledAt,
-      icon: Clock,
-      completed: ['SCHEDULED', 'DISPATCHED', 'DELIVERED'].includes(delivery.status),
-      active: delivery.status === 'SCHEDULED',
-    },
-    {
-      key: 'DISPATCHED',
-      title: 'Dispatched in Transit',
-      date: delivery.dispatchedAt,
-      icon: Truck,
-      completed: ['DISPATCHED', 'DELIVERED'].includes(delivery.status),
-      active: delivery.status === 'DISPATCHED',
-    },
-    {
-      key: 'DELIVERED',
-      title: 'Delivered to Destination',
-      date: delivery.deliveredAt,
-      icon: CheckCircle2,
-      completed: delivery.status === 'DELIVERED',
-      active: delivery.status === 'DELIVERED',
-    },
+    { label: 'Draft Created', date: delivery.createdAt },
+    { label: 'Scheduled', date: delivery.scheduledAt },
+    { label: 'In Transit', date: delivery.dispatchedAt },
+    { label: 'Delivered', date: delivery.deliveredAt },
   ]
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5">
-      {steps.map((step) => {
-        const Icon = step.icon
+    <ol aria-label="Delivery progress" className="grid grid-cols-1 gap-3 sm:grid-cols-4 sm:gap-0">
+      {steps.map((step, index) => {
+        const complete = index < current
+        const active = index === current
+        const reached = index <= current
         return (
-          <div
-            key={step.key}
-            className={`flex flex-col gap-1.5 p-3 rounded-xl border transition-colors ${
-              step.active
-                ? 'border-primary/40 bg-primary/5 shadow-2xs'
-                : step.completed
-                  ? 'border-border/80 bg-card/60'
-                  : 'border-dashed border-border/50 bg-muted/20 opacity-60'
-            }`}
+          <li
+            key={step.label}
+            aria-current={active ? 'step' : undefined}
+            className="relative flex min-w-0 items-start gap-2 sm:flex-col sm:gap-2 sm:pr-3"
           >
-            <div className="flex items-center justify-between">
+            {index < steps.length - 1 && (
               <span
-                className={`text-[10px] font-bold uppercase tracking-wider ${
-                  step.active
-                    ? 'text-primary'
-                    : step.completed
-                      ? 'text-emerald-600 dark:text-emerald-400'
-                      : 'text-muted-foreground/70'
-                }`}
-              >
-                {step.completed ? 'Completed' : step.active ? 'Active Phase' : 'Upcoming'}
-              </span>
-              <Icon
-                className={`size-3.5 ${
-                  step.active
-                    ? 'text-primary'
-                    : step.completed
-                      ? 'text-emerald-600'
-                      : 'text-muted-foreground'
-                }`}
+                aria-hidden="true"
+                className={cn(
+                  'absolute left-3 top-6 h-[calc(100%+0.75rem)] w-px bg-border sm:left-6 sm:top-3 sm:h-px sm:w-[calc(100%-1.5rem)]',
+                  complete && 'bg-primary-contrast/50',
+                )}
               />
-            </div>
+            )}
             <span
-              className={`text-xs font-bold leading-tight ${
-                step.active
-                  ? 'text-primary'
-                  : step.completed
-                    ? 'text-foreground'
-                    : 'text-muted-foreground'
-              }`}
+              aria-hidden="true"
+              className={cn(
+                'relative z-10 flex size-6 shrink-0 items-center justify-center rounded-full border bg-background text-xs font-semibold',
+                reached
+                  ? 'border-primary-contrast bg-primary-contrast text-white'
+                  : 'border-border text-muted-foreground',
+                active && 'ring-2 ring-primary-contrast/20 ring-offset-2 ring-offset-background',
+              )}
             >
-              {step.title}
+              {complete ? <Check className="size-3.5" /> : index + 1}
             </span>
-            <span className="text-[10px] text-muted-foreground">
-              {step.date ? DeliveryUtils.formatDateTime(step.date) : 'Pending'}
-            </span>
-          </div>
+            <div className="min-w-0">
+              <p
+                className={cn(
+                  'text-xs leading-5',
+                  active
+                    ? 'font-semibold text-primary-text'
+                    : reached
+                      ? 'font-medium text-foreground'
+                      : 'text-muted-foreground',
+                )}
+              >
+                {step.label}
+                <span className="sr-only">
+                  {active ? ': current step' : complete ? ': completed' : ': upcoming'}
+                </span>
+              </p>
+              {reached && step.date && (
+                <p className="mt-0.5 text-xs leading-4 text-muted-foreground">
+                  {DeliveryUtils.formatDateTime(step.date)}
+                </p>
+              )}
+            </div>
+          </li>
         )
       })}
-    </div>
+    </ol>
   )
 }

@@ -1,8 +1,31 @@
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 @import 'tailwindcss';
 
+/* Match dark utilities to the existing token selector, keeping the app light under a dark OS. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+html {
+  scrollbar-gutter: stable;
+}
+
+@supports (scrollbar-gutter: stable) {
+  /* The root gutter already reserves the space Radix adds back during scroll locking. */
+  html body[data-scroll-locked] {
+    margin-right: 0 !important;
+  }
+}
+
+@font-face {
+  font-family: 'Inter';
+  src: url('/fonts/inter/InterVariable.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+}
+
 @theme inline {
-  --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  --text-ui: 0.8125rem;
+  --font-sans:
+    'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   /* Legacy data/code utilities use the same family as the rest of the UI. */
   --font-mono: var(--font-sans);
 
@@ -16,7 +39,10 @@
   --color-popover-foreground: var(--popover-foreground);
 
   --color-primary: var(--primary);
+  --color-primary-text: var(--primary-text);
   --color-primary-foreground: var(--primary-foreground);
+  --color-primary-button-foreground: var(--primary-button-foreground);
+  --color-primary-contrast-foreground: var(--primary-contrast-foreground);
   --color-primary-hover: var(--primary-hover);
   --color-primary-active: var(--primary-active);
   --color-primary-contrast: var(--primary-contrast);
@@ -28,7 +54,7 @@
   --color-primary-disabled-foreground: var(--primary-disabled-foreground);
   /* Text needs a darker shade than the brand fill on light surfaces. */
   --text-color-primary: var(--primary-text);
-  /* The POS signature follows the primary CTA brand color. */
+  /* The POS signature uses the brand accent at display size. */
   --color-logo-pos: var(--logo-pos);
 
   --color-secondary: var(--secondary);
@@ -68,33 +94,35 @@
 }
 
 :root {
-  --background: #f6f3ee;
-  --foreground: #1c1917;
+  color-scheme: light;
+  --background: #ffffff;
+  --foreground: #1c211d;
   --card: #ffffff;
-  --card-foreground: #1c1917;
+  --card-foreground: #1c211d;
   --popover: #ffffff;
-  --popover-foreground: #1c1917;
-  /* Preferred CTA palette: white on the base green is not WCAG AA text contrast. */
+  --popover-foreground: #1c211d;
+  /* Brand fills pair with graphite; filled actions use the darker AA shade. */
   --primary: #80b918;
-  --primary-foreground: #ffffff;
-  /* Compact controls and text-heavy actions can use this AA white-text fill. */
-  --primary-contrast: #507410;
-  --primary-text: color-mix(in srgb, var(--primary) 50%, black);
+  --primary-foreground: #1c211d;
+  --primary-button-foreground: var(--primary-contrast-foreground);
+  --primary-contrast: #4d7337;
+  --primary-contrast-foreground: #ffffff;
+  --primary-text: var(--primary-contrast);
   --logo-pos: var(--primary);
-  --secondary: #f0ebe4;
-  --secondary-foreground: #292524;
-  --muted: #eae3d9;
-  --muted-foreground: #78716c;
-  --accent: #f5efe8;
-  --accent-foreground: #1c1917;
+  --secondary: #f3f5f2;
+  --secondary-foreground: #1c211d;
+  --muted: #ecefeb;
+  --muted-foreground: #566057;
+  --accent: #f3f5f2;
+  --accent-foreground: #1c211d;
   --destructive: #dc2626;
   --destructive-foreground: #ffffff;
   --destructive-text: color-mix(in srgb, var(--destructive) 85%, black);
   --destructive-hover: color-mix(in srgb, var(--destructive) 90%, black);
   --destructive-active: color-mix(in srgb, var(--destructive) 80%, black);
-  --border: #e7dfd5;
-  --input: #ded5c8;
-  --ring: var(--primary-text);
+  --border: #d2d9d1;
+  --input: #858e85;
+  --ring: var(--muted-foreground);
   --status-info: #edf2f8;
   --status-info-foreground: #385e85;
   --status-warning: #fbf2e3;
@@ -105,6 +133,7 @@
 }
 
 .dark {
+  color-scheme: dark;
   --background: #141210;
   --foreground: #fafaf9;
   --card: #1c1a18;
@@ -112,6 +141,7 @@
   --popover: #1c1a18;
   --popover-foreground: #fafaf9;
   --primary-text: var(--primary);
+  --logo-pos: var(--primary);
   --secondary: #292522;
   --secondary-foreground: #f5f5f4;
   --muted: #262320;
@@ -125,7 +155,7 @@
   --destructive-active: color-mix(in srgb, var(--destructive) 80%, white);
   --border: #332e2a;
   --input: #3b3632;
-  --ring: var(--primary-text);
+  --ring: var(--muted-foreground);
   --status-info: #212c38;
   --status-info-foreground: #a9c5e2;
   --status-warning: #342b1d;
@@ -136,14 +166,19 @@
 
 :root,
 .dark {
-  --primary-hover: #6fa315;
-  --primary-active: color-mix(in srgb, var(--primary) 80%, black);
+  --primary-hover: color-mix(in srgb, var(--primary) 92%, white);
+  --primary-active: color-mix(in srgb, var(--primary) 88%, white);
   --primary-contrast-hover: color-mix(in srgb, var(--primary-contrast) 90%, black);
   --primary-contrast-active: color-mix(in srgb, var(--primary-contrast) 80%, black);
-  --primary-subtle: color-mix(in srgb, var(--primary) 10%, var(--card));
-  --primary-selected: color-mix(in srgb, var(--primary) 16%, var(--card));
+  --primary-subtle: #eef4ea;
+  --primary-selected: #eef4ea;
   --primary-disabled: color-mix(in srgb, var(--primary) 30%, var(--muted));
   --primary-disabled-foreground: color-mix(in srgb, var(--foreground) 70%, var(--muted));
+}
+
+.dark {
+  --primary-subtle: color-mix(in srgb, var(--primary) 10%, var(--card));
+  --primary-selected: color-mix(in srgb, var(--primary) 16%, var(--card));
 }
 
 @layer base {
@@ -154,33 +189,16 @@
 
 /* Shared selection treatment for feature navigation and Radix tabs. */
 @utility navigation-tab {
-  position: relative;
   color: var(--muted-foreground);
-
-  &::after {
-    content: '';
-    position: absolute;
-    inset-inline: 0.75rem;
-    bottom: 0;
-    height: 2px;
-    border-radius: 999px;
-    background-color: var(--primary-contrast);
-    opacity: 0;
-    pointer-events: none;
-  }
 
   &:hover {
     color: var(--foreground);
-    background-color: color-mix(in srgb, var(--background) 40%, transparent);
+    background-color: var(--muted);
   }
 
   &[data-state='active'] {
     color: var(--foreground);
-    background-color: var(--card);
-  }
-
-  &[data-state='active']::after {
-    opacity: 1;
+    background-color: var(--primary-subtle);
   }
 }
 
@@ -224,7 +242,6 @@ body {
   background-color: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
-  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
   -webkit-font-smoothing: antialiased;
 }
 
@@ -245,6 +262,7 @@ input[type='radio'] {
 /* Native scrolling stays intact; only the scrollbar's visual prominence changes. */
 .scrollbar-subtle {
   --scrollbar-thumb: transparent;
+  scrollbar-gutter: stable;
   scrollbar-width: thin;
   scrollbar-color: var(--scrollbar-thumb) transparent;
 }
@@ -297,4 +315,115 @@ input[type='radio'] {
 .animate-auth-roll-down {
   animation: authRollDown 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   will-change: opacity, transform;
+}
+/* Opt-in management surfaces. Composer and detail tables retain their own density. */
+.management-toolbar > :first-child {
+  width: 100%;
+  min-width: 0;
+  max-width: 24rem;
+}
+.management-toolbar input,
+.management-toolbar button {
+  min-height: 2.5rem;
+  font-size: var(--text-ui);
+  box-shadow: none;
+}
+.management-toolbar input {
+  height: 2.5rem;
+}
+@media (min-width: 640px) {
+  .management-toolbar > button:last-child,
+  .management-toolbar > div:last-child:has(> button) {
+    margin-left: auto;
+  }
+}
+.management-table th {
+  height: 2.75rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+.management-table tbody > tr:not(:has(td[colspan])) {
+  height: 3.5rem;
+}
+.management-table td {
+  line-height: 1.5;
+  padding-block: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+.management-table button:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* Inline expanded previews own their spacing instead of inheriting management-table density. */
+.management-table td:has(> .data-table-expanded-section) {
+  padding: 0;
+}
+.data-table-expanded-section {
+  min-width: 0;
+  padding: 0.75rem;
+  font-size: 0.875rem;
+  background-color: color-mix(in srgb, var(--background) 60%, var(--muted));
+  border-bottom: 1px solid var(--border);
+}
+.management-table tr:has(> td > .data-table-expanded-section) {
+  border-bottom: 0;
+}
+.data-table-expanded-section > h2 {
+  margin-bottom: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.25rem;
+}
+.data-table-expanded-section table th {
+  height: 2rem;
+  padding-inline: 0.75rem;
+}
+.data-table-expanded-section table tbody > tr:not(:has(td[colspan])) {
+  height: 2.75rem;
+}
+.data-table-expanded-section table td {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+}
+@media (min-width: 640px) {
+  .data-table-expanded-section {
+    padding-inline: 1rem;
+  }
+}
+/* Utilities remain free to express headings, controls, and metadata sizes. */
+@layer base {
+  .ui-typography,
+  .ui-text {
+    font-size: var(--text-ui);
+  }
+}
+.ui-dialog-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: -0.02em;
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+@media (pointer: coarse) {
+  .management-table td {
+    padding-block: 0.5rem;
+  }
+  .management-toolbar input,
+  .management-toolbar button,
+  .management-table button,
+  .management-table select {
+    min-height: 2.75rem;
+  }
+  .management-table button {
+    min-width: 2.75rem;
+  }
 }

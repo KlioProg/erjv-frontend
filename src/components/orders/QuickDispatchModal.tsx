@@ -91,12 +91,18 @@ export function QuickDispatchModal({
     warehouseMap.get(fulfillmentWarehouseId)?.name || `Warehouse #${fulfillmentWarehouseId}`
 
   const availableVehicles = useMemo(
-    () => (vehicles || []).filter((vehicle) => DeliveryUtils.getVehicleAvailability(vehicle, deliveries).isAvailable),
+    () =>
+      (vehicles || []).filter(
+        (vehicle) => DeliveryUtils.getVehicleAvailability(vehicle, deliveries).isAvailable,
+      ),
     [vehicles, deliveries],
   )
 
   const activeEmployees = useMemo(
-    () => (employees || []).filter((employee) => DeliveryUtils.getDriverAvailability(employee, deliveries).isAvailable),
+    () =>
+      (employees || []).filter(
+        (employee) => DeliveryUtils.getDriverAvailability(employee, deliveries).isAvailable,
+      ),
     [employees, deliveries],
   )
 
@@ -187,13 +193,10 @@ export function QuickDispatchModal({
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
       <DialogContent className="max-h-[min(880px,calc(100vh-2rem))] overflow-y-auto sm:max-w-xl gap-5 p-6">
         <DialogHeader className="pb-1">
-          <div className="mb-2 flex size-11 items-center justify-center rounded-2xl bg-blue-500/10 text-blue-600 shadow-2xs">
-            <Truck className="size-5" />
-          </div>
-          <DialogTitle className="text-xl font-bold tracking-tight">
+          <DialogTitle className="text-xl font-semibold tracking-tight">
             Prepare Delivery
           </DialogTitle>
-          <DialogDescription className="text-xs leading-relaxed">
+          <DialogDescription className="text-ui leading-relaxed">
             Assign a fleet vehicle and driver to immediately dispatch{' '}
             <span className="font-semibold text-foreground">{order.orderNumber}</span> to the
             customer.
@@ -209,26 +212,22 @@ export function QuickDispatchModal({
 
         <form onSubmit={handleDispatch} className="flex flex-col gap-4">
           {/* Dispatch Overview Box */}
-          <div className="rounded-xl border border-blue-500/20 bg-blue-500/5 p-3.5 text-xs flex flex-col gap-2">
+          <div className="rounded-lg bg-secondary p-4 text-sm flex flex-col gap-2">
             <div className="flex items-center justify-between">
-              <span className="font-semibold text-blue-900 dark:text-blue-200">
-                Fulfilling Warehouse:
-              </span>
-              <span className="font-bold text-foreground">{warehouseName}</span>
+              <span className="text-muted-foreground">Fulfilling Warehouse:</span>
+              <span className="font-medium text-foreground">{warehouseName}</span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="font-semibold text-blue-900 dark:text-blue-200">Cargo Items:</span>
+              <span className="text-muted-foreground">Cargo Items:</span>
               <span className="font-medium text-foreground text-right max-w-[260px] truncate">
                 {(order?.items || [])
                   .map((i) => `Item #${i.inventoryItemId} (x${i.quantity})`)
                   .join(', ')}
               </span>
             </div>
-            <div className="flex items-center justify-between border-t border-blue-500/15 pt-2">
-              <span className="font-semibold text-blue-900 dark:text-blue-200">
-                Total Order Value:
-              </span>
-              <span className="font-extrabold text-foreground">
+            <div className="flex items-center justify-between border-t border-border pt-2">
+              <span className="text-muted-foreground">Total Order Value:</span>
+              <span className="font-semibold tabular-nums text-foreground">
                 ₱
                 {(order?.items || [])
                   .reduce((sum, i) => sum + parseFloat(i?.totalAmount || '0'), 0)
@@ -238,13 +237,13 @@ export function QuickDispatchModal({
           </div>
 
           {/* Vehicle Assignment */}
-          <div className="space-y-1.5">
-            <Label className="text-xs font-semibold flex items-center gap-1.5">
-              <Truck className="size-3.5 text-blue-600" />
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-ui font-medium flex items-center gap-1.5">
+              <Truck className="size-3.5 text-muted-foreground" />
               Delivery Vehicle *
             </Label>
             <Select value={selectedVehicleId} onValueChange={setSelectedVehicleId}>
-              <SelectTrigger className="h-9 text-xs">
+              <SelectTrigger className="h-9 text-ui">
                 <SelectValue placeholder="Select available vehicle unit..." />
               </SelectTrigger>
               <SelectContent>
@@ -257,7 +256,7 @@ export function QuickDispatchModal({
                     <SelectItem key={vehicle.id} value={String(vehicle.id)}>
                       <span className="font-medium text-foreground">{vehicle.plateNumber}</span> -{' '}
                       {vehicle.model || vehicle.vehicleType}{' '}
-                      <span className="text-[10px] text-emerald-600 font-semibold">
+                      <span className="text-xs text-status-success-foreground font-medium">
                         (Available)
                       </span>
                     </SelectItem>
@@ -266,20 +265,20 @@ export function QuickDispatchModal({
               </SelectContent>
             </Select>
             {availableVehicles.length === 0 && (
-              <p className="text-[11px] text-amber-600 mt-1">
+              <p className="text-xs text-status-warning-foreground mt-1">
                 All vehicles are currently in transit or maintenance.
               </p>
             )}
           </div>
 
           {/* Driver Assignment */}
-          <div className="space-y-1.5">
-            <Label className="text-xs font-semibold flex items-center gap-1.5">
-              <UserRound className="size-3.5 text-blue-600" />
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-ui font-medium flex items-center gap-1.5">
+              <UserRound className="size-3.5 text-muted-foreground" />
               Assigned Driver / Staff *
             </Label>
             <Select value={selectedDriverId} onValueChange={setSelectedDriverId}>
-              <SelectTrigger className="h-9 text-xs">
+              <SelectTrigger className="h-9 text-ui">
                 <SelectValue placeholder="Select delivery driver / staff..." />
               </SelectTrigger>
               <SelectContent>
@@ -301,43 +300,43 @@ export function QuickDispatchModal({
 
           {/* Departure Date/Time & Destination */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label className="text-xs font-semibold flex items-center gap-1.5">
-                <Clock className="size-3.5 text-blue-600" />
+            <div className="flex flex-col gap-1.5">
+              <Label className="text-ui font-medium flex items-center gap-1.5">
+                <Clock className="size-3.5 text-muted-foreground" />
                 Departure Time
               </Label>
               <Input
                 type="datetime-local"
                 value={scheduledAt}
                 onChange={(e) => setScheduledAt(e.target.value)}
-                className="h-9 text-xs"
+                className="h-9 text-ui"
               />
             </div>
 
-            <div className="space-y-1.5">
-              <Label className="text-xs font-semibold flex items-center gap-1.5">
-                <MapPin className="size-3.5 text-blue-600" />
+            <div className="flex flex-col gap-1.5">
+              <Label className="text-ui font-medium flex items-center gap-1.5">
+                <MapPin className="size-3.5 text-muted-foreground" />
                 Destination Address
               </Label>
               <Input
                 value={order.deliveryAddress}
                 readOnly
                 aria-label="Destination address from sales order"
-                className="h-9 text-xs"
+                className="h-9 text-ui"
                 placeholder="Customer store / delivery dock"
               />
             </div>
           </div>
 
           {/* Delivery Notes */}
-          <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-muted-foreground">
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-ui font-medium text-muted-foreground">
               Dispatch Instructions / Gate Pass (Optional)
             </Label>
             <Input
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              className="h-9 text-xs"
+              className="h-9 text-ui"
               placeholder="e.g. Call customer before arrival, fragile produce..."
             />
           </div>
@@ -356,7 +355,7 @@ export function QuickDispatchModal({
               type="submit"
               size="sm"
               disabled={isSubmitting || availableVehicles.length === 0}
-              className="font-semibold"
+              className="font-medium"
             >
               {isSubmitting ? (
                 'Dispatching...'

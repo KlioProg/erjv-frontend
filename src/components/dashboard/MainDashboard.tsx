@@ -1,328 +1,135 @@
-import { useState, useMemo } from 'react'
-import {
-  Boxes,
-  Warehouse as WarehouseIcon,
-  Truck,
-  Package,
-  Building2,
-  Users,
-  Briefcase,
-  Layers,
-  ReceiptText,
-} from 'lucide-react'
-import { Card, CardContent } from '@/components/ui/card'
-import { DashboardLayout, type NavItemKey } from '../layout/DashboardLayout'
-import { InventoryHub } from '../inventory/InventoryHub'
-import { WarehouseList } from '../operations/WarehouseList'
-import { VehicleList } from '../operations/VehicleList'
-import { ClientList } from '../crm/ClientList'
-import { EmployeeList } from '../staffing/EmployeeList'
-import { JobList } from '../staffing/JobList'
-import { OrdersView } from '../orders/OrdersView'
-import { DeliveriesHub, type DeliverySubTab } from '../deliveries/DeliveriesHub'
-import { PurchasesView } from '../purchases/PurchasesView'
-import { UserRolesList } from '../staffing/UserRolesList'
+import { useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { Outlet, useLocation, useNavigate, useNavigationType } from 'react-router'
+import { ManagementPage } from '@/components/ui/ManagementPage'
+import { DashboardLayout } from '../layout/DashboardLayout'
 import { useWarehouses } from '@/features/logistics/warehouses.hooks'
 import { useStockItems } from '@/features/logistics/stock-items.hooks'
-import { useDeliveryVehicles } from '@/features/logistics/delivery-vehicles.hooks'
 import { useProducts } from '@/features/products/products.hooks'
-import { useClients } from '@/features/crm/clients.hooks'
-import { useSalesOrders } from '@/features/crm/sales-orders.hooks'
-import { useEmployees, useJobs } from '@/features/staffing/staffing.hooks'
-import { useAuth } from '@/features/auth/AuthContext'
+import type { InventoryNavigationTarget } from '@/features/logistics/stock-warnings'
+import { routeForScreen, screenFromPath, warehouseDetailsPath, type NavItemKey } from '@/routes'
+
+export type DashboardOutletContext = {
+  deliveryPurchaseOrderId?: number
+  deliverySalesOrderId?: number
+  arrangeDelivery: boolean
+  inventoryTarget?: InventoryNavigationTarget & { requestId: number }
+  onOpenWarehouse: (id: number) => void
+  onNavigateToPurchases: () => void
+  onNavigateFromPurchaseToDeliveries: (purchaseOrderId?: number, arrange?: boolean) => void
+  onNavigateFromSalesOrderToDeliveries: (
+    tab?: 'schedule' | 'status' | 'completed' | 'incoming' | 'outgoing' | 'history',
+    salesOrderId?: number,
+    arrange?: boolean,
+  ) => void
+  onNavigateToInventory: () => void
+}
 
 export function MainDashboard() {
-  const [currentTab, setCurrentTab] = useState<NavItemKey>('inventory')
-  const [warehouseToOpen, setWarehouseToOpen] = useState<number | null>(null)
-  const [deliverySubTab, setDeliverySubTab] = useState<DeliverySubTab | undefined>()
+  const navigate = useNavigate()
+  const location = useLocation()
+  const navigationType = useNavigationType()
+  const previousPath = useRef(location.pathname)
+  useLayoutEffect(() => {
+    // Leave POP navigation to the browser's native scroll restoration.
+    if (previousPath.current !== location.pathname && navigationType !== 'POP') {
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' })
+    }
+    previousPath.current = location.pathname
+  }, [location.pathname, navigationType])
   const [deliveryPurchaseOrderId, setDeliveryPurchaseOrderId] = useState<number | undefined>()
-  const { isStaff } = useAuth()
+  const [deliverySalesOrderId, setDeliverySalesOrderId] = useState<number | undefined>()
+  const [arrangeDelivery, setArrangeDelivery] = useState(false)
+  const [inventoryTarget, setInventoryTarget] = useState<
+    (InventoryNavigationTarget & { requestId: number }) | undefined
+  >()
 
   const { data: warehouses = [] } = useWarehouses()
   const { data: stockItems = [] } = useStockItems()
-  const { data: vehicles = [] } = useDeliveryVehicles()
   const { data: products = [] } = useProducts()
-  const { data: clients = [] } = useClients()
-  const { data: salesOrders = [] } = useSalesOrders()
-  const { data: employees = [] } = useEmployees()
-  const { data: jobs = [] } = useJobs()
-
   const totalStockUnits = useMemo(
     () => stockItems.reduce((acc, s) => acc + parseFloat(s.quantity || '0'), 0),
     [stockItems],
   )
-  const availableVehiclesCount = useMemo(
-    () => vehicles.filter((v) => v.status === 'AVAILABLE').length,
-    [vehicles],
-  )
-  const activeStaffCount = useMemo(() => employees.filter((e) => e.isActive).length, [employees])
 
-  const isOperationsTab = currentTab === 'inventory' || currentTab === 'warehouses'
+  const currentScreen = screenFromPath(location.pathname)
 
-  const isStaffingTab =
-    currentTab === 'employees' ||
-    currentTab === 'jobs' ||
-    currentTab === 'users'
+  const summary =
+    currentScreen === 'warehouses'
+      ? [
+          {
+            label: 'Warehouse Locations',
+            value: <> {warehouses.length} </>,
+            hint: 'Active facilities & storage hubs',
+          },
+          {
+            label: 'Total Stored Units',
+            value: <> {totalStockUnits.toLocaleString()} units </>,
+            hint: 'Inventory across storage hubs',
+          },
+          {
+            label: 'Catalog Products',
+            value: <> {products.length} </>,
+            hint: 'Active product catalog items',
+          },
+        ]
+      : []
 
-  // Safety fallback if staff clicks restricted tab
-  const effectiveTab = isStaff && isStaffingTab ? 'inventory' : currentTab
+  const clearNavigationContext = () => {
+    setInventoryTarget(undefined)
+    setDeliverySalesOrderId(undefined)
+    setArrangeDelivery(false)
+    setDeliveryPurchaseOrderId(undefined)
+  }
+
+  const navigateToScreen = (screen: NavItemKey) => navigate(routeForScreen(screen))
+
+  const onOpenInventory = (target: InventoryNavigationTarget) => {
+    setInventoryTarget((previous) => ({ ...target, requestId: (previous?.requestId ?? 0) + 1 }))
+    navigateToScreen('inventory')
+  }
+
+  const onNavigateFromPurchaseToDeliveries = (purchaseOrderId?: number, arrange = false) => {
+    setDeliveryPurchaseOrderId(purchaseOrderId)
+    setDeliverySalesOrderId(undefined)
+    setArrangeDelivery(arrange)
+    navigateToScreen('incoming-deliveries')
+  }
+
+  const onNavigateFromSalesOrderToDeliveries: DashboardOutletContext['onNavigateFromSalesOrderToDeliveries'] =
+    (tab, salesOrderId, arrange = false) => {
+      setDeliveryPurchaseOrderId(undefined)
+      setDeliverySalesOrderId(salesOrderId)
+      setArrangeDelivery(arrange)
+      navigateToScreen(
+        tab === 'history'
+          ? 'delivery-history'
+          : tab === 'incoming'
+            ? 'incoming-deliveries'
+            : 'outgoing-deliveries',
+      )
+    }
+
+  const outletContext: DashboardOutletContext = {
+    deliveryPurchaseOrderId,
+    deliverySalesOrderId,
+    arrangeDelivery,
+    inventoryTarget,
+    onOpenWarehouse: (id) => navigate(warehouseDetailsPath(id)),
+    onNavigateToPurchases: () => navigateToScreen('purchases'),
+    onNavigateFromPurchaseToDeliveries,
+    onNavigateFromSalesOrderToDeliveries,
+    onNavigateToInventory: () => navigateToScreen('inventory'),
+  }
 
   return (
     <DashboardLayout
-      currentTab={effectiveTab}
-      onSelectTab={(tab) => {
-        setWarehouseToOpen(null)
-        setDeliverySubTab(undefined)
-        setDeliveryPurchaseOrderId(undefined)
-        setCurrentTab(tab)
-      }}
+      currentScreen={currentScreen}
+      onNavigate={clearNavigationContext}
+      onOpenInventory={onOpenInventory}
     >
-      <div className="flex flex-col gap-6">
-        {/* KPI Top Bar when inside Operations */}
-        {isOperationsTab && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5">
-            <Card className="p-4 bg-card border-border/80 shadow-xs flex flex-col justify-between rounded-2xl">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-muted-foreground">
-                  Warehouse Locations
-                </span>
-                <div className="p-2 rounded-xl bg-primary/10 text-primary">
-                  <WarehouseIcon className="size-4" />
-                </div>
-              </div>
-              <div className="mt-3">
-                <div className="text-2xl font-extrabold text-foreground">{warehouses.length}</div>
-                <p className="text-[11px] text-muted-foreground mt-0.5">
-                  Active facilities & storage hubs
-                </p>
-              </div>
-            </Card>
-
-            <Card className="p-4 bg-card border-border/80 shadow-xs flex flex-col justify-between rounded-2xl">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-muted-foreground">
-                  Total Stored Units
-                </span>
-                <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-600">
-                  <Boxes className="size-4" />
-                </div>
-              </div>
-              <div className="mt-3">
-                <div className="text-2xl font-extrabold text-foreground">
-                  {totalStockUnits.toLocaleString()}{' '}
-                  <span className="text-sm font-semibold text-muted-foreground">units</span>
-                </div>
-                <p className="text-[11px] text-muted-foreground mt-0.5">
-                  Inventory across storage hubs
-                </p>
-              </div>
-            </Card>
-
-            <Card className="p-4 bg-card border-border/80 shadow-xs flex flex-col justify-between rounded-2xl">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-muted-foreground">
-                  Available Vehicles
-                </span>
-                <div className="p-2 rounded-xl bg-blue-500/10 text-blue-600">
-                  <Truck className="size-4" />
-                </div>
-              </div>
-              <div className="mt-3">
-                <div className="text-2xl font-extrabold text-foreground">
-                  {availableVehiclesCount}{' '}
-                  <span className="text-sm font-normal text-muted-foreground">
-                    / {vehicles.length} vehicles
-                  </span>
-                </div>
-                <p className="text-[11px] text-muted-foreground mt-0.5">Ready for order dispatch</p>
-              </div>
-            </Card>
-
-            <Card className="p-4 bg-card border-border/80 shadow-xs flex flex-col justify-between rounded-2xl">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-muted-foreground">
-                  Catalog Products
-                </span>
-                <div className="p-2 rounded-xl bg-amber-500/10 text-amber-600">
-                  <Package className="size-4" />
-                </div>
-              </div>
-              <div className="mt-3">
-                <div className="text-2xl font-extrabold text-foreground">{products.length}</div>
-                <p className="text-[11px] text-muted-foreground mt-0.5">
-                  Active product catalog items
-                </p>
-              </div>
-            </Card>
-          </div>
-        )}
-
-        {/* Customer overview cards */}
-        {effectiveTab === 'clients' && (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
-            <Card className="p-4 bg-card border-border/80 shadow-xs flex flex-col justify-between rounded-2xl">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-muted-foreground">Customers</span>
-                <div className="p-2 rounded-xl bg-primary/10 text-primary">
-                  <Building2 className="size-4" />
-                </div>
-              </div>
-              <div className="mt-3">
-                <div className="text-2xl font-extrabold text-foreground">{clients.length}</div>
-                <p className="text-[11px] text-muted-foreground mt-0.5">
-                  Supermarkets, distributors & retailers
-                </p>
-              </div>
-            </Card>
-
-            <Card className="p-4 bg-card border-border/80 shadow-xs flex flex-col justify-between rounded-2xl">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-muted-foreground">Active Products</span>
-                <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-600">
-                  <Package className="size-4" />
-                </div>
-              </div>
-              <div className="mt-3">
-                <div className="text-2xl font-extrabold text-foreground">
-                  {products.length} Products
-                </div>
-                <p className="text-[11px] text-muted-foreground mt-0.5">
-                  Ready for POS & wholesale orders
-                </p>
-              </div>
-            </Card>
-
-            <Card className="p-4 bg-card border-border/80 shadow-xs flex flex-col justify-between rounded-2xl">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-muted-foreground">
-                  Active Sales Orders
-                </span>
-                <div className="p-2 rounded-xl bg-blue-500/10 text-blue-600">
-                  <ReceiptText className="size-4" />
-                </div>
-              </div>
-              <div className="mt-3">
-                <div className="text-2xl font-extrabold text-foreground">
-                  {
-                    salesOrders.filter((order) =>
-                      ['DRAFT', 'CONFIRMED', 'PARTIALLY_DELIVERED'].includes(order.status),
-                    ).length
-                  }{' '}
-                  Orders
-                </div>
-                <p className="text-[11px] text-muted-foreground mt-0.5">Open customer orders</p>
-              </div>
-            </Card>
-          </div>
-        )}
-
-        {/* KPI Top Bar when inside Staffing & HR */}
-        {isStaffingTab && (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
-            <Card className="p-4 bg-card border-border/80 shadow-xs flex flex-col justify-between rounded-2xl">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-muted-foreground">
-                  Active Staff Members
-                </span>
-                <div className="p-2 rounded-xl bg-primary/10 text-primary">
-                  <Users className="size-4" />
-                </div>
-              </div>
-              <div className="mt-3">
-                <div className="text-2xl font-extrabold text-foreground">{activeStaffCount}</div>
-                <p className="text-[11px] text-muted-foreground mt-0.5">
-                  Operations, logistics & administration
-                </p>
-              </div>
-            </Card>
-
-            <Card className="p-4 bg-card border-border/80 shadow-xs flex flex-col justify-between rounded-2xl">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-muted-foreground">
-                  Job Roles Defined
-                </span>
-                <div className="p-2 rounded-xl bg-purple-500/10 text-purple-600">
-                  <Briefcase className="size-4" />
-                </div>
-              </div>
-              <div className="mt-3">
-                <div className="text-2xl font-extrabold text-foreground">{jobs.length}</div>
-                <p className="text-[11px] text-muted-foreground mt-0.5">
-                  Organizational designations
-                </p>
-              </div>
-            </Card>
-
-            <Card className="p-4 bg-card border-border/80 shadow-xs flex flex-col justify-between rounded-2xl">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-muted-foreground">Warehouse Hubs</span>
-                <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-600">
-                  <Layers className="size-4" />
-                </div>
-              </div>
-              <div className="mt-3">
-                <div className="text-2xl font-extrabold text-foreground">
-                  {warehouses.length} Facilities
-                </div>
-                <p className="text-[11px] text-muted-foreground mt-0.5">
-                  Fulfillment & distribution centers
-                </p>
-              </div>
-            </Card>
-          </div>
-        )}
-
-        {/* Lightweight Main Section Card View */}
-        <Card className="border-border/80 bg-card shadow-xs rounded-2xl overflow-hidden">
-          <CardContent className="p-4 sm:p-6">
-            {effectiveTab === 'inventory' && (
-              <InventoryHub
-                onOpenWarehouse={(id) => {
-                  setWarehouseToOpen(id)
-                  setCurrentTab('warehouses')
-                }}
-              />
-            )}
-            {effectiveTab === 'warehouses' && (
-              <WarehouseList key={warehouseToOpen ?? 'list'} initialWarehouseId={warehouseToOpen} />
-            )}
-            {effectiveTab === 'fleet' && <VehicleList />}
-            {effectiveTab === 'deliveries' && (
-              <DeliveriesHub
-                key={`${deliverySubTab || 'all'}-${deliveryPurchaseOrderId || 'all'}`}
-                initialTab={deliverySubTab}
-                purchaseOrderId={deliveryPurchaseOrderId}
-              />
-            )}
-            {(effectiveTab === 'purchases' || effectiveTab === 'suppliers') && (
-              <PurchasesView
-                key={effectiveTab}
-                section={effectiveTab === 'suppliers' ? 'suppliers' : 'orders'}
-                onNavigateToDeliveries={(purchaseOrderId) => {
-                  setDeliveryPurchaseOrderId(purchaseOrderId)
-                  setDeliverySubTab('incoming')
-                  setCurrentTab('deliveries')
-                }}
-              />
-            )}
-            {effectiveTab === 'orders' && (
-              <OrdersView
-                onNavigateToPurchases={() => setCurrentTab('purchases')}
-                onNavigateToDeliveries={(tab) => {
-                  setDeliveryPurchaseOrderId(undefined)
-                  setDeliverySubTab(tab || 'completed')
-                  setCurrentTab('deliveries')
-                }}
-                onNavigateToInventory={() => setCurrentTab('inventory')}
-              />
-            )}
-            {effectiveTab === 'clients' && <ClientList />}
-            {effectiveTab === 'employees' && <EmployeeList />}
-            {effectiveTab === 'jobs' && <JobList />}
-            {effectiveTab === 'users' && <UserRolesList />}
-          </CardContent>
-        </Card>
-      </div>
+      <ManagementPage summary={summary}>
+        <Outlet context={outletContext} />
+      </ManagementPage>
     </DashboardLayout>
   )
 }

@@ -1,0 +1,261 @@
+{
+  "browser": "Headless Microsoft Edge",
+  "fixtures": "Isolated, read-only. No live API or production auth.",
+  "layouts": [
+    {
+      "width": 1440,
+      "overflow": false,
+      "rootBackground": "#f6f3ee",
+      "workspace": "rgb(255, 255, 255)",
+      "title": {
+        "size": "22px",
+        "weight": "600",
+        "color": "rgb(28, 33, 29)",
+        "height": 32
+      },
+      "header": {
+        "size": "12px",
+        "weight": "500",
+        "color": "rgb(98, 106, 99)",
+        "height": 40
+      },
+      "primary": {
+        "size": "14px",
+        "weight": "500",
+        "color": "rgb(28, 33, 29)",
+        "height": 55
+      },
+      "secondary": {
+        "size": "12px",
+        "weight": "400",
+        "color": "rgb(98, 106, 99)",
+        "height": 55
+      },
+      "row": {
+        "size": "14px",
+        "weight": "400",
+        "color": "rgb(28, 33, 29)",
+        "height": 55
+      },
+      "label": null,
+      "button": {
+        "size": "13px",
+        "weight": "500",
+        "color": "rgb(255, 255, 255)",
+        "height": 40
+      },
+      "dialog": null
+    },
+    {
+      "width": 1440,
+      "overflow": false,
+      "rootBackground": "#f6f3ee",
+      "workspace": "rgb(255, 255, 255)",
+      "title": {
+        "size": "22px",
+        "weight": "600",
+        "color": "rgb(28, 33, 29)",
+        "height": 32
+      },
+      "header": {
+        "size": "12px",
+        "weight": "500",
+        "color": "rgb(98, 106, 99)",
+        "height": 40
+      },
+      "primary": {
+        "size": "14px",
+        "weight": "500",
+        "color": "rgb(28, 33, 29)",
+        "height": 52
+      },
+      "secondary": {
+        "size": "12px",
+        "weight": "400",
+        "color": "rgb(98, 106, 99)",
+        "height": 52
+      },
+      "row": {
+        "size": "14px",
+        "weight": "400",
+        "color": "rgb(28, 33, 29)",
+        "height": 52
+      },
+      "label": {
+        "size": "13px",
+        "weight": "500",
+        "color": "rgb(28, 33, 29)",
+        "height": 20
+      },
+      "button": {
+        "size": "13px",
+        "weight": "500",
+        "color": "rgb(255, 255, 255)",
+        "height": 40
+      },
+      "dialog": {
+        "x": 430,
+        "y": 160,
+        "width": 580,
+        "height": 680,
+        "scroll": 678,
+        "client": 678
+      }
+    },
+    {
+      "width": 1024,
+      "overflow": false,
+      "rootBackground": "#f6f3ee",
+      "workspace": "rgb(255, 255, 255)",
+      "title": {
+        "size": "22px",
+        "weight": "600",
+        "color": "rgb(28, 33, 29)",
+        "height": 32
+      },
+      "header": {
+        "size": "12px",
+        "weight": "500",
+        "color": "rgb(98, 106, 99)",
+        "height": 44.5
+      },
+      "primary": {
+        "size": "14px",
+        "weight": "500",
+        "color": "rgb(28, 33, 29)",
+        "height": 61
+      },
+      "secondary": {
+        "size": "12px",
+        "weight": "400",
+        "color": "rgb(98, 106, 99)",
+        "height": 61
+      },
+      "row": {
+        "size": "14px",
+        "weight": "400",
+        "color": "rgb(28, 33, 29)",
+        "height": 61
+      },
+      "label": null,
+      "button": {
+        "size": "13px",
+        "weight": "500",
+        "color": "rgb(255, 255, 255)",
+        "height": 44
+      },
+      "dialog": null
+    },
+    {
+      "width": 390,
+      "overflow": false,
+      "rootBackground": "#f6f3ee",
+      "workspace": "rgb(255, 255, 255)",
+      "title": {
+        "size": "22px",
+        "weight": "600",
+        "color": "rgb(28, 33, 29)",
+        "height": 32
+      },
+      "header": {
+        "size": "12px",
+        "weight": "500",
+        "color": "rgb(98, 106, 99)",
+        "height": 44.5
+      },
+      "primary": {
+        "size": "14px",
+        "weight": "500",
+        "color": "rgb(28, 33, 29)",
+        "height": 61
+      },
+      "secondary": {
+        "size": "12px",
+        "weight": "400",
+        "color": "rgb(98, 106, 99)",
+        "height": 61
+      },
+      "row": {
+        "size": "14px",
+        "weight": "400",
+        "color": "rgb(28, 33, 29)",
+        "height": 61
+      },
+      "label": null,
+      "button": {
+        "size": "13px",
+        "weight": "500",
+        "color": "rgb(255, 255, 255)",
+        "height": 44
+      },
+      "dialog": null
+    },
+    {
+      "width": 390,
+      "overflow": false,
+      "rootBackground": "#f6f3ee",
+      "workspace": "rgb(255, 255, 255)",
+      "title": {
+        "size": "22px",
+        "weight": "600",
+        "color": "rgb(28, 33, 29)",
+        "height": 32
+      },
+      "header": {
+        "size": "12px",
+        "weight": "500",
+        "color": "rgb(98, 106, 99)",
+        "height": 44.5
+      },
+      "primary": {
+        "size": "14px",
+        "weight": "500",
+        "color": "rgb(28, 33, 29)",
+        "height": 61
+      },
+      "secondary": {
+        "size": "12px",
+        "weight": "400",
+        "color": "rgb(98, 106, 99)",
+        "height": 61
+      },
+      "row": {
+        "size": "14px",
+        "weight": "400",
+        "color": "rgb(28, 33, 29)",
+        "height": 61
+      },
+      "label": {
+        "size": "13px",
+        "weight": "500",
+        "color": "rgb(28, 33, 29)",
+        "height": 20
+      },
+      "button": {
+        "size": "13px",
+        "weight": "500",
+        "color": "rgb(255, 255, 255)",
+        "height": 44
+      },
+      "dialog": {
+        "x": 16,
+        "y": 42.203125,
+        "width": 358,
+        "height": 759.59375,
+        "scroll": 848,
+        "client": 758
+      }
+    }
+  ],
+  "interactions": [
+    "Canonical next-page navigation displays the remaining four active customers",
+    "Customer-name sorting changes row order",
+    "Invalid phone produces visible inline feedback associated through aria-describedby",
+    "Escape closes the Radix dialog and returns focus to Edit",
+    "Archive failure retains confirmation and error; fixture rejects all writes",
+    "Archive filter, search and clear-search recovery preserve the actual customer directory",
+    "Mobile active/archive controls fit without horizontal clipping"
+  ],
+  "exceptions": [],
+  "focusReturned": true
+}

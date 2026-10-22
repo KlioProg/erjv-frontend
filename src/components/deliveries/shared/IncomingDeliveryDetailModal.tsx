@@ -1,3 +1,4 @@
+import { formatProductUnit } from '@/lib/product-unit'
 import { DataTable } from '@/components/ui/data-table'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -24,7 +25,7 @@ export function IncomingDeliveryStatusBadge({
       variant="outline"
       className={
         status === 'COMPLETED'
-          ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20'
+          ? 'bg-status-success text-status-success-foreground border-status-success-foreground/30'
           : status === 'CANCELLED'
             ? 'bg-destructive/10 text-destructive'
             : 'bg-muted/50'
@@ -58,23 +59,23 @@ export function IncomingDeliveryDetailModal({
         </DialogHeader>
         {delivery && (
           <>
-            <div className="grid grid-cols-2 gap-3 text-xs">
+            <div className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
               <div>
-                <p className="text-muted-foreground">Destination Warehouse</p>
-                <p className="mt-1 font-semibold">{row?.warehouse}</p>
+                <p className="text-xs text-muted-foreground">Destination Warehouse</p>
+                <p className="mt-1 font-medium">{row?.warehouse}</p>
               </div>
               <div>
-                <p className="text-muted-foreground">Status</p>
+                <p className="text-xs text-muted-foreground">Status</p>
                 <div className="mt-1">
                   <IncomingDeliveryStatusBadge status={delivery.status} />
                 </div>
               </div>
               <div>
-                <p className="text-muted-foreground">Scheduled / Expected</p>
+                <p className="text-xs text-muted-foreground">Scheduled / Expected</p>
                 <p className="mt-1">{DeliveryUtils.formatDateTime(row?.date)}</p>
               </div>
               <div>
-                <p className="text-muted-foreground">Supplier Reference</p>
+                <p className="text-xs text-muted-foreground">Supplier Reference</p>
                 <p className="mt-1">{delivery.supplierReference || '—'}</p>
               </div>
             </div>
@@ -103,10 +104,23 @@ export function IncomingDeliveryDetailModal({
                   header: 'Quantity',
                   accessorKey: 'receivedQuantity',
                   align: 'right',
+                  cell: ({ row }) => {
+                    const poItem = purchaseOrders
+                      .find((order) => order.id === delivery.purchaseOrderId)
+                      ?.items.find((item) => item.id === row.purchaseOrderItemId)
+                    const product = products.find(
+                      (product) => product.id === poItem?.inventoryItemId,
+                    )
+                    return (
+                      <span>
+                        {row.receivedQuantity} {formatProductUnit(product?.unit)}
+                      </span>
+                    )
+                  },
                 },
               ]}
             />
-            {delivery.notes && <p className="text-xs whitespace-pre-wrap">{delivery.notes}</p>}
+            {delivery.notes && <p className="text-sm whitespace-pre-wrap">{delivery.notes}</p>}
           </>
         )}
       </DialogContent>

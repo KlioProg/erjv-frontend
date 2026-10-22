@@ -1,19 +1,23 @@
-import {
-  IncomingDeliveryDetailModal,
-  IncomingDeliveryStatusBadge,
-} from './shared/IncomingDeliveryDetailModal'
+import { PageHeader, PageToolbar } from '@/components/ui/ManagementPage'
+import { IncomingDeliveryDetailModal } from './shared/IncomingDeliveryDetailModal'
 import {
   buildDeliveryRows,
   deliveryNeedsAttention,
   localDeliveryDay,
   DELIVERY_STATUS_LABELS,
+  deliveryBelongsToView,
+  getDeliveryActions,
+  type DeliveryAction,
+  type DeliveryView,
   type DeliveryRow,
 } from '@/features/logistics/delivery-workflow'
-import { isActiveDeliveryStatus } from '@/features/logistics/vehicle-assignment'
 import { useEffect, useState } from 'react'
-import { ArrowDownToLine, Plus, Search, Truck } from 'lucide-react'
-import { DataTable, type ColumnDef } from '@/components/ui/data-table'
+import { ArrowDownToLine, Plus, Search } from 'lucide-react'
+import { DeliveryTable } from './DeliveryTable'
+import { OrderDetailDrawer } from '@/components/orders/OrderDetailDrawer'
+import { PurchaseOrderDetailModal } from '@/components/purchases/PurchaseOrderDetailModal'
 import { Badge } from '@/components/ui/badge'
+import { useAuth } from '@/features/auth/AuthContext'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -48,19 +52,22 @@ import { useSuppliers } from '@/features/logistics/suppliers.hooks'
 import { useAllWarehouses } from '@/features/logistics/warehouses.hooks'
 import { useAllProducts } from '@/features/products/products.hooks'
 import { useEmployees } from '@/features/staffing/staffing.hooks'
+import { useStockItems } from '@/features/logistics/stock-items.hooks'
+import type { PurchaseOrderStatus } from '@/features/logistics/purchase-orders.types'
 import type { CreateIncomingDeliveryPayload } from '@/features/logistics/incoming-deliveries.types'
-import { DeliveryUtils } from '@/features/logistics/delivery-utils'
 import { ScheduleIncomingDeliveryModal } from './ScheduleIncomingDeliveryModal'
 import { ScheduleDeliveryModal } from './ScheduleDeliveryModal'
 import { DispatchDeliveryModal } from './shared/DispatchDeliveryModal'
 import { DeliveryDetailModal } from './shared/DeliveryDetailModal'
-import { DeliveryStatusBadge } from './shared/DeliveryStatusBadge'
 
-// Kept as navigation compatibility hints; all records now share one page/table.
-export type DeliverySubTab = 'schedule' | 'status' | 'completed' | 'incoming' | 'history'
+// Older callers retain their navigation hints; outgoing aliases share the active view.
+export type DeliverySubTab =
+  'schedule' | 'status' | 'completed' | 'incoming' | 'outgoing' | 'history'
 export interface DeliveriesHubProps {
   initialTab?: DeliverySubTab
   purchaseOrderId?: number
+  salesOrderId?: number
+  arrangeOrder?: boolean
 }
 function DeliveryFilter({
   label,
@@ -74,12 +81,12 @@ function DeliveryFilter({
   options: { value: string; label: string }[]
 }) {
   return (
-    <div className="flex min-w-0 flex-col gap-1.5">
-      <Label className="text-xs" htmlFor={`delivery-filter-${label}`}>
+    <div className="flex min-w-0 flex-col gap-2">
+      <Label className="text-[13px] font-medium" htmlFor={`delivery-filter-${label}`}>
         {label}
       </Label>
       <Select value={value} onValueChange={onChange}>
-        <SelectTrigger id={`delivery-filter-${label}`} className="h-9 text-xs">
+        <SelectTrigger id={`delivery-filter-${label}`} className="h-10 min-w-0 text-[13px]">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -95,33 +102,42 @@ function DeliveryFilter({
     </div>
   )
 }
-export function DeliveriesHub({ initialTab, purchaseOrderId }: DeliveriesHubProps = {}) {
+export function DeliveriesHub({
+  initialTab,
+  purchaseOrderId,
+  salesOrderId,
+  arrangeOrder,
+}: DeliveriesHubProps = {}) {
+  const { isAdmin, isManager } = useAuth()
+  const canManage = isAdmin || isManager
+  const view: DeliveryView =
+    initialTab === 'history' ? 'history' : initialTab === 'incoming' ? 'incoming' : 'outgoing'
   const [now, setNow] = useState(Date.now)
   useEffect(() => {
     const interval = window.setInterval(() => setNow(Date.now()), 60_000)
     return () => window.clearInterval(interval)
   }, [])
-  const [type, setType] = useState(
-    initialTab === 'incoming'
-      ? 'Incoming'
-      : ['schedule', 'status', 'completed'].includes(initialTab || '')
-        ? 'Outgoing'
-        : 'ALL',
-  )
-  const [status, setStatus] = useState(initialTab === 'completed' ? 'DISPATCHED' : 'ALL')
-  const [method, setMethod] = useState('ALL')
+  const [type, setType] = useState('ALL')
+  const [status, setStatus] = useState('ALL')
   const [warehouseId, setWarehouseId] = useState('ALL')
   const [search, setSearch] = useState('')
   const [fromDate, setFromDate] = useState('')
   const [toDate, setToDate] = useState('')
-  const [orderScope, setOrderScope] = useState<number | null>(purchaseOrderId ?? null)
-  const [createType, setCreateType] = useState<'Incoming' | 'Outgoing' | null>(null)
+  const [orderScope, setOrderScope] = useState<number | null>(
+    purchaseOrderId ?? salesOrderId ?? null,
+  )
+  const [createType, setCreateType] = useState<'Incoming' | 'Outgoing' | null>(
+    arrangeOrder ? (view === 'incoming' ? 'Incoming' : 'Outgoing') : null,
+  )
   const [viewIncomingId, setViewIncomingId] = useState<number | null>(null)
   const [viewOutgoingId, setViewOutgoingId] = useState<number | null>(null)
+  const [viewOrder, setViewOrder] = useState<{ type: 'Incoming' | 'Outgoing'; id: number } | null>(
+    null,
+  )
   const [dispatchId, setDispatchId] = useState<number | null>(null)
   const [confirmation, setConfirmation] = useState<{
     row: DeliveryRow
-    action: 'complete' | 'cancel'
+    action: Exclude<DeliveryAction, 'dispatch'>
   } | null>(null)
   const incomingQuery = useIncomingDeliveries()
   const outgoingQuery = useOutgoingDeliveries()
@@ -135,6 +151,7 @@ export function DeliveriesHub({ initialTab, purchaseOrderId }: DeliveriesHubProp
   const { data: vehicles = [] } = useAllDeliveryVehicles()
   const { data: employees = [] } = useEmployees({ includeInactive: 'true' })
   const { data: products = [] } = useAllProducts()
+  const { data: stockItems = [] } = useStockItems()
   const createIncoming = useCreateIncomingDelivery()
   const scheduleIncoming = useScheduleIncomingDelivery()
   const completeIncoming = useCompleteIncomingDelivery()
@@ -150,6 +167,19 @@ export function DeliveriesHub({ initialTab, purchaseOrderId }: DeliveriesHubProp
     completeOutgoing,
     cancelOutgoing,
   ].some((mutation) => mutation.isPending)
+  const hasDeliveryError =
+    view === 'incoming'
+      ? incomingQuery.isError
+      : view === 'outgoing'
+        ? outgoingQuery.isError
+        : incomingQuery.isError || outgoingQuery.isError
+  const isLoadingDeliveries =
+    view === 'incoming'
+      ? incomingQuery.isLoading
+      : view === 'outgoing'
+        ? outgoingQuery.isLoading
+        : incomingQuery.isLoading || outgoingQuery.isLoading
+  const isFetchingDeliveries = incomingQuery.isFetching || outgoingQuery.isFetching
   const rows = buildDeliveryRows({
     incoming,
     outgoing,
@@ -162,11 +192,11 @@ export function DeliveriesHub({ initialTab, purchaseOrderId }: DeliveriesHubProp
     employees,
   })
   const filtered = rows.filter((row) => {
-    if (type !== 'ALL' && row.type !== type) return false
+    if (!deliveryBelongsToView(row, view)) return false
+    if (view === 'history' && type !== 'ALL' && row.type !== type) return false
     if (status !== 'ALL' && row.status !== status) return false
-    if (method !== 'ALL' && row.method !== method) return false
     if (warehouseId !== 'ALL' && row.record.warehouseId !== Number(warehouseId)) return false
-    if (orderScope !== null && (row.type !== 'Incoming' || row.orderId !== orderScope)) return false
+    if (orderScope !== null && row.orderId !== orderScope) return false
     const day = localDeliveryDay(row.date)
     if (fromDate && (!day || day < fromDate)) return false
     if (toDate && (!day || day > toDate)) return false
@@ -181,119 +211,26 @@ export function DeliveriesHub({ initialTab, purchaseOrderId }: DeliveriesHubProp
     ].some((value) => value.toLowerCase().includes(search.trim().toLowerCase()))
   })
   const viewRow = rows.find((row) => row.type === 'Incoming' && row.record.id === viewIncomingId)
-  const availableStatuses = Object.entries(DELIVERY_STATUS_LABELS).filter(
-    ([value]) =>
-      type === 'ALL' ||
-      (type === 'Incoming' ? !['DISPATCHED', 'DELIVERED'].includes(value) : value !== 'COMPLETED'),
+  const purchaseOrderToView =
+    viewOrder?.type === 'Incoming'
+      ? (purchaseOrders.find((order) => order.id === viewOrder.id) ?? null)
+      : null
+  const salesOrderToView =
+    viewOrder?.type === 'Outgoing'
+      ? (salesOrders.find((order) => order.id === viewOrder.id) ?? null)
+      : null
+  const availableStatuses = Object.entries(DELIVERY_STATUS_LABELS).filter(([value]) =>
+    view === 'history'
+      ? ['COMPLETED', 'DELIVERED', 'CANCELLED'].includes(value)
+      : view === 'incoming'
+        ? ['DRAFT', 'SCHEDULED'].includes(value)
+        : ['DRAFT', 'SCHEDULED', 'DISPATCHED'].includes(value),
   )
-  const badge = (row: DeliveryRow) =>
-    row.type === 'Outgoing' ? (
-      <DeliveryStatusBadge status={row.record.status} />
-    ) : (
-      <IncomingDeliveryStatusBadge status={row.record.status} />
-    )
-  const columns: ColumnDef<DeliveryRow>[] = [
-    {
-      id: 'reference',
-      header: 'Reference',
-      accessorKey: 'reference',
-      sortable: true,
-      cell: ({ row }) => <span className="font-mono text-xs font-bold">{row.reference}</span>,
-    },
-    {
-      id: 'type',
-      header: 'Type',
-      accessorKey: 'type',
-      sortable: true,
-      cell: ({ row }) => <Badge variant="outline">{row.type}</Badge>,
-    },
-    { id: 'party', header: 'From / To', accessorKey: 'party', sortable: true },
-    { id: 'order', header: 'Related Order', accessorKey: 'relatedOrder', sortable: true },
-    { id: 'method', header: 'Method', accessorKey: 'method' },
-    { id: 'warehouse', header: 'Warehouse', accessorKey: 'warehouse', sortable: true },
-    {
-      id: 'vehicle',
-      header: 'Vehicle',
-      accessorKey: 'vehicle',
-      cell: ({ row }) => (
-        <div className="flex flex-col gap-1">
-          <span>{row.vehicle}</span>
-          {row.driver !== '—' && (
-            <span className="text-[11px] text-muted-foreground">{row.driver}</span>
-          )}
-        </div>
-      ),
-    },
-    {
-      id: 'date',
-      header: 'Scheduled / Expected',
-      sortKey: (row) => (row.date ? new Date(row.date).getTime() : 0),
-      sortable: true,
-      cell: ({ row }) => DeliveryUtils.formatDateTime(row.date),
-    },
-    { id: 'status', header: 'Status', accessorKey: 'status', cell: ({ row }) => badge(row) },
-    {
-      id: 'actions',
-      header: 'Actions',
-      align: 'right',
-      cell: ({ row }) => (
-        <div className="flex items-center justify-end gap-1 whitespace-nowrap">
-          <Button
-            variant="ghost"
-            size="sm"
-            aria-label={`View delivery ${row.reference}`}
-            onClick={() =>
-              row.type === 'Incoming'
-                ? setViewIncomingId(row.record.id)
-                : setViewOutgoingId(row.record.id)
-            }
-          >
-            View
-          </Button>
-          {row.status === 'DRAFT' && (
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={pending}
-              onClick={() =>
-                row.type === 'Incoming'
-                  ? scheduleIncoming.mutate(row.record.id)
-                  : scheduleOutgoing.mutate(row.record.id)
-              }
-            >
-              Schedule
-            </Button>
-          )}
-          {row.type === 'Outgoing' && row.status === 'SCHEDULED' && (
-            <Button variant="outline" size="sm" onClick={() => setDispatchId(row.record.id)}>
-              Dispatch
-            </Button>
-          )}
-          {((row.type === 'Incoming' && row.status === 'SCHEDULED') ||
-            row.status === 'DISPATCHED') && (
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={pending}
-              onClick={() => setConfirmation({ row, action: 'complete' })}
-            >
-              {row.type === 'Incoming' ? 'Receive Goods' : 'Complete'}
-            </Button>
-          )}
-          {isActiveDeliveryStatus(row.status) && (
-            <Button
-              variant="ghost"
-              size="sm"
-              disabled={pending}
-              onClick={() => setConfirmation({ row, action: 'cancel' })}
-            >
-              Cancel
-            </Button>
-          )}
-        </div>
-      ),
-    },
-  ]
+  const handleAction = (row: DeliveryRow, action: DeliveryAction) => {
+    if (!canManage || pending || !getDeliveryActions(row).includes(action)) return
+    if (action === 'dispatch') setDispatchId(row.record.id)
+    else setConfirmation({ row, action })
+  }
   const handleCreateIncoming = async (payload: CreateIncomingDeliveryPayload) => {
     const created = await createIncoming.mutateAsync(payload)
     try {
@@ -306,89 +243,119 @@ export function DeliveriesHub({ initialTab, purchaseOrderId }: DeliveriesHubProp
   const confirm = async () => {
     if (!confirmation) return
     const { row, action } = confirmation
+    if (!canManage || !getDeliveryActions(row).includes(action)) return
     if (row.type === 'Incoming')
-      await (action === 'complete' ? completeIncoming : cancelIncoming).mutateAsync(row.record.id)
+      await (
+        action === 'schedule'
+          ? scheduleIncoming
+          : action === 'receive'
+            ? completeIncoming
+            : cancelIncoming
+      ).mutateAsync(row.record.id)
     else
-      await (action === 'complete' ? completeOutgoing : cancelOutgoing).mutateAsync(row.record.id)
+      await (
+        action === 'schedule'
+          ? scheduleOutgoing
+          : action === 'complete'
+            ? completeOutgoing
+            : cancelOutgoing
+      ).mutateAsync(row.record.id)
   }
   return (
-    <div className="flex flex-col gap-5">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-xl font-bold tracking-tight">Deliveries</h1>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            Track goods coming in from suppliers and going out to customers.
-          </p>
+    <div className="flex min-w-0 flex-col gap-6">
+      <PageHeader
+        description={
+          view === 'history'
+            ? 'Completed and cancelled deliveries remain available for review.'
+            : view === 'incoming'
+              ? 'Arrange supplier shipments and receive goods into a destination warehouse.'
+              : 'Arrange customer shipments from confirmed order allocations.'
+        }
+      >
+        {view === 'history'
+          ? 'Delivery History'
+          : view === 'incoming'
+            ? 'Incoming Deliveries'
+            : 'Outgoing Deliveries'}
+      </PageHeader>
+      <p className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-muted-foreground">
+        <span>{rows.filter((row) => deliveryBelongsToView(row, view)).length} deliveries</span>
+        {view !== 'history' && (
+          <span>
+            {
+              rows.filter(
+                (row) => deliveryBelongsToView(row, view) && deliveryNeedsAttention(row, now),
+              ).length
+            }{' '}
+            need attention
+          </span>
+        )}
+      </p>
+      <PageToolbar className="[&>div:first-child]:max-w-xl!">
+        <div className="relative min-w-0 flex-1 sm:min-w-64">
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            aria-label="Search deliveries"
+            placeholder="Search delivery, order, supplier, customer, or vehicle..."
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            className="h-10 pl-9 text-[13px]"
+          />
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center justify-end gap-2">
           <Button
+            variant="ghost"
             size="sm"
-            variant="outline"
-            disabled={
-              !purchaseOrders.some((order) =>
-                ['CONFIRMED', 'PARTIALLY_RECEIVED'].includes(order.status),
-              )
-            }
-            onClick={() => setCreateType('Incoming')}
+            onClick={() => {
+              setType('ALL')
+              setStatus('ALL')
+              setWarehouseId('ALL')
+              setSearch('')
+              setFromDate('')
+              setToDate('')
+              setOrderScope(null)
+            }}
           >
-            <ArrowDownToLine data-icon="inline-start" />
-            Schedule Incoming
+            Clear Filters
           </Button>
-          <Button
-            size="sm"
-            disabled={
-              !salesOrders.some((order) =>
-                ['CONFIRMED', 'PARTIALLY_DELIVERED'].includes(order.status),
-              )
-            }
-            onClick={() => setCreateType('Outgoing')}
-          >
-            <Plus data-icon="inline-start" />
-            Schedule Outgoing
-          </Button>
+          {canManage && view !== 'history' && (
+            <div className="flex flex-wrap gap-2">
+              {view === 'incoming' && (
+                <Button
+                  size="sm"
+                  variant="default"
+                  disabled={
+                    !purchaseOrders.some((order) =>
+                      ['CONFIRMED', 'PARTIALLY_RECEIVED'].includes(order.status),
+                    )
+                  }
+                  onClick={() => setCreateType('Incoming')}
+                >
+                  <ArrowDownToLine data-icon="inline-start" />
+                  Schedule Incoming
+                </Button>
+              )}
+              {view === 'outgoing' && (
+                <Button
+                  size="sm"
+                  disabled={
+                    !salesOrders.some((order) =>
+                      ['CONFIRMED', 'PARTIALLY_DELIVERED'].includes(order.status),
+                    )
+                  }
+                  onClick={() => setCreateType('Outgoing')}
+                >
+                  <Plus data-icon="inline-start" />
+                  Schedule Outgoing
+                </Button>
+              )}
+            </div>
+          )}
         </div>
-      </div>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {[
-          ['Incoming', incoming.length],
-          ['Outgoing', outgoing.length],
-          [
-            'In Progress',
-            rows.filter((row) => ['SCHEDULED', 'DISPATCHED'].includes(row.status)).length,
-          ],
-          ['Needs Attention', rows.filter((row) => deliveryNeedsAttention(row, now)).length],
-        ].map(([label, count]) => (
-          <div
-            key={label}
-            className="flex items-center justify-between gap-2 rounded-lg border border-border/80 bg-muted/20 p-3"
-          >
-            <span className="text-xs font-medium text-muted-foreground">{label}</span>
-            <span className="font-mono text-lg font-bold">{count}</span>
-          </div>
-        ))}
-      </div>
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <DeliveryFilter
-          label="Type"
-          value={type}
-          onChange={(value) => {
-            setType(value)
-            setStatus('ALL')
-          }}
-          options={[
-            { value: 'ALL', label: 'All' },
-            ...['Incoming', 'Outgoing'].map((value) => ({ value, label: value })),
-          ]}
-        />
-        <DeliveryFilter
-          label="Method"
-          value={method}
-          onChange={setMethod}
-          options={[
-            { value: 'ALL', label: 'All Methods' },
-            ...['To Be Confirmed', 'Delivery'].map((value) => ({ value, label: value })),
-          ]}
-        />
+      </PageToolbar>
+      <div
+        className={`grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 ${view === 'history' ? 'xl:grid-cols-5' : ''}`}
+      >
         <DeliveryFilter
           label="Status"
           value={status}
@@ -410,74 +377,59 @@ export function DeliveriesHub({ initialTab, purchaseOrderId }: DeliveriesHubProp
             })),
           ]}
         />
-      </div>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-        <div className="relative flex-1">
-          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+        <div className="flex min-w-0 flex-col gap-2">
+          <Label htmlFor="delivery-date-from" className="text-[13px] font-medium">
+            From Date
+          </Label>
           <Input
-            aria-label="Search deliveries"
-            placeholder="Search delivery, order, supplier, customer, or vehicle..."
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            className="h-9 pl-9 text-xs"
+            id="delivery-date-from"
+            type="date"
+            value={fromDate}
+            onChange={(event) => setFromDate(event.target.value)}
+            className="h-10 min-w-0 text-[13px]"
           />
         </div>
-        <div className="flex flex-1 gap-3 sm:max-w-sm">
-          <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-            <Label htmlFor="delivery-date-from" className="text-xs">
-              From Date
-            </Label>
-            <Input
-              id="delivery-date-from"
-              type="date"
-              value={fromDate}
-              onChange={(event) => setFromDate(event.target.value)}
-              className="h-9 text-xs"
-            />
-          </div>
-          <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-            <Label htmlFor="delivery-date-to" className="text-xs">
-              To Date
-            </Label>
-            <Input
-              id="delivery-date-to"
-              type="date"
-              value={toDate}
-              min={fromDate || undefined}
-              onChange={(event) => setToDate(event.target.value)}
-              className="h-9 text-xs"
-            />
-          </div>
+        <div className="flex min-w-0 flex-col gap-2">
+          <Label htmlFor="delivery-date-to" className="text-[13px] font-medium">
+            To Date
+          </Label>
+          <Input
+            id="delivery-date-to"
+            type="date"
+            value={toDate}
+            min={fromDate || undefined}
+            onChange={(event) => setToDate(event.target.value)}
+            className="h-10 min-w-0 text-[13px]"
+          />
         </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => {
-            setType('ALL')
-            setMethod('ALL')
-            setStatus('ALL')
-            setWarehouseId('ALL')
-            setSearch('')
-            setFromDate('')
-            setToDate('')
-            setOrderScope(null)
-          }}
-        >
-          Clear Filters
-        </Button>
+        {view === 'history' && (
+          <DeliveryFilter
+            label="Direction"
+            value={type}
+            onChange={(value) => {
+              setType(value)
+              setStatus('ALL')
+            }}
+            options={[
+              { value: 'ALL', label: 'All' },
+              ...['Incoming', 'Outgoing'].map((value) => ({ value, label: value })),
+            ]}
+          />
+        )}
       </div>
       {orderScope !== null && (
         <p className="text-xs text-muted-foreground">
-          Incoming deliveries for{' '}
-          {purchaseOrders.find((order) => order.id === orderScope)?.orderNumber ||
-            `PO #${orderScope}`}
+          {view === 'incoming' ? 'Incoming' : 'Outgoing'} deliveries for{' '}
+          {(view === 'incoming' ? purchaseOrders : salesOrders).find(
+            (order) => order.id === orderScope,
+          )?.orderNumber || `Order #${orderScope}`}
           .{' '}
           <Button variant="link" size="sm" onClick={() => setOrderScope(null)}>
             Show all orders
           </Button>
         </p>
       )}
-      {(incomingQuery.isError || outgoingQuery.isError) && (
+      {hasDeliveryError && (
         <Alert variant="destructive">
           <AlertDescription>
             Some deliveries could not be loaded.{' '}
@@ -488,29 +440,34 @@ export function DeliveriesHub({ initialTab, purchaseOrderId }: DeliveriesHubProp
                 void incomingQuery.refetch()
                 void outgoingQuery.refetch()
               }}
+              disabled={isFetchingDeliveries}
             >
-              Retry
+              {isFetchingDeliveries ? 'Retrying...' : 'Retry'}
             </Button>
           </AlertDescription>
         </Alert>
       )}
-      <DataTable
-        data={filtered}
-        columns={columns}
-        getRowKey={(row) => row.key}
-        isLoading={incomingQuery.isLoading || outgoingQuery.isLoading}
-        tableClassName="min-w-[1100px]"
-        emptyContent={
-          <div className="flex flex-col items-center gap-2 py-10 text-center">
-            <Truck className="size-8 text-muted-foreground" />
-            <p className="text-sm font-semibold">No deliveries found</p>
-            <p className="text-xs text-muted-foreground">
-              Adjust the filters or schedule an incoming or outgoing delivery.
-            </p>
-          </div>
-        }
-      />
-      {createType === 'Incoming' && (
+      {hasDeliveryError && filtered.length === 0 && !isLoadingDeliveries ? (
+        <div className="flex min-h-[360px] items-center justify-center rounded-lg border border-border bg-card px-4 py-12 text-center text-sm text-muted-foreground">
+          Delivery records are unavailable until the request succeeds.
+        </div>
+      ) : (
+        <DeliveryTable
+          rows={filtered}
+          view={view}
+          isLoading={isLoadingDeliveries}
+          canManage={canManage}
+          pending={pending}
+          onView={(row) =>
+            row.type === 'Incoming'
+              ? setViewIncomingId(row.record.id)
+              : setViewOutgoingId(row.record.id)
+          }
+          onViewOrder={(row) => setViewOrder({ type: row.type, id: row.orderId })}
+          onAction={handleAction}
+        />
+      )}
+      {canManage && createType === 'Incoming' && (
         <ScheduleIncomingDeliveryModal
           key={orderScope ?? 'incoming'}
           open
@@ -523,8 +480,13 @@ export function DeliveriesHub({ initialTab, purchaseOrderId }: DeliveriesHubProp
           preselectedOrderId={orderScope ?? undefined}
         />
       )}
-      {createType === 'Outgoing' && (
-        <ScheduleDeliveryModal open onClose={() => setCreateType(null)} />
+      {canManage && createType === 'Outgoing' && (
+        <ScheduleDeliveryModal
+          key={orderScope ?? 'outgoing'}
+          open
+          onClose={() => setCreateType(null)}
+          preselectedOrderId={orderScope ?? undefined}
+        />
       )}
       <DispatchDeliveryModal
         key={dispatchId ?? 'dispatch'}
@@ -543,28 +505,79 @@ export function DeliveriesHub({ initialTab, purchaseOrderId }: DeliveriesHubProp
         products={products}
         onClose={() => setViewIncomingId(null)}
       />
+      {purchaseOrderToView && (
+        <PurchaseOrderDetailModal
+          order={purchaseOrderToView}
+          supplier={suppliers.find((supplier) => supplier.id === purchaseOrderToView.supplierId)}
+          products={products}
+          warehouses={warehouses}
+          incomingDeliveries={incoming}
+          statusBadge={
+            <Badge variant="outline">{purchaseOrderStatusLabels[purchaseOrderToView.status]}</Badge>
+          }
+          onClose={() => setViewOrder(null)}
+        />
+      )}
+      <OrderDetailDrawer
+        open={salesOrderToView !== null}
+        readOnly
+        onClose={() => setViewOrder(null)}
+        order={salesOrderToView}
+        clients={clients}
+        products={products}
+        warehouses={warehouses}
+        vehicles={vehicles}
+        employees={employees}
+        stockItems={stockItems}
+        outgoingDeliveries={outgoing}
+      />
       <ConfirmDeleteModal
+        key={
+          confirmation ? `${confirmation.row.key}-${confirmation.action}` : 'delivery-confirmation'
+        }
         open={confirmation !== null}
         onClose={() => setConfirmation(null)}
         onConfirm={confirm}
         title={
-          confirmation?.action === 'cancel'
-            ? 'Cancel Delivery'
-            : confirmation?.row.type === 'Incoming'
-              ? 'Receive Goods'
-              : 'Complete Delivery'
+          confirmation?.action === 'schedule'
+            ? 'Schedule Delivery'
+            : confirmation?.action === 'cancel'
+              ? 'Cancel Delivery'
+              : confirmation?.row.type === 'Incoming'
+                ? 'Receive Goods'
+                : 'Complete Delivery'
         }
         description={
-          confirmation?.action === 'cancel'
-            ? 'Cancel this delivery using the existing order and inventory rules.'
-            : confirmation?.row.type === 'Incoming'
-              ? 'Confirm the goods have arrived. Receiving adds the recorded quantities to the destination warehouse.'
-              : 'Confirm the customer received the goods. Completion updates stock and releases the vehicle.'
+          confirmation?.action === 'schedule'
+            ? 'Mark this draft as scheduled and ready for receiving or dispatch. Physical stock is unchanged.'
+            : confirmation?.action === 'cancel'
+              ? confirmation.row.type === 'Outgoing'
+                ? 'Cancel this shipment. A dispatched vehicle becomes available again. Physical stock and the sales order reservations remain unchanged.'
+                : 'Cancel this supplier shipment. Physical stock is unchanged and its quantities become available for another incoming delivery.'
+              : confirmation?.row.type === 'Incoming'
+                ? 'Confirm the goods have arrived. Receiving adds the recorded quantities to the destination warehouse.'
+                : 'Confirm the customer received the goods. Completion updates stock and releases the vehicle.'
         }
         itemName={confirmation?.row.reference}
-        confirmText={confirmation?.action === 'cancel' ? 'Cancel Delivery' : 'Confirm Completion'}
+        confirmText={
+          confirmation?.action === 'schedule'
+            ? 'Schedule Delivery'
+            : confirmation?.action === 'cancel'
+              ? 'Cancel Delivery'
+              : confirmation?.action === 'receive'
+                ? 'Receive Goods'
+                : 'Complete Delivery'
+        }
         variant={confirmation?.action === 'cancel' ? 'destructive' : 'warning'}
       />
     </div>
   )
+}
+
+const purchaseOrderStatusLabels: Record<PurchaseOrderStatus, string> = {
+  DRAFT: 'Draft',
+  CONFIRMED: 'Confirmed',
+  PARTIALLY_RECEIVED: 'Partially Received',
+  RECEIVED: 'Received',
+  CANCELLED: 'Cancelled',
 }

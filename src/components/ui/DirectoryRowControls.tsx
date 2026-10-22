@@ -10,9 +10,9 @@ export function DirectoryStatusBadge({
   return (
     <Badge
       variant="outline"
-      className={`px-2 py-0.5 text-[10px] font-semibold ${
+      className={`px-2 py-0.5 text-xs font-medium ${
         isActive
-          ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-600'
+          ? 'border-status-success-foreground/20 bg-status-success text-status-success-foreground'
           : 'border-border bg-muted text-muted-foreground'
       }`}
     >

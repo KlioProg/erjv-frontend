@@ -1,5 +1,6 @@
+import { formatProductUnit } from '@/lib/product-unit'
 import { useState } from 'react'
-import { Package, Plus, Search, Tag } from 'lucide-react'
+import { Plus, Search, Tag } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -42,9 +43,9 @@ export function ProductListModal({ open, onClose }: ProductListModalProps) {
       sortable: true,
       cell: ({ row }) => (
         <div className="flex flex-col gap-0.5">
-          <span className="text-xs font-bold text-foreground">{row.name}</span>
+          <span className="text-sm font-medium text-foreground">{row.name}</span>
           {row.description && (
-            <span className="line-clamp-1 text-[11px] text-muted-foreground">
+            <span className="line-clamp-1 text-xs text-muted-foreground">
               {row.description}
             </span>
           )}
@@ -57,7 +58,7 @@ export function ProductListModal({ open, onClose }: ProductListModalProps) {
       accessorKey: 'variety',
       cell: ({ row }) =>
         row.variety ? (
-          <span className="inline-flex items-center gap-1.5 rounded-lg border border-border/70 bg-muted/80 px-2.5 py-1 text-[11px] font-semibold text-foreground">
+          <span className="inline-flex items-center gap-1.5 rounded-lg border border-border/70 bg-muted/80 px-2.5 py-1 text-xs font-medium text-foreground">
             <Tag className="size-3 shrink-0 text-primary" />
             {row.variety}
           </span>
@@ -73,11 +74,11 @@ export function ProductListModal({ open, onClose }: ProductListModalProps) {
       align: 'right',
       cell: ({ row }) => (
         <div>
-          <span className="font-mono text-sm font-extrabold text-foreground">
+          <span className="text-sm font-normal tabular-nums text-foreground">
             ₱{Number(row.unitPrice).toLocaleString('en-US', { minimumFractionDigits: 2 })}
           </span>
-          <span className="block text-[10px] font-semibold text-muted-foreground">
-            / {row.unit || 'unit'}
+          <span className="block text-xs font-normal text-muted-foreground">
+            / {formatProductUnit(row.unit, 'unit')}
           </span>
         </div>
       ),
@@ -89,9 +90,9 @@ export function ProductListModal({ open, onClose }: ProductListModalProps) {
       cell: ({ row }) => (
         <Badge
           variant="outline"
-          className={`text-[10px] font-bold ${
+          className={`text-xs font-medium ${
             row.isActive
-              ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-600'
+              ? 'border-status-success-foreground/20 bg-status-success text-status-success-foreground'
               : 'border-border bg-muted text-muted-foreground'
           }`}
         >
@@ -112,20 +113,17 @@ export function ProductListModal({ open, onClose }: ProductListModalProps) {
   return (
     <>
       <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-        <DialogContent className="flex max-h-[92vh] flex-col gap-3 overflow-hidden p-6 shadow-2xl sm:max-w-[820px]">
+        <DialogContent className="flex max-h-[92vh] flex-col gap-5 overflow-hidden p-6 sm:max-w-[820px]">
           <DialogHeader className="shrink-0 pb-0">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-3">
-                <div className="flex size-10 items-center justify-center rounded-2xl bg-primary/10 text-primary shadow-2xs">
-                  <Package className="size-5" />
-                </div>
                 <div>
-                  <DialogTitle className="text-xl font-extrabold tracking-tight text-foreground">
+                  <DialogTitle className="text-xl font-semibold tracking-tight text-foreground">
                     Product Catalog
                   </DialogTitle>
                   <DialogDescription className="text-xs text-muted-foreground">
                     Wholesale and retail inventory items connected to{' '}
-                    <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] text-primary">
+                    <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-primary">
                       GET /inventory-items
                     </code>
                   </DialogDescription>
@@ -134,7 +132,7 @@ export function ProductListModal({ open, onClose }: ProductListModalProps) {
               <Button
                 size="sm"
                 onClick={() => setIsCreateOpen(true)}
-                className="h-8 gap-1.5 text-xs font-semibold shadow-xs"
+                className="h-8 gap-2 text-ui font-medium"
               >
                 <Plus className="size-3.5" />
                 Add Product
@@ -148,7 +146,7 @@ export function ProductListModal({ open, onClose }: ProductListModalProps) {
               placeholder="Search products by name or variety..."
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              className="h-9 rounded-xl pl-10 text-xs"
+              className="h-10 pl-10 text-ui"
             />
           </div>
 

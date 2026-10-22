@@ -1,3 +1,4 @@
+import { formatProductUnit } from '@/lib/product-unit'
 import type { ReactNode } from 'react'
 import {
   Dialog,
@@ -25,6 +26,8 @@ type Props = {
   incomingDeliveries: IncomingDeliveryRecord[]
   statusBadge: ReactNode
   onClose: () => void
+  onConfirm?: () => void
+  confirming?: boolean
   onNavigateToDeliveries?: (purchaseOrderId?: number) => void
 }
 
@@ -39,6 +42,8 @@ export function PurchaseOrderDetailModal({
   incomingDeliveries,
   statusBadge,
   onClose,
+  onConfirm,
+  confirming,
   onNavigateToDeliveries,
 }: Props) {
   const linkedDeliveries = incomingDeliveries.filter(
@@ -64,7 +69,17 @@ export function PurchaseOrderDetailModal({
         </span>
       ),
     },
-    { accessorKey: 'quantity', header: 'Quantity', align: 'right' },
+    {
+      accessorKey: 'quantity',
+      header: 'Quantity',
+      align: 'right',
+      cell: ({ row }) => (
+        <span>
+          {row.quantity}{' '}
+          {formatProductUnit(products.find((product) => product.id === row.inventoryItemId)?.unit)}
+        </span>
+      ),
+    },
     {
       accessorKey: 'unitPrice',
       header: 'Unit Price',
@@ -101,10 +116,10 @@ export function PurchaseOrderDetailModal({
           </DialogDescription>
         </DialogHeader>
         <div>{statusBadge}</div>
-        <dl className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+        <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4 [&_dt]:text-ui [&_dd]:text-sm">
           <div>
             <dt className="text-muted-foreground">Supplier</dt>
-            <dd>{supplier?.name || `Supplier #${order.supplierId}`}</dd>
+            <dd className="font-medium">{supplier?.name || `Supplier #${order.supplierId}`}</dd>
           </div>
           <div>
             <dt className="text-muted-foreground">Supplier Reference</dt>
@@ -131,14 +146,19 @@ export function PurchaseOrderDetailModal({
             </div>
           )}
         </dl>
-        <DataTable data={order.items || []} columns={columns} pagination={false} />
-        <p className="text-right text-sm font-semibold">
+        <DataTable
+          data={order.items || []}
+          columns={columns}
+          pagination={false}
+          tableClassName="tabular-nums"
+        />
+        <p className="text-right text-sm font-semibold tabular-nums">
           Total:{' '}
           {currency((order.items || []).reduce((sum, item) => sum + Number(item.totalAmount), 0))}
         </p>
         <p className="text-xs text-muted-foreground">
-          Choose the destination warehouse when scheduling an incoming delivery. Incoming deliveries use the items
-          from this purchase order.
+          Choose the destination warehouse when scheduling an incoming delivery. Incoming deliveries
+          use the items from this purchase order.
         </p>
         {linkedDeliveries.length > 0 && (
           <p className="text-xs text-muted-foreground">
@@ -146,9 +166,14 @@ export function PurchaseOrderDetailModal({
             {linkedDeliveries.map((delivery) => delivery.deliveryNumber).join(', ')}
           </p>
         )}
+        {onConfirm && order.status === 'DRAFT' && (
+          <Button size="sm" disabled={confirming} onClick={onConfirm}>
+            {confirming ? 'Confirming...' : 'Confirm Purchase Order'}
+          </Button>
+        )}
         {onNavigateToDeliveries && ['CONFIRMED', 'PARTIALLY_RECEIVED'].includes(order.status) && (
-          <Button variant="outline" size="sm" onClick={() => onNavigateToDeliveries(order.id)}>
-            View Incoming Deliveries
+          <Button size="sm" onClick={() => onNavigateToDeliveries(order.id)}>
+            Incoming Deliveries
           </Button>
         )}
       </DialogContent>

@@ -1,3 +1,4 @@
+import { PageHeader, PageToolbar } from '@/components/ui/ManagementPage'
 import { useState } from 'react'
 import {
   Plus,
@@ -8,10 +9,8 @@ import {
   Search,
   AlertCircle,
 } from 'lucide-react'
-import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Badge } from '@/components/ui/badge'
 import { Spinner } from '@/components/ui/spinner'
 import { DataTable, type ColumnDef } from '@/components/ui/data-table'
 import { DataTableActions } from '@/components/ui/DataTableActions'
@@ -25,24 +24,45 @@ import type { Job } from '@/features/staffing/staffing.types'
 import { JobModal } from './JobModal'
 import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal'
 import { ArchiveTabNav } from '@/components/ui/ArchiveTabNav'
+import { getErrorMessage } from '@/lib/api-client'
 
 function JobStaffCount({ jobId, isArchived }: { jobId: number; isArchived?: boolean }) {
-  const { data: employeeJobs = [], isLoading } = useEmployeesForJob(jobId)
+  const { data: employeeJobs = [], isFetching, error, refetch } = useEmployeesForJob(jobId)
 
-  if (isLoading) {
-    return <Spinner className="size-3 text-muted-foreground" />
+  if (isFetching) {
+    return (
+      <span role="status" aria-label="Loading staff assignments">
+        <Spinner className="size-3 text-muted-foreground" />
+      </span>
+    )
+  }
+
+  if (error) {
+    return (
+      <span role="alert" className="inline-flex items-center gap-1 text-xs text-destructive">
+        Staff assignments could not be loaded: {getErrorMessage(error)}
+        <Button
+          variant="link"
+          size="sm"
+          className="h-auto p-0 text-xs"
+          onClick={() => void refetch()}
+        >
+          Retry
+        </Button>
+      </span>
+    )
   }
 
   return (
-    <span className="text-[11px] text-muted-foreground font-medium flex items-center gap-1.5">
+    <span className="text-sm text-muted-foreground flex items-center gap-2">
       {isArchived ? (
         <>
-          <Briefcase className="size-3.5 text-muted-foreground/70" />
+          <Briefcase className="size-3.5 text-muted-foreground" />
           {employeeJobs.length} assigned records
         </>
       ) : (
         <>
-          <CheckCircle2 className="size-3.5 text-emerald-600" />
+          <CheckCircle2 className="size-3.5 text-status-success-foreground" />
           {employeeJobs.length} active staff assigned
         </>
       )}
@@ -52,7 +72,7 @@ function JobStaffCount({ jobId, isArchived }: { jobId: number; isArchived?: bool
 
 export function JobList() {
   const [activeTab, setActiveTab] = useState<'ACTIVE' | 'ARCHIVED'>('ACTIVE')
-  const { data: jobs = [], isLoading, error, refetch } = useAllJobs()
+  const { data: jobs = [], isLoading, isFetching, error, refetch } = useAllJobs()
   const deactivateMutation = useDeactivateJob({ onViewArchive: () => setActiveTab('ARCHIVED') })
   const reactivateMutation = useReactivateJob()
 
@@ -105,10 +125,10 @@ export function JobList() {
       header: 'Position',
       accessorKey: 'name',
       sortable: true,
-      className: 'min-w-48 font-semibold',
+      className: 'min-w-48 font-medium',
       cell: ({ row }) => (
         <div className="flex min-w-0 items-center gap-2">
-          <Briefcase aria-hidden="true" className="size-4 shrink-0 text-primary" />
+          <Briefcase aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
           <span className="truncate">{row.name}</span>
         </div>
       ),
@@ -121,36 +141,14 @@ export function JobList() {
       sortKey: (job) => job.description || '',
       className: 'min-w-64 max-w-xl text-muted-foreground',
       cell: ({ row }) => (
-        <span className="line-clamp-2">
-          {row.description || 'No description specified.'}
-        </span>
+        <span className="line-clamp-2">{row.description || 'No description specified.'}</span>
       ),
     },
     {
       id: 'staff',
       header: 'Assigned Staff',
       className: 'min-w-40',
-      cell: ({ row }) => (
-        <JobStaffCount jobId={row.id} isArchived={row.isActive === false} />
-      ),
-    },
-    {
-      id: 'status',
-      header: 'Status',
-      accessorKey: 'isActive',
-      sortable: true,
-      cell: ({ row }) =>
-        row.isActive === false ? (
-          <Badge variant="outline" className="gap-1 border-amber-500/30 bg-amber-500/10 text-amber-700">
-            <Archive aria-hidden="true" className="size-3" />
-            Archived
-          </Badge>
-        ) : (
-          <Badge variant="outline" className="gap-1 border-emerald-500/25 bg-emerald-500/10 text-emerald-700">
-            <CheckCircle2 aria-hidden="true" className="size-3" />
-            Active
-          </Badge>
-        ),
+      cell: ({ row }) => <JobStaffCount jobId={row.id} isArchived={row.isActive === false} />,
     },
     {
       id: 'actions',
@@ -185,6 +183,9 @@ export function JobList() {
 
   return (
     <div className="flex flex-col gap-4">
+      <PageHeader description="Manage job positions and assigned staff duties.">
+        Job Positions
+      </PageHeader>
       {/* Position Archive / Active Tabs */}
       <ArchiveTabNav
         activeTab={activeTab}
@@ -198,34 +199,29 @@ export function JobList() {
       />
 
       {/* Header and Controls */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+      <PageToolbar>
         <div className="relative w-full sm:w-80">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
           <Input
+            aria-label="Search job positions"
             placeholder="Search positions by title or duties..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-9 h-9 text-xs"
+            className="pl-9"
           />
         </div>
 
         {activeTab === 'ACTIVE' && (
-          <Button
-            size="sm"
-            onClick={handleCreate}
-            className="font-semibold shadow-xs cursor-pointer"
-          >
+          <Button size="sm" onClick={handleCreate} className="font-medium cursor-pointer">
             <Plus data-icon="inline-start" className="size-4" />
             Create Job Position
           </Button>
         )}
-      </div>
+      </PageToolbar>
 
       {error ? (
-        <div className="flex flex-col items-center justify-center py-14 px-4 text-center border rounded-2xl bg-card">
-          <div className="size-12 rounded-2xl bg-destructive/10 border border-destructive/20 flex items-center justify-center text-destructive mb-3 shadow-2xs">
-            <AlertCircle className="size-6" />
-          </div>
+        <div className="flex flex-col items-center justify-center py-14 px-4 text-center">
+          <AlertCircle className="mb-3 size-6 text-destructive" />
           <h3 className="text-sm font-semibold text-foreground">Unable to load job positions</h3>
           <p className="text-xs text-muted-foreground mt-1 max-w-sm">
             We encountered an issue connecting to the service. Please check your network connection
@@ -235,14 +231,16 @@ export function JobList() {
             variant="outline"
             size="sm"
             onClick={() => refetch()}
-            className="mt-4 gap-2 text-xs font-semibold shadow-2xs border-border/80 hover:bg-muted cursor-pointer"
+            disabled={isFetching}
+            className="mt-4 gap-2 text-ui font-medium border-border/80 hover:bg-muted cursor-pointer"
           >
             <RotateCcw className="size-3.5" />
-            Try Again
+            {isFetching ? 'Retrying...' : 'Try Again'}
           </Button>
         </div>
       ) : (
         <DataTable
+          appearance="management"
           data={filteredJobList}
           columns={jobColumns}
           getRowKey={(job) => job.id}
@@ -250,8 +248,8 @@ export function JobList() {
           loadingMessage="Loading job positions..."
           defaultSort={{ key: 'name', direction: 'asc' }}
           emptyContent={
-            <Card className="flex min-h-64 flex-col items-center justify-center border-dashed bg-muted/20 px-4 py-12 text-center shadow-none">
-              <Briefcase aria-hidden="true" className="mb-3 size-8 text-muted-foreground/50" />
+            <div className="flex min-h-64 flex-col items-center justify-center px-4 py-12 text-center">
+              <Briefcase aria-hidden="true" className="mb-3 size-8 text-muted-foreground" />
               <p className="text-sm font-medium text-foreground">
                 {searchTerm
                   ? 'No matching job positions found'
@@ -273,13 +271,13 @@ export function JobList() {
                   variant="outline"
                   size="sm"
                   onClick={() => setActiveTab('ARCHIVED')}
-                  className="mt-3 gap-1.5 text-xs"
+                  className="mt-3 gap-2"
                 >
-                  <Archive aria-hidden="true" className="size-3.5 text-amber-600" />
+                  <Archive aria-hidden="true" className="size-3.5 text-status-warning-foreground" />
                   View Archived Positions ({archivedJobs.length})
                 </Button>
               )}
-            </Card>
+            </div>
           }
           rowClassName={(job) => (job.isActive === false ? 'bg-muted/10 opacity-75' : '')}
           tableClassName="min-w-[760px]"

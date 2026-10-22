@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { Briefcase, Plus, RotateCcw } from 'lucide-react'
+import { RotateCcw } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -97,9 +97,6 @@ function JobFormContent({ job, onClose }: { job: Job | null; onClose: () => void
   return (
     <>
       <DialogHeader>
-        <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary mb-1">
-          {isEditing ? <Briefcase className="size-5" /> : <Plus className="size-5" />}
-        </div>
         <DialogTitle>{isEditing ? 'Edit Job Position' : 'Create Job Position'}</DialogTitle>
         <DialogDescription>
           {isEditing
@@ -115,12 +112,10 @@ function JobFormContent({ job, onClose }: { job: Job | null; onClose: () => void
       )}
 
       {deactivatedJobMatch && (
-        <div className="my-1 p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-950 dark:text-amber-200 flex items-start gap-3 shadow-2xs animate-in fade-in-0 zoom-in-95 slide-in-from-top-2 duration-300">
-          <div className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-amber-500/20 text-amber-700 dark:text-amber-300 mt-0.5">
-            <RotateCcw className="size-4 animate-in spin-in-180 duration-500" />
-          </div>
+        <div className="my-1 flex items-start gap-3 rounded-lg border border-status-warning-foreground/20 bg-status-warning p-4 text-status-warning-foreground">
+          <RotateCcw className="mt-0.5 size-4 shrink-0 text-status-warning-foreground" />
           <div className="flex-1 text-xs">
-            <p className="font-bold text-foreground">Deactivated Position Found</p>
+            <p className="font-semibold text-foreground">Deactivated Position Found</p>
             <p className="text-muted-foreground mt-0.5 leading-relaxed">
               An archived job position titled{' '}
               <strong className="text-foreground">{deactivatedJobMatch.name}</strong> already
@@ -130,9 +125,9 @@ function JobFormContent({ job, onClose }: { job: Job | null; onClose: () => void
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="flex flex-col gap-3.5 py-1">
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4 py-1">
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="job-name" className="text-xs font-medium">
+          <Label htmlFor="job-name" className="text-ui font-medium">
             Position Title <span className="text-primary">*</span>
           </Label>
           <Input
@@ -152,13 +147,12 @@ function JobFormContent({ job, onClose }: { job: Job | null; onClose: () => void
                 setDeactivatedJobMatch(null)
               }
             }}
-            className="transition-all duration-200"
             required
           />
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="job-desc" className="text-xs font-medium">
+          <Label htmlFor="job-desc" className="text-ui font-medium">
             Description
           </Label>
           <Textarea
@@ -167,7 +161,6 @@ function JobFormContent({ job, onClose }: { job: Job | null; onClose: () => void
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             rows={3}
-            className="transition-all duration-200"
           />
         </div>
 
@@ -181,7 +174,7 @@ function JobFormContent({ job, onClose }: { job: Job | null; onClose: () => void
               size="sm"
               onClick={handleRestoreFoundJob}
               disabled={isPending}
-              className="group gap-2 font-bold shadow-xs cursor-pointer transition-all duration-300 animate-in fade-in-0 zoom-in-95"
+              className="gap-2"
             >
               {reactivateMutation.isPending ? (
                 <>
@@ -190,7 +183,7 @@ function JobFormContent({ job, onClose }: { job: Job | null; onClose: () => void
                 </>
               ) : (
                 <>
-                  <RotateCcw className="size-4 transition-transform duration-200 group-hover:-rotate-45" />
+                  <RotateCcw className="size-4" />
                   Reactivate Position
                 </>
               )}
@@ -200,7 +193,7 @@ function JobFormContent({ job, onClose }: { job: Job | null; onClose: () => void
               type="submit"
               size="sm"
               disabled={isPending}
-              className="font-semibold shadow-xs cursor-pointer transition-all duration-300"
+              className="font-medium cursor-pointer"
             >
               {isPending ? (
                 <>

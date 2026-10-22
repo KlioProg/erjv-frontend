@@ -1,12 +1,15 @@
+import { PageHeader, PageToolbar } from '@/components/ui/ManagementPage'
+import { SalesOrderCancelModal } from './SalesOrderCancelModal'
 import { useState, useMemo } from 'react'
-import { CheckCircle2, Eye, MoreHorizontal, Plus, Receipt, Search, XCircle } from 'lucide-react'
+import { CheckCircle2, Eye, MoreHorizontal, Plus, ReceiptText, Search, XCircle } from 'lucide-react'
 import { Card } from '@/components/ui/card'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { Spinner } from '@/components/ui/spinner'
 import { StatusTabNav } from '@/components/ui/StatusTabNav'
 import { OrderModal, type OrderFormValues } from './OrderModal'
+import { buildSalesOrderPayload } from '@/features/crm/sales-order-entry.utils'
 import { OrderDetailDrawer } from './OrderDetailDrawer'
 import { QuickDispatchModal } from './QuickDispatchModal'
 import { DeliveryDetailModal } from '@/components/deliveries/shared/DeliveryDetailModal'
@@ -26,6 +29,7 @@ import {
   SALES_ORDERS_QUERY_KEY,
 } from '@/features/crm/sales-orders.hooks'
 import { DELIVERIES_QUERY_KEY } from '@/features/logistics/outgoing-deliveries.hooks'
+import { STOCK_ITEMS_QUERY_KEY } from '@/features/logistics/stock-items.hooks'
 import { VEHICLES_QUERY_KEY } from '@/features/logistics/delivery-vehicles.hooks'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -35,6 +39,7 @@ import { getSalesOrderDeliveryDisplay } from '@/features/crm/sales-orders.presen
 import { getErrorMessage } from '@/lib/api-client'
 import { cn } from '@/lib/utils'
 import { DataTable, type ColumnDef } from '@/components/ui/data-table'
+import { OverflowValue } from '@/components/ui/OverflowValue'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -50,7 +55,9 @@ export type OrderTabFilter = 'Active' | 'Completed' | 'Cancelled'
 export type OrdersViewProps = {
   onNavigateToPurchases?: () => void
   onNavigateToDeliveries?: (
-    tab?: 'schedule' | 'status' | 'completed' | 'incoming' | 'history',
+    tab?: 'schedule' | 'status' | 'completed' | 'incoming' | 'outgoing' | 'history',
+    salesOrderId?: number,
+    arrange?: boolean,
   ) => void
   onNavigateToInventory?: () => void
 }
@@ -90,23 +97,28 @@ export function OrdersView({
   const [isDetailDrawerOpen, setIsDetailDrawerOpen] = useState(false)
   const [dispatchOrder, setDispatchOrder] = useState<SalesOrderRecord | null>(null)
   const [deliveryToView, setDeliveryToView] = useState<number | null>(null)
+  const [orderToCancel, setOrderToCancel] = useState<SalesOrderRecord | null>(null)
 
   // Real backend queries
-  const { data: salesOrders = [], isLoading: isLoadingOrders } = useSalesOrders()
+  const ordersQuery = useSalesOrders()
+  const { data: salesOrders = [], isLoading: isLoadingOrders } = ordersQuery
   const { data: clients = [] } = useClients()
-  const { data: products = [] } = useProducts()
+  const productsQuery = useProducts()
+  const { data: products = [] } = productsQuery
   const { data: warehouses = [] } = useWarehouses()
-  const { data: stockItems = [] } = useStockItems()
+  const stockQuery = useStockItems()
+  const { data: stockItems = [] } = stockQuery
   const { data: vehicles = [] } = useDeliveryVehicles({ includeInactive: 'true' })
   const { data: employees = [] } = useEmployees({ includeInactive: 'true' })
   const { data: outgoingDeliveries = [] } = useOutgoingDeliveries()
 
   // Mutations
-  const createOrderMutation = useCreateSalesOrder()
+  const createOrderMutation = useCreateSalesOrder({ notifySuccess: false })
   const confirmOrderMutation = useConfirmSalesOrder()
   const cancelOrderMutation = useCancelSalesOrder()
 
-  const { user } = useAuth()
+  const { user, isAdmin, isManager } = useAuth()
+  const canManage = isAdmin || isManager
   const cashier = user?.fullName || user?.email || 'Current User'
 
   // Lookups
@@ -170,25 +182,20 @@ export function OrdersView({
     })
   }, [salesOrders, activeStatus, searchTerm, clientMap, productMap])
 
-  // The modal closes once the backend creates the sales order successfully.
-  const handleSaveOrder = async (values: OrderFormValues) => {
-    await createOrderMutation.mutateAsync({
-      clientId: values.clientId,
-      deliveryAddress: values.deliveryAddress,
-      notes: values.notes,
-      items: values.lines.map((line) => ({
-        inventoryItemId: line.productId,
-        quantity: String(line.quantity),
-        unitPrice: String(line.unitPrice),
-        allocations: line.stockItemId
-          ? [{ stockItemId: line.stockItemId, quantity: String(line.quantity) }]
-          : undefined,
-      })),
-    })
+  // Return the saved identity so the composer can confirm or retry that exact draft.
+  const handleSaveOrder = async (
+    values: OrderFormValues,
+    intent: 'draft' | 'confirm' = 'draft',
+  ) => {
+    const order = await createOrderMutation.mutateAsync(buildSalesOrderPayload(values))
+    if (intent === 'draft')
+      toast.success('Draft saved', { description: `Sales order ${order.orderNumber}.` })
+    return order
   }
 
   // Confirm order action
   const handleConfirmOrder = async (order: SalesOrderRecord) => {
+    if (!canManage || confirmOrderMutation.isPending) return
     try {
       await confirmOrderMutation.mutateAsync(order.id)
     } catch (err) {
@@ -196,30 +203,26 @@ export function OrdersView({
     }
   }
 
-  // Cancel order action
-  const handleCancelOrder = async (order: SalesOrderRecord) => {
-    if (
-      !window.confirm(
-        `Are you sure you want to cancel order ${order.orderNumber}? Any reserved stock allocations will be released.`,
-      )
-    ) {
-      return
-    }
-    try {
-      await cancelOrderMutation.mutateAsync(order.id)
-    } catch (err) {
-      toast.error(getErrorMessage(err))
-    }
+  // Cancellation is reviewed in the application dialog before the API request.
+  const handleCancelOrder = (order: SalesOrderRecord) => {
+    if (canManage && !cancelOrderMutation.isPending) setOrderToCancel(order)
   }
 
   // Direct arrival confirmation
   const handleConfirmArrival = async (deliveryId: number, orderNo: string) => {
+    if (
+      !window.confirm(
+        'Complete this delivery? This deducts shipment quantities from stock and releases its vehicle.',
+      )
+    )
+      return
     try {
       await completeOutgoingDeliveryApi(deliveryId)
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: SALES_ORDERS_QUERY_KEY }),
         queryClient.invalidateQueries({ queryKey: DELIVERIES_QUERY_KEY }),
         queryClient.invalidateQueries({ queryKey: VEHICLES_QUERY_KEY }),
+        queryClient.invalidateQueries({ queryKey: STOCK_ITEMS_QUERY_KEY }),
       ])
       toast.success(`Delivery completed for order ${orderNo}! Physical stock deducted.`)
     } catch (err) {
@@ -241,11 +244,6 @@ export function OrdersView({
         parseFloat(item.totalAmount) || parseFloat(item.unitPrice) * parseFloat(item.quantity) || 0
       return sum + itemTotal
     }, 0)
-    const orderDate = new Date(order.orderedAt || order.createdAt).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    })
     const activeDelivery = outgoingDeliveries.find(
       (delivery) => delivery.salesOrderId === order.id && delivery.status !== 'CANCELLED',
     )
@@ -257,7 +255,6 @@ export function OrdersView({
       itemSummary,
       itemLabel,
       orderTotal,
-      orderDate,
       activeDelivery,
       deliveryDisplay,
     }
@@ -279,14 +276,15 @@ export function OrdersView({
         break
       case 'prepare-delivery':
       case 'continue-delivery':
-        setDispatchOrder(order)
+        if (onNavigateToDeliveries) onNavigateToDeliveries('outgoing', order.id)
+        else setDispatchOrder(order)
         break
       case 'view-delivery':
         if (delivery) setDeliveryToView(delivery.id)
         break
       case 'confirm-arrival':
         if (!delivery) break
-        if (onNavigateToDeliveries) onNavigateToDeliveries('completed')
+        if (onNavigateToDeliveries) onNavigateToDeliveries('outgoing', order.id)
         else void handleConfirmArrival(delivery.id, order.orderNumber)
         break
       case 'view-order':
@@ -301,13 +299,10 @@ export function OrdersView({
       header: 'Order',
       width: 145,
       className: 'min-w-[145px]',
-      cell: ({ row: { order, orderDate } }) => (
-        <div className="flex flex-col gap-1">
-          <span className="whitespace-nowrap font-mono text-xs font-semibold text-foreground">
-            {order.orderNumber}
-          </span>
-          <span className="text-[11px] text-muted-foreground">{orderDate}</span>
-        </div>
+      cell: ({ row: { order } }) => (
+        <span className="whitespace-nowrap text-sm font-medium text-foreground">
+          {order.orderNumber}
+        </span>
       ),
     },
     {
@@ -318,15 +313,12 @@ export function OrdersView({
       cell: ({ row: { order, client } }) => (
         <div className="flex min-w-0 flex-col gap-1">
           <span
-            className="truncate font-semibold text-foreground"
+            className="truncate text-sm font-medium text-foreground"
             title={client?.name || `Customer #${order.clientId}`}
           >
             {client?.name || `Customer #${order.clientId}`}
           </span>
-          <span
-            className="truncate text-[11px] text-muted-foreground"
-            title={order.deliveryAddress}
-          >
+          <span className="truncate text-xs text-muted-foreground" title={order.deliveryAddress}>
             {order.deliveryAddress || 'No address specified'}
           </span>
         </div>
@@ -343,6 +335,16 @@ export function OrdersView({
         const itemName = item
           ? productMap.get(item.inventoryItemId)?.name || `Product #${item.inventoryItemId}`
           : itemLabel || 'No items'
+        if ((order.items?.length ?? 0) > 1) {
+          return (
+            <OverflowValue
+              value={itemName}
+              fullValue={itemSummary}
+              showFullValueOnHover
+              className="text-foreground"
+            />
+          )
+        }
         return (
           <span className="block truncate text-foreground" title={itemSummary}>
             {itemName}
@@ -356,7 +358,7 @@ export function OrdersView({
       header: 'Total',
       width: 110,
       align: 'right',
-      className: 'whitespace-nowrap font-semibold tabular-nums text-foreground',
+      className: 'whitespace-nowrap tabular-nums text-foreground',
       cell: ({ row: { orderTotal } }) =>
         `₱${orderTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
     },
@@ -366,19 +368,12 @@ export function OrdersView({
       width: 155,
       className: 'whitespace-nowrap',
       cell: ({ row: { deliveryDisplay } }) => (
-        <div className="flex items-start flex-col gap-1">
-          <Badge
-            variant="outline"
-            className={cn('whitespace-nowrap px-2', deliveryDisplay.badgeClassName)}
-          >
-            {deliveryDisplay.label}
-          </Badge>
-          {deliveryDisplay.supportingText && (
-            <span className="text-[11px] text-muted-foreground">
-              {deliveryDisplay.supportingText}
-            </span>
-          )}
-        </div>
+        <Badge
+          variant="outline"
+          className={cn('whitespace-nowrap px-2', deliveryDisplay.badgeClassName)}
+        >
+          {deliveryDisplay.label}
+        </Badge>
       ),
     },
     {
@@ -388,26 +383,30 @@ export function OrdersView({
       align: 'right',
       className: 'whitespace-nowrap',
       cell: ({ row: { order, activeDelivery } }) => {
-        const primaryAction = getSalesOrderPrimaryAction(order, activeDelivery)
+        const primaryAction = canManage
+          ? getSalesOrderPrimaryAction(order, activeDelivery)
+          : 'view-order'
         const primaryLabel: Record<SalesOrderPrimaryAction, string> = {
           confirm: 'Confirm',
-          'prepare-delivery': 'Prepare Delivery',
-          'continue-delivery': 'Continue Delivery',
+          'prepare-delivery': 'Outgoing Deliveries',
+          'continue-delivery': 'Outgoing Deliveries',
           'view-delivery': 'View Delivery',
           'confirm-arrival': 'Confirm Arrival',
           'view-order': 'View',
         }
         const primaryVariant = {
           confirm: 'default',
-          'prepare-delivery': 'outline',
-          'continue-delivery': 'secondary',
+          'prepare-delivery': 'default',
+          'continue-delivery': 'default',
           'view-delivery': 'ghost',
           'confirm-arrival': 'secondary',
           'view-order': 'ghost',
         } as const
         const showViewOrder = primaryAction !== 'view-order'
+        const isViewOrder = primaryAction === 'view-order'
         const showViewDelivery = Boolean(activeDelivery) && primaryAction !== 'view-delivery'
-        const canCancelOrder = order.status === 'DRAFT' || order.status === 'CONFIRMED'
+        const canCancelOrder =
+          canManage && (order.status === 'DRAFT' || order.status === 'CONFIRMED')
 
         return (
           <div
@@ -415,12 +414,15 @@ export function OrdersView({
             onClick={(event) => event.stopPropagation()}
           >
             <Button
-              size="sm"
+              size={isViewOrder ? 'icon' : 'sm'}
               variant={primaryVariant[primaryAction]}
+              className={isViewOrder ? 'size-8 pointer-coarse:size-11' : undefined}
+              aria-label={isViewOrder ? `View sales order ${order.orderNumber}` : undefined}
+              title={isViewOrder ? 'View order' : undefined}
               disabled={primaryAction === 'confirm' && confirmOrderMutation.isPending}
               onClick={() => handlePrimaryAction(primaryAction, order, activeDelivery)}
             >
-              {primaryLabel[primaryAction]}
+              {isViewOrder ? <Eye aria-hidden="true" /> : primaryLabel[primaryAction]}
             </Button>
 
             {(showViewOrder || showViewDelivery || canCancelOrder) && (
@@ -472,8 +474,10 @@ export function OrdersView({
   ]
 
   return (
-    <div className="flex flex-col gap-5">
-      <h1 className="text-lg font-bold tracking-tight text-foreground">Sales Orders</h1>
+    <div className="flex min-w-0 flex-col gap-4">
+      <PageHeader description="Create and track customer orders and deliveries.">
+        Sales Orders
+      </PageHeader>
       <StatusTabNav
         activeTab={activeStatus}
         onTabChange={(tab) => setActiveStatus(tab as OrderTabFilter)}
@@ -503,7 +507,7 @@ export function OrdersView({
       />
 
       {/* Top Controls */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+      <PageToolbar>
         <div className="relative w-full sm:w-80">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
           <Input
@@ -511,7 +515,7 @@ export function OrdersView({
             placeholder="Search order # or customer..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-9 h-9 text-xs"
+            className="pl-9 h-9 text-ui"
           />
         </div>
 
@@ -520,27 +524,46 @@ export function OrdersView({
           onClick={() => {
             setIsOrderModalOpen(true)
           }}
-          className="gap-1.5 font-semibold text-xs shadow-xs"
+          disabled={!canManage}
+          className="gap-1.5 text-ui"
         >
           <Plus className="size-4" />
           Create Sales Order
         </Button>
-      </div>
+      </PageToolbar>
 
       {/* Orders Table */}
-      {isLoadingOrders ? (
-        <Card className="flex min-h-[360px] items-center justify-center border-dashed bg-muted/20 shadow-xs">
-          <div className="flex flex-col items-center justify-center text-center gap-2">
-            <Spinner className="size-6 text-primary" />
-            <span className="text-xs text-muted-foreground font-medium">
-              Loading sales orders from database...
-            </span>
-          </div>
-        </Card>
+      {ordersQuery.isError ? (
+        <Alert variant="destructive">
+          <AlertDescription>
+            Sales orders could not be loaded. {getErrorMessage(ordersQuery.error)}
+            <Button
+              variant="outline"
+              size="sm"
+              className="ml-2"
+              onClick={() => void ordersQuery.refetch()}
+              disabled={ordersQuery.isFetching}
+            >
+              {ordersQuery.isFetching ? 'Retrying...' : 'Retry'}
+            </Button>
+          </AlertDescription>
+        </Alert>
+      ) : isLoadingOrders ? (
+        <DataTable
+          appearance="management"
+          data={orderRows}
+          columns={salesOrderColumns}
+          getRowKey={({ order }) => order.id}
+          isLoading
+          loadingMessage="Loading sales orders..."
+          pageSize={10}
+          pageSizeOptions={[10, 25, 50, 100]}
+          tableClassName="table-fixed min-w-[760px] lg:min-w-[960px]"
+        />
       ) : filteredOrders.length === 0 ? (
-        <Card className="flex min-h-[360px] items-center justify-center border-dashed bg-muted/20 shadow-xs">
+        <Card className="flex min-h-[360px] items-center justify-center border-border bg-card shadow-none">
           <div className="flex flex-col items-center justify-center text-center">
-            <Receipt className="size-8 text-muted-foreground/40" />
+            <ReceiptText className="size-8 text-muted-foreground" />
             <span className="text-sm font-semibold text-foreground mt-2">
               {searchTerm.trim()
                 ? `No ${activeStatus.toLowerCase()} orders match "${searchTerm.trim()}"`
@@ -557,30 +580,48 @@ export function OrdersView({
         </Card>
       ) : (
         <DataTable
+          appearance="management"
           data={orderRows}
           columns={salesOrderColumns}
           getRowKey={({ order }) => order.id}
-          pagination={false}
-          appearance="subtle"
+          pageSize={10}
+          pageSizeOptions={[10, 25, 50, 100]}
+
           onRowClick={({ order }) => openOrderDetails(order)}
-          rowClassName={({ deliveryDisplay }) =>
-            cn(
-              '[&_td:first-child]:border-l-2 [&_td:first-child]:border-l-transparent!',
-              deliveryDisplay.rowClassName,
-            )
-          }
           tableClassName="table-fixed min-w-[760px] lg:min-w-[960px]"
         />
       )}
 
+      {orderToCancel && (
+        <SalesOrderCancelModal
+          order={orderToCancel}
+          onClose={() => setOrderToCancel(null)}
+          onConfirm={(id) => {
+            if (!canManage) throw new Error('You do not have permission to cancel orders.')
+            return cancelOrderMutation.mutateAsync(id)
+          }}
+        />
+      )}
+
       {/* Order Creation Modal */}
-      {isOrderModalOpen && (
+      {isOrderModalOpen && canManage && (
         <OrderModal
           open
           onClose={() => setIsOrderModalOpen(false)}
           onSubmit={handleSaveOrder}
+          onConfirm={(id) => confirmOrderMutation.mutateAsync(id)}
           clients={clients}
           products={products}
+          catalogState={{
+            productsLoading: productsQuery.isLoading,
+            stockLoading: stockQuery.isLoading,
+            productsError: productsQuery.error ? getErrorMessage(productsQuery.error) : undefined,
+            stockError: stockQuery.error ? getErrorMessage(stockQuery.error) : undefined,
+            onRetry: () => {
+              void productsQuery.refetch()
+              void stockQuery.refetch()
+            },
+          }}
           warehouses={warehouses}
           stockItems={stockItems}
           cashier={cashier}
@@ -605,6 +646,12 @@ export function OrdersView({
         employees={employees}
         stockItems={stockItems}
         outgoingDeliveries={outgoingDeliveries}
+        onConfirmed={() => setIsDetailDrawerOpen(false)}
+        onArrangeDelivery={
+          onNavigateToDeliveries
+            ? (orderId) => onNavigateToDeliveries('outgoing', orderId, true)
+            : undefined
+        }
         onViewDelivery={(id) => {
           setIsDetailDrawerOpen(false)
           setDeliveryToView(id)

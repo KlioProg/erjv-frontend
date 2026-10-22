@@ -74,7 +74,7 @@ The modern web application for the **ERJV Enterprise Business Platform**. Built 
 
 ### Prerequisites
 
-- **Node.js**: v18.x or later (v20+ recommended)
+- **Node.js**: v22.x
 - **npm**: v9.x or later
 - Running **ERJV Backend** API server (default at `http://localhost:3000`)
 
@@ -88,11 +88,12 @@ The modern web application for the **ERJV Enterprise Business Platform**. Built 
    cp .env.example .env
    ```
 
-2. Configure the API endpoint:
+2. For local development, leave the API value unset and use Vite's `/api` proxy to `http://localhost:3000`. For a production build, set the exact HTTPS origin of the backend project:
    ```env
-   # ERJV Backend API Base URL
-   VITE_API_URL=http://localhost:3000
+   VITE_API_BASE_URL=https://your-backend.vercel.app
    ```
+
+   The production build fails if `VITE_API_BASE_URL` is missing, uses HTTP, or includes a path or trailing slash. It is a public browser value; never put database URLs, JWT secrets, or Supabase service keys in `VITE_*` variables. API calls such as `/auth/login` are appended to this origin.
 
 ---
 
@@ -119,6 +120,10 @@ npm run build
 # Preview production build locally
 npm run preview
 ```
+
+For Vercel, import this repository as a separate **Vite** project with its repository root, Node 22, build command `npm run build`, and output directory `dist`. The checked-in `vercel.json` rewrites frontend routes to the SPA entry point while leaving API paths and static assets untouched. Set `VITE_API_BASE_URL` for Production to the backend Production HTTPS origin. If using a staging Preview, set its Preview value to the backend staging branch HTTPS origin and add the frontend Preview origin to the backend Preview CORS allowlist. Rebuild after changing the value because Vite embeds it into the browser bundle.
+
+The hosted demo has no self-service password reset. An authenticated administrator can change a user's password through the backend `PATCH /users/:id/password` route; account recovery requires administrator help. The account profile dialog is read-only until profile fields have a persistent backend API. “Remember email” stores the email address only; the browser session timer remains one day.
 
 ---
 

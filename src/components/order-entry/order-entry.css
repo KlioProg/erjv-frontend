@@ -1,0 +1,128 @@
+.order-entry-mobile-label {
+  display: none;
+}
+.order-composer-dialog {
+  width: min(800px, calc(100vw - 2rem));
+  max-width: none;
+  height: min(900px, 90dvh);
+  max-height: calc(100dvh - 2rem);
+}
+.order-composer-panels {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+.order-composer-panel[data-state='inactive'] {
+  display: none;
+}
+.order-composer-panel[data-state='active'] {
+  display: block;
+}
+.order-composer-catalog-table td {
+  white-space: normal;
+}
+.order-composer-dialog > button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  top: 8px;
+  right: 8px;
+  width: 40px;
+  height: 40px;
+}
+@media (min-width: 1200px) {
+  .order-composer-dialog {
+    width: min(1320px, calc(100vw - 3rem));
+    height: min(940px, 88dvh);
+  }
+  .order-composer-tabs,
+  .order-composer-open-catalog {
+    display: none;
+  }
+  .order-composer-panels {
+    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  }
+  .order-composer-panel[data-state] {
+    display: block;
+  }
+  .order-composer-catalog {
+    border-left: 1px solid var(--border);
+  }
+}
+.order-entry-dialog .order-entry-items > div {
+  overflow-x: visible;
+}
+.order-entry-dialog .order-entry-items > div > div {
+  overflow: visible;
+}
+.order-entry-dialog .order-entry-items table {
+  min-width: 0;
+}
+.order-entry-dialog .order-entry-items td {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.order-entry-dialog .order-entry-body {
+  scrollbar-gutter: stable;
+}
+.order-composer-dialog > button:disabled {
+  opacity: 0.5;
+}
+@media (min-width: 640px) {
+  .order-entry-items tbody > tr:not(:has(td[colspan])) {
+    height: 56px;
+  }
+}
+@media (max-width: 639px) {
+  .order-entry-dialog {
+    width: 100vw;
+    max-width: 100vw;
+    max-height: 100dvh;
+    border-radius: 0;
+  }
+  .order-composer-dialog {
+    height: 100dvh;
+  }
+  .order-entry-dialog .order-entry-body {
+    padding-inline: 16px;
+  }
+  .order-entry-dialog input,
+  .order-entry-dialog textarea {
+    font-size: 16px;
+  }
+  .order-entry-mobile-label {
+    display: block;
+  }
+  .order-entry-items table,
+  .order-entry-items tbody {
+    display: block;
+    width: 100%;
+  }
+  .order-entry-items thead {
+    display: none;
+  }
+  .order-entry-items tbody > tr {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 8px 12px;
+    padding: 12px;
+  }
+  .order-entry-items tbody > tr > td {
+    width: auto !important;
+    padding: 0 !important;
+    min-width: 0;
+  }
+  .order-entry-items .order-entry-product {
+    grid-column: 1 / -1;
+    padding-right: 40px !important;
+  }
+  .order-entry-items .order-entry-remove {
+    position: absolute;
+    top: 7px;
+    right: 8px;
+  }
+  .order-entry-items tbody > tr:has(td[colspan]) {
+    display: block;
+    padding: 0;
+  }
+}

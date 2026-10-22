@@ -4,6 +4,7 @@ import {
   createWarehouseApi,
   deactivateWarehouseApi,
   fetchWarehouseByNameApi,
+  fetchWarehouseByIdApi,
   fetchWarehousesApi,
   reactivateWarehouseApi,
   updateWarehouseDetailsApi,
@@ -26,6 +27,14 @@ export function useWarehouses(params?: FetchParams) {
 
 export function useAllWarehouses() {
   return useWarehouses({ includeInactive: 'true' })
+}
+
+export function useWarehouse(id?: number) {
+  return useQuery({
+    queryKey: [...WAREHOUSES_QUERY_KEY, 'detail', id],
+    queryFn: () => fetchWarehouseByIdApi(id!),
+    enabled: id !== undefined,
+  })
 }
 
 export function useCreateWarehouse() {
