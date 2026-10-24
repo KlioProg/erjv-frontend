@@ -22,6 +22,8 @@ export function SalesOrderTotals({
     | 'setDiscountType'
     | 'discountValue'
     | 'setDiscountValue'
+    | 'taxExemption'
+    | 'setTaxExemption'
     | 'busy'
   >
 }) {
@@ -76,6 +78,18 @@ export function SalesOrderTotals({
               placeholder="0.00"
               className="h-9 w-24 text-right text-sm tabular-nums"
             />
+            <label className="flex items-center gap-2 text-sm text-muted-foreground">
+              <input
+                type="checkbox"
+                role="switch"
+                aria-label="Vat exempt"
+                checked={form.taxExemption}
+                onChange={(event) => form.setTaxExemption(event.target.checked)}
+                disabled={form.busy}
+                className="h-4 w-7 accent-primary"
+              />
+              VAT Exempt
+            </label>
             {invalidDiscount && (
               <p className="max-w-80 basis-full text-xs text-destructive">{invalidDiscount}</p>
             )}
@@ -94,7 +108,7 @@ export function SalesOrderTotals({
         <dd>{displayAmount(form.amounts.subtotal)}</dd>
         <dt className="text-muted-foreground">Discount</dt>
         <dd>{displayAmount(form.amounts.discount)}</dd>
-        <dt className="text-muted-foreground">VAT (12%)</dt>
+        <dt className="text-muted-foreground">VAT ({form.taxExemption ? '0' : '12'}%)</dt>
         <dd>{displayAmount(form.amounts.vat)}</dd>
         <dt className="pt-1 text-sm font-semibold">Total</dt>
         <dd className="pt-1 text-sm font-semibold">{displayAmount(form.amounts.total)}</dd>

@@ -29,6 +29,7 @@ export type EditableSalesOrder = {
   lines: OrderLine[]
   discountType: 'peso' | 'percentage'
   discountValue: string
+  taxRate?: string
   status: OrderStatus
   deliveryAddress?: string
   expectedAt?: string

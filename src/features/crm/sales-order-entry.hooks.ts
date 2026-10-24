@@ -57,11 +57,12 @@ export function useSalesOrderEntry({
     order?.discountType ?? 'peso',
   )
   const [discountValue, setDiscountValue] = useState(order?.discountValue ?? '')
+  const [taxExemption, setTaxExemption] = useState(order?.taxRate === '0.00')
   const [error, setError] = useState('')
   const [errorFocusId, setErrorFocusId] = useState<string | undefined>()
   const submission = useOrderSubmission({ onConfirm, onConfirmed, savedDraft, onClose })
   const focus = useOrderItemFocus(lines)
-  const amounts = orderAmounts(lines, discountType, discountValue, '12.00')
+  const amounts = orderAmounts(lines, discountType, discountValue, taxExemption ? '0.00' : '12.00')
 
   function changeClient(id: string) {
     const client = clients.find((client) => String(client.id) === id && client.isActive)
@@ -180,6 +181,8 @@ export function useSalesOrderEntry({
     setDiscountType,
     discountValue,
     setDiscountValue,
+    taxExemption,
+    setTaxExemption,
     error: error || submission.error,
     errorFocusId,
     busy: submission.busy,
