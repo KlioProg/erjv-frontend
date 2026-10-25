@@ -28,6 +28,7 @@ export function OrderEntryDialog({
   onSubmit,
   title,
   description,
+  confirmLabel = 'Confirm Order',
   submission,
   busy,
   error,
@@ -41,6 +42,7 @@ export function OrderEntryDialog({
   onSubmit: FormEventHandler<HTMLFormElement>
   title: string
   description: string
+  confirmLabel?: string
   submission: ReturnType<typeof useOrderSubmission>
   busy: boolean
   error: string
@@ -181,7 +183,7 @@ export function OrderEntryDialog({
                         ? 'Confirming…'
                         : submission.confirmationAttempted
                           ? 'Retry Confirmation'
-                          : 'Confirm Order'}
+                          : confirmLabel}
                     </Button>
                   )}
                 </DialogFooter>
