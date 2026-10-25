@@ -27,6 +27,7 @@ type Props = {
   statusBadge: ReactNode
   onClose: () => void
   onConfirm?: () => void
+  onExportReceipt?: () => void
   confirming?: boolean
   onNavigateToDeliveries?: (purchaseOrderId?: number) => void
 }
@@ -43,6 +44,7 @@ export function PurchaseOrderDetailModal({
   statusBadge,
   onClose,
   onConfirm,
+  onExportReceipt,
   confirming,
   onNavigateToDeliveries,
 }: Props) {
@@ -169,6 +171,11 @@ export function PurchaseOrderDetailModal({
         {onConfirm && order.status === 'DRAFT' && (
           <Button size="sm" disabled={confirming} onClick={onConfirm}>
             {confirming ? 'Confirming...' : 'Confirm Purchase Order'}
+          </Button>
+        )}
+        {onExportReceipt && order.status !== 'DRAFT' && order.status !== 'CANCELLED' && (
+          <Button size="sm" variant="outline" onClick={onExportReceipt}>
+            Export Receipt
           </Button>
         )}
         {onNavigateToDeliveries && ['CONFIRMED', 'PARTIALLY_RECEIVED'].includes(order.status) && (

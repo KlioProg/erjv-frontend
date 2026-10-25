@@ -1,4 +1,4 @@
-import { Fragment, useState, useMemo, type ReactNode } from 'react'
+import { Fragment, useState, useMemo, type MouseEvent, type ReactNode } from 'react'
 import {
   ArrowUpDown,
   ArrowUp,
@@ -101,7 +101,7 @@ export interface DataTableProps<T> {
   rowClassName?: (row: T, index: number) => string
 
   /** Click handler for an entire row */
-  onRowClick?: (row: T, index: number) => void
+  onRowClick?: (row: T, index: number, event: MouseEvent<HTMLTableRowElement>) => void
 
   /** Optional content shown directly beneath a visible row. Return null when collapsed. */
   renderExpandedRow?: (row: T, index: number) => ReactNode
@@ -443,9 +443,7 @@ export function DataTable<T>({
                       column.width != null
                         ? {
                             width:
-                              typeof column.width === 'number'
-                                ? `${column.width}px`
-                                : column.width,
+                              typeof column.width === 'number' ? `${column.width}px` : column.width,
                           }
                         : undefined
                     const widthClass =
@@ -457,10 +455,7 @@ export function DataTable<T>({
                       <TableCell
                         key={column.resolvedId}
                         style={widthStyle}
-                        className={cn(
-                          getAlignmentClass(column.align),
-                          column.className,
-                        )}
+                        className={cn(getAlignmentClass(column.align), column.className)}
                       >
                         <Skeleton className={cn('h-3.5', widthClass)} />
                       </TableCell>
@@ -604,7 +599,7 @@ export function DataTable<T>({
               return (
                 <Fragment key={rowKey}>
                   <TableRow
-                    onClick={onRowClick ? () => onRowClick(row, rowIndex) : undefined}
+                    onClick={onRowClick ? (event) => onRowClick(row, rowIndex, event) : undefined}
                     className={cn(
                       'hover:bg-accent/70 focus-within:bg-accent/70 transition-colors duration-150',
                       // The unlayered global border rule otherwise overrides Tailwind colors.

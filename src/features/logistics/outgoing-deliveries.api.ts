@@ -1,6 +1,9 @@
 import { apiClient, extractArray } from '@/lib/api-client'
 import type {
   CreateOutgoingDeliveryPayload,
+  CreateOutgoingDeliveryDraftPayload,
+  UpdateOutgoingDeliveryDraftPayload,
+  OutgoingPlanningOption,
   DispatchOutgoingDeliveryPayload,
   OutgoingDeliveryFilter,
   OutgoingDeliveryRecord,
@@ -54,9 +57,45 @@ export async function createOutgoingDeliveryApi(
   return data
 }
 
-export async function scheduleOutgoingDeliveryApi(id: number): Promise<OutgoingDeliveryRecord> {
+export async function createOutgoingDeliveryDraftApi(
+  payload: CreateOutgoingDeliveryDraftPayload,
+): Promise<OutgoingDeliveryRecord> {
+  const { data } = await apiClient.post<OutgoingDeliveryRecord>('/outgoing-deliveries', {
+    salesOrderId: payload.salesOrderId,
+    ...(payload.scheduledAt ? { scheduledAt: new Date(payload.scheduledAt).toISOString() } : {}),
+    ...(payload.notes?.trim() ? { notes: payload.notes.trim() } : {}),
+  })
+  return data
+}
+
+export async function updateOutgoingDeliveryDraftApi(
+  id: number,
+  payload: UpdateOutgoingDeliveryDraftPayload,
+): Promise<OutgoingDeliveryRecord> {
+  const { data } = await apiClient.patch<OutgoingDeliveryRecord>(
+    `/outgoing-deliveries/${id}/draft`,
+    payload,
+  )
+  return data
+}
+
+export async function fetchOutgoingPlanningOptionsApi(
+  salesOrderId: number,
+  warehouseId: number,
+): Promise<OutgoingPlanningOption[]> {
+  const { data } = await apiClient.get('/outgoing-deliveries/planning-options', {
+    params: { salesOrderId, warehouseId },
+  })
+  return extractArray<OutgoingPlanningOption>(data)
+}
+
+export async function scheduleOutgoingDeliveryApi(
+  id: number,
+  expectedRevision?: number,
+): Promise<OutgoingDeliveryRecord> {
   const { data } = await apiClient.patch<OutgoingDeliveryRecord>(
     `/outgoing-deliveries/${id}/schedule`,
+    expectedRevision === undefined ? undefined : { expectedRevision },
   )
   return data
 }

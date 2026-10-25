@@ -118,6 +118,21 @@ test('outgoing delivery rows show all source warehouses without assuming one del
   assert.equal(row.warehouse, 'Store, Main Warehouse')
 })
 
+test('planned outgoing deliveries show their persisted warehouse before stock is loaded', () => {
+  const [row] = buildDeliveryRows({
+    incoming: [],
+    outgoing: [{ id: 1, salesOrderId: 8, warehouseId: 2, items: [], status: 'DRAFT' }],
+    purchaseOrders: [],
+    salesOrders: [],
+    suppliers: [],
+    clients: [],
+    warehouses: [{ id: 2, name: 'Main Warehouse' }],
+    vehicles: [],
+    employees: [],
+  })
+  assert.equal(row.warehouse, 'Main Warehouse')
+})
+
 test('only inspected backend transitions are exposed for each direction', () => {
   assert.deepEqual(getDeliveryActions({ type: 'Incoming', status: 'DRAFT' }), [
     'schedule',

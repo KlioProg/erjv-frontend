@@ -108,6 +108,9 @@ const outgoingFixture = (
   id,
   deliveryNumber: `OUT-${id}`,
   salesOrderId: 1,
+  warehouseId: 1,
+  revision: 1,
+  plannedItems: [],
   status,
   deliveryVehicleId: null,
   driverEmployeeId: null,
@@ -255,6 +258,21 @@ beforeEach(() => {
       }
       data =
         collections[url] ??
+        sales.find((item) => url === `/sales-orders/${item.id}`) ??
+        (url === '/outgoing-deliveries/planning-options'
+          ? [
+              {
+                salesOrderItemId: 10,
+                inventoryItemId: 1,
+                orderedQuantity: '1.25',
+                committedQuantity: '0.00',
+                scheduledQuantity: '0.50',
+                availableQuantity: '18.75',
+                plannedQuantity: '0.50',
+                maximumPlannableQuantity: '0.75',
+              },
+            ]
+          : undefined) ??
         incoming.find((item) => url === `/incoming-deliveries/${item.id}`) ??
         outgoing.find((item) => url === `/outgoing-deliveries/${item.id}`) ??
         []
@@ -301,6 +319,14 @@ beforeEach(() => {
     } else if (method === 'post' && url === '/incoming-deliveries') {
       data = { ...incomingFixture(91, 'DRAFT'), ...body }
       incoming = [...incoming, data as IncomingDeliveryRecord]
+    } else if (url.startsWith('/outgoing-deliveries/') && url.endsWith('/draft')) {
+      const id = Number(url.split('/')[2])
+      outgoing = outgoing.map((delivery) =>
+        delivery.id === id
+          ? ({ ...delivery, ...body, revision: delivery.revision + 1 } as OutgoingDeliveryRecord)
+          : delivery,
+      )
+      data = outgoing.find((delivery) => delivery.id === id)
     } else if (url.endsWith('/schedule')) {
       if (failSchedule) {
         failSchedule = false
@@ -509,6 +535,47 @@ describe.each(['Sales', 'Purchase'])('%s composer confirmation', (kind) => {
 })
 
 describe('order to delivery workflow', () => {
+  it('opens an existing outgoing draft for review before scheduling its current revision', async () => {
+    sales[0].status = 'CONFIRMED'
+    outgoing = [
+      {
+        ...outgoingFixture(5, 'DRAFT'),
+        revision: 4,
+        items: [],
+        plannedItems: [
+          {
+            id: 1,
+            outgoingDeliveryId: 5,
+            salesOrderItemId: 10,
+            plannedQuantity: '0.25',
+            ...stamps,
+          },
+        ],
+      },
+    ]
+    const user = userEvent.setup()
+    mount(<DeliveriesHub initialTab="outgoing" />)
+    const schedule = await screen.findByRole('button', { name: 'Schedule OUT-5' })
+    expect(schedule.closest('tr')?.textContent).toContain('Test Warehouse')
+    await user.click(schedule)
+    const quantity = await screen.findByRole('spinbutton', {
+      name: 'Quantity to ship for Test Mango',
+    })
+    await waitFor(() => expect((quantity as HTMLInputElement).disabled).toBe(false))
+    expect((quantity as HTMLInputElement).value).toBe('0.25')
+    expect(mutations()).toHaveLength(0)
+    await user.click(screen.getByRole('button', { name: 'Schedule Delivery' }))
+    expect(await screen.findByText('Delivery scheduled')).toBeTruthy()
+    expect(
+      requests.find((request) => request.url === '/outgoing-deliveries/5/draft')?.body
+        .expectedRevision,
+    ).toBe(4)
+    expect(
+      requests.find((request) => request.url === '/outgoing-deliveries/5/schedule')?.body,
+    ).toEqual({ expectedRevision: 5 })
+    expect(requests.some((request) => request.method === 'post')).toBe(false)
+  })
+
   it('keeps sales-order rows to order identity and delivery status', async () => {
     outgoing = [outgoingFixture(6, 'SCHEDULED')]
     mount(<OrdersView />)
@@ -615,7 +682,9 @@ describe('order to delivery workflow', () => {
       }
       let modal = await openCancellation()
       expect(modal.getByText('SO-TEST')).toBeTruthy()
-      expect(modal.getByText(/Orders with active deliveries or stock movements cannot be cancelled/)).toBeTruthy()
+      expect(
+        modal.getByText(/Orders with active deliveries or stock movements cannot be cancelled/),
+      ).toBeTruthy()
       expect(mutations()).toHaveLength(0)
       await user.click(modal.getByRole('button', { name: 'Keep Order' }))
       expect(screen.queryByRole('dialog', { name: 'Cancel Sales Order' })).toBeNull()
@@ -834,23 +903,32 @@ describe('order to delivery workflow', () => {
     const user = userEvent.setup()
     const close = vi.fn()
     mount(<ScheduleDeliveryModal open preselectedOrderId={1} onClose={close} />)
+    await user.click(await screen.findByRole('combobox', { name: /Stock Source \/ Warehouse/ }))
+    await user.click(screen.getByRole('option', { name: /Test Warehouse/ }))
     const quantity = await screen.findByRole('spinbutton', {
       name: 'Quantity to ship for Test Mango',
     })
-    expect((quantity as HTMLInputElement).value).toBe('0.75')
-    await user.click(screen.getByRole('combobox', { name: 'Stock source' }))
-    await user.click(screen.getByRole('option', { name: /Test Warehouse/ }))
+    await waitFor(() => expect((quantity as HTMLInputElement).disabled).toBe(false))
+    expect((quantity as HTMLInputElement).value).toBe('')
+    await user.type(quantity, '0.75')
     await user.click(screen.getByRole('button', { name: 'Schedule Delivery' }))
     expect(await screen.findByText('Schedule retry required.')).toBeTruthy()
     expect(close).not.toHaveBeenCalled()
-    await user.click(screen.getByRole('button', { name: 'Retry Schedule' }))
+    await user.click(screen.getByRole('button', { name: 'Schedule Delivery' }))
     await user.click(await screen.findByRole('button', { name: 'Done' }))
     await waitFor(() => expect(close).toHaveBeenCalledOnce())
     const creates = requests.filter((request) => request.method === 'post')
     expect(creates).toHaveLength(1)
-    expect(creates[0].body.items).toEqual([
-      { salesOrderItemId: 10, stockItemId: 1, quantity: '0.75' },
-    ])
+    expect(creates[0].body).toEqual({ salesOrderId: 1 })
+    expect(
+      requests.find((request) => request.url === '/outgoing-deliveries/90/draft')?.body,
+    ).toEqual(
+      expect.objectContaining({
+        expectedRevision: 1,
+        warehouseId: 1,
+        plannedItems: [{ salesOrderItemId: 10, plannedQuantity: '0.75' }],
+      }),
+    )
     expect(
       requests.filter((request) => request.url === '/outgoing-deliveries/90/schedule'),
     ).toHaveLength(2)

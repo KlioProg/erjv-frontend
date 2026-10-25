@@ -21,6 +21,9 @@ export interface OutgoingDeliveryRecord {
   id: number
   deliveryNumber: string
   salesOrderId: number
+  warehouseId: number | null
+  revision: number
+  plannedItems: OutgoingDeliveryPlanItemRecord[]
   deliveryVehicleId: number | null
   driverEmployeeId: number | null
   status: OutgoingDeliveryStatus
@@ -38,6 +41,40 @@ export interface OutgoingDeliveryLineCommand {
   salesOrderItemId: number
   stockItemId: number
   quantity: string
+}
+
+export interface OutgoingDeliveryPlanItemRecord {
+  id: number
+  outgoingDeliveryId: number
+  salesOrderItemId: number
+  plannedQuantity: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CreateOutgoingDeliveryDraftPayload {
+  salesOrderId: number
+  scheduledAt?: string | null
+  notes?: string | null
+}
+
+export interface UpdateOutgoingDeliveryDraftPayload {
+  expectedRevision: number
+  warehouseId: number | null
+  scheduledAt: string | null
+  notes: string | null
+  plannedItems: { salesOrderItemId: number; plannedQuantity: string }[]
+}
+
+export interface OutgoingPlanningOption {
+  salesOrderItemId: number
+  inventoryItemId: number
+  orderedQuantity: string
+  committedQuantity: string
+  scheduledQuantity: string
+  availableQuantity: string
+  plannedQuantity: string
+  maximumPlannableQuantity: string
 }
 
 export interface CreateOutgoingDeliveryPayload {

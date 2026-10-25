@@ -94,18 +94,21 @@ export function buildDeliveryRows({
         orderId: record.salesOrderId,
         method: 'Delivery' as const,
         warehouse:
-          [
-            ...new Set(
-              record.items.map((item) => {
-                const warehouseId = item.stockItem?.warehouseId
-                if (warehouseId === undefined) return 'Warehouse unavailable'
-                return (
-                  warehouses.find((warehouse) => warehouse.id === warehouseId)?.name ||
-                  `Warehouse #${warehouseId}`
-                )
-              }),
-            ),
-          ].join(', ') || '—',
+          record.warehouseId != null
+            ? warehouses.find((warehouse) => warehouse.id === record.warehouseId)?.name ||
+              `Warehouse #${record.warehouseId}`
+            : [
+                ...new Set(
+                  record.items.map((item) => {
+                    const warehouseId = item.stockItem?.warehouseId
+                    if (warehouseId === undefined) return 'Warehouse unavailable'
+                    return (
+                      warehouses.find((warehouse) => warehouse.id === warehouseId)?.name ||
+                      `Warehouse #${warehouseId}`
+                    )
+                  }),
+                ),
+              ].join(', ') || '—',
         vehicle: vehicle
           ? `${vehicle.plateNumber}${vehicle.isActive ? '' : ' (Archived)'}`
           : record.deliveryVehicleId

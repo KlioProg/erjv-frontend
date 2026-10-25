@@ -40,7 +40,6 @@ import {
 } from '@/features/logistics/incoming-deliveries.hooks'
 import {
   useOutgoingDeliveries,
-  useScheduleOutgoingDelivery,
   useCompleteOutgoingDelivery,
   useCancelOutgoingDelivery,
 } from '@/features/logistics/outgoing-deliveries.hooks'
@@ -129,6 +128,7 @@ export function DeliveriesHub({
   const [createType, setCreateType] = useState<'Incoming' | 'Outgoing' | null>(
     arrangeOrder ? (view === 'incoming' ? 'Incoming' : 'Outgoing') : null,
   )
+  const [outgoingDraftId, setOutgoingDraftId] = useState<number | undefined>()
   const [viewIncomingId, setViewIncomingId] = useState<number | null>(null)
   const [viewOutgoingId, setViewOutgoingId] = useState<number | null>(null)
   const [viewOrder, setViewOrder] = useState<{ type: 'Incoming' | 'Outgoing'; id: number } | null>(
@@ -156,14 +156,12 @@ export function DeliveriesHub({
   const scheduleIncoming = useScheduleIncomingDelivery()
   const completeIncoming = useCompleteIncomingDelivery()
   const cancelIncoming = useCancelIncomingDelivery()
-  const scheduleOutgoing = useScheduleOutgoingDelivery()
   const completeOutgoing = useCompleteOutgoingDelivery()
   const cancelOutgoing = useCancelOutgoingDelivery()
   const pending = [
     scheduleIncoming,
     completeIncoming,
     cancelIncoming,
-    scheduleOutgoing,
     completeOutgoing,
     cancelOutgoing,
   ].some((mutation) => mutation.isPending)
@@ -198,11 +196,9 @@ export function DeliveriesHub({
     if (warehouseId !== 'ALL') {
       const selectedWarehouseId = Number(warehouseId)
       const matchesWarehouse =
-        row.type === 'Incoming'
+        row.type === 'Incoming' || row.record.warehouseId != null
           ? row.record.warehouseId === selectedWarehouseId
-          : row.record.items.some(
-              (item) => item.stockItem?.warehouseId === selectedWarehouseId,
-            )
+          : row.record.items.some((item) => item.stockItem?.warehouseId === selectedWarehouseId)
       if (!matchesWarehouse) return false
     }
     if (orderScope !== null && row.orderId !== orderScope) return false
@@ -238,7 +234,10 @@ export function DeliveriesHub({
   const handleAction = (row: DeliveryRow, action: DeliveryAction) => {
     if (!canManage || pending || !getDeliveryActions(row).includes(action)) return
     if (action === 'dispatch') setDispatchId(row.record.id)
-    else setConfirmation({ row, action })
+    else if (row.type === 'Outgoing' && action === 'schedule') {
+      setOutgoingDraftId(row.record.id)
+      setCreateType('Outgoing')
+    } else setConfirmation({ row, action })
   }
   const handleCreateIncoming = async (payload: CreateIncomingDeliveryPayload) => {
     const created = await createIncoming.mutateAsync(payload)
@@ -261,14 +260,8 @@ export function DeliveriesHub({
             ? completeIncoming
             : cancelIncoming
       ).mutateAsync(row.record.id)
-    else
-      await (
-        action === 'schedule'
-          ? scheduleOutgoing
-          : action === 'complete'
-            ? completeOutgoing
-            : cancelOutgoing
-      ).mutateAsync(row.record.id)
+    else if (action !== 'schedule')
+      await (action === 'complete' ? completeOutgoing : cancelOutgoing).mutateAsync(row.record.id)
   }
   return (
     <div className="flex min-w-0 flex-col gap-6">
@@ -491,10 +484,14 @@ export function DeliveriesHub({
       )}
       {canManage && createType === 'Outgoing' && (
         <ScheduleDeliveryModal
-          key={orderScope ?? 'outgoing'}
+          key={outgoingDraftId ?? orderScope ?? 'outgoing'}
           open
-          onClose={() => setCreateType(null)}
+          onClose={() => {
+            setCreateType(null)
+            setOutgoingDraftId(undefined)
+          }}
           preselectedOrderId={orderScope ?? undefined}
+          draftId={outgoingDraftId}
         />
       )}
       <DispatchDeliveryModal

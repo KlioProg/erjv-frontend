@@ -9,11 +9,16 @@ import {
   fetchOutgoingDeliveryByIdApi,
   fetchOutgoingDeliveryByNumberApi,
   scheduleOutgoingDeliveryApi,
+  createOutgoingDeliveryDraftApi,
+  updateOutgoingDeliveryDraftApi,
+  fetchOutgoingPlanningOptionsApi,
 } from './outgoing-deliveries.api'
 import type {
   CreateOutgoingDeliveryPayload,
   DispatchOutgoingDeliveryPayload,
   OutgoingDeliveryFilter,
+  CreateOutgoingDeliveryDraftPayload,
+  UpdateOutgoingDeliveryDraftPayload,
 } from './outgoing-deliveries.types'
 import { VEHICLES_QUERY_KEY } from './delivery-vehicles.hooks'
 import { STOCK_ITEMS_QUERY_KEY } from './stock-items.hooks'
@@ -21,6 +26,40 @@ import { getErrorMessage } from '@/lib/api-client'
 
 export const DELIVERIES_QUERY_KEY = ['outgoing-deliveries'] as const
 export const SALES_ORDERS_QUERY_KEY = ['sales-orders'] as const
+
+export function useOutgoingPlanningOptions(salesOrderId?: number, warehouseId?: number) {
+  return useQuery({
+    queryKey: [...DELIVERIES_QUERY_KEY, 'planning-options', salesOrderId, warehouseId],
+    queryFn: () => fetchOutgoingPlanningOptionsApi(salesOrderId!, warehouseId!),
+    enabled: Boolean(salesOrderId && warehouseId),
+    staleTime: 0,
+  })
+}
+
+export function useCreateOutgoingDeliveryDraft() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    retry: false,
+    mutationFn: (payload: CreateOutgoingDeliveryDraftPayload) =>
+      createOutgoingDeliveryDraftApi(payload),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: DELIVERIES_QUERY_KEY })
+    },
+  })
+}
+
+export function useUpdateOutgoingDeliveryDraft() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    retry: false,
+    mutationFn: ({ id, payload }: { id: number; payload: UpdateOutgoingDeliveryDraftPayload }) =>
+      updateOutgoingDeliveryDraftApi(id, payload),
+    onSuccess: (delivery) => {
+      queryClient.setQueryData([...DELIVERIES_QUERY_KEY, 'id', delivery.id], delivery)
+      void queryClient.invalidateQueries({ queryKey: DELIVERIES_QUERY_KEY })
+    },
+  })
+}
 
 export function useOutgoingDeliveries(filter?: OutgoingDeliveryFilter) {
   return useQuery({
@@ -73,8 +112,13 @@ export function useCreateOutgoingDelivery(options?: { notifySuccess?: boolean })
 export function useScheduleOutgoingDelivery() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (id: number) => {
-      const delivery = await scheduleOutgoingDeliveryApi(id)
+    retry: false,
+    mutationFn: async (command: number | { id: number; expectedRevision: number }) => {
+      const id = typeof command === 'number' ? command : command.id
+      const delivery = await scheduleOutgoingDeliveryApi(
+        id,
+        typeof command === 'number' ? undefined : command.expectedRevision,
+      )
       if (delivery.id !== id || delivery.status !== 'SCHEDULED')
         throw new Error(
           'The server did not confirm scheduling this delivery. Review it in Outgoing Deliveries before retrying.',

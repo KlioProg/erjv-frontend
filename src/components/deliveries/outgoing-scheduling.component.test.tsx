@@ -1,159 +1,161 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+﻿import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
 import { toast } from 'sonner'
 import { apiClient } from '@/lib/api-client'
 import { ScheduleDeliveryModal } from './ScheduleDeliveryModal'
+import { outgoingPlanningErrors } from '@/features/logistics/outgoing-planning'
 import type { SalesOrderRecord } from '@/features/crm/sales-orders.types'
-import type { OutgoingDeliveryRecord } from '@/features/logistics/outgoing-deliveries.types'
+import type {
+  OutgoingDeliveryRecord,
+  OutgoingPlanningOption,
+} from '@/features/logistics/outgoing-deliveries.types'
 
 const dates = { createdAt: '2026-10-01', updatedAt: '2026-10-01' }
 function order(id: number, status: SalesOrderRecord['status'] = 'CONFIRMED'): SalesOrderRecord {
   return {
     id,
+    revision: 3,
     orderNumber: `SO-${String(id).padStart(4, '0')}`,
     status,
     clientId: 1,
     deliveryAddress: 'Customer address',
     ...dates,
-    items: [
-      {
-        id: id * 10,
-        inventoryItemId: 1,
-        quantity: '100',
-      },
-    ],
+    items: [{ id: id * 10, inventoryItemId: 1, quantity: '100' }],
   } as SalesOrderRecord
 }
-function shipment(
-  id: number,
-  salesOrderId: number,
-  status: OutgoingDeliveryRecord['status'],
-  sourceCode: number,
-  quantity: string,
-): OutgoingDeliveryRecord {
-  const stockItemId = sourceCode % 10
+function shipment(id = 90): OutgoingDeliveryRecord {
   return {
     id,
-    salesOrderId,
-    status,
+    revision: 1,
+    salesOrderId: 1,
+    warehouseId: null,
+    status: 'DRAFT',
     deliveryNumber: `OD-${id}`,
     deliveryVehicleId: null,
     driverEmployeeId: null,
+    scheduledAt: null,
+    dispatchedAt: null,
+    deliveredAt: null,
+    cancelledAt: null,
+    notes: null,
     ...dates,
-    items: [
-      {
-        id: id * 10,
-        outgoingDeliveryId: id,
-        salesOrderItemId: salesOrderId * 10,
-        stockItemId,
-        quantity,
-        ...dates,
-      },
-    ],
-  } as OutgoingDeliveryRecord
+    items: [],
+    plannedItems: [],
+  }
+}
+function option(id = 10, available = '60'): OutgoingPlanningOption {
+  return {
+    salesOrderItemId: id,
+    inventoryItemId: 1,
+    orderedQuantity: '100',
+    committedQuantity: '10',
+    scheduledQuantity: '20',
+    availableQuantity: available,
+    plannedQuantity: '5',
+    maximumPlannableQuantity: available === '60' ? '55' : '2',
+  }
 }
 let orders: SalesOrderRecord[]
+let currentOrder: SalesOrderRecord
 let deliveries: OutgoingDeliveryRecord[]
-let requests: { method: string; url: string; body: Record<string, unknown> }[]
-let scheduleFailures: number
-let createFailure: boolean
-let stockFailure: boolean
-let stocks: {
-  id: number
-  warehouseId: number
-  inventoryItemId: number
-  quantity: string
-  reservedQuantity: string
+let requests: {
+  method: string
+  url: string
+  body: Record<string, unknown>
+  params?: Record<string, unknown>
 }[]
+let options: Record<number, OutgoingPlanningOption[]>
+let conflict: { url: string; code?: string; message: string; details?: unknown } | undefined
+let planningFailure: boolean
+let createFailure: boolean
 let gate: { url: string; wait: Promise<void> } | undefined
 const originalAdapter = apiClient.defaults.adapter
-
 beforeEach(() => {
   vi.spyOn(toast, 'success').mockReturnValue('test')
   vi.spyOn(toast, 'error').mockReturnValue('test')
-  orders = [
-    order(1),
-    order(2),
-    order(3, 'DRAFT'),
-    order(4, 'CANCELLED'),
-    order(5, 'PARTIALLY_DELIVERED'),
-  ]
-  deliveries = [
-    shipment(20, 2, 'DRAFT', 201, '60'),
-    shipment(21, 2, 'SCHEDULED', 202, '40'),
-    shipment(50, 5, 'DELIVERED', 501, '60'),
-  ]
-  stocks = [
-    { id: 1, warehouseId: 1, inventoryItemId: 1, quantity: '100', reservedQuantity: '40' },
-    { id: 2, warehouseId: 2, inventoryItemId: 1, quantity: '100', reservedQuantity: '0' },
-  ]
+  orders = [order(1), order(2), order(3, 'DRAFT'), order(4, 'CANCELLED')]
+  currentOrder = structuredClone(orders[0])
+  deliveries = []
+  options = { 1: [option()], 2: [option(10, '7')] }
   requests = []
-  scheduleFailures = 0
+  conflict = undefined
+  planningFailure = false
   createFailure = false
-  stockFailure = false
   gate = undefined
-  // Test-only adapter: all production services/query hooks and controls remain in use.
   apiClient.defaults.adapter = async (config) => {
     const url = config.url || ''
     const method = config.method || 'get'
     const body = typeof config.data === 'string' ? JSON.parse(config.data) : config.data || {}
-    requests.push({ url, method, body })
-    if (gate?.url === url && method !== 'get') await gate.wait
+    requests.push({ url, method, body, params: config.params })
+    if (gate?.url === url) await gate.wait
+    if (conflict?.url === url && method !== 'get') {
+      const failure = conflict
+      conflict = undefined
+      throw { isAxiosError: true, response: { status: 409, data: failure } }
+    }
     let data: unknown = []
     if (method === 'get') {
-      if (stockFailure && url === '/stock-items')
-        throw {
-          isAxiosError: true,
-          response: { status: 503, data: { message: 'Stock unavailable' } },
+      if (url === '/outgoing-deliveries/planning-options') {
+        if (planningFailure)
+          throw {
+            isAxiosError: true,
+            response: { status: 503, data: { message: 'Planning unavailable' } },
+          }
+        data = options[Number(config.params.warehouseId)] ?? []
+      } else {
+        const collections: Record<string, unknown> = {
+          '/sales-orders': orders,
+          '/sales-orders/1': currentOrder,
+          '/sales-orders/2': orders[1],
+          '/outgoing-deliveries': deliveries,
+          '/inventory-items': [
+            { id: 1, name: 'Rice', variety: 'Premium', unit: 'sacks', isActive: true, ...dates },
+          ],
+          '/clients': [{ id: 1, name: 'Harbor Hotel', isActive: true, ...dates }],
+          '/warehouses': [
+            { id: 1, name: 'Store', isActive: true, ...dates },
+            { id: 2, name: 'Main Warehouse', isActive: true, ...dates },
+            { id: 3, name: 'Inactive', isActive: false, ...dates },
+          ],
         }
-      const collections: Record<string, unknown> = {
-        '/sales-orders': orders,
-        '/outgoing-deliveries': deliveries,
-        '/stock-items': stocks,
-        '/inventory-items': [
-          { id: 1, name: 'Rice', unit: 'sacks', isActive: true, unitPrice: 20, ...dates },
-        ],
-        '/clients': [{ id: 1, name: 'Harbor Hotel', isActive: true, ...dates }],
-        '/warehouses': [
-          { id: 1, name: 'Store', isActive: true, ...dates },
-          { id: 2, name: 'Main Warehouse', isActive: true, ...dates },
-        ],
-        '/delivery-vehicles': [
-          {
-            id: 1,
-            plateNumber: 'ABC-123',
-            vehicleType: 'Truck',
-            status: 'AVAILABLE',
-            isActive: true,
-            ...dates,
-          },
-        ],
-        '/employees': [{ id: 1, firstName: 'Maria', lastName: 'Driver', isActive: true, ...dates }],
+        data =
+          collections[url] ??
+          deliveries.find((delivery) => url === `/outgoing-deliveries/${delivery.id}`) ??
+          null
       }
-      data = collections[url] ?? []
     } else if (method === 'post') {
       if (createFailure)
         throw {
           isAxiosError: true,
           response: { status: 409, data: { message: 'Shipment conflict' } },
         }
-      data = { ...shipment(90, Number(body.salesOrderId), 'DRAFT', 0, '0'), ...body }
-      deliveries = [...deliveries, data as OutgoingDeliveryRecord]
-    } else if (url.endsWith('/schedule')) {
-      if (scheduleFailures > 0) {
-        scheduleFailures--
-        throw {
-          isAxiosError: true,
-          response: { status: 409, data: { message: 'Schedule unavailable' } },
-        }
-      }
+      data = { ...shipment(), ...body }
+      deliveries.push(data as OutgoingDeliveryRecord)
+    } else if (url.endsWith('/draft')) {
       const id = Number(url.split('/')[2])
+      const saved = deliveries.find((delivery) => delivery.id === id)!
+      expect(body.expectedRevision).toBe(saved.revision)
+      data = {
+        ...saved,
+        ...body,
+        revision: saved.revision + 1,
+        plannedItems: (
+          body.plannedItems as { salesOrderItemId: number; plannedQuantity: string }[]
+        ).map((item, index) => ({ ...item, id: index + 1, outgoingDeliveryId: id, ...dates })),
+      }
       deliveries = deliveries.map((delivery) =>
-        delivery.id === id ? { ...delivery, status: 'SCHEDULED' } : delivery,
+        delivery.id === id ? (data as OutgoingDeliveryRecord) : delivery,
       )
-      data = deliveries.find((delivery) => delivery.id === id)
+    } else if (url.endsWith('/schedule')) {
+      const id = Number(url.split('/')[2])
+      const saved = deliveries.find((delivery) => delivery.id === id)!
+      expect(body).toEqual({ expectedRevision: saved.revision })
+      data = { ...saved, status: 'SCHEDULED', revision: saved.revision + 1 }
+      deliveries = deliveries.map((delivery) =>
+        delivery.id === id ? (data as OutgoingDeliveryRecord) : delivery,
+      )
     }
     return { data: structuredClone(data), config, status: 200, statusText: 'OK', headers: {} }
   }
@@ -162,283 +164,453 @@ afterEach(() => {
   apiClient.defaults.adapter = originalAdapter
   vi.restoreAllMocks()
 })
-function mount(preselectedOrderId?: number) {
+function mount(
+  preselectedOrderId: number | undefined = 1,
+  draftId?: number,
+  cachedDraft?: OutgoingDeliveryRecord,
+) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: 0 }, mutations: { retry: false } },
   })
+  if (cachedDraft)
+    queryClient.setQueryData(['outgoing-deliveries', 'id', cachedDraft.id], cachedDraft)
   const close = vi.fn()
   const view = render(
     <QueryClientProvider client={queryClient}>
-      <ScheduleDeliveryModal open preselectedOrderId={preselectedOrderId} onClose={close} />
+      <ScheduleDeliveryModal
+        open
+        preselectedOrderId={preselectedOrderId}
+        draftId={draftId}
+        onClose={close}
+      />
     </QueryClientProvider>,
   )
   return { ...view, queryClient, close }
 }
-async function selectSource(user: ReturnType<typeof userEvent.setup>, name = 'Store') {
-  await user.click(await screen.findByRole('combobox', { name: 'Stock source' }))
-  await user.click(screen.getByRole('option', { name: new RegExp(name) }))
-}
-const creates = () => requests.filter((request) => request.method === 'post')
-const schedules = () => requests.filter((request) => request.method === 'patch')
-
-describe('outgoing scheduling refinement', () => {
-  it('keeps the saved shipment visible when its draft consumes the final balance and scheduling fails', async () => {
-    scheduleFailures = 1
-    const user = userEvent.setup()
-    mount(5)
-    await selectSource(user, 'Main Warehouse')
-    await user.click(screen.getByRole('button', { name: 'Schedule Delivery' }))
-    expect(await screen.findByText('Schedule unavailable.')).toBeTruthy()
-    const quantity = screen.getByRole('spinbutton', {
-      name: 'Quantity to ship for Rice',
-    }) as HTMLInputElement
-    expect(quantity.value).toBe('40.00')
-    expect(quantity.disabled).toBe(true)
-    expect(quantity.getAttribute('aria-invalid')).toBe('false')
-    expect(
-      screen.getByRole('combobox', { name: 'Stock source' }).textContent,
-    ).toContain('Main Warehouse')
-    await user.click(screen.getByRole('button', { name: 'Retry Schedule' }))
-    expect(await screen.findByText('Delivery scheduled')).toBeTruthy()
-    expect(creates()).toHaveLength(1)
-  })
-
-  it('reveals an unavailable optional assignment and focuses its selector instead of hiding the error', async () => {
-    const user = userEvent.setup()
-    mount(1)
-    await selectSource(user)
-    await user.click(screen.getByText('Vehicle & Driver (Optional)'))
-    await user.click(screen.getByRole('combobox', { name: 'Assign Vehicle (Optional)' }))
-    await user.click(screen.getByRole('option', { name: 'ABC-123' }))
-    await user.click(screen.getByText('Vehicle & Driver (Optional)'))
-    deliveries.push({ ...shipment(80, 99, 'DRAFT', 1, '1'), deliveryVehicleId: 1 })
-    await user.click(screen.getByRole('button', { name: 'Schedule Delivery' }))
-    expect(
-      await screen.findByText(
-        'This vehicle is unavailable. Choose another or assign later at dispatch.',
-      ),
-    ).toBeTruthy()
-    const selector = screen.getByRole('combobox', { name: 'Assign Vehicle (Optional)' })
-    expect(selector.getAttribute('aria-invalid')).toBe('true')
-    await waitFor(() => expect(document.activeElement).toBe(selector))
-    expect(creates()).toHaveLength(0)
-  })
-
-  it('filters fully arranged orders, keeps partial orders and searches the complete result without selecting an arbitrary order', async () => {
-    orders.push(...Array.from({ length: 10 }, (_, index) => order(index + 10)))
-    const user = userEvent.setup()
-    mount()
-    await waitFor(() =>
-      expect(screen.queryByText('Loading orders and shipment balances...')).toBeNull(),
-    )
-    expect(screen.queryByRole('combobox', { name: 'Stock source' })).toBeNull()
-    await user.click(screen.getByRole('button', { name: 'Sales Order to Fulfill' }))
-    expect(screen.queryByRole('menuitem', { name: /SO-0002/ })).toBeNull()
-    expect(screen.queryByRole('menuitem', { name: /SO-0003|SO-0004/ })).toBeNull()
-    expect(screen.getByRole('menuitem', { name: /SO-0005/ })).toBeTruthy()
-    expect(screen.queryByText('Fully Scheduled')).toBeNull()
-    await user.type(screen.getByRole('searchbox', { name: 'Search order or customer...' }), '0019')
-    const result = screen.getByRole('menuitem', { name: /SO-0019/ })
-    result.focus()
-    await user.keyboard('{Enter}')
-    expect(await screen.findByRole('spinbutton', { name: 'Quantity to ship for Rice' })).toBeTruthy()
-    expect(screen.getByRole('combobox', { name: 'Stock source' })).toBeTruthy()
-    expect(screen.queryByRole('checkbox')).toBeNull()
-    expect(creates()).toHaveLength(0)
-  })
-
-  it('saves a draft without scheduling and preserves optional assignments and instructions across collapse', async () => {
-    const user = userEvent.setup()
-    const { close } = mount(1)
-    await selectSource(user)
-    const quantity = screen.getByRole('spinbutton', { name: 'Quantity to ship for Rice' })
-    expect((quantity as HTMLInputElement).value).toBe('60.00')
-    await user.clear(quantity)
-    await user.type(quantity, '0.05')
-    await user.click(screen.getByText('Vehicle & Driver (Optional)'))
-    await user.click(screen.getByRole('combobox', { name: 'Assign Vehicle (Optional)' }))
-    await user.click(screen.getByRole('option', { name: 'ABC-123' }))
-    await user.click(screen.getByRole('combobox', { name: 'Assign Driver (Optional)' }))
-    await user.click(screen.getByRole('option', { name: 'Maria Driver' }))
-    await user.click(screen.getByText('Vehicle & Driver (Optional)'))
-    expect(screen.getByText('ABC-123 · Maria Driver')).toBeTruthy()
-    await user.click(screen.getByText('Delivery instructions (Optional)'))
-    await user.type(
-      screen.getByRole('textbox', { name: 'Delivery Notes / Instructions' }),
-      'Use loading gate',
-    )
-    await user.click(screen.getByText('Delivery instructions (Optional)'))
-    await user.click(screen.getByRole('button', { name: 'Save Draft' }))
-    expect(await screen.findByText('Delivery draft saved')).toBeTruthy()
-    expect(schedules()).toHaveLength(0)
-    expect(creates()[0].body).toMatchObject({
-      salesOrderId: 1,
-      deliveryVehicleId: 1,
-      driverEmployeeId: 1,
-      notes: 'Use loading gate',
-      items: [{ salesOrderItemId: 10, stockItemId: 1, quantity: '0.05' }],
-    })
-    await user.click(screen.getByRole('button', { name: 'Done' }))
-    expect(close).toHaveBeenCalledOnce()
-  })
-
-  it('creates then schedules exactly the saved ID, refreshes remaining quantities and reopening excludes a fully arranged order', async () => {
-    const user = userEvent.setup()
-    const view = mount(5)
-    await selectSource(user, 'Main Warehouse')
-    await user.click(screen.getByRole('button', { name: 'Schedule Delivery' }))
-    expect(await screen.findByText('Delivery scheduled')).toBeTruthy()
-    expect(creates()).toHaveLength(1)
-    expect(creates()[0].body.items).toEqual([
-      { salesOrderItemId: 50, stockItemId: 2, quantity: '40.00' },
-    ])
-    expect(schedules().map((request) => request.url)).toEqual(['/outgoing-deliveries/90/schedule'])
-    expect(orders.find((candidate) => candidate.id === 5)?.status).toBe('PARTIALLY_DELIVERED')
-    view.unmount()
-    mount()
-    await waitFor(() =>
-      expect(screen.queryByText('Loading orders and shipment balances...')).toBeNull(),
-    )
-    await user.click(screen.getByRole('button', { name: 'Sales Order to Fulfill' }))
-    expect(screen.queryByRole('menuitem', { name: /SO-0005/ })).toBeNull()
-    expect(deliveries.find((delivery) => delivery.id === 90)?.status).toBe('SCHEDULED')
-  })
-
-  it('retries only the saved draft after scheduling fails and prevents duplicates during either request', async () => {
-    const user = userEvent.setup()
-    scheduleFailures = 1
-    let release!: () => void
-    gate = {
-      url: '/outgoing-deliveries',
-      wait: new Promise<void>((resolve) => {
-        release = resolve
-      }),
-    }
-    mount(1)
-    await selectSource(user)
-    const form = screen.getByRole('button', { name: 'Schedule Delivery' }).closest('form')!
-    fireEvent.submit(form)
-    fireEvent.submit(form)
-    await waitFor(() => expect(creates()).toHaveLength(1))
-    expect(screen.getByRole('button', { name: 'Saving...' }).hasAttribute('disabled')).toBe(true)
-    await act(async () => release())
-    expect(await screen.findByText('Schedule unavailable.')).toBeTruthy()
+async function selectWarehouse(user: ReturnType<typeof userEvent.setup>, name = 'Store') {
+  await user.click(await screen.findByRole('combobox', { name: /Stock Source \/ Warehouse/ }))
+  await user.click(await screen.findByRole('option', { name }))
+  await waitFor(() =>
     expect(
       (screen.getByRole('spinbutton', { name: 'Quantity to ship for Rice' }) as HTMLInputElement)
         .disabled,
-    ).toBe(true)
+    ).toBe(false),
+  )
+}
+const quantity = () =>
+  screen.getByRole('spinbutton', { name: 'Quantity to ship for Rice' }) as HTMLInputElement
+const creates = () => requests.filter((request) => request.method === 'post')
+const updates = () =>
+  requests.filter((request) => request.method === 'patch' && request.url.endsWith('/draft'))
+const schedules = () =>
+  requests.filter((request) => request.method === 'patch' && request.url.endsWith('/schedule'))
+
+describe('outgoing delivery warehouse planning', () => {
+  it('refreshes a cached draft before restoring its saved plan', async () => {
+    const cached = { ...shipment(), revision: 2, warehouseId: 1 }
+    deliveries = [
+      {
+        ...cached,
+        revision: 7,
+        plannedItems: [
+          {
+            id: 1,
+            outgoingDeliveryId: 90,
+            salesOrderItemId: 10,
+            plannedQuantity: '1.25',
+            ...dates,
+          },
+        ],
+      },
+    ]
+    mount(undefined, 90, cached)
+    await waitFor(() => expect(quantity().value).toBe('1.25'))
+    expect(screen.getByText(/Revision 7/)).toBeTruthy()
+  })
+
+  it('saves only positive lines in a mixed plan and permits an unset draft date', async () => {
+    currentOrder.items.push(
+      { ...currentOrder.items[0], id: 11 },
+      { ...currentOrder.items[0], id: 12 },
+    )
+    options[1].push(option(11), option(12))
+    const user = userEvent.setup()
+    mount()
+    await user.click(await screen.findByRole('combobox', { name: /Stock Source/ }))
+    await user.click(screen.getByRole('option', { name: 'Store' }))
+    const inputs = await screen.findAllByRole('spinbutton')
+    await waitFor(() => expect((inputs[0] as HTMLInputElement).disabled).toBe(false))
+    await user.type(inputs[0], '1.25')
+    await user.type(inputs[1], '0')
+    fireEvent.change(screen.getByLabelText('Scheduled Date & Time'), { target: { value: '' } })
+    await user.click(screen.getByRole('button', { name: 'Schedule Delivery' }))
+    expect(await screen.findByText('Enter a valid scheduled date and time.')).toBeTruthy()
+    expect(creates()).toHaveLength(0)
+    await user.click(screen.getByRole('button', { name: 'Save Draft' }))
+    expect(await screen.findByText('Delivery draft saved')).toBeTruthy()
+    expect(updates()[0].body).toEqual(
+      expect.objectContaining({
+        scheduledAt: null,
+        plannedItems: [{ salesOrderItemId: 10, plannedQuantity: '1.25' }],
+      }),
+    )
+    expect(schedules()).toHaveLength(0)
+  })
+  it('uses balanced responsive selectors, one warehouse, current persisted lines, and blank quantity inputs', async () => {
+    currentOrder.items[0].id = 11
+    options[1] = [option(11)]
+    const user = userEvent.setup()
+    mount()
+    await selectWarehouse(user)
+    const sales = screen.getByRole('button', { name: 'Sales Order to Fulfill' })
+    const warehouse = screen.getByRole('combobox', { name: /Stock Source \/ Warehouse/ })
+    expect(sales.parentElement?.parentElement).toBe(warehouse.parentElement?.parentElement)
+    expect(sales.parentElement?.parentElement?.className).toContain('grid-cols-1')
+    expect(sales.parentElement?.parentElement?.className).toContain('sm:grid-cols-2')
+    expect(quantity().value).toBe('')
+    expect(quantity().placeholder).toBe('0')
+    expect(quantity().id).toBe('delivery-quantity-11')
+    expect(screen.getByText('Customer address')).toBeTruthy()
+    expect(screen.getByRole('columnheader', { name: 'Warehouse Available' })).toBeTruthy()
+    expect(screen.getByText('70.00')).toBeTruthy()
+    expect(screen.queryByText('Add stock source')).toBeNull()
+    expect(screen.getAllByRole('combobox')).toHaveLength(1)
+    await user.type(quantity(), '21')
+    expect(quantity().value).toBe('21')
+    await user.click(screen.getByRole('button', { name: 'Schedule Delivery' }))
+    expect(await screen.findByText('Delivery scheduled')).toBeTruthy()
+    expect(creates()[0].body).toEqual({ salesOrderId: 1 })
+    expect(updates()[0].body).toEqual(
+      expect.objectContaining({
+        expectedRevision: 1,
+        warehouseId: 1,
+        plannedItems: [{ salesOrderItemId: 11, plannedQuantity: '21.00' }],
+      }),
+    )
+    expect(schedules()[0].body).toEqual({ expectedRevision: 2 })
+    expect(requests.find((request) => request.url.endsWith('/planning-options'))?.params).toEqual({
+      salesOrderId: 1,
+      warehouseId: 1,
+    })
+    expect(requests.some((request) => /dispatch|complete|stock-items/.test(request.url))).toBe(
+      false,
+    )
+  })
+
+  it('preserves entered quantities across warehouses and shows the new limit without clamping', async () => {
+    const user = userEvent.setup()
+    mount()
+    await selectWarehouse(user)
+    await user.type(quantity(), '21')
+    await selectWarehouse(user, 'Main Warehouse')
+    expect(quantity().value).toBe('21')
+    expect(
+      await screen.findByText('Maximum plannable quantity is 2.00. Review this quantity.'),
+    ).toBeTruthy()
+    expect(screen.getByText('7.00')).toBeTruthy()
+    expect(quantity().getAttribute('aria-invalid')).toBe('true')
+    await user.click(screen.getByRole('button', { name: 'Schedule Delivery' }))
+    expect(creates()).toHaveLength(0)
+    await user.clear(quantity())
+    await user.type(quantity(), '1.25')
+    await user.click(screen.getByRole('button', { name: 'Schedule Delivery' }))
+    expect(await screen.findByText('Delivery scheduled')).toBeTruthy()
+    expect(updates()[0].body.warehouseId).toBe(2)
+  })
+
+  it('does not show availability from a previous warehouse while the next query is loading', async () => {
+    const user = userEvent.setup()
+    mount()
+    await selectWarehouse(user)
+    await user.type(quantity(), '4')
+    let release!: () => void
     gate = {
-      url: '/outgoing-deliveries/90/schedule',
-      wait: new Promise<void>((resolve) => {
+      url: '/outgoing-deliveries/planning-options',
+      wait: new Promise((resolve) => {
         release = resolve
       }),
     }
-    fireEvent.submit(form)
-    fireEvent.submit(form)
-    await waitFor(() => expect(schedules()).toHaveLength(2))
+    await user.click(screen.getByRole('combobox', { name: /Stock Source/ }))
+    await user.click(screen.getByRole('option', { name: 'Main Warehouse' }))
+    expect(quantity().value).toBe('4')
+    expect(quantity().disabled).toBe(true)
+    expect(screen.queryByText('60.00')).toBeNull()
+    await act(async () => {
+      gate = undefined
+      release()
+    })
+    await waitFor(() => expect(quantity().disabled).toBe(false))
+  })
+
+  it('restores saved draft quantities, notes, warehouse and revision and updates the same identity', async () => {
+    deliveries = [
+      {
+        ...shipment(),
+        revision: 7,
+        warehouseId: 1,
+        notes: 'Saved instructions',
+        scheduledAt: '2026-11-01T01:00:00Z',
+        plannedItems: [
+          {
+            id: 1,
+            outgoingDeliveryId: 90,
+            salesOrderItemId: 10,
+            plannedQuantity: '1.25',
+            ...dates,
+          },
+        ],
+      },
+    ]
+    const user = userEvent.setup()
+    mount(undefined, 90)
+    await waitFor(() =>
+      expect((screen.getByRole('spinbutton') as HTMLInputElement).value).toBe('1.25'),
+    )
+    await waitFor(() => expect(quantity().disabled).toBe(false))
+    expect(screen.getByText('Saved instructions')).toBeTruthy()
+    await user.click(screen.getByRole('button', { name: 'Schedule Delivery' }))
+    expect(await screen.findByText('Delivery scheduled')).toBeTruthy()
+    expect(creates()).toHaveLength(0)
+    expect(updates()[0].body.expectedRevision).toBe(7)
+    expect(schedules()[0].body.expectedRevision).toBe(8)
+  })
+
+  it('omits zero and blank lines, allows an empty draft, and blocks scheduling an empty plan', async () => {
+    currentOrder.items.push({ ...currentOrder.items[0], id: 12, inventoryItemId: 2 })
+    options[1].push({ ...option(12), inventoryItemId: 2 })
+    const user = userEvent.setup()
+    mount()
+    await selectWarehouse(user)
+    await user.click(screen.getByRole('button', { name: 'Schedule Delivery' }))
+    expect(
+      await screen.findByText(
+        'Enter a positive planned quantity for at least one product before scheduling.',
+      ),
+    ).toBeTruthy()
+    expect(creates()).toHaveLength(0)
+    await user.type(quantity(), '0')
+    await user.click(screen.getByRole('button', { name: 'Save Draft' }))
+    expect(await screen.findByText('Delivery draft saved')).toBeTruthy()
+    expect(updates()[0].body.plannedItems).toEqual([])
+    expect(schedules()).toHaveLength(0)
+  })
+
+  it.each(['-1', '1.234', '56'])('rejects an invalid planning quantity %s', async (value) => {
+    const user = userEvent.setup()
+    mount()
+    await selectWarehouse(user)
+    fireEvent.change(quantity(), { target: { value } })
+    await user.click(screen.getByRole('button', { name: 'Schedule Delivery' }))
+    await waitFor(() => expect(quantity().getAttribute('aria-invalid')).toBe('true'))
+    expect(creates()).toHaveLength(0)
+  })
+
+  it('preserves input when scheduling fails and retries the same saved draft without another create', async () => {
+    conflict = { url: '/outgoing-deliveries/90/schedule', message: 'Schedule unavailable' }
+    const user = userEvent.setup()
+    mount()
+    await selectWarehouse(user)
+    await user.type(quantity(), '1.25')
+    await user.click(screen.getByRole('button', { name: 'Schedule Delivery' }))
+    expect(await screen.findByText('Schedule unavailable.')).toBeTruthy()
+    expect(quantity().value).toBe('1.25')
+    await user.click(screen.getByRole('button', { name: 'Schedule Delivery' }))
+    expect(await screen.findByText('Delivery scheduled')).toBeTruthy()
     expect(creates()).toHaveLength(1)
-    await act(async () => release())
+    expect(updates().map((request) => request.body.expectedRevision)).toEqual([1, 2])
+    expect(schedules().map((request) => request.body.expectedRevision)).toEqual([2, 3])
+  })
+
+  it('keeps a created header after a failed draft update and retries its revision', async () => {
+    conflict = { url: '/outgoing-deliveries/90/draft', message: 'Draft save unavailable' }
+    const user = userEvent.setup()
+    mount()
+    await selectWarehouse(user)
+    await user.type(quantity(), '3')
+    await user.click(screen.getByRole('button', { name: 'Schedule Delivery' }))
+    expect(await screen.findByText('Draft save unavailable.')).toBeTruthy()
+    expect(quantity().value).toBe('3')
+    await user.click(screen.getByRole('button', { name: 'Save Draft' }))
+    expect(await screen.findByText('Delivery draft saved')).toBeTruthy()
+    expect(creates()).toHaveLength(1)
+    expect(updates().map((request) => request.body.expectedRevision)).toEqual([1, 1])
+  })
+
+  it('fetches a stale draft for deliberate review and never automatically retries with its new revision', async () => {
+    deliveries = [{ ...shipment(), revision: 7, warehouseId: 1 }]
+    const user = userEvent.setup()
+    mount(undefined, 90)
+    await waitFor(() => expect(quantity().disabled).toBe(false))
+    await user.type(quantity(), '3')
+    deliveries[0] = {
+      ...deliveries[0],
+      revision: 8,
+      notes: 'Another user note',
+      plannedItems: [
+        { id: 1, outgoingDeliveryId: 90, salesOrderItemId: 10, plannedQuantity: '1.25', ...dates },
+      ],
+    }
+    conflict = { url: '/outgoing-deliveries/90/draft', code: 'STALE_REVISION', message: 'Changed' }
+    await user.click(screen.getByRole('button', { name: 'Save Draft' }))
+    expect(await screen.findByText(/Latest saved delivery: revision 8/)).toBeTruthy()
+    expect(quantity().value).toBe('3')
+    expect(updates()).toHaveLength(1)
+    expect(schedules()).toHaveLength(0)
+    expect((screen.getByRole('button', { name: 'Save Draft' }) as HTMLButtonElement).disabled).toBe(
+      true,
+    )
+    await user.click(screen.getByRole('button', { name: 'Load latest draft' }))
+    expect(quantity().value).toBe('1.25')
+    await user.click(screen.getByRole('button', { name: 'Save Draft' }))
+    expect(await screen.findByText('Delivery draft saved')).toBeTruthy()
+    expect(updates()[1].body.expectedRevision).toBe(8)
+  })
+
+  it.each(['ORDER_CAPACITY_CHANGED', 'WAREHOUSE_CAPACITY_CHANGED', 'PLAN_LIMIT_EXCEEDED'])(
+    'uses the current maximum from %s and keeps unsaved input',
+    async (code) => {
+      conflict = {
+        url: '/outgoing-deliveries/90/schedule',
+        code,
+        message: 'Capacity changed',
+        details: [{ salesOrderItemId: 10, currentMaximumQuantity: '1.00' }],
+      }
+      const user = userEvent.setup()
+      mount()
+      await selectWarehouse(user)
+      await user.type(quantity(), '3')
+      await user.click(screen.getByRole('button', { name: 'Schedule Delivery' }))
+      expect(
+        await screen.findByText('Maximum plannable quantity is 1.00. Review this quantity.'),
+      ).toBeTruthy()
+      expect(quantity().value).toBe('3')
+      await user.clear(quantity())
+      await user.type(quantity(), '1')
+      await user.click(screen.getByRole('button', { name: 'Schedule Delivery' }))
+      expect(await screen.findByText('Delivery scheduled')).toBeTruthy()
+      expect(creates()).toHaveLength(1)
+    },
+  )
+
+  it('requires review after INVALID_DELIVERY_STATE and blocks editing a scheduled record', async () => {
+    deliveries = [{ ...shipment(), revision: 7, warehouseId: 1 }]
+    const user = userEvent.setup()
+    mount(undefined, 90)
+    await waitFor(() => expect(quantity().disabled).toBe(false))
+    deliveries[0].status = 'SCHEDULED'
+    conflict = {
+      url: '/outgoing-deliveries/90/draft',
+      code: 'INVALID_DELIVERY_STATE',
+      message: 'State changed',
+    }
+    await user.click(screen.getByRole('button', { name: 'Save Draft' }))
+    await user.click(await screen.findByRole('button', { name: 'Load latest draft' }))
+    expect(
+      await screen.findByText('This delivery is scheduled and cannot be edited here.'),
+    ).toBeTruthy()
+    expect(
+      (screen.getByRole('button', { name: 'Schedule Delivery' }) as HTMLButtonElement).disabled,
+    ).toBe(true)
+    expect(schedules()).toHaveLength(0)
+  })
+
+  it('rejects replaced saved Sales Order line references instead of rewriting them', async () => {
+    deliveries = [
+      {
+        ...shipment(),
+        warehouseId: 1,
+        plannedItems: [
+          { id: 1, outgoingDeliveryId: 90, salesOrderItemId: 9, plannedQuantity: '3', ...dates },
+        ],
+      },
+    ]
+    const user = userEvent.setup()
+    mount(undefined, 90)
+    expect(await screen.findByText(/Order line #9: This Sales Order line has changed/)).toBeTruthy()
+    await user.click(screen.getByRole('button', { name: 'Save Draft' }))
+    expect(updates()).toHaveLength(0)
+  })
+
+  it('shows planning loading errors and recovers without losing quantities', async () => {
+    planningFailure = true
+    const user = userEvent.setup()
+    mount()
+    await user.click(await screen.findByRole('combobox', { name: /Stock Source/ }))
+    await user.click(screen.getByRole('option', { name: 'Store' }))
+    expect(
+      await screen.findByText('Order or warehouse planning availability could not be loaded.'),
+    ).toBeTruthy()
+    expect(quantity().disabled).toBe(true)
+    planningFailure = false
+    await user.click(screen.getByRole('button', { name: 'Retry loading' }))
+    await waitFor(() => expect(quantity().disabled).toBe(false))
+    expect(creates()).toHaveLength(0)
+  })
+
+  it('supports searchable Sales Order selection and hides inactive warehouses', async () => {
+    const user = userEvent.setup()
+    mount(0)
+    await user.click(await screen.findByRole('button', { name: 'Sales Order to Fulfill' }))
+    expect(screen.queryByRole('menuitem', { name: /SO-0003|SO-0004/ })).toBeNull()
+    await user.type(screen.getByRole('searchbox', { name: 'Search order or customer...' }), '0002')
+    await user.click(screen.getByRole('menuitem', { name: /SO-0002/ }))
+    await waitFor(() => expect(screen.getByRole('spinbutton').id).toBe('delivery-quantity-20'))
+    await user.click(screen.getByRole('combobox', { name: /Stock Source/ }))
+    expect(screen.queryByRole('option', { name: 'Inactive' })).toBeNull()
+  })
+
+  it('guards duplicate submissions and dismissal while saving a header', async () => {
+    const user = userEvent.setup()
+    const { close } = mount()
+    await selectWarehouse(user)
+    await user.type(quantity(), '3')
+    let release!: () => void
+    gate = {
+      url: '/outgoing-deliveries',
+      wait: new Promise((resolve) => {
+        release = resolve
+      }),
+    }
+    const submit = screen.getByRole('button', { name: 'Schedule Delivery' })
+    fireEvent.click(submit)
+    fireEvent.click(submit)
+    await waitFor(() => expect(creates()).toHaveLength(1))
+    await user.keyboard('{Escape}')
+    expect(close).not.toHaveBeenCalled()
+    await act(async () => {
+      gate = undefined
+      release()
+    })
     expect(await screen.findByText('Delivery scheduled')).toBeTruthy()
     expect(creates()).toHaveLength(1)
   })
 
-  it('refreshes a concurrent final scheduling change, blocks stale creation and never switches to another order', async () => {
+  it('distinguishes unavailable planning data from known zero stock', async () => {
+    options[1] = []
     const user = userEvent.setup()
-    mount(1)
-    await selectSource(user)
-    deliveries.push(shipment(70, 1, 'DRAFT', 101, '60'), shipment(71, 1, 'SCHEDULED', 102, '40'))
-    await user.click(screen.getByRole('button', { name: 'Schedule Delivery' }))
+    mount()
+    await user.click(await screen.findByRole('combobox', { name: /Stock Source/ }))
+    await user.click(screen.getByRole('option', { name: 'Store' }))
     expect(
-      await screen.findByText(
-        'All quantities have already been arranged. Review its deliveries or choose another Sales Order.',
-      ),
+      await screen.findByText('Planning availability is unavailable. Retry loading.'),
     ).toBeTruthy()
-    expect(creates()).toHaveLength(0)
-    expect(screen.queryByRole('spinbutton', { name: 'Quantity to ship for Rice' })).toBeNull()
-    await user.click(screen.getByRole('button', { name: 'Sales Order to Fulfill' }))
-    expect(screen.queryByRole('menuitem', { name: /SO-0001/ })).toBeNull()
-    expect(screen.getByRole('menuitem', { name: /SO-0005/ })).toBeTruthy()
+    expect(within(screen.getAllByRole('row')[1]).getAllByText('Unavailable')).toHaveLength(2)
   })
 
-  it('retains an edited quantity on a partial conflict, shows its updated source limit and allows correction', async () => {
-    const user = userEvent.setup()
-    mount(1)
-    await selectSource(user)
-    const quantity = screen.getByRole('spinbutton', { name: 'Quantity to ship for Rice' })
-    await user.clear(quantity)
-    await user.type(quantity, '30')
-    deliveries.push(shipment(70, 1, 'DISPATCHED', 101, '80'))
-    await user.click(screen.getByRole('button', { name: 'Schedule Delivery' }))
-    expect(
-      await screen.findByText('Shipment quantity exceeds the remaining sales order quantity.'),
-    ).toBeTruthy()
-    expect((quantity as HTMLInputElement).value).toBe('30')
-    expect(creates()).toHaveLength(0)
-    await user.clear(quantity)
-    await user.type(quantity, '20')
-    await user.click(screen.getByRole('button', { name: 'Save Draft' }))
-    expect(await screen.findByText('Delivery draft saved')).toBeTruthy()
-    expect(creates()[0].body.items).toEqual([
-      { salesOrderItemId: 10, stockItemId: 1, quantity: '20.00' },
-    ])
-  })
-
-  it('releases cancelled shipment balances after refresh and handles fully scheduled preselection with a compact empty state', async () => {
-    orders = [order(2)]
-    const user = userEvent.setup()
-    const { queryClient } = mount(2)
-    expect(
-      await screen.findByText(/No Sales Orders awaiting scheduling. Confirmed orders/),
-    ).toBeTruthy()
-    expect(screen.queryByText('Fully Scheduled')).toBeNull()
-    deliveries = deliveries.map((delivery) =>
-      delivery.salesOrderId === 2 ? { ...delivery, status: 'CANCELLED' } : delivery,
-    )
-    await act(async () => {
-      await queryClient.invalidateQueries({ queryKey: ['outgoing-deliveries'] })
+  it('validates combined product capacity using backend availability and scheduled plans', () => {
+    currentOrder.items.push({ ...currentOrder.items[0], id: 11 })
+    const errors = outgoingPlanningErrors(currentOrder, [option(10), option(11)], {
+      10: '30',
+      11: '30',
     })
-    expect(await screen.findByRole('spinbutton', { name: 'Quantity to ship for Rice' })).toBeTruthy()
-    await selectSource(user)
+    expect(Object.keys(errors)).toEqual(['quantity-10', 'quantity-11'])
     expect(
-      (screen.getByRole('spinbutton', { name: 'Quantity to ship for Rice' }) as HTMLInputElement)
-        .value,
-    ).toBe('60.00')
-  })
-
-  it('keeps creation failures editable and retains notes for retry', async () => {
-    createFailure = true
-    const user = userEvent.setup()
-    mount(1)
-    await selectSource(user)
-    await user.click(screen.getByText('Delivery instructions (Optional)'))
-    await user.type(
-      screen.getByRole('textbox', { name: 'Delivery Notes / Instructions' }),
-      'Keep notes',
-    )
-    await user.click(screen.getByRole('button', { name: 'Schedule Delivery' }))
-    expect(await screen.findByText('Shipment conflict.')).toBeTruthy()
-    expect(
-      (screen.getByRole('textbox', { name: 'Delivery Notes / Instructions' }) as HTMLInputElement)
-        .value,
-    ).toBe('Keep notes')
-    expect(schedules()).toHaveLength(0)
-    expect(screen.queryByRole('button', { name: 'Retry Schedule' })).toBeNull()
-    createFailure = false
-    await user.click(screen.getByRole('button', { name: 'Save Draft' }))
-    expect(await screen.findByText('Delivery draft saved')).toBeTruthy()
-  })
-
-  it('blocks unknown source data and supports query recovery without showing a false empty state', async () => {
-    stockFailure = true
-    const user = userEvent.setup()
-    mount(1)
-    expect(
-      await screen.findByText('Order quantities or source stock could not be loaded.'),
-    ).toBeTruthy()
-    expect(screen.queryByText(/No Sales Orders awaiting scheduling. Confirmed/)).toBeNull()
-    stockFailure = false
-    await user.click(screen.getByRole('button', { name: 'Retry loading' }))
-    await selectSource(user)
-    expect(creates()).toHaveLength(0)
+      outgoingPlanningErrors(
+        currentOrder,
+        [{ ...option(), maximumPlannableQuantity: '0' }],
+        { 10: '1' },
+        { 10: '2' },
+      )['quantity-10'],
+    ).toContain('Maximum plannable quantity is 0.00')
   })
 })

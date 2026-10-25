@@ -1,15 +1,17 @@
 import { PageHeader, PageToolbar } from '@/components/ui/ManagementPage'
 import { toast } from 'sonner'
-import { useState, useMemo } from 'react'
+import { useState, useMemo, type MouseEvent } from 'react'
 import {
   Archive,
   Building2,
   Check,
   CheckCircle2,
   Clock,
+  Download,
   Eye,
   MoreHorizontal,
   Package,
+  Pencil,
   Plus,
   Search,
   XCircle,
@@ -52,6 +54,7 @@ import { DataTable, type ColumnDef } from '@/components/ui/data-table'
 import { OverflowValue } from '@/components/ui/OverflowValue'
 import { DataTableActions } from '@/components/ui/DataTableActions'
 import { cn } from '@/lib/utils'
+import { exportPurchaseReceiptPdf } from '@/lib/purchase-receipt'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -130,13 +133,28 @@ export function PurchasesView({
   const deleteSupplierMutation = useDeleteSupplier()
   const reactivateSupplierMutation = useReactivateSupplier()
 
-  const confirmPurchaseOrder = async (id: number) => {
-    if (!canConfirmPurchaseOrder || confirmPOMutation.isPending) return
-    try {
-      await confirmPOMutation.mutateAsync(id)
-      setSelectedOrderId(null)
-    } catch {
-      /* The mutation shows the API error; retain the order for retry. */
+  const confirmPurchaseOrder = async (id: number): Promise<PurchaseOrderRecord> => {
+    if (!canConfirmPurchaseOrder || confirmPOMutation.isPending)
+      throw new Error('Purchase order confirmation is unavailable.')
+    const confirmedOrder = await confirmPOMutation.mutateAsync(id)
+    const supplier =
+      confirmedOrder.supplierId == null ? undefined : supplierMap.get(confirmedOrder.supplierId)
+    if (!exportPurchaseReceiptPdf(confirmedOrder, supplier, products)) {
+      toast.error('Purchase confirmed, but the receipt window could not be opened.')
+    }
+    setSelectedOrderId(null)
+    return confirmedOrder
+  }
+
+  const exportPurchaseReceipt = (id: number) => {
+    const order = purchaseOrders.find((candidate) => candidate.id === id)
+    if (!order) {
+      toast.error('Purchase order could not be found. Refresh the list and try again.')
+      return
+    }
+    const supplier = order.supplierId == null ? undefined : supplierMap.get(order.supplierId)
+    if (!exportPurchaseReceiptPdf(order, supplier, products)) {
+      toast.error('The receipt window could not be opened. Allow pop-ups and try again.')
     }
   }
 
@@ -147,6 +165,17 @@ export function PurchasesView({
   const productMap = useMemo(() => {
     return new Map(products.map((p) => [p.id, p]))
   }, [products])
+
+  const handleOrderRowClick = (
+    row: (typeof orderRows)[number],
+    _index: number,
+    event: MouseEvent<HTMLTableRowElement>,
+  ) => {
+    if (window.getSelection()?.toString()) return
+    if (event.target instanceof Element && event.target.closest('button, a, [role="menuitem"]'))
+      return
+    setSelectedOrderId(row.po.id)
+  }
 
   const statusCount = (status: PurchaseTabFilter) => {
     if (status === 'Active') {
@@ -275,7 +304,9 @@ export function PurchasesView({
 
   const orderRows = filteredOrders.map((po) => {
     const supplier = po.supplierId == null ? undefined : supplierMap.get(po.supplierId)
-    const supplierName = supplier?.name || (po.supplierId == null ? 'No supplier assigned' : `Supplier #${po.supplierId}`)
+    const supplierName =
+      supplier?.name ||
+      (po.supplierId == null ? 'No supplier assigned' : `Supplier #${po.supplierId}`)
     const total = (po.items || []).reduce((sum, item) => sum + Number(item.totalAmount), 0)
 
     const itemSummary = (po.items || [])
@@ -312,7 +343,7 @@ export function PurchasesView({
     {
       id: 'supplier',
       header: 'Supplier',
-      width: 190,
+      width: 240,
       className: 'min-w-[160px] max-w-[230px]',
       cell: ({ row: { po, supplierName } }) => (
         <div className="flex min-w-0 flex-col gap-1">
@@ -388,7 +419,7 @@ export function PurchasesView({
               className="pointer-coarse:min-h-11"
               disabled={confirmPOMutation.isPending}
               onClick={() => void confirmPurchaseOrder(po.id)}
-              title="Confirm Purchase Order"
+              title="Confirm and Export Receipt"
             >
               <Check aria-hidden="true" data-icon="inline-start" />
               Confirm
@@ -431,7 +462,14 @@ export function PurchasesView({
                       setEditingOrderId(po.id)
                     }}
                   >
+                    <Pencil aria-hidden="true" className="mr-2 size-3.5" />
                     Edit Draft
+                  </DropdownMenuItem>
+                )}
+                {po.status !== 'DRAFT' && po.status !== 'CANCELLED' && (
+                  <DropdownMenuItem onSelect={() => exportPurchaseReceipt(po.id)}>
+                    <Download aria-hidden="true" className="mr-2 size-3.5" />
+                    Export Receipt
                   </DropdownMenuItem>
                 )}
                 {canManage && ['DRAFT', 'CONFIRMED'].includes(po.status) && (
@@ -612,6 +650,7 @@ export function PurchasesView({
               data={orderRows}
               columns={orderColumns}
               getRowKey={({ po }) => po.id}
+              onRowClick={handleOrderRowClick}
               isLoading
               loadingMessage="Loading purchase orders..."
               pageSize={10}
@@ -642,6 +681,7 @@ export function PurchasesView({
               data={orderRows}
               columns={orderColumns}
               getRowKey={({ po }) => po.id}
+              onRowClick={handleOrderRowClick}
               pageSize={10}
               pageSizeOptions={[10, 25, 50, 100]}
               tableClassName="table-fixed min-w-[1040px] xl:min-w-[1120px]"
@@ -740,9 +780,7 @@ export function PurchasesView({
         <PurchaseOrderDetailModal
           order={selectedOrder}
           supplier={
-            selectedOrder.supplierId == null
-              ? undefined
-              : supplierMap.get(selectedOrder.supplierId)
+            selectedOrder.supplierId == null ? undefined : supplierMap.get(selectedOrder.supplierId)
           }
           products={products}
           warehouses={warehouses}
@@ -752,6 +790,11 @@ export function PurchasesView({
           onNavigateToDeliveries={onNavigateToDeliveries}
           onConfirm={
             canConfirmPurchaseOrder ? () => void confirmPurchaseOrder(selectedOrder.id) : undefined
+          }
+          onExportReceipt={
+            selectedOrder.status !== 'DRAFT' && selectedOrder.status !== 'CANCELLED'
+              ? () => exportPurchaseReceipt(selectedOrder.id)
+              : undefined
           }
           confirming={confirmPOMutation.isPending}
         />
@@ -767,7 +810,7 @@ export function PurchasesView({
           }}
           onSubmit={handleCreatePO}
           onUpdateDraft={editingOrder ? handleUpdateDraft : undefined}
-          onConfirm={canConfirmPurchaseOrder ? (id) => confirmPOMutation.mutateAsync(id) : undefined}
+          onConfirm={canConfirmPurchaseOrder ? confirmPurchaseOrder : undefined}
           suppliers={suppliers}
           products={products}
           stockItems={stockItems}
