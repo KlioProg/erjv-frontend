@@ -40,10 +40,7 @@ type PurchaseModalProps = OrderSubmissionProps<CreatePurchaseOrderPayload> & {
   catalogState?: OrderCatalogState
   processedBy: string
   draftOrder?: PurchaseOrderRecord
-  onUpdateDraft?: (
-    id: number,
-    payload: CreatePurchaseOrderPayload,
-  ) => Promise<PurchaseOrderRecord>
+  onUpdateDraft?: (id: number, payload: CreatePurchaseOrderPayload) => Promise<PurchaseOrderRecord>
 }
 
 export function PurchaseModal({
@@ -189,6 +186,7 @@ export function PurchaseModal({
           ? 'Update the saved draft, then save it or confirm the purchase order.'
           : "Choose catalog products, then enter the supplier's cost and quantity. A supplier is required only when confirming."
       }
+      confirmLabel="Confirm & Export Receipt"
       submission={form.submission}
       busy={form.busy}
       error={form.error}
@@ -213,8 +211,7 @@ export function PurchaseModal({
               <SearchableDropdown
                 id="po-supplier"
                 options={suppliers.filter(
-                  (supplier) =>
-                    supplier.isActive || String(supplier.id) === form.supplierId,
+                  (supplier) => supplier.isActive || String(supplier.id) === form.supplierId,
                 )}
                 value={form.supplierId}
                 onValueChange={form.setSupplierId}
