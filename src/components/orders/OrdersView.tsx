@@ -7,6 +7,13 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { StatusTabNav } from '@/components/ui/StatusTabNav'
 import { OrderModal, type OrderFormValues } from './OrderModal'
 import { buildSalesOrderPayload } from '@/features/crm/sales-order-entry.utils'
@@ -26,6 +33,8 @@ import {
   useCreateSalesOrder,
   useConfirmSalesOrder,
   useCancelSalesOrder,
+  useSalesOrderById,
+  useUpdateSalesOrderDraft,
   SALES_ORDERS_QUERY_KEY,
 } from '@/features/crm/sales-orders.hooks'
 import { DELIVERIES_QUERY_KEY } from '@/features/logistics/outgoing-deliveries.hooks'
@@ -35,6 +44,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { useAuth } from '@/features/auth/AuthContext'
 import type { SalesOrderRecord } from '@/features/crm/sales-orders.types'
+import { fetchSalesOrderByIdApi } from '@/features/crm/sales-orders.api'
 import { getSalesOrderDeliveryDisplay } from '@/features/crm/sales-orders.presentation'
 import { getErrorMessage } from '@/lib/api-client'
 import { cn } from '@/lib/utils'
@@ -93,6 +103,7 @@ export function OrdersView({
 
   // Modals & Drawers state
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false)
+  const [editingOrderId, setEditingOrderId] = useState<number>()
   const [selectedOrderRecord, setSelectedOrderRecord] = useState<SalesOrderRecord | null>(null)
   const [isDetailDrawerOpen, setIsDetailDrawerOpen] = useState(false)
   const [dispatchOrder, setDispatchOrder] = useState<SalesOrderRecord | null>(null)
@@ -116,6 +127,8 @@ export function OrdersView({
   const createOrderMutation = useCreateSalesOrder({ notifySuccess: false })
   const confirmOrderMutation = useConfirmSalesOrder()
   const cancelOrderMutation = useCancelSalesOrder()
+  const updateDraftMutation = useUpdateSalesOrderDraft()
+  const editingOrderQuery = useSalesOrderById(editingOrderId)
 
   const { user, isAdmin, isManager } = useAuth()
   const canManage = isAdmin || isManager
@@ -261,6 +274,12 @@ export function OrdersView({
     setIsDetailDrawerOpen(true)
   }
 
+  const editDraft = (order: SalesOrderRecord) => {
+    if (!canManage || order.status !== 'DRAFT') return
+    setIsDetailDrawerOpen(false)
+    setEditingOrderId(order.id)
+  }
+
   const handlePrimaryAction = (
     action: SalesOrderPrimaryAction,
     order: SalesOrderRecord,
@@ -296,9 +315,16 @@ export function OrdersView({
       width: 145,
       className: 'min-w-[145px]',
       cell: ({ row: { order } }) => (
-        <span className="whitespace-nowrap text-sm font-medium text-foreground">
-          {order.orderNumber}
-        </span>
+        <div className="flex flex-col gap-1">
+          <span className="whitespace-nowrap text-sm font-medium text-foreground">
+            {order.orderNumber}
+          </span>
+          {['DRAFT', 'CONFIRMED'].includes(order.status) && (
+            <span className="text-xs text-muted-foreground">
+              {order.status === 'DRAFT' ? 'Draft' : 'Confirmed'}
+            </span>
+          )}
+        </div>
       ),
     },
     {
@@ -436,6 +462,11 @@ export function OrdersView({
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-44">
                   <DropdownMenuGroup>
+                    {canManage && order.status === 'DRAFT' && (
+                      <DropdownMenuItem onSelect={() => editDraft(order)}>
+                        Edit Draft
+                      </DropdownMenuItem>
+                    )}
                     {showViewOrder && (
                       <DropdownMenuItem onSelect={() => openOrderDetails(order)}>
                         <Eye className="mr-2 size-3.5" />
@@ -627,6 +658,64 @@ export function OrdersView({
         />
       )}
 
+      {editingOrderId !== undefined &&
+        canManage &&
+        (editingOrderQuery.data ? (
+          <OrderModal
+            key={editingOrderId}
+            open
+            draftOrder={editingOrderQuery.data}
+            onClose={() => setEditingOrderId(undefined)}
+            onSubmit={handleSaveOrder}
+            onUpdateDraft={(id, payload) => updateDraftMutation.mutateAsync({ id, payload })}
+            onLoadLatest={(id) =>
+              queryClient.fetchQuery({
+                queryKey: [...SALES_ORDERS_QUERY_KEY, 'id', id],
+                queryFn: () => fetchSalesOrderByIdApi(id),
+                staleTime: 0,
+              })
+            }
+            onConfirm={(id) => confirmOrderMutation.mutateAsync(id)}
+            clients={clients}
+            products={products}
+            stockItems={stockItems}
+            cashier={cashier}
+            catalogState={{
+              productsLoading: productsQuery.isLoading,
+              productsError: productsQuery.error ? getErrorMessage(productsQuery.error) : undefined,
+              onRetry: () => void productsQuery.refetch(),
+            }}
+          />
+        ) : (
+          <Dialog open onOpenChange={(open) => !open && setEditingOrderId(undefined)}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Edit Sales Order Draft</DialogTitle>
+                <DialogDescription>Load the saved order before making changes.</DialogDescription>
+              </DialogHeader>
+              {editingOrderQuery.isPending ? (
+                <p role="status">Loading sales order…</p>
+              ) : (
+                <Alert variant="destructive">
+                  <AlertDescription>
+                    {editingOrderQuery.error
+                      ? getErrorMessage(editingOrderQuery.error)
+                      : 'This sales order is no longer available.'}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={editingOrderQuery.isFetching}
+                      onClick={() => void editingOrderQuery.refetch()}
+                    >
+                      Retry
+                    </Button>
+                  </AlertDescription>
+                </Alert>
+              )}
+            </DialogContent>
+          </Dialog>
+        ))}
+
       {/* Guided Order Detail Drawer */}
       <OrderDetailDrawer
         open={isDetailDrawerOpen}
@@ -643,6 +732,7 @@ export function OrdersView({
         stockItems={stockItems}
         outgoingDeliveries={outgoingDeliveries}
         onConfirmed={() => setIsDetailDrawerOpen(false)}
+        onEdit={editDraft}
         onArrangeDelivery={
           onNavigateToDeliveries
             ? (orderId) => onNavigateToDeliveries('outgoing', orderId, true)

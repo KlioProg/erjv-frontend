@@ -37,6 +37,7 @@ const deliveryFixture: OutgoingDeliveryRecord = {
 }
 const orderFixture: SalesOrderRecord = {
   id: 11,
+  revision: 1,
   orderNumber: 'SO-000011',
   clientId: 6,
   deliveryAddress: 'Receiving entrance, a long customer destination address in Davao City',

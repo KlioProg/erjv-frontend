@@ -7,11 +7,14 @@ import {
   fetchSalesOrderByIdApi,
   fetchSalesOrderByNumberApi,
   fetchSalesOrdersApi,
+  updateSalesOrderDraftApi,
+  isStaleSalesOrderRevision,
 } from './sales-orders.api'
 import type {
   CreateSalesOrderPayload,
   SalesOrderFilter,
   SalesOrderRecord,
+  UpdateSalesOrderDraftPayload,
 } from './sales-orders.types'
 import { STOCK_ITEMS_QUERY_KEY } from '../logistics/stock-items.hooks'
 import { getErrorMessage } from '@/lib/api-client'
@@ -75,6 +78,24 @@ export function useConfirmSalesOrder() {
     },
     onError: (err) => {
       toast.error(getErrorMessage(err))
+    },
+  })
+}
+
+export function useUpdateSalesOrderDraft() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    retry: false,
+    mutationFn: ({ id, payload }: { id: number; payload: UpdateSalesOrderDraftPayload }) =>
+      updateSalesOrderDraftApi(id, payload),
+    onSuccess: (order) => {
+      queryClient.setQueryData([...SALES_ORDERS_QUERY_KEY, 'id', order.id], order)
+      queryClient.setQueryData([...SALES_ORDERS_QUERY_KEY, 'number', order.orderNumber], order)
+      void queryClient.invalidateQueries({ queryKey: SALES_ORDERS_QUERY_KEY })
+      toast.success(`Draft ${order.orderNumber} updated`)
+    },
+    onError: (error) => {
+      if (!isStaleSalesOrderRevision(error)) toast.error(getErrorMessage(error))
     },
   })
 }

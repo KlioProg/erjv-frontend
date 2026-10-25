@@ -35,6 +35,8 @@ export function OrderEntryDialog({
   children,
   catalog,
   itemCount,
+  submitDisabled = false,
+  readOnly = false,
 }: {
   open: boolean
   onClose: () => void
@@ -48,6 +50,8 @@ export function OrderEntryDialog({
   children: (openCatalog: () => void) => ReactNode
   catalog: (returnToEditor: () => void) => ReactNode
   itemCount: number
+  submitDisabled?: boolean
+  readOnly?: boolean
 }) {
   const [view, setView] = useState('editor')
   const split = useOrderComposerLayout()
@@ -113,7 +117,7 @@ export function OrderEntryDialog({
             >
               <form onSubmit={onSubmit} noValidate className="flex h-full min-h-0 flex-col">
                 <fieldset
-                  disabled={submission.locked}
+                  disabled={submission.locked || readOnly}
                   className="order-entry-body flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain px-5 py-4 [&>*]:shrink-0"
                 >
                   {error && (
@@ -148,7 +152,7 @@ export function OrderEntryDialog({
                       name="intent"
                       value="draft"
                       variant="outline"
-                      disabled={busy}
+                      disabled={busy || submitDisabled}
                       className="h-9 text-ui"
                     >
                       {submission.phase === 'saving' && (
@@ -166,7 +170,7 @@ export function OrderEntryDialog({
                       type="submit"
                       name="intent"
                       value="confirm"
-                      disabled={busy}
+                      disabled={busy || submitDisabled}
                       variant="primary-contrast"
                       className="h-9"
                     >

@@ -1,5 +1,13 @@
-import type { OrderFormValues } from './sales-order-entry.types'
-import type { CreateSalesOrderPayload } from './sales-orders.types'
+import type { OrderFormValues, SalesOrderFormLine } from './sales-order-entry.types'
+import type {
+  CreateSalesOrderPayload,
+  SalesOrderRecord,
+  UpdateSalesOrderDraftPayload,
+} from './sales-orders.types'
+import type { InventoryItemResponse } from '../products/products.types'
+import { parseOrderDecimal } from '../../lib/order-amounts.ts'
+import { discountFields, savedLineDiscount } from '../../lib/order-line-pricing.ts'
+import type { SalesOrderLineCommand } from './sales-orders.types'
 
 export function buildSalesOrderPayload(values: OrderFormValues): CreateSalesOrderPayload {
   return {
@@ -12,8 +20,79 @@ export function buildSalesOrderPayload(values: OrderFormValues): CreateSalesOrde
       inventoryItemId: line.productId,
       quantity: line.quantity,
       unitPrice: line.unitPrice,
-      discountRate: values.discountRate,
-      taxRate: values.taxRate,
+      ...discountFields(line.discount ?? savedLineDiscount(line.terms ?? {
+        discountRate: values.discountRate ?? '0.00', discountAmount: '0.00',
+      })),
+      taxRate: line.taxRate ?? line.terms?.taxRate ?? values.taxRate,
+      ...(line.terms?.notes !== undefined ? { notes: line.terms.notes } : {}),
     })),
   }
+}
+
+export function salesDraftLines(
+  order: SalesOrderRecord,
+  products: InventoryItemResponse[],
+): SalesOrderFormLine[] {
+  return order.items.map((item, index) => {
+    const product = products.find((candidate) => candidate.id === item.inventoryItemId)
+    return {
+      formId: index + 1,
+      productId: item.inventoryItemId,
+      name: product?.name ?? `Product #${item.inventoryItemId}`,
+      variety: product?.variety,
+      unit: product?.unit,
+      quantity: item.quantity,
+      unitPrice: item.unitPrice,
+      discount: savedLineDiscount(item),
+      taxRate: item.taxRate,
+      terms: {
+        discountRate: item.discountRate,
+        discountAmount: item.discountAmount,
+        taxRate: item.taxRate,
+        notes: item.notes,
+      },
+    }
+  })
+}
+
+export function buildSalesOrderDraftPayload(
+  order: SalesOrderRecord,
+  values: OrderFormValues,
+): UpdateSalesOrderDraftPayload {
+  const payload: UpdateSalesOrderDraftPayload = { expectedRevision: order.revision }
+  if (values.clientId !== order.clientId) payload.clientId = values.clientId
+  if (values.deliveryAddress !== order.deliveryAddress)
+    payload.deliveryAddress = values.deliveryAddress
+  if ((values.expectedAt?.slice(0, 10) ?? '') !== (order.expectedAt?.slice(0, 10) ?? ''))
+    payload.expectedAt = values.expectedAt || null
+  if ((values.externalReference ?? '') !== (order.externalReference ?? ''))
+    payload.externalReference = values.externalReference || null
+  if ((values.notes ?? '') !== (order.notes ?? '')) payload.notes = values.notes || null
+  const items = buildSalesOrderPayload(values).items
+  const itemsChanged =
+    values.lines.length !== order.items.length ||
+    values.lines.some((line, index) => {
+      const saved = order.items[index]
+      return (
+        !saved ||
+        line.productId !== saved.inventoryItemId ||
+        parseOrderDecimal(line.quantity) !== parseOrderDecimal(saved.quantity) ||
+        parseOrderDecimal(line.unitPrice) !== parseOrderDecimal(saved.unitPrice) ||
+        items[index].notes !== saved.notes ||
+        items[index].discountRate !== discountFields(savedLineDiscount(saved)).discountRate ||
+        items[index].discountAmount !== discountFields(savedLineDiscount(saved)).discountAmount ||
+        items[index].taxRate !== saved.taxRate
+      )
+    })
+  if (itemsChanged) {
+    assertSalesDraftDiscountSupport(items)
+    payload.items = items
+  }
+  return payload
+}
+
+export function assertSalesDraftDiscountSupport(items?: SalesOrderLineCommand[]) {
+  // shortcut: the verified backend has no SO draft item DTO; enable fixed drafts only after verifying that contract.
+  if (items?.some((item) => item.discountAmount !== undefined))
+    throw new Error('Fixed line discounts cannot be saved on Sales Order drafts yet. Your changes have not been submitted.')
 }

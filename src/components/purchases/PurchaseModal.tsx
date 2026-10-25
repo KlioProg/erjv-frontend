@@ -13,6 +13,8 @@ import {
 } from '@/components/order-entry/OrderEntryFields'
 import { OrderAdditionalDetails } from '@/components/order-entry/OrderAdditionalDetails'
 import { OrderItemsTable } from '@/components/order-entry/OrderItemsTable'
+import { OrderLineAmounts, OrderLineDiscount, OrderPricingSummary } from '@/components/order-entry/OrderLineDiscount'
+import { discountFields } from '@/lib/order-line-pricing'
 import {
   OrderProductCatalog,
   type OrderCatalogState,
@@ -26,7 +28,6 @@ import type {
   CreatePurchaseOrderPayload,
   PurchaseOrderRecord,
 } from '@/features/logistics/purchase-orders.types'
-import { formatOrderCurrency, lineSubtotal } from '@/lib/order-amounts'
 import { priceError, quantityError } from '@/lib/order-entry.schema'
 
 export type { PurchaseLine } from '@/features/logistics/purchase-order-entry.types'
@@ -106,17 +107,17 @@ export function PurchaseModal({
               <OrderDecimalInput
                 mobileLabel=""
                 aria-label={`Quantity for ${row.name}`}
-                aria-describedby={`purchase-quantity-unit-${row.inventoryItemId}`}
+                aria-describedby={`purchase-quantity-unit-${row.formId}`}
                 value={row.quantity}
                 aria-invalid={!!quantityError(row.quantity)}
-                ref={(input) => form.focus.quantityRef(row.inventoryItemId, input)}
+                ref={(input) => form.focus.quantityRef(row.formId, input)}
                 onChange={(event) =>
-                  form.updateLine(row.inventoryItemId, 'quantity', event.target.value)
+                  form.updateLine(row.formId, 'quantity', event.target.value)
                 }
               />
             </div>
             <span
-              id={`purchase-quantity-unit-${row.inventoryItemId}`}
+              id={`purchase-quantity-unit-${row.formId}`}
               className="max-w-16 text-left text-xs leading-4 text-muted-foreground [overflow-wrap:anywhere]"
             >
               {formatProductUnit(row.unit)}
@@ -138,25 +139,25 @@ export function PurchaseModal({
           value={row.unitCost}
           placeholder="0.00"
           aria-invalid={row.unitCost !== '' && !!priceError(row.unitCost)}
-          onChange={(event) => form.updateLine(row.inventoryItemId, 'unitCost', event.target.value)}
+          onChange={(event) => form.updateLine(row.formId, 'unitCost', event.target.value)}
         />
       ),
     },
     {
+      id: 'discount',
+      header: 'Line Discount',
+      width: 148,
+      cell: ({ row }) => <OrderLineDiscount id={`purchase-discount-${row.formId}`} name={row.name}
+        value={row.discount} line={{ quantity: row.quantity, unitPrice: row.unitCost }}
+        onChange={(discount) => form.updateDiscount(row.formId, discount)} />,
+    },
+    {
       id: 'subtotal',
-      header: 'Subtotal',
-      width: 116,
+      header: 'Amounts',
+      width: 140,
       align: 'right',
-      cell: ({ row }) => (
-        <>
-          <span aria-hidden="true" className="order-entry-mobile-label">
-            Subtotal
-          </span>
-          <span className="tabular-nums">
-            {formatOrderCurrency(lineSubtotal(row.quantity, row.unitCost))}
-          </span>
-        </>
-      ),
+      cell: ({ row }) => <OrderLineAmounts line={{ ...row, unitPrice: row.unitCost, ...discountFields(row.discount) }}
+        saved={form.submission.savedOrder?.items?.[form.lines.findIndex((line) => line.formId === row.formId)]} />,
     },
     {
       id: 'remove',
@@ -165,13 +166,10 @@ export function PurchaseModal({
       align: 'right',
       className: 'order-entry-remove',
       cell: ({ row }) => (
-        <RemoveOrderItem name={row.name} onRemove={() => form.removeLine(row.inventoryItemId)} />
+        <RemoveOrderItem name={row.name} onRemove={() => form.removeLine(row.formId)} />
       ),
     },
   ]
-  const complete = form.lines.every(
-    (line) => !quantityError(line.quantity) && !priceError(line.unitCost),
-  )
   return (
     <OrderEntryDialog
       open={open}
@@ -192,6 +190,7 @@ export function PurchaseModal({
       submission={form.submission}
       busy={form.busy}
       error={form.error}
+      errorFocusId={form.errorFocusId}
       itemCount={form.lines.length}
       catalog={(returnToEditor) => (
         <OrderProductCatalog
@@ -265,23 +264,18 @@ export function PurchaseModal({
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">
-              Enter supplier cost per unit. Quantities and costs support two decimal places.
+              Enter supplier cost per unit. Discounts apply to each entire line, before VAT.
             </p>
             <OrderItemsTable
               data={displayLines}
               columns={columns}
-              getRowKey={(line) => line.inventoryItemId}
+              getRowKey={(line) => line.formId}
             />
             <div className="flex flex-wrap items-center justify-between gap-2 py-1 text-sm">
               <span className="text-xs text-muted-foreground">
                 {form.lines.length} {form.lines.length === 1 ? 'item' : 'items'}
               </span>
-              <span>
-                Total:{' '}
-                <strong className="font-semibold tabular-nums">
-                  {formatOrderCurrency(complete ? form.amounts.total : null)}
-                </strong>
-              </span>
+              <OrderPricingSummary amounts={form.amounts} />
             </div>
           </section>
           <OrderAdditionalDetails

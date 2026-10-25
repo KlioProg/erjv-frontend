@@ -36,6 +36,7 @@ export interface SalesOrderItemRecord {
 
 export interface SalesOrderRecord {
   id: number
+  revision: number
   orderNumber: string
   status: SalesOrderStatus
   clientId: number
@@ -57,6 +58,7 @@ export interface SalesOrderLineCommand {
   quantity: string
   unitPrice: string
   discountRate?: string
+  discountAmount?: string
   taxRate?: string
   notes?: string | null
 }
@@ -73,4 +75,9 @@ export interface CreateSalesOrderPayload {
 export interface SalesOrderFilter {
   status?: SalesOrderStatus
   clientId?: number
+}
+
+export interface UpdateSalesOrderDraftPayload extends Partial<Omit<CreateSalesOrderPayload, 'items'>> {
+  expectedRevision: number
+  items?: SalesOrderLineCommand[]
 }

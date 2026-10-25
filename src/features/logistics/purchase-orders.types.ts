@@ -52,6 +52,7 @@ export interface PurchaseOrderLineCommand {
   quantity: number | string
   unitPrice: number | string
   discountRate?: number | string
+  discountAmount?: number | string
   taxRate?: number | string
   notes?: string | null
 }

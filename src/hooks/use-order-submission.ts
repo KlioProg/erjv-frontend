@@ -1,7 +1,8 @@
 import { useRef, useState, type FormEvent } from 'react'
 import { getErrorMessage } from '@/lib/api-client'
+import type { SavedLineAmounts } from '@/lib/order-line-pricing'
 
-export type SavedOrder = { id: number; orderNumber: string; status: string }
+export type SavedOrder = { id: number; orderNumber: string; status: string; items?: SavedLineAmounts[] }
 export type OrderSubmissionProps<Values> = {
   onSubmit: (values: Values, intent?: 'draft' | 'confirm') => Promise<SavedOrder>
   onConfirm?: (id: number) => Promise<SavedOrder>
@@ -77,6 +78,7 @@ export function useOrderSubmission({
     locked: phase !== 'idle' || !!savedOrder,
     phase,
     error,
+    clearError: () => setError(''),
     confirmationAttempted,
     canConfirm: !!onConfirm,
   }

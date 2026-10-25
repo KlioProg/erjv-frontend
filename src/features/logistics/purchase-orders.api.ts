@@ -1,4 +1,5 @@
 import { apiClient, extractArray } from '@/lib/api-client'
+import { serializeLineDiscount } from '@/lib/order-line-pricing'
 import type {
   CreatePurchaseOrderPayload,
   PurchaseOrderFilter,
@@ -41,9 +42,7 @@ export async function createPurchaseOrderApi(
       inventoryItemId: item.inventoryItemId,
       quantity: String(item.quantity),
       unitPrice: String(item.unitPrice),
-      ...(item.discountRate !== undefined && item.discountRate !== ''
-        ? { discountRate: String(item.discountRate) }
-        : {}),
+      ...serializeLineDiscount(item),
       ...(item.taxRate !== undefined && item.taxRate !== ''
         ? { taxRate: String(item.taxRate) }
         : {}),
@@ -74,7 +73,7 @@ export async function updatePurchaseOrderDraftApi(
             inventoryItemId: item.inventoryItemId,
             quantity: String(item.quantity),
             unitPrice: String(item.unitPrice),
-            ...(item.discountRate !== undefined ? { discountRate: String(item.discountRate) } : {}),
+            ...serializeLineDiscount(item),
             ...(item.taxRate !== undefined ? { taxRate: String(item.taxRate) } : {}),
             ...(item.notes !== undefined ? { notes: item.notes } : {}),
           })),

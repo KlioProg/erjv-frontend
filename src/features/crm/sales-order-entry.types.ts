@@ -1,3 +1,10 @@
+import type {
+  SalesOrderItemRecord,
+  SalesOrderRecord,
+  UpdateSalesOrderDraftPayload,
+} from './sales-orders.types'
+import type { LineDiscount } from '@/lib/order-line-pricing'
+
 export type OrderStatus = 'Completed' | 'Active' | 'Cancelled'
 export type OrderLine = {
   productId: number
@@ -6,6 +13,16 @@ export type OrderLine = {
   unit?: string | null
   unitPrice: string
   quantity: string
+  discount?: LineDiscount
+  taxRate?: string
+  terms?: Pick<SalesOrderItemRecord, 'discountRate' | 'discountAmount' | 'taxRate' | 'notes'>
+}
+export type SalesOrderFormLine = OrderLine & { formId: number; discount: LineDiscount }
+
+export type SalesOrderDraftProps = {
+  draftOrder?: SalesOrderRecord
+  onUpdateDraft?: (id: number, payload: UpdateSalesOrderDraftPayload) => Promise<SalesOrderRecord>
+  onLoadLatest?: (id: number) => Promise<SalesOrderRecord | null>
 }
 export type OrderFormValues = {
   clientId: number

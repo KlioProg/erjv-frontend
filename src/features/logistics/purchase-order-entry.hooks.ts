@@ -1,9 +1,10 @@
-import { useState, type FormEvent } from 'react'
+import { useRef, useState, type FormEvent } from 'react'
 import type { Supplier } from './suppliers.types'
 import type { CreatePurchaseOrderPayload, PurchaseOrderRecord } from './purchase-orders.types'
 import type { PurchaseLine } from './purchase-order-entry.types'
 import type { InventoryItemResponse } from '@/features/products/products.types'
-import { lineSubtotal, orderAmounts } from '@/lib/order-amounts'
+import { lineSubtotal } from '@/lib/order-amounts'
+import { discountFields, lineDiscountError, orderLineAmounts, orderLineTotals, savedOrderTotals, savedLineDiscount, type LineDiscount } from '@/lib/order-line-pricing'
 import {
   expectedDateError,
   priceError,
@@ -47,50 +48,64 @@ export function usePurchaseOrderEntry({
   const [notes, setNotes] = useState(() => draftOrder?.notes ?? '')
   const [lines, setLines] = useState<PurchaseLine[]>(() =>
     draftOrder
-      ? draftOrder.items.map((item) => ({
+      ? draftOrder.items.map((item, index) => ({
+          formId: index + 1,
           inventoryItemId: item.inventoryItemId,
           name: `Item #${item.inventoryItemId}`,
           unitCost: item.unitPrice,
           quantity: item.quantity,
-          discountRate: item.discountRate,
+          discount: savedLineDiscount(item),
           taxRate: item.taxRate,
           notes: item.notes,
         }))
       : [],
   )
+  const nextFormId = useRef(lines.length)
   const [error, setError] = useState('')
+  const [errorFocusId, setErrorFocusId] = useState<string>()
   const submission = useOrderSubmission({ onConfirm, onConfirmed, savedDraft, onClose })
   const focus = useOrderItemFocus(lines)
-  const amounts = orderAmounts(lines.map((line) => ({ ...line, unitPrice: line.unitCost })))
+  const amounts = submission.savedOrder?.items ? savedOrderTotals(submission.savedOrder.items)
+    : orderLineTotals(lines.map((line) => ({ ...line, unitPrice: line.unitCost, ...discountFields(line.discount) })))
 
   function addProduct(product: InventoryItemResponse) {
     if (!product.isActive || submission.locked) return
-    focus.requestQuantityFocus(product.id)
+    const existing = lines.find((line) => line.inventoryItemId === product.id)
+    const formId = existing?.formId ?? ++nextFormId.current
+    focus.requestQuantityFocus(formId)
     setError('')
-    if (lines.some((line) => line.inventoryItemId === product.id)) return
+    if (existing) return
     setLines((current) => [
       ...current,
       {
+        formId,
         inventoryItemId: product.id,
         name: product.name,
         variety: product.variety,
         unit: product.unit,
         unitCost: '',
         quantity: '1',
+        discount: { type: 'percentage', percentage: '', peso: '' },
       },
     ])
   }
 
   function updateLine(id: number, field: 'quantity' | 'unitCost', value: string) {
     setLines((current) =>
-      current.map((line) => (line.inventoryItemId === id ? { ...line, [field]: value } : line)),
+      current.map((line) => (line.formId === id ? { ...line, [field]: value } : line)),
     )
+    setError('')
+  }
+
+  function updateDiscount(id: number, discount: LineDiscount) {
+    setLines((current) => current.map((line) => line.formId === id ? { ...line, discount } : line))
     setError('')
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (submission.busy) return
+    setErrorFocusId(undefined)
     const confirm = wantsOrderConfirmation(event)
     if (submission.savedOrder) {
       await submission.submit(() => Promise.reject(new Error('Draft already saved.')), confirm)
@@ -111,6 +126,16 @@ export function usePurchaseOrderEntry({
         priceError(line.unitCost) ||
         subtotalError(lineSubtotal(line.quantity, line.unitCost))
       if (invalid) return setError(`${line.name}: ${invalid}`)
+      const pricing = { ...line, unitPrice: line.unitCost, ...discountFields(line.discount) }
+      const discountInvalid = lineDiscountError(pricing)
+      if (discountInvalid) {
+        setErrorFocusId(`purchase-discount-${line.formId}`)
+        return setError(`${line.name}: ${discountInvalid}`)
+      }
+      const preview = orderLineAmounts(pricing)
+      if (!preview) return setError(`${line.name}: Review the saved tax rate and line pricing.`)
+      const totalError = subtotalError(preview.total)
+      if (totalError) return setError(`${line.name}: ${totalError}`)
     }
     setError('')
     const payload: CreatePurchaseOrderPayload = {
@@ -122,7 +147,7 @@ export function usePurchaseOrderEntry({
         inventoryItemId: line.inventoryItemId,
         quantity: line.quantity,
         unitPrice: line.unitCost,
-        ...(line.discountRate !== undefined ? { discountRate: line.discountRate } : {}),
+        ...discountFields(line.discount),
         ...(line.taxRate !== undefined ? { taxRate: line.taxRate } : {}),
         ...(line.notes !== undefined ? { notes: line.notes } : {}),
       })),
@@ -148,14 +173,16 @@ export function usePurchaseOrderEntry({
     lines,
     amounts,
     error: error || submission.error,
+    errorFocusId,
     busy: submission.busy,
     submission,
     addProduct,
     updateLine,
+    updateDiscount,
     submit,
     focus,
     removeLine: (id: number) => {
-      setLines((current) => current.filter((line) => line.inventoryItemId !== id))
+      setLines((current) => current.filter((line) => line.formId !== id))
       setError('')
     },
   }

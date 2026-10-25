@@ -173,7 +173,7 @@ describe('purchase composer', () => {
     await user.tab()
     expect(document.activeElement).toBe(cost)
     await user.type(cost, '10.20')
-    expect(screen.getAllByText('₱22.95').length).toBe(2)
+    expect(screen.getAllByText('₱22.95').length).toBe(4)
     await user.click(catalog.getByText(/Fresh orchard harvest/))
     expect(document.activeElement).toBe(quantity)
     expect((quantity as HTMLInputElement).value).toBe('2.25')
@@ -383,7 +383,7 @@ describe('purchase composer', () => {
 })
 
 describe('sales composer', () => {
-  it('keeps five compact columns and saves edited amounts and metadata without sources', async () => {
+  it('keeps compact pricing columns and saves edited amounts and metadata without sources', async () => {
     const user = userEvent.setup()
     const onSubmit = vi.fn().mockResolvedValue({ id: 1, orderNumber: 'SO-1', status: 'DRAFT' })
     render(<OrderModal {...salesProps} onClose={vi.fn()} onSubmit={onSubmit} />)
@@ -404,7 +404,8 @@ describe('sales composer', () => {
       'Product',
       'Quantity',
       'Unit Price',
-      'Subtotal',
+      'Line Discount',
+      'Amounts',
       'Remove',
     ])
     expect(items.queryByRole('combobox')).toBeNull()
@@ -414,7 +415,8 @@ describe('sales composer', () => {
     const price = screen.getByRole('textbox', { name: 'Unit price for Test Mango' })
     await user.clear(price)
     await user.type(price, '20')
-    await user.type(screen.getByRole('textbox', { name: 'Discount amount' }), '25')
+    await user.clear(screen.getByRole('textbox', { name: 'Line discount for Test Mango' }))
+    await user.type(screen.getByRole('textbox', { name: 'Line discount for Test Mango' }), '10')
     await user.click(screen.getByText('Additional details'))
     await user.type(screen.getByLabelText('External Reference'), 'REF-2')
     fireEvent.change(screen.getByLabelText('Expected Delivery Date'), {
@@ -423,7 +425,9 @@ describe('sales composer', () => {
     await user.type(screen.getByLabelText('Notes'), 'Leave at reception')
     await user.click(screen.getByRole('button', { name: 'Add Test Mango' }))
     expect(document.activeElement).toBe(quantity)
-    expect((quantity as HTMLInputElement).value).toBe('12.5')
+    expect((quantity as HTMLInputElement).value).toBe('13.50')
+    await user.clear(quantity)
+    await user.type(quantity, '12.5')
     expect((price as HTMLInputElement).value).toBe('20')
     await user.click(screen.getByRole('button', { name: 'Save Draft' }))
     expect(onSubmit).toHaveBeenCalledOnce()

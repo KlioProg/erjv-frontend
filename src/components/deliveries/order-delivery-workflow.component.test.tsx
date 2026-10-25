@@ -54,6 +54,7 @@ const orderDates = {
 }
 const salesFixture: SalesOrderRecord = {
   id: 1,
+  revision: 1,
   orderNumber: 'SO-TEST',
   status: 'DRAFT',
   clientId: 1,
@@ -614,7 +615,7 @@ describe('order to delivery workflow', () => {
       }
       let modal = await openCancellation()
       expect(modal.getByText('SO-TEST')).toBeTruthy()
-      expect(modal.getByText(/Any reserved stock will be released/)).toBeTruthy()
+      expect(modal.getByText(/Orders with active deliveries or stock movements cannot be cancelled/)).toBeTruthy()
       expect(mutations()).toHaveLength(0)
       await user.click(modal.getByRole('button', { name: 'Keep Order' }))
       expect(screen.queryByRole('dialog', { name: 'Cancel Sales Order' })).toBeNull()
@@ -754,7 +755,7 @@ describe('order to delivery workflow', () => {
     await user.click(screen.getByRole('menuitem', { name: 'View Order' }))
 
     expect(screen.getByText('Order confirmed')).toBeTruthy()
-    expect(screen.getByText('Stock is reserved and ready for delivery.')).toBeTruthy()
+    expect(screen.getByText('Ready for Logistics to prepare delivery.')).toBeTruthy()
     expect(screen.queryByText('What just happened?')).toBeNull()
     expect(screen.queryByText('What is its current state?')).toBeNull()
     expect(screen.queryByText('What should you do next?')).toBeNull()
@@ -769,7 +770,7 @@ describe('order to delivery workflow', () => {
     mount(<OrdersView onNavigateToDeliveries={navigate} />)
     await user.click(await screen.findByRole('button', { name: 'More actions for SO-TEST' }))
     await user.click(screen.getByRole('menuitem', { name: 'View Order' }))
-    await user.click(screen.getByRole('button', { name: 'Confirm Order & Reserve Stock' }))
+    await user.click(screen.getByRole('button', { name: 'Confirm Order' }))
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
     expect(navigate).not.toHaveBeenCalled()
     await user.click(await screen.findByRole('button', { name: 'Outgoing Deliveries' }))

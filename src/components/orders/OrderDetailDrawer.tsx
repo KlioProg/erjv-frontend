@@ -59,6 +59,7 @@ interface OrderDetailDrawerProps {
   outgoingDeliveries: OutgoingDeliveryRecord[]
   onViewDelivery?: (id: number) => void
   onConfirmed?: (order: SalesOrderRecord) => void
+  onEdit?: (order: SalesOrderRecord) => void
   onArrangeDelivery?: (orderId: number) => void
 }
 
@@ -76,6 +77,7 @@ export function OrderDetailDrawer({
   outgoingDeliveries,
   onViewDelivery,
   onConfirmed,
+  onEdit,
   onArrangeDelivery,
 }: OrderDetailDrawerProps) {
   const queryClient = useQueryClient()
@@ -208,7 +210,7 @@ export function OrderDetailDrawer({
                   variant="outline"
                   className="bg-status-info text-status-info-foreground border-status-info-foreground/20 text-xs"
                 >
-                  Stock Reserved
+                  Confirmed
                 </Badge>
               )}
               {order.status === 'PARTIALLY_DELIVERED' && (
@@ -283,7 +285,7 @@ export function OrderDetailDrawer({
                     {currentStep > 2 && !isCancelled ? <Check className="size-3.5" /> : '2'}
                   </div>
                   <span className="font-medium text-foreground mt-1.5 text-xs">Confirmed</span>
-                  <span className="text-xs text-muted-foreground">Stock Reserved</span>
+                  <span className="text-xs text-muted-foreground">Ready for Logistics</span>
                 </div>
 
                 {/* Step 3: In Transit */}
@@ -344,18 +346,27 @@ export function OrderDetailDrawer({
                       <span className="font-medium text-status-warning-foreground">
                         Draft (Unconfirmed)
                       </span>{' '}
-                      — Inventory has been planned, but physical stock is not locked yet.
+                      — The order is saved and can be edited before confirmation.
                     </p>
                     <p className="font-medium text-foreground mt-2">What should you do next?</p>
                     <p className="text-muted-foreground">
-                      Confirm the order to atomically reserve the items in the warehouse and prepare
-                      for shipment.
+                      Review the customer and line items, then confirm the order for Logistics.
                     </p>
                   </div>
                 </div>
 
                 {!readOnly && (
                   <div className="flex items-center justify-end gap-2 border-t border-border pt-3">
+                    {canManage && onEdit && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={confirmMutation.isPending || cancelMutation.isPending}
+                        onClick={() => onEdit(order)}
+                      >
+                        Edit Draft
+                      </Button>
+                    )}
                     <Button
                       variant="outline"
                       size="sm"
@@ -377,7 +388,7 @@ export function OrderDetailDrawer({
                       ) : (
                         <span className="flex items-center gap-1.5">
                           <ShieldCheck className="size-3.5" />
-                          Confirm Order & Reserve Stock
+                          Confirm Order
                         </span>
                       )}
                     </Button>
@@ -398,7 +409,7 @@ export function OrderDetailDrawer({
                   <div className="min-w-0 text-sm">
                     <p className="font-medium text-foreground">Order confirmed</p>
                     <p className="text-muted-foreground">
-                      Stock is reserved and ready for delivery.
+                      Ready for Logistics to prepare delivery.
                     </p>
                   </div>
                 </div>

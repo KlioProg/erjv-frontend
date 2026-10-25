@@ -1,5 +1,6 @@
 import type { OrderSubmissionProps } from '@/hooks/use-order-submission'
 import { Button } from '@/components/ui/button'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import type { ColumnDef } from '@/components/ui/data-table'
 import { OrderEntryDialog } from '@/components/order-entry/OrderEntryDialog'
 import {
@@ -8,6 +9,8 @@ import {
   RemoveOrderItem,
 } from '@/components/order-entry/OrderEntryFields'
 import { OrderItemsTable } from '@/components/order-entry/OrderItemsTable'
+import { OrderLineAmounts, OrderLineDiscount } from '@/components/order-entry/OrderLineDiscount'
+import { discountFields } from '@/lib/order-line-pricing'
 import {
   OrderProductCatalog,
   type OrderCatalogState,
@@ -18,13 +21,14 @@ import { SalesOrderTotals } from './SalesOrderTotals'
 import type {
   EditableSalesOrder,
   OrderFormValues,
-  OrderLine,
+  SalesOrderFormLine,
+  SalesOrderDraftProps,
 } from '@/features/crm/sales-order-entry.types'
 import type { Client } from '@/features/crm/clients.types'
 import type { InventoryItemResponse } from '@/features/products/products.types'
 import type { Warehouse } from '@/features/logistics/warehouses.types'
 import type { StockItem } from '@/features/logistics/stock-items.types'
-import { formatOrderCurrency, lineSubtotal } from '@/lib/order-amounts'
+import { formatOrderCurrency } from '@/lib/order-amounts'
 import { priceError, quantityError } from '@/lib/order-entry.schema'
 
 export type {
@@ -33,20 +37,21 @@ export type {
   OrderStatus,
 } from '@/features/crm/sales-order-entry.types'
 
-type OrderModalProps = OrderSubmissionProps<OrderFormValues> & {
-  open: boolean
-  onClose: () => void
-  clients: Client[]
-  products: InventoryItemResponse[]
-  warehouses?: Warehouse[]
-  stockItems?: StockItem[]
-  catalogState?: OrderCatalogState
-  cashier: string
-  order?: EditableSalesOrder
-  onNavigateToPurchases?: () => void
-  onNavigateToDeliveries?: () => void
-  onNavigateToInventory?: () => void
-}
+type OrderModalProps = OrderSubmissionProps<OrderFormValues> &
+  SalesOrderDraftProps & {
+    open: boolean
+    onClose: () => void
+    clients: Client[]
+    products: InventoryItemResponse[]
+    warehouses?: Warehouse[]
+    stockItems?: StockItem[]
+    catalogState?: OrderCatalogState
+    cashier: string
+    order?: EditableSalesOrder
+    onNavigateToPurchases?: () => void
+    onNavigateToDeliveries?: () => void
+    onNavigateToInventory?: () => void
+  }
 
 export function OrderModal({
   open,
@@ -61,26 +66,30 @@ export function OrderModal({
   catalogState,
   cashier,
   order,
+  draftOrder,
+  onUpdateDraft,
+  onLoadLatest,
 }: OrderModalProps) {
   const form = useSalesOrderEntry({
     clients,
     products,
     cashier,
     order,
+    draftOrder,
+    onUpdateDraft,
+    onLoadLatest,
     onSubmit,
     onConfirm,
     onConfirmed,
     savedDraft,
     onClose,
   })
-  const columns: ColumnDef<OrderLine>[] = [
+  const columns: ColumnDef<SalesOrderFormLine>[] = [
     {
       id: 'product',
       header: 'Product',
       className: 'order-entry-product',
-      cell: ({ row }) => (
-        <ProductIdentity name={row.name} variety={row.variety} unit={row.unit} />
-      ),
+      cell: ({ row }) => <ProductIdentity name={row.name} variety={row.variety} unit={row.unit} />,
     },
     {
       id: 'quantity',
@@ -88,15 +97,26 @@ export function OrderModal({
       align: 'right',
       width: 100,
       cell: ({ row }) => (
-        <OrderDecimalInput
-          mobileLabel="Quantity"
-          id={`order-quantity-${row.productId}`}
-          aria-label={`Quantity for ${row.name}`}
-          value={row.quantity}
-          aria-invalid={!!quantityError(row.quantity)}
-          ref={(input) => form.focus.quantityRef(row.productId, input)}
-          onChange={(event) => form.updateLine(row.productId, 'quantity', event.target.value)}
-        />
+        <>
+          <OrderDecimalInput
+            mobileLabel="Quantity"
+            id={`order-quantity-${row.formId}`}
+            aria-label={`Quantity for ${row.name}`}
+            value={row.quantity}
+            placeholder="0"
+            aria-describedby={
+              quantityError(row.quantity) ? `order-quantity-error-${row.formId}` : undefined
+            }
+            aria-invalid={!!quantityError(row.quantity)}
+            ref={(input) => form.focus.quantityRef(row.formId, input)}
+            onChange={(event) => form.updateLine(row.formId, 'quantity', event.target.value)}
+          />
+          {quantityError(row.quantity) && (
+            <p id={`order-quantity-error-${row.formId}`} className="mt-1 text-xs text-destructive">
+              {quantityError(row.quantity)}
+            </p>
+          )}
+        </>
       ),
     },
     {
@@ -105,40 +125,51 @@ export function OrderModal({
       align: 'right',
       width: 130,
       cell: ({ row }) => (
-        <OrderDecimalInput
-          currency
-          mobileLabel="Unit Price"
-          aria-label={`Unit price for ${row.name}`}
-          value={row.unitPrice}
-          aria-invalid={!!priceError(row.unitPrice)}
-          onChange={(event) => form.updateLine(row.productId, 'unitPrice', event.target.value)}
-        />
-      ),
-    },
-    {
-      id: 'subtotal',
-      header: 'Subtotal',
-      width: 116,
-      align: 'right',
-      cell: ({ row }) => (
         <>
-          <span aria-hidden="true" className="order-entry-mobile-label">
-            Subtotal
-          </span>
-          <span className="tabular-nums">
-            {formatOrderCurrency(lineSubtotal(row.quantity, row.unitPrice))}
-          </span>
+          <OrderDecimalInput
+            currency
+            mobileLabel="Unit Price"
+            aria-label={`Unit price for ${row.name}`}
+            id={`order-price-${row.formId}`}
+            value={row.unitPrice}
+            aria-invalid={!!priceError(row.unitPrice)}
+            aria-describedby={
+              priceError(row.unitPrice) ? `order-price-error-${row.formId}` : undefined
+            }
+            onChange={(event) => form.updateLine(row.formId, 'unitPrice', event.target.value)}
+          />
+          {priceError(row.unitPrice) && (
+            <p id={`order-price-error-${row.formId}`} className="mt-1 text-xs text-destructive">
+              {priceError(row.unitPrice)}
+            </p>
+          )}
         </>
       ),
     },
     {
+      id: 'discount',
+      header: 'Line Discount',
+      width: 148,
+      cell: ({ row }) => <OrderLineDiscount id={`order-discount-${row.formId}`} name={row.name}
+        value={row.discount} line={row} fixedDisabled={form.editing}
+        onChange={(discount) => form.updateDiscount(row.formId, discount)} />,
+    },
+    {
+      id: 'subtotal',
+      header: 'Amounts',
+      width: 140,
+      align: 'right',
+      cell: ({ row }) => <OrderLineAmounts line={{ ...row, ...discountFields(row.discount) }}
+        saved={form.submission.savedOrder?.items?.[form.lines.findIndex((line) => line.formId === row.formId)]} />,
+    },
+    {
       id: 'remove',
       header: 'Remove',
-      width: 64,
+      width: 48,
       align: 'right',
       className: 'order-entry-remove',
       cell: ({ row }) => (
-        <RemoveOrderItem name={row.name} onRemove={() => form.removeLine(row.productId)} />
+        <RemoveOrderItem name={row.name} onRemove={() => form.removeLine(row.formId)} />
       ),
     },
   ]
@@ -147,19 +178,27 @@ export function OrderModal({
       open={open}
       onClose={onClose}
       onSubmit={form.submit}
-      title={savedDraft ? 'Confirm Sales Order' : 'Create Sales Order'}
+      title={
+        savedDraft
+          ? 'Confirm Sales Order'
+          : draftOrder
+            ? `Edit Draft ${draftOrder.orderNumber}`
+            : 'Create Sales Order'
+      }
       description="Choose a customer, add products, and review the order."
       submission={form.submission}
       busy={form.busy}
       error={form.error}
       errorFocusId={form.errorFocusId}
       itemCount={form.lines.length}
+      submitDisabled={form.submitDisabled}
+      readOnly={form.submitDisabled && !form.conflict}
       catalog={(returnToEditor) => (
         <OrderProductCatalog
           products={products}
           stockItems={stockItems}
           state={catalogState}
-          busy={form.submission.locked}
+          busy={form.submission.locked || (form.submitDisabled && !form.conflict)}
           sales
           onAdd={(product) => {
             form.addProduct(product)
@@ -170,6 +209,86 @@ export function OrderModal({
     >
       {(openCatalog) => (
         <>
+          {form.conflict && (
+            <Alert>
+              <AlertDescription className="flex flex-col gap-3">
+                {form.conflict.loading ? (
+                  <p role="status">Loading the latest server version…</p>
+                ) : form.conflict.error ? (
+                  <>
+                    <p>{form.conflict.error}</p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => void form.fetchLatestDraft()}
+                    >
+                      Retry loading latest version
+                    </Button>
+                  </>
+                ) : (
+                  form.conflict.latest && (
+                    <>
+                      <details>
+                        <summary className="cursor-pointer font-medium">
+                          Review latest server values (revision {form.conflict.latest.revision})
+                        </summary>
+                        <dl className="mt-2 grid gap-2 text-sm">
+                          <div>
+                            <dt>Customer</dt>
+                            <dd>
+                              {clients.find(
+                                (client) => client.id === form.conflict?.latest?.clientId,
+                              )?.name ?? `Customer #${form.conflict.latest.clientId}`}
+                            </dd>
+                          </div>
+                          <div>
+                            <dt>Status</dt>
+                            <dd>{form.conflict.latest.status}</dd>
+                          </div>
+                          <div>
+                            <dt>Delivery address</dt>
+                            <dd>{form.conflict.latest.deliveryAddress}</dd>
+                          </div>
+                          <div>
+                            <dt>Expected date</dt>
+                            <dd>{form.conflict.latest.expectedAt?.slice(0, 10) ?? 'Not set'}</dd>
+                          </div>
+                          <div>
+                            <dt>Reference</dt>
+                            <dd>{form.conflict.latest.externalReference || 'Not set'}</dd>
+                          </div>
+                          <div>
+                            <dt>Notes</dt>
+                            <dd className="whitespace-pre-wrap wrap-break-word">
+                              {form.conflict.latest.notes || 'Not set'}
+                            </dd>
+                          </div>
+                          {form.conflict.latest.items.map((item) => (
+                            <div key={item.id}>
+                              <dt>
+                                {products.find((product) => product.id === item.inventoryItemId)
+                                  ?.name ?? `Product #${item.inventoryItemId}`}
+                              </dt>
+                              <dd>
+                                {item.quantity} × {formatOrderCurrency(item.unitPrice)}
+                              </dd>
+                            </div>
+                          ))}
+                        </dl>
+                      </details>
+                      <p>
+                        Your edits below remain unsaved. Reloading replaces them with the server
+                        values.
+                      </p>
+                      <Button type="button" variant="outline" onClick={form.reloadLatestDraft}>
+                        Reload latest draft and discard my edits
+                      </Button>
+                    </>
+                  )
+                )}
+              </AlertDescription>
+            </Alert>
+          )}
           <SalesOrderCustomerInformation clients={clients} cashier={cashier} form={form} />
           <section aria-label="Sales order items" className="flex min-w-0 flex-col gap-2">
             <div className="flex items-center justify-between gap-2">
@@ -185,12 +304,13 @@ export function OrderModal({
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">
-              Quantities and prices support two decimal places.
+              Discounts apply to each entire line. VAT is calculated after the discount.
             </p>
+            {form.editing && <p className="text-xs text-muted-foreground">Fixed discounts are not available for draft line changes yet. Header fields can be updated without replacing saved lines.</p>}
             <OrderItemsTable
               data={form.lines}
               columns={columns}
-              getRowKey={(line) => line.productId}
+              getRowKey={(line) => line.formId}
             />
           </section>
           <SalesOrderTotals form={form} />

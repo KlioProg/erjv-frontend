@@ -19,7 +19,7 @@ export function SalesOrderCancelModal({
         await onConfirm(order.id)
       }}
       title="Cancel Sales Order"
-      description="Cancel this sales order? Any reserved stock will be released. Physical stock will not change."
+      description="Cancel this sales order? Physical stock will not change. Orders with active deliveries or stock movements cannot be cancelled."
       itemName={order.orderNumber}
       confirmText="Cancel Order"
       cancelText="Keep Order"
