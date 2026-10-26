@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils'
 
 type SearchableDropdownProps<T> = {
   id?: string
+  disabled?: boolean
   onCreateValue?: (value: string) => void
   maxCustomLength?: number
   options: T[]
@@ -36,6 +37,7 @@ type SearchableDropdownProps<T> = {
 
 export function SearchableDropdown<T>({
   id,
+  disabled = false,
   onCreateValue,
   maxCustomLength = 100,
   options,
@@ -63,7 +65,7 @@ export function SearchableDropdown<T>({
   const customValue = query.trim().replace(/\s+/g, ' ')
   const exactMatch = options.find(
     (option) =>
-      getOptionLabel(option).trim().replace(/\s+/g, ' ').toLocaleLowerCase() ===
+      String(getOptionLabel(option) ?? '').trim().replace(/\s+/g, ' ').toLocaleLowerCase() ===
       customValue.toLocaleLowerCase(),
   )
   const tooLong = !!onCreateValue && customValue.length > maxCustomLength
@@ -76,7 +78,7 @@ export function SearchableDropdown<T>({
 
   const selectedOption = options.find((option) => getOptionValue(option) === value)
   const selectedLabel = selectedOption
-    ? getOptionLabel(selectedOption)
+    ? String(getOptionLabel(selectedOption) ?? placeholder)
     : onCreateValue && value
       ? value
       : placeholder
@@ -84,7 +86,7 @@ export function SearchableDropdown<T>({
     const normalizedQuery = query.trim().replace(/\s+/g, ' ').toLocaleLowerCase()
     if (!normalizedQuery) return options
     return options.filter((option) =>
-      getOptionSearchText(option)
+      String(getOptionSearchText(option) ?? '')
         .replace(/\s+/g, ' ')
         .toLocaleLowerCase()
         .includes(normalizedQuery),
@@ -93,7 +95,7 @@ export function SearchableDropdown<T>({
 
   return (
     <DropdownMenu
-      open={open}
+      open={open && !disabled}
       onOpenChange={(nextOpen) => {
         setOpen(nextOpen)
         if (nextOpen) setQuery('')
@@ -103,6 +105,7 @@ export function SearchableDropdown<T>({
         <DropdownMenuTrigger asChild>
           <Button
             id={id}
+            disabled={disabled}
             type="button"
             variant="outline"
             className={cn(

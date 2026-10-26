@@ -4,6 +4,7 @@ import { Trash2 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
+import { OverflowValue } from '@/components/ui/OverflowValue'
 
 export function OrderField({
   id,
@@ -86,16 +87,14 @@ export function ProductIdentity({
   variety?: string | null
   unit?: string | null
 }) {
-  const showVariety = variety && !name.toLocaleLowerCase().includes(variety.toLocaleLowerCase())
+  const showVariety = variety && !String(name ?? '').toLocaleLowerCase().includes(String(variety).toLocaleLowerCase())
   const secondary = [showVariety ? variety : null, formatProductUnit(unit)]
     .filter(Boolean)
     .join(' · ')
   return (
-    <div className="min-w-0 whitespace-normal">
-      <p title={name} className="text-sm font-medium leading-5 wrap-break-word">
-        {name}
-      </p>
-      {secondary && <p className="text-xs leading-4 text-muted-foreground">{secondary}</p>}
+    <div className="min-w-0 max-w-full">
+      <OverflowValue value={name} className="text-sm font-medium leading-5" />
+      {secondary && <OverflowValue value={secondary} className="text-xs leading-4 text-muted-foreground" />}
     </div>
   )
 }
@@ -114,7 +113,7 @@ export function ProductPickerOption({
   description?: string | null
 }) {
   const secondary = [
-    variety && !name.toLocaleLowerCase().includes(variety.toLocaleLowerCase()) ? variety : null,
+    variety && !String(name ?? '').toLocaleLowerCase().includes(String(variety).toLocaleLowerCase()) ? variety : null,
     formatProductUnit(unit),
     description,
     availability,
@@ -123,13 +122,9 @@ export function ProductPickerOption({
     .join(' · ')
   return (
     <span className="flex min-w-0 flex-col gap-0.5">
-      <span title={name} className="truncate text-sm font-medium">
-        {name}
-      </span>
+      <OverflowValue value={name} className="text-sm font-medium" />
       {secondary && (
-        <span title={secondary} className="truncate text-xs text-muted-foreground">
-          {secondary}
-        </span>
+        <OverflowValue value={secondary} className="text-xs text-muted-foreground" />
       )}
     </span>
   )

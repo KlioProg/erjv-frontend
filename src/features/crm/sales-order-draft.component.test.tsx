@@ -250,7 +250,7 @@ describe('sales draft integration', () => {
     expect(onClose).toHaveBeenCalledOnce()
   })
 
-  it('keeps independent form identities and blocks unverified fixed-discount draft replacement without losing edits', async () => {
+  it('keeps independent form identities and preserves fixed discounts on full draft replacement', async () => {
     const repeated = {
       ...draft,
       items: [
@@ -264,8 +264,12 @@ describe('sales draft integration', () => {
     expect(result.current.lines[0].quantity).toBe('2.00')
     expect(result.current.amounts?.total).toBe('534.98')
     await act(() => result.current.submit(submitEvent()))
-    expect(onUpdateDraft).not.toHaveBeenCalled()
-    expect(result.current.error).toContain('Fixed line discounts cannot be saved on Sales Order drafts yet')
+    expect(onUpdateDraft).toHaveBeenCalledOnce()
+    const payload = onUpdateDraft.mock.calls[0][1]
+    expect(payload.expectedRevision).toBe(repeated.revision)
+    expect(payload.items).toHaveLength(2)
+    expect(payload.items[1]).toMatchObject({ quantity: '3', discountAmount: '12.34' })
+    expect(payload.items[1]).not.toHaveProperty('discountRate')
     expect(result.current.lines[1].quantity).toBe('3')
     expect(result.current.lines[1].discount.peso).toBe('12.34')
   })

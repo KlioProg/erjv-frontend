@@ -64,7 +64,7 @@ export function extractArray<T = Record<string, unknown>>(data: unknown): T[] {
     if (Array.isArray(obj.clients)) return obj.clients as T[]
     if (Array.isArray(obj.products)) return obj.products as T[]
   }
-  return []
+  throw new Error('The server returned an incomplete list. Refresh this view and try again.')
 }
 
 // Helper to transform any raw error string, status code or message into clean, human-friendly text
@@ -194,6 +194,10 @@ export function humanizeErrorMessage(raw: string, status?: number): string {
   }
 
   // 10. Clean up raw validation messages (capitalize first letter, ensure period at end)
+  if (lower.includes('numeric string is expected')) {
+    return 'This record could not be opened. Refresh the page and try again. If the problem continues, contact your administrator.'
+  }
+
   const trimmed = raw.trim()
   if (trimmed.length > 0) {
     const formatted = trimmed.charAt(0).toUpperCase() + trimmed.slice(1)

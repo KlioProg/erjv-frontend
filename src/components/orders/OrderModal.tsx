@@ -95,7 +95,7 @@ export function OrderModal({
       id: 'quantity',
       header: 'Quantity',
       align: 'right',
-      width: 100,
+      width: 132,
       cell: ({ row }) => (
         <>
           <OrderDecimalInput
@@ -123,7 +123,7 @@ export function OrderModal({
       id: 'price',
       header: 'Unit Price',
       align: 'right',
-      width: 130,
+      width: 112,
       cell: ({ row }) => (
         <>
           <OrderDecimalInput
@@ -148,26 +148,27 @@ export function OrderModal({
     },
     {
       id: 'discount',
-      header: 'Line Discount',
-      width: 148,
+      header: 'Discount',
+      width: 112,
       cell: ({ row }) => <OrderLineDiscount id={`order-discount-${row.formId}`} name={row.name}
-        value={row.discount} line={row} fixedDisabled={form.editing}
+        value={row.discount} line={row}
         onChange={(discount) => form.updateDiscount(row.formId, discount)} />,
     },
     {
       id: 'subtotal',
-      header: 'Amounts',
-      width: 140,
+      header: 'Line Total',
+      width: 112,
       align: 'right',
-      cell: ({ row }) => <OrderLineAmounts line={{ ...row, ...discountFields(row.discount) }}
+      cell: ({ row }) => <OrderLineAmounts name={row.name} line={{ ...row, ...discountFields(row.discount) }}
         saved={form.submission.savedOrder?.items?.[form.lines.findIndex((line) => line.formId === row.formId)]} />,
     },
     {
       id: 'remove',
       header: 'Remove',
-      width: 48,
+      width: 68,
       align: 'right',
       className: 'order-entry-remove',
+      headerClassName: 'order-entry-remove-header',
       cell: ({ row }) => (
         <RemoveOrderItem name={row.name} onRemove={() => form.removeLine(row.formId)} />
       ),
@@ -187,6 +188,7 @@ export function OrderModal({
       }
       description="Choose a customer, add products, and review the order."
       submission={form.submission}
+      hasUnsavedChanges={form.hasUnsavedChanges}
       busy={form.busy}
       error={form.error}
       errorFocusId={form.errorFocusId}

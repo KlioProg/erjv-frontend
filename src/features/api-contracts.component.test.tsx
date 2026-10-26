@@ -151,13 +151,11 @@ const creations = [
         purchaseOrderId: 2,
         warehouseId: 4,
         supplierReference: ' REF ',
-        items: [{ purchaseOrderItemId: 6, receivedQuantity: '0.50' }],
       }),
     body: {
       purchaseOrderId: 2,
       warehouseId: 4,
       supplierReference: 'REF',
-      items: [{ purchaseOrderItemId: 6, receivedQuantity: '0.50' }],
     },
   },
   {
@@ -167,12 +165,10 @@ const creations = [
       createOutgoingDeliveryApi({
         salesOrderId: 1,
         notes: ' Handle carefully ',
-        items: [{ salesOrderItemId: 8, stockItemId: 9, quantity: '0.50' }],
       }),
     body: {
       salesOrderId: 1,
       notes: 'Handle carefully',
-      items: [{ salesOrderItemId: 8, stockItemId: 9, quantity: '0.50' }],
     },
   },
 ]

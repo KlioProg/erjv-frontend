@@ -48,14 +48,11 @@
     border-left: 1px solid var(--border);
   }
 }
-.order-entry-dialog .order-entry-items > div {
-  overflow-x: visible;
-}
-.order-entry-dialog .order-entry-items > div > div {
-  overflow: visible;
-}
 .order-entry-dialog .order-entry-items table {
-  min-width: 0;
+  min-width: 720px;
+}
+.order-entry-items .order-entry-remove {
+  padding-inline: 12px;
 }
 .order-entry-dialog .order-entry-items td {
   white-space: normal;
@@ -68,6 +65,16 @@
   opacity: 0.5;
 }
 @media (min-width: 640px) {
+  .order-entry-items .order-entry-remove,
+  .order-entry-items .order-entry-remove-header {
+    position: sticky;
+    right: 0;
+    z-index: 1;
+    background: var(--card);
+  }
+  .order-entry-items .order-entry-remove-header {
+    background: var(--secondary);
+  }
   .order-entry-items tbody > tr:not(:has(td[colspan])) {
     height: 56px;
   }
@@ -92,10 +99,11 @@
   .order-entry-mobile-label {
     display: block;
   }
-  .order-entry-items table,
+  .order-entry-dialog .order-entry-items table,
   .order-entry-items tbody {
     display: block;
     width: 100%;
+    min-width: 0;
   }
   .order-entry-items thead {
     display: none;
@@ -114,7 +122,7 @@
   }
   .order-entry-items .order-entry-product {
     grid-column: 1 / -1;
-    padding-right: 40px !important;
+    padding-right: 56px !important;
   }
   .order-entry-items .order-entry-remove {
     position: absolute;

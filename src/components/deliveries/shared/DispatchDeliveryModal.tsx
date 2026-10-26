@@ -1,336 +1,302 @@
-import { useState, type FormEvent } from 'react'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+import { type FormEvent } from 'react'
+import { Truck, User, Send, MapPin } from 'lucide-react'
+import { DeliveryFormDialog, DeliveryFormFooter } from './DeliveryFormDialog'
+import { deliveryFormStyles as styles } from './delivery-form.styles'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { DataTable, type ColumnDef } from '@/components/ui/data-table'
+import { OverflowValue } from '@/components/ui/OverflowValue'
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Truck, User, Send, MapPin } from 'lucide-react'
-import type { OutgoingDeliveryRecord } from '@/features/logistics/outgoing-deliveries.types'
-import {
-  useDispatchOutgoingDelivery,
-  useOutgoingDeliveries,
-} from '@/features/logistics/outgoing-deliveries.hooks'
-import { useDeliveryVehicles } from '@/features/logistics/delivery-vehicles.hooks'
-import { useEmployees } from '@/features/staffing/staffing.hooks'
-import { useSalesOrders } from '@/features/crm/sales-orders.hooks'
-import { useClients } from '@/features/crm/clients.hooks'
-import { useWarehouses } from '@/features/logistics/warehouses.hooks'
-import { getErrorMessage } from '@/lib/api-client'
+import { useOutgoingDispatch } from '@/features/logistics/use-outgoing-dispatch'
+import type { DispatchPlanRow } from '@/features/logistics/outgoing-dispatch'
+import { formatStockCents, parseStockCents } from '@/features/logistics/stock-display'
 import { DeliveryUtils } from '@/features/logistics/delivery-utils'
 
 interface DispatchDeliveryModalProps {
-  delivery: OutgoingDeliveryRecord | null
+  deliveryId: number
   open: boolean
   onClose: () => void
 }
 
-export function DispatchDeliveryModal({ delivery, open, onClose }: DispatchDeliveryModalProps) {
-  const { data: vehicles = [] } = useDeliveryVehicles()
-  const { data: deliveries = [] } = useOutgoingDeliveries()
-  const { data: employees = [] } = useEmployees({ includeInactive: 'false' })
-  const { data: salesOrders = [] } = useSalesOrders()
-  const { data: clients = [] } = useClients()
-  const { data: warehouses = [] } = useWarehouses()
-  const dispatchMutation = useDispatchOutgoingDelivery()
-
-  const order = delivery ? salesOrders.find((o) => o.id === delivery.salesOrderId) : null
-  const client = order ? clients.find((c) => c.id === order.clientId) : null
-  const originWarehouses = delivery
-    ? [...new Set(
-        delivery.items.map((item) => {
-          const warehouseId = item.stockItem?.warehouseId
-          return warehouseId === undefined
-            ? 'Warehouse unavailable'
-            : warehouses.find((warehouse) => warehouse.id === warehouseId)?.name ??
-                `Warehouse #${warehouseId}`
-        }),
-      )]
-    : []
-
-  const [selectedVehicleId, setSelectedVehicleId] = useState<string>(() =>
-    delivery?.deliveryVehicleId ? String(delivery.deliveryVehicleId) : '',
-  )
-  const [selectedDriverId, setSelectedDriverId] = useState<string>(() =>
-    delivery?.driverEmployeeId ? String(delivery.driverEmployeeId) : '',
-  )
-  const [errorMessage, setErrorMessage] = useState<string>('')
-  const [prevDeliveryId, setPrevDeliveryId] = useState<number | null>(delivery?.id ?? null)
-
-  // Sync state during render when selected delivery changes
-  if (delivery && delivery.id !== prevDeliveryId) {
-    setPrevDeliveryId(delivery.id)
-    setSelectedVehicleId(delivery.deliveryVehicleId ? String(delivery.deliveryVehicleId) : '')
-    setSelectedDriverId(delivery.driverEmployeeId ? String(delivery.driverEmployeeId) : '')
-    setErrorMessage('')
-  }
-
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault()
-    if (dispatchMutation.isPending) return
-    setErrorMessage('')
-
-    if (!delivery || delivery.status !== 'SCHEDULED') {
-      setErrorMessage('Only a scheduled delivery can be dispatched.')
-      return
-    }
-
-    const vehicleIdNum = parseInt(selectedVehicleId, 10)
-    const driverIdNum = parseInt(selectedDriverId, 10)
-
-    if (isNaN(vehicleIdNum) || vehicleIdNum <= 0) {
-      setErrorMessage('Please assign an available delivery vehicle for transit.')
-      return
-    }
-
-    if (isNaN(driverIdNum) || driverIdNum <= 0) {
-      setErrorMessage('Please assign an active driver or logistics officer.')
-      return
-    }
-
-    const vehicle = vehicles.find((vehicle) => vehicle.id === vehicleIdNum)
-    if (
-      !vehicle ||
-      !DeliveryUtils.getVehicleAvailability(vehicle, deliveries, delivery.id).isAvailable
-    ) {
-      setErrorMessage('This vehicle is no longer available. Choose another vehicle.')
-      return
-    }
-    const driver = employees.find((employee) => employee.id === driverIdNum)
-    if (
-      !driver ||
-      !DeliveryUtils.getDriverAvailability(driver, deliveries, delivery.id).isAvailable
-    ) {
-      setErrorMessage('This driver is no longer available. Choose another driver.')
-      return
-    }
-
-    try {
-      await dispatchMutation.mutateAsync({
-        id: delivery.id,
-        payload: {
-          deliveryVehicleId: vehicleIdNum,
-          driverEmployeeId: driverIdNum,
-        },
-      })
-      onClose()
-    } catch (err) {
-      setErrorMessage(getErrorMessage(err))
-    }
-  }
-
-  return (
-    <Dialog
-      open={open}
-      onOpenChange={(isOpen) => !isOpen && !dispatchMutation.isPending && onClose()}
-    >
-      <DialogContent
-        closeDisabled={dispatchMutation.isPending}
-        className="sm:max-w-lg max-h-[calc(100svh-2rem)] overflow-y-auto gap-5 p-6"
-      >
-        <DialogHeader className="pb-1">
-          <DialogTitle className="text-xl font-semibold tracking-tight">
-            Dispatch Shipment to Transit
-          </DialogTitle>
-          <DialogDescription className="text-xs">
-            Assign the fleet vehicle and driver for delivery shipment{' '}
-            <span className="tabular-nums font-medium text-foreground">
-              {delivery?.deliveryNumber}
-            </span>
-            .
-          </DialogDescription>
-        </DialogHeader>
-
-        {errorMessage && (
-          <Alert variant="destructive">
-            <AlertDescription>{errorMessage}</AlertDescription>
-          </Alert>
-        )}
-
-        {delivery && (
-          <div className="flex items-start gap-3 p-4 rounded-md bg-secondary text-sm">
-            <MapPin className="size-4 text-primary shrink-0 mt-0.5" />
-            <div className="flex flex-col min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="font-medium text-foreground text-sm">
-                  {client?.name || `Customer #${delivery.salesOrderId}`}
-                </span>
-                <span className="text-xs tabular-nums text-muted-foreground">
-                  Order #{order?.orderNumber || delivery.salesOrderId}
-                </span>
-              </div>
-              <span className="text-foreground text-sm mt-0.5">
-                {order?.deliveryAddress || 'Client Destination Address'}
-              </span>
-              <span className="text-xs text-muted-foreground mt-1">
-                Origin: {originWarehouses.join(', ') || 'Warehouse unavailable'} •{' '}
-                {delivery.items.length} items to transport
-              </span>
-            </div>
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <fieldset disabled={dispatchMutation.isPending} className="flex min-w-0 flex-col gap-4">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="dispatch-vehicle" className="text-[13px] font-medium">
-                Available Delivery Vehicle <span className="text-primary">*</span>
-              </Label>
-              <Select value={selectedVehicleId} onValueChange={setSelectedVehicleId}>
-                <SelectTrigger id="dispatch-vehicle" className="h-10 text-[13px]">
-                  <SelectValue placeholder="Choose available vehicle" />
-                </SelectTrigger>
-                <SelectContent>
-                  {vehicles.length === 0 ? (
-                    <SelectItem value="none" disabled>
-                      No vehicles registered in fleet
-                    </SelectItem>
-                  ) : (
-                    vehicles.map((v) => {
-                      const avail = DeliveryUtils.getVehicleAvailability(
-                        v,
-                        deliveries,
-                        delivery?.id,
-                      )
-                      return (
-                        <SelectItem
-                          key={v.id}
-                          value={String(v.id)}
-                          disabled={!avail.isAvailable}
-                          className={
-                            !avail.isAvailable ? 'opacity-50 cursor-not-allowed bg-secondary' : ''
-                          }
-                        >
-                          <div className="flex items-center justify-between w-full gap-3">
-                            <span className="flex items-center gap-2">
-                              <Truck className="size-3.5 text-muted-foreground" />
-                              <span
-                                className={
-                                  avail.isAvailable
-                                    ? 'font-medium text-foreground'
-                                    : 'text-muted-foreground'
-                                }
-                              >
-                                {v.plateNumber}
-                              </span>
-                              <span className="text-muted-foreground text-xs">
-                                ({v.vehicleType}
-                                {v.model ? ` • ${v.model}` : ''})
-                              </span>
-                            </span>
-                            {avail.isAvailable ? (
-                              <span className="text-xs text-status-success-foreground font-medium flex items-center gap-1 shrink-0">
-                                <span className="size-1.5 rounded-full bg-status-success-foreground" />
-                                Ready
-                              </span>
-                            ) : (
-                              <span className="text-xs font-medium text-status-warning-foreground bg-status-warning px-1.5 py-0.5 rounded shrink-0">
-                                {avail.reason}
-                              </span>
-                            )}
-                          </div>
-                        </SelectItem>
-                      )
-                    })
-                  )}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                Dispatching will set this vehicle's status to{' '}
-                <span className="font-semibold text-status-warning-foreground">IN_DELIVERY</span>.
+export function DispatchDeliveryModal({ deliveryId, open, onClose }: DispatchDeliveryModalProps) {
+  const form = useOutgoingDispatch(deliveryId, onClose)
+  const readOnly = !form.canSubmit
+  const columns: ColumnDef<DispatchPlanRow>[] = [
+    {
+      id: 'product',
+      header: 'Product',
+      width: '34%',
+      cell: ({ row }) => (
+        <div className="flex min-w-0 flex-col gap-1">
+          <OverflowValue value={row.productName} className="font-medium" />
+          <OverflowValue value={row.unit} className="text-xs text-muted-foreground" />
+        </div>
+      ),
+    },
+    ...(
+      [
+        ['plannedQuantity', 'Planned'],
+        ['availableQuantity', 'Available'],
+      ] as const
+    ).map(([field, header]): ColumnDef<DispatchPlanRow> => ({
+      id: field,
+      header,
+      align: 'right',
+      width: '18%',
+      cell: ({ row }) => (
+        <OverflowValue
+          value={formatStockCents(parseStockCents(row[field]))}
+          tooltipSuffix={row.unit}
+          className="text-right tabular-nums"
+        />
+      ),
+    })),
+    {
+      id: 'loaded',
+      header: 'Actual Loaded',
+      width: '30%',
+      cell: ({ row }) => {
+        const error = form.lineErrors[row.salesOrderItemId]
+        const errorId = `dispatch-load-error-${row.salesOrderItemId}`
+        return (
+          <div className="flex min-w-0 flex-col gap-1.5">
+            <Input
+              type="text"
+              inputMode="decimal"
+              placeholder="Enter quantity"
+              value={form.quantities[row.salesOrderItemId] ?? ''}
+              onChange={(event) => form.setQuantity(row.salesOrderItemId, event.target.value)}
+              disabled={readOnly}
+              aria-label={`Actual loaded quantity for ${row.productName}`}
+              aria-invalid={!!error}
+              aria-describedby={error ? errorId : 'dispatch-load-help'}
+              className="h-10 min-w-0 tabular-nums"
+            />
+            {error && (
+              <p id={errorId} role="alert" className="whitespace-normal text-xs text-destructive">
+                {error}
               </p>
-            </div>
-
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="dispatch-driver" className="text-[13px] font-medium">
-                Assigned Driver / Logistics Officer <span className="text-primary">*</span>
-              </Label>
-              <Select value={selectedDriverId} onValueChange={setSelectedDriverId}>
-                <SelectTrigger id="dispatch-driver" className="h-10 text-[13px]">
-                  <SelectValue placeholder="Choose active personnel" />
-                </SelectTrigger>
-                <SelectContent>
-                  {employees.map((e) => {
-                    const avail = DeliveryUtils.getDriverAvailability(e, deliveries, delivery?.id)
-                    return (
-                      <SelectItem
-                        key={e.id}
-                        value={String(e.id)}
-                        disabled={!avail.isAvailable}
-                        className={
-                          !avail.isAvailable ? 'opacity-50 cursor-not-allowed bg-secondary' : ''
-                        }
-                      >
-                        <div className="flex items-center justify-between w-full gap-3">
-                          <span className="flex items-center gap-2">
-                            <User className="size-3.5 text-muted-foreground" />
-                            <span
-                              className={
-                                avail.isAvailable
-                                  ? 'font-semibold text-foreground'
-                                  : 'text-muted-foreground'
-                              }
-                            >
-                              {e.firstName} {e.lastName}
+            )}
+          </div>
+        )
+      },
+    },
+  ]
+  const submit = (event: FormEvent) => {
+    event.preventDefault()
+    void form.submit()
+  }
+  return (
+    <DeliveryFormDialog
+      open={open}
+      onClose={onClose}
+      busy={form.busy}
+      title="Dispatch Shipment to Transit"
+      description={`Confirm the goods physically loaded, then assign a vehicle and driver${form.delivery ? ` for ${form.delivery.deliveryNumber}` : ''}. Dispatch reserves the confirmed loaded quantity.`}
+    >
+      <form onSubmit={submit} className={styles.form}>
+        <div className={styles.body}>
+          <div className={styles.fields}>
+            {form.error && (
+              <Alert variant="destructive">
+                <AlertDescription>{form.error}</AlertDescription>
+              </Alert>
+            )}
+            {form.loading && (
+              <p role="status" className="text-sm text-muted-foreground">
+                Loading saved shipment and current warehouse stock…
+              </p>
+            )}
+            {form.delivery && (
+              <div className="flex min-w-0 items-start gap-3 rounded-md bg-secondary p-4 text-sm">
+                <MapPin aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-primary" />
+                <div className="flex min-w-0 flex-1 flex-col gap-1">
+                  <OverflowValue
+                    value={
+                      form.client?.name ??
+                      (form.order ? `Customer #${form.order.clientId}` : 'Customer unavailable')
+                    }
+                    className="font-medium"
+                  />
+                  <OverflowValue
+                    value={form.order?.orderNumber ?? 'Sales order unavailable'}
+                    className="text-xs text-muted-foreground"
+                  />
+                  <OverflowValue value={form.order?.deliveryAddress || 'Destination unavailable'} />
+                  <div className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
+                    <span>Origin:</span>
+                    <OverflowValue value={form.warehouse?.name ?? 'Warehouse unavailable'} />
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {form.delivery.plannedItems?.length ?? 0} planned product{' '}
+                    {form.delivery.plannedItems?.length === 1 ? 'line' : 'lines'}
+                  </p>
+                </div>
+              </div>
+            )}
+            {form.rows.length > 0 && (
+              <section aria-label="Confirm actual loading" className="flex min-w-0 flex-col gap-2">
+                <h2 className={styles.sectionTitle}>Confirm actual loading</h2>
+                <p id="dispatch-load-help" className="text-xs text-muted-foreground">
+                  Enter the actual quantity loaded for each product. Partial loading is allowed;
+                  leave a line blank or enter zero to skip it.
+                </p>
+                <DataTable
+                  data={form.rows}
+                  columns={columns}
+                  getRowKey={(row) => row.salesOrderItemId}
+                  pagination={false}
+                  className="shrink-0"
+                  tableClassName="min-w-[640px] w-full table-fixed"
+                />
+              </section>
+            )}
+            <fieldset disabled={readOnly} className={styles.grid}>
+              <div className={styles.field}>
+                <Label htmlFor="dispatch-vehicle" className={styles.label}>
+                  Available Delivery Vehicle{' '}
+                  <span aria-hidden="true" className="text-primary">
+                    *
+                  </span>
+                </Label>
+                <Select
+                  value={form.vehicleId}
+                  onValueChange={form.setVehicleId}
+                  disabled={readOnly}
+                >
+                  <SelectTrigger id="dispatch-vehicle" className={styles.control}>
+                    <SelectValue placeholder="Choose available vehicle" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      {form.vehicles.length === 0 && (
+                        <SelectItem value="none" disabled>
+                          No vehicles registered in fleet
+                        </SelectItem>
+                      )}
+                      {form.vehicles.map((vehicle) => {
+                        const availability = DeliveryUtils.getVehicleAvailability(
+                          vehicle,
+                          form.deliveries,
+                          deliveryId,
+                        )
+                        return (
+                          <SelectItem
+                            key={vehicle.id}
+                            value={String(vehicle.id)}
+                            disabled={!availability.isAvailable}
+                          >
+                            <span className="flex min-w-0 items-center gap-2">
+                              <Truck
+                                aria-hidden="true"
+                                className="size-3.5 shrink-0 text-muted-foreground"
+                              />
+                              <OverflowValue
+                                value={`${vehicle.plateNumber} (${vehicle.vehicleType}${vehicle.model ? ` · ${vehicle.model}` : ''})`}
+                              />
+                              <span className="shrink-0 text-xs text-muted-foreground">
+                                {availability.isAvailable ? 'Ready' : availability.reason}
+                              </span>
                             </span>
-                            {e.phone && (
-                              <span className="text-muted-foreground text-xs">({e.phone})</span>
-                            )}
-                          </span>
-                          {avail.isAvailable ? (
-                            <span className="text-xs text-status-success-foreground font-medium flex items-center gap-1 shrink-0">
-                              <span className="size-1.5 rounded-full bg-status-success-foreground" />
-                              Available
+                          </SelectItem>
+                        )
+                      })}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className={styles.field}>
+                <Label htmlFor="dispatch-driver" className={styles.label}>
+                  Assigned Driver / Logistics Officer{' '}
+                  <span aria-hidden="true" className="text-primary">
+                    *
+                  </span>
+                </Label>
+                <Select value={form.driverId} onValueChange={form.setDriverId} disabled={readOnly}>
+                  <SelectTrigger id="dispatch-driver" className={styles.control}>
+                    <SelectValue placeholder="Choose active personnel" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      {form.employees.length === 0 && (
+                        <SelectItem value="none" disabled>
+                          No active personnel available
+                        </SelectItem>
+                      )}
+                      {form.employees.map((employee) => {
+                        const availability = DeliveryUtils.getDriverAvailability(
+                          employee,
+                          form.deliveries,
+                          deliveryId,
+                        )
+                        return (
+                          <SelectItem
+                            key={employee.id}
+                            value={String(employee.id)}
+                            disabled={!availability.isAvailable}
+                          >
+                            <span className="flex min-w-0 items-center gap-2">
+                              <User
+                                aria-hidden="true"
+                                className="size-3.5 shrink-0 text-muted-foreground"
+                              />
+                              <OverflowValue value={`${employee.firstName} ${employee.lastName}`} />
+                              <span className="shrink-0 text-xs text-muted-foreground">
+                                {availability.isAvailable ? 'Available' : availability.reason}
+                              </span>
                             </span>
-                          ) : (
-                            <span className="text-xs font-medium text-status-warning-foreground bg-status-warning px-1.5 py-0.5 rounded shrink-0">
-                              {avail.reason}
-                            </span>
-                          )}
-                        </div>
-                      </SelectItem>
-                    )
-                  })}
-                </SelectContent>
-              </Select>
-            </div>
-          </fieldset>
-          <p className="text-xs text-muted-foreground">
-            Dispatching marks this shipment as in transit and makes the selected vehicle
-            unavailable. Physical stock is deducted when delivery is completed.
-          </p>
-          <DialogFooter className="mt-2 gap-2 sm:gap-2">
+                          </SelectItem>
+                        )
+                      })}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </div>
+            </fieldset>
+            <p className="text-xs text-muted-foreground">
+              Dispatch reserves the quantities you confirm and makes the selected vehicle
+              unavailable. Physical stock is deducted when delivery is completed.
+            </p>
             <Button
               type="button"
-              variant="outline"
-              onClick={onClose}
-              disabled={dispatchMutation.isPending}
+              variant="link"
+              className="self-start"
+              disabled={form.busy || form.fetching}
+              onClick={() => void form.refresh()}
             >
-              Cancel
+              Refresh shipment
             </Button>
-            <Button
-              type="submit"
-              disabled={dispatchMutation.isPending || !selectedVehicleId || !selectedDriverId}
-              className="font-medium gap-1.5"
-            >
-              <Send className="size-3.5" />
-              {dispatchMutation.isPending ? 'Dispatching...' : 'Dispatch Shipment'}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+          </div>
+        </div>
+        <DeliveryFormFooter>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onClose}
+            disabled={form.busy}
+            className={styles.button}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            disabled={!form.canSubmit || !form.vehicleId || !form.driverId}
+            className={styles.button}
+          >
+            <Send aria-hidden="true" className="size-3.5" />
+            {form.refreshing ? 'Refreshing…' : form.busy ? 'Dispatching…' : 'Dispatch Shipment'}
+          </Button>
+        </DeliveryFormFooter>
+      </form>
+    </DeliveryFormDialog>
   )
 }

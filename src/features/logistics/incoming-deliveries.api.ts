@@ -1,6 +1,8 @@
 import { apiClient, extractArray } from '@/lib/api-client'
+import { parseStockCents } from './stock-display'
 import type {
   CreateIncomingDeliveryPayload,
+  CompleteIncomingDeliveryPayload,
   IncomingDeliveryFilter,
   IncomingDeliveryRecord,
 } from './incoming-deliveries.types'
@@ -39,10 +41,6 @@ export async function createIncomingDeliveryApi(
       ? { supplierReference: payload.supplierReference.trim() }
       : {}),
     ...(payload.notes?.trim() ? { notes: payload.notes.trim() } : {}),
-    items: payload.items.map((item) => ({
-      purchaseOrderItemId: item.purchaseOrderItemId,
-      receivedQuantity: String(item.receivedQuantity),
-    })),
   }
 
   const { data } = await apiClient.post<IncomingDeliveryRecord>(
@@ -59,9 +57,43 @@ export async function scheduleIncomingDeliveryApi(id: number): Promise<IncomingD
   return data
 }
 
-export async function completeIncomingDeliveryApi(id: number): Promise<IncomingDeliveryRecord> {
+export async function completeIncomingDeliveryApi(
+  id: number,
+  payload: CompleteIncomingDeliveryPayload,
+): Promise<IncomingDeliveryRecord> {
+  if (!Array.isArray(payload.items))
+    throw new Error('Confirm the actual receipt before continuing.')
+  const reason = payload.noReceiptReason?.trim()
+  if ((payload.items.length === 0 && !reason) || (payload.items.length > 0 && reason))
+    throw new Error('Enter receipt quantities, or record no receipt with a reason.')
+  const seen = new Set<number>()
+  const items = payload.items.map((item) => {
+    const received = parseStockCents(item.receivedQuantity)
+    const damaged = parseStockCents(item.damagedQuantity)
+    if (
+      typeof item.receivedQuantity !== 'string' ||
+      typeof item.damagedQuantity !== 'string' ||
+      received === null ||
+      received <= 0n ||
+      damaged === null ||
+      damaged > received ||
+      !Number.isSafeInteger(item.purchaseOrderItemId) ||
+      item.purchaseOrderItemId <= 0 ||
+      seen.has(item.purchaseOrderItemId)
+    )
+      throw new Error(
+        'Check the received and damaged quantities. Each order line must appear once, and damage cannot exceed the quantity received.',
+      )
+    seen.add(item.purchaseOrderItemId)
+    return {
+      purchaseOrderItemId: item.purchaseOrderItemId,
+      receivedQuantity: item.receivedQuantity.trim(),
+      damagedQuantity: item.damagedQuantity.trim(),
+    }
+  })
   const { data } = await apiClient.patch<IncomingDeliveryRecord>(
     `/incoming-deliveries/${id}/complete`,
+    { items, ...(reason ? { noReceiptReason: reason } : {}) },
   )
   return data
 }

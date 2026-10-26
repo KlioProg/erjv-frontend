@@ -148,7 +148,7 @@ function OutgoingPlanningForm({
                 ? 'No planning capacity in this warehouse.'
                 : `Maximum ${formatQuantity(option.maximumPlannableQuantity)} ${product?.unit || 'units'}`
         return (
-          <div className="ml-auto flex min-w-36 max-w-56 flex-col gap-1.5">
+          <div className="ml-auto flex w-32 min-w-0 max-w-full flex-col gap-1.5">
             <Input
               id={`delivery-${field}`}
               aria-label={`Quantity to ship for ${product?.name || `Product #${row.inventoryItemId}`}`}
@@ -287,10 +287,12 @@ function OutgoingPlanningForm({
                       Load latest draft
                     </Button>
                   </>
-                ) : (
+                ) : savedDraft ? (
                   <Button type="button" variant="outline" onClick={() => void form.retryLatest()}>
                     Retry loading latest draft
                   </Button>
+                ) : (
+                  <p>Close this form and refresh Outgoing Deliveries to find the draft before creating another delivery.</p>
                 )}
                 {fieldError('review')}
               </section>

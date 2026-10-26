@@ -22,7 +22,6 @@ import type { Warehouse } from '@/features/logistics/warehouses.types'
 import { getErrorMessage } from '@/lib/api-client'
 import { stockConditionForItem, stockConditionRank } from '@/features/logistics/stock-warnings'
 import { StockIndicator } from '@/components/inventory/StockIndicator'
-import { StockStatusBadge } from '@/components/inventory/StockBalanceSummary'
 import { cn } from '@/lib/utils'
 import { QuarantinedStock } from '@/components/inventory/QuarantinedStock'
 
@@ -64,11 +63,15 @@ export function WarehouseInventory({
         )
       : rows
   }, [rows, search])
-  const totalStockCents = rows.some((row) => row.quantityCents === null)
-    ? null
-    : rows.reduce((sum, row) => sum + (row.quantityCents ?? 0n), 0n)
   const summaryMetrics = [
-    { label: 'Total stock', value: formatStockCents(totalStockCents), unit: 'units', icon: Boxes },
+    {
+      label: 'Stocked products',
+      value: rows.some((row) => row.quantityCents === null)
+        ? '—'
+        : rows.filter((row) => row.quantityCents! > 0n).length.toLocaleString(),
+      unit: 'products',
+      icon: Boxes,
+    },
     { label: 'Products', value: rows.length.toLocaleString(), unit: 'products', icon: Package },
   ]
 
@@ -77,7 +80,7 @@ export function WarehouseInventory({
       {
         id: 'product',
         header: 'Product',
-        width: '30%',
+        width: '26%',
         sortable: true,
         sortKey: (row) => row.stock.inventoryItem?.name ?? '',
         cell: ({ row }) => (
@@ -87,7 +90,7 @@ export function WarehouseInventory({
       {
         id: 'unit',
         header: 'Unit',
-        width: '10%',
+        width: 72,
         className: 'hidden sm:table-cell',
         headerClassName: 'hidden sm:table-cell',
         sortable: true,
@@ -102,7 +105,7 @@ export function WarehouseInventory({
       {
         id: 'quantity',
         header: 'Physical',
-        width: '15%',
+        width: 96,
         align: 'right',
         sortable: true,
         sortKey: (row) => stockSortKey(row.quantityCents),
@@ -122,7 +125,7 @@ export function WarehouseInventory({
       ).map(([field, label]): ColumnDef<StockRow> => ({
         id: field,
         header: label,
-        width: '15%',
+        width: 96,
         align: 'right',
         sortable: true,
         sortKey: (row) => stockSortKey(parseStockCents(row.stock[field])),
@@ -153,7 +156,6 @@ export function WarehouseInventory({
                   className="text-right text-sm font-normal tabular-nums"
                 />
               </div>
-              {field === 'availableQuantity' && <StockStatusBadge stock={row.stock} />}
             </div>
           )
         },
@@ -305,7 +307,7 @@ export function WarehouseInventory({
               }
               pageSizeOptions={[10, 25, 50, 100]}
               className="rounded-none border-0 shadow-none"
-              tableClassName="table-fixed min-w-[840px] w-full"
+              tableClassName="table-fixed min-w-[880px] w-full"
             />
           </>
         )}
@@ -313,8 +315,8 @@ export function WarehouseInventory({
       {quarantineStockId !== undefined && (
         <section aria-label="Warehouse quarantine lots" className="flex min-w-0 flex-col gap-3">
           <div className="flex items-center justify-between gap-2">
-            <h2 className="text-lg font-semibold">Quarantine lots · {warehouse.name}</h2>
-            <Button variant="ghost" onClick={() => setQuarantineStockId(undefined)}>
+            <h2 className="min-w-0 text-lg font-semibold"><OverflowValue value={`Quarantine lots: ${warehouse.name}`} /></h2>
+            <Button className="shrink-0" variant="ghost" onClick={() => setQuarantineStockId(undefined)}>
               Close quarantine view
             </Button>
           </div>

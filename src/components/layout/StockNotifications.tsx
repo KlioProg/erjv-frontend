@@ -280,8 +280,8 @@ export function StockNotifications({
         )}
         <DropdownMenuSeparator />
         <p className="px-2 py-2 text-xs text-muted-foreground">
-          Warnings use backend stock status. Quantities shown are available stock. Stock with an
-          unset threshold is shown separately in inventory locations.
+          Warnings use backend stock status. Quantities shown are available stock. Configure
+          low-stock thresholds in Inventory’s Stock Alert Settings.
         </p>
       </DropdownMenuContent>
     </DropdownMenu>

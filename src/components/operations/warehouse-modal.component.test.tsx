@@ -44,11 +44,28 @@ it('guards duplicate submissions while the warehouse name lookup is pending', as
   fireEvent.submit(form)
   fireEvent.submit(form)
   await waitFor(() => expect(requests).toEqual(['get /warehouses/name/Hub']))
+  await user.keyboard('{Escape}')
+  expect(onClose).not.toHaveBeenCalled()
   await act(async () => {
     finishLookup()
   })
   await waitFor(() => expect(onClose).toHaveBeenCalledOnce())
   expect(requests.filter((request) => request === 'post /warehouses')).toHaveLength(1)
+})
+
+it('keeps unsaved warehouse entries until discard is confirmed', async () => {
+  const onClose = vi.fn()
+  const queryClient = new QueryClient()
+  render(<QueryClientProvider client={queryClient}><WarehouseModal warehouse={null} open onClose={onClose} /></QueryClientProvider>)
+  const user = userEvent.setup()
+  await user.type(screen.getByLabelText(/Warehouse Name/), 'Unsaved Hub')
+  await user.keyboard('{Escape}')
+  expect(onClose).not.toHaveBeenCalled()
+  await user.click(screen.getByRole('button', { name: 'Keep Editing' }))
+  expect((screen.getByLabelText(/Warehouse Name/) as HTMLInputElement).value).toBe('Unsaved Hub')
+  await user.click(screen.getByRole('button', { name: 'Cancel' }))
+  await user.click(screen.getByRole('button', { name: 'Discard Changes' }))
+  expect(onClose).toHaveBeenCalledOnce()
 })
 
 it('keeps an archived warehouse restore failure visible and allows retry', async () => {

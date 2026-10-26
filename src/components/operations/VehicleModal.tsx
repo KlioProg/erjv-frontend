@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react'
+import { parseStockCents } from '@/features/logistics/stock-display'
 import { Hash, Gauge, Layers, RotateCcw } from 'lucide-react'
 import {
   Dialog,
@@ -132,7 +133,11 @@ function VehicleFormContent({
       return
     }
 
-    const parsedCap = capacity.trim() ? parseFloat(capacity) : null
+    const parsedCap = capacity.trim() ? parseStockCents(capacity) : null
+    if (capacity.trim() && (parsedCap === null || parsedCap > 999_999_999_999n)) {
+      setErrorMsg('Enter a non-negative capacity up to 9,999,999,999.99 with at most two decimal places.')
+      return
+    }
 
     try {
       if (isEditing && vehicle) {
@@ -142,7 +147,7 @@ function VehicleFormContent({
             plateNumber: plateNumber.trim().toUpperCase(),
             vehicleType: vehicleType.trim(),
             model: model.trim() || null,
-            capacity: parsedCap !== null && !isNaN(parsedCap) ? parsedCap.toFixed(2) : null,
+            capacity: capacity.trim() || null,
           },
         })
       } else {
@@ -150,7 +155,7 @@ function VehicleFormContent({
           plateNumber: plateNumber.trim().toUpperCase(),
           vehicleType: vehicleType.trim(),
           model: model.trim() || null,
-          capacity: parsedCap !== null && !isNaN(parsedCap) ? parsedCap.toFixed(2) : null,
+          capacity: capacity.trim() || null,
           status,
           isActive: true,
         })

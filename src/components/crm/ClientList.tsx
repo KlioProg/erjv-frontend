@@ -38,8 +38,8 @@ export function ClientList() {
   const query = searchTerm.trim().toLowerCase()
   const filteredClients = currentClientList.filter(
     (client) =>
-      client.name.toLowerCase().includes(query) ||
-      client.address.toLowerCase().includes(query) ||
+      String(client.name ?? '').toLowerCase().includes(query) ||
+      String(client.address ?? '').toLowerCase().includes(query) ||
       client.contactPerson?.toLowerCase().includes(query) ||
       client.phone?.includes(searchTerm.trim()) ||
       client.email?.toLowerCase().includes(query),

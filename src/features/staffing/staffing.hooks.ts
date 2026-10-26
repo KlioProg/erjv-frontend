@@ -377,9 +377,10 @@ export function useRemoveEmployeeJob() {
 export function useReplaceEmployeeJobs() {
   const queryClient = useQueryClient()
   return useMutation({
+    retry: false,
     mutationFn: ({ employeeId, jobIds }: { employeeId: number; jobIds: number[] }) =>
       replaceJobsForEmployeeApi(employeeId, jobIds),
-    onSuccess: () => {
+    onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: staffingKeys.all })
     },
   })

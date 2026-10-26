@@ -53,6 +53,7 @@ function mount(
     lots?: QuarantineLot[]
     stockItemId?: number
     listFailure?: boolean
+    listErrorStatus?: number
     deferList?: Promise<void>
     failRefresh?: boolean
     missingStock?: boolean
@@ -84,6 +85,7 @@ function mount(
     if (config.url === '/stock-items/quarantine-lots') {
       await options.deferList
       if (options.listFailure) throw new AxiosError('Network Error')
+      if (options.listErrorStatus) throw httpError(options.listErrorStatus, 'Validation failed (numeric string is expected)', config)
       return { ...response, data: currentLots }
     }
     return {
@@ -115,6 +117,19 @@ async function openLot() {
   fireEvent.click(await screen.findByRole('button', { name: 'View quarantine lot #11' }))
   return screen.getByRole('dialog')
 }
+
+it('preserves an unsubmitted resolution until discard is confirmed', async () => {
+  const { posts } = mount()
+  await openLot()
+  fill()
+  fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Keep Editing' }))
+  expect((screen.getByLabelText('Quantity') as HTMLInputElement).value).toBe('1.25')
+  fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Discard Changes' }))
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+  expect(posts).toHaveLength(0)
+})
 function fill(quantity = '1.25', reason = 'Inspection completed') {
   fireEvent.change(screen.getByLabelText('Quantity'), { target: { value: quantity } })
   fireEvent.change(screen.getByLabelText('Reason (required)'), { target: { value: reason } })
@@ -144,6 +159,13 @@ it('loads filtered lots with product, warehouse, source and exact quantities', a
   expect(within(dialog).getByText('10 kg')).toBeTruthy()
 })
 
+it('identifies damaged outgoing returns without suggesting manual stock creation', async () => {
+  mount({ lots: [{ ...baseLot, incomingDeliveryItemId: null, outgoingDeliveryItemId: 22, sourceKind: 'OUTGOING_DELIVERY' }] })
+  expect(await screen.findByText('Outgoing return item #22')).toBeTruthy()
+  expect(screen.getByText(/incoming receiving or outgoing delivery returns/)).toBeTruthy()
+  expect(screen.queryByRole('button', { name: /Add Damaged Stock|Create Quarantine|Tag Stock/i })).toBeNull()
+})
+
 it('shows an empty state and allows zero-balance lots to be inspected without actions', async () => {
   mount({ lots: [{ ...baseLot, remainingQuantity: '0.00' }] })
   await screen.findByText('No quarantine lots match this view.')
@@ -155,7 +177,7 @@ it('shows an empty state and allows zero-balance lots to be inspected without ac
 
 it('handles a genuinely empty quarantine list', async () => {
   mount({ lots: [] })
-  expect(await screen.findByText('No quarantine lots match this view.')).toBeTruthy()
+  expect(await screen.findByText(/No quarantined stock has been recorded/)).toBeTruthy()
   expect(screen.queryByRole('button', { name: /View quarantine lot/ })).toBeNull()
 })
 
@@ -179,11 +201,32 @@ it('shows loading and recoverable list errors', async () => {
   mount({ deferList: deferred, listFailure: true })
   expect(screen.getByText('Loading quarantine lots')).toBeTruthy()
   release()
-  expect(await screen.findByText(/Unable to load quarantine data/)).toBeTruthy()
+  expect(await screen.findByText(/Unable to load quarantined stock/)).toBeTruthy()
   expect(screen.getByRole('button', { name: 'Refresh' }).hasAttribute('disabled')).toBe(false)
 })
 
-it.each(['STAFF', 'SUPERADMIN', 'UNKNOWN'])('%s has read-only access', async (role) => {
+it('explains quarantine load failures without exposing routing validation and allows refresh', async () => {
+  const options: { listErrorStatus?: number } = { listErrorStatus: 400 }
+  mount(options)
+  const alert = await screen.findByRole('alert')
+  expect(alert.textContent).toContain('Unable to load quarantined stock')
+  expect(alert.textContent).toContain('Refresh')
+  expect(alert.textContent).toContain('administrator')
+  expect(alert.textContent).not.toMatch(/numeric string|Validation failed|quarantine-lots/i)
+  options.listErrorStatus = undefined
+  fireEvent.click(screen.getByRole('button', { name: 'Refresh' }))
+  expect(await screen.findByRole('button', { name: 'View quarantine lot #11' })).toBeTruthy()
+  expect(screen.queryByRole('alert')).toBeNull()
+})
+
+it.each([401, 403])('keeps authorization guidance on quarantine load failure (%s)', async (status) => {
+  mount({ listErrorStatus: status })
+  const alert = await screen.findByRole('alert')
+  expect(alert.textContent).toMatch(status === 401 ? /sign in/i : /permission/i)
+  expect(alert.textContent).not.toContain('numeric string')
+})
+
+it.each(['STAFF', 'UNKNOWN'])('%s has read-only resolution access', async (role) => {
   auth.role = role
   const { posts } = mount()
   await openLot()
@@ -191,7 +234,7 @@ it.each(['STAFF', 'SUPERADMIN', 'UNKNOWN'])('%s has read-only access', async (ro
   expect(posts).toEqual([])
 })
 
-it.each(['MANAGER', 'ADMIN'])(
+it.each(['MANAGER', 'ADMIN', 'SUPERADMIN'])(
   '%s submits CLEAR with exact decimal strings and refreshes dependent caches',
   async (role) => {
     auth.role = role

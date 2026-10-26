@@ -38,9 +38,9 @@ import type { StockItem } from '@/features/logistics/stock-items.types'
 import { getErrorMessage } from '@/lib/api-client'
 import { WarehouseProducts } from './WarehouseProducts'
 import { WarehouseModal } from './WarehouseModal'
-import { formatStockCents, parseStockCents, stockSortKey } from '@/features/logistics/stock-display'
+import { parseStockCents } from '@/features/logistics/stock-display'
 
-type WarehouseStockSummary = { products: number; units: bigint }
+type WarehouseStockSummary = { products: number; hasStock: boolean }
 type ArchiveCheck = WarehouseStockSummary & {
   status: 'checking' | 'empty' | 'blocked' | 'error'
   error?: string
@@ -48,7 +48,6 @@ type ArchiveCheck = WarehouseStockSummary & {
 
 function summarizeWarehouseStock(items: StockItem[]): WarehouseStockSummary {
   let products = 0
-  let units = 0n
   for (const item of items) {
     const quantity = parseStockCents(item.quantity)
     if (quantity === null) {
@@ -56,10 +55,9 @@ function summarizeWarehouseStock(items: StockItem[]): WarehouseStockSummary {
     }
     if (quantity > 0n) {
       products += 1
-      units += quantity
     }
   }
-  return { products, units }
+  return { products, hasStock: products > 0 }
 }
 
 export function WarehouseList({ onOpenWarehouse }: { onOpenWarehouse: (id: number) => void }) {
@@ -91,18 +89,14 @@ export function WarehouseList({ onOpenWarehouse }: { onOpenWarehouse: (id: numbe
     [allWarehouses],
   )
   const warehouseTotals = useMemo(() => {
-    const totals = new Map<number, { products: number; units: bigint | null }>()
+    const totals = new Map<number, { products: number }>()
     for (const stock of stockItems) {
-      const total = totals.get(stock.warehouseId) || { products: 0, units: 0n }
-      const quantity = parseStockCents(stock.quantity)
+      const total = totals.get(stock.warehouseId) || { products: 0 }
       total.products += 1
-      total.units = total.units === null || quantity === null ? null : total.units + quantity
       totals.set(stock.warehouseId, total)
     }
     return totals
   }, [stockItems])
-  const getWarehouseUnits = (id: number): bigint | null =>
-    warehouseTotals.get(id)?.units === undefined ? 0n : warehouseTotals.get(id)!.units
   const filteredWarehouses = useMemo(() => {
     const term = searchTerm.trim().toLowerCase()
     return (activeTab === 'ACTIVE' ? activeWarehouses : archivedWarehouses).filter(
@@ -130,14 +124,19 @@ export function WarehouseList({ onOpenWarehouse }: { onOpenWarehouse: (id: numbe
   const checkWarehouseBeforeArchive = async (warehouse: Warehouse) => {
     const requestId = ++archiveRequestId.current
     setWarehouseToArchive(warehouse)
-    setArchiveCheck({ status: 'checking', products: 0, units: 0n })
+    setArchiveCheck({ status: 'checking', products: 0, hasStock: false })
     try {
       const summary = summarizeWarehouseStock(await fetchStockByWarehouseApi(warehouse.id))
       if (archiveRequestId.current !== requestId) return
-      setArchiveCheck({ ...summary, status: summary.units > 0n ? 'blocked' : 'empty' })
+      setArchiveCheck({ ...summary, status: summary.hasStock ? 'blocked' : 'empty' })
     } catch (error) {
       if (archiveRequestId.current !== requestId) return
-      setArchiveCheck({ status: 'error', products: 0, units: 0n, error: getErrorMessage(error) })
+      setArchiveCheck({
+        status: 'error',
+        products: 0,
+        hasStock: false,
+        error: getErrorMessage(error),
+      })
     }
   }
 
@@ -145,12 +144,12 @@ export function WarehouseList({ onOpenWarehouse }: { onOpenWarehouse: (id: numbe
     const warehouse = warehouseToArchive
     if (!warehouse || archiveCheck?.status !== 'empty') return
     const requestId = ++archiveRequestId.current
-    setArchiveCheck({ status: 'checking', products: 0, units: 0n })
+    setArchiveCheck({ status: 'checking', products: 0, hasStock: false })
     try {
       // Recheck immediately before the write so the confirmation cannot use stale list totals.
       const summary = summarizeWarehouseStock(await fetchStockByWarehouseApi(warehouse.id))
       if (archiveRequestId.current !== requestId) return
-      if (summary.units > 0n) {
+      if (summary.hasStock) {
         setArchiveCheck({ ...summary, status: 'blocked' })
         return
       }
@@ -162,7 +161,12 @@ export function WarehouseList({ onOpenWarehouse }: { onOpenWarehouse: (id: numbe
       }
     } catch (error) {
       if (archiveRequestId.current !== requestId) return
-      setArchiveCheck({ status: 'error', products: 0, units: 0n, error: getErrorMessage(error) })
+      setArchiveCheck({
+        status: 'error',
+        products: 0,
+        hasStock: false,
+        error: getErrorMessage(error),
+      })
     }
   }
 
@@ -183,12 +187,8 @@ export function WarehouseList({ onOpenWarehouse }: { onOpenWarehouse: (id: numbe
               className="h-auto min-h-8 p-0 text-left text-sm font-medium pointer-coarse:min-h-11"
             />
           </div>
-          <div className="mt-1 flex min-w-0 items-center gap-2 pl-6 text-xs sm:hidden">
-            <OverflowValue
-              value={formatStockCents(getWarehouseUnits(row.id))}
-              tooltipSuffix="units"
-              className="max-w-[55%] font-semibold tabular-nums"
-            />
+          <div className="mt-1 min-w-0 pl-6 text-xs text-muted-foreground lg:hidden">
+            <OverflowValue value={row.address} />
           </div>
         </div>
       ),
@@ -211,9 +211,7 @@ export function WarehouseList({ onOpenWarehouse }: { onOpenWarehouse: (id: numbe
     {
       id: 'products',
       header: 'Products',
-      width: '12%',
-      className: 'hidden sm:table-cell',
-      headerClassName: 'hidden sm:table-cell',
+      width: 160,
       align: 'right',
       sortable: true,
       sortKey: (row) => warehouseTotals.get(row.id)?.products || 0,
@@ -239,26 +237,6 @@ export function WarehouseList({ onOpenWarehouse }: { onOpenWarehouse: (id: numbe
           </DataTableExpandToggle>
         )
       },
-    },
-    {
-      id: 'units',
-      header: 'Total Stock',
-      width: '14%',
-      className: 'hidden sm:table-cell',
-      headerClassName: 'hidden sm:table-cell',
-      align: 'right',
-      sortable: true,
-      sortKey: (row) => stockSortKey(getWarehouseUnits(row.id)),
-      cell: ({ row }) => (
-        <div className="flex min-w-0 items-center justify-end gap-1 text-sm font-normal">
-          <OverflowValue
-            value={formatStockCents(getWarehouseUnits(row.id))}
-            tooltipSuffix="units"
-            className="text-right tabular-nums"
-          />
-          <span className="hidden shrink-0 xl:inline">units</span>
-        </div>
-      ),
     },
   ]
 
@@ -368,7 +346,12 @@ export function WarehouseList({ onOpenWarehouse }: { onOpenWarehouse: (id: numbe
             <WarehouseProducts warehouseId={warehouse.id} warehouseName={warehouse.name} />
           ) : null
         }
-        onRowClick={(warehouse) => onOpenWarehouse(warehouse.id)}
+        onRowClick={(warehouse, _index, event) => {
+          if (event.target instanceof Element && event.target.closest('button, a, [role="button"]'))
+            return
+          if (window.getSelection()?.toString()) return
+          onOpenWarehouse(warehouse.id)
+        }}
         rowClassName={() => 'hover:bg-accent focus-within:bg-accent'}
         isLoading={warehousesQuery.isLoading || stockQuery.isLoading}
         loadingMessage="Loading warehouses..."
@@ -380,7 +363,7 @@ export function WarehouseList({ onOpenWarehouse }: { onOpenWarehouse: (id: numbe
               : 'No archived warehouses.'
         }
         pageSizeOptions={[10, 25, 50, 100]}
-        tableClassName="table-fixed w-full"
+        tableClassName="table-fixed min-w-[520px] w-full"
       />
       <WarehouseModal
         warehouse={editingWarehouse}
@@ -424,8 +407,8 @@ export function WarehouseList({ onOpenWarehouse }: { onOpenWarehouse: (id: numbe
             <div className="rounded-md border border-status-warning-foreground/30 bg-status-warning p-3.5 text-xs text-foreground">
               <p className="break-all font-medium">{warehouseToArchive?.name}</p>
               <p className="mt-1">
-                {archiveCheck.products} {archiveCheck.products === 1 ? 'product' : 'products'} ·{' '}
-                {formatStockCents(archiveCheck.units)} units of inventory
+                {archiveCheck.products}{' '}
+                {archiveCheck.products === 1 ? 'product has' : 'products have'} remaining stock.
               </p>
             </div>
           )}

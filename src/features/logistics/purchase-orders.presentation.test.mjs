@@ -13,7 +13,7 @@ const delivery = (id, status, lineId, quantity, purchaseOrderId = 1) => ({
   id,
   status,
   purchaseOrderId,
-  items: [{ id: id * 100, purchaseOrderItemId: lineId, receivedQuantity: quantity }],
+  items: [{ id: id * 100, purchaseOrderItemId: lineId, receivedQuantity: quantity, acceptedQuantity: quantity }],
 })
 
 test('only physically completed receipts contribute to receiving progress', () => {
@@ -46,6 +46,21 @@ test('multiple completed receipts sum exactly per order line, without mixing pro
       [2000n, 0n],
     ],
   )
+})
+
+test('receiving progress counts backend accepted goods and excludes damaged quarantine', () => {
+  const receipt = delivery(1, 'COMPLETED', 11, '30')
+  receipt.items[0].acceptedQuantity = '25'
+  receipt.items[0].damagedQuantity = '5'
+  const [row] = purchaseReceivingProgress(order, [receipt])
+  assert.equal(row.received, 2500n)
+  assert.equal(row.remaining, 2500n)
+})
+
+test('missing accepted quantities stay unknown rather than falling back to received goods', () => {
+  const receipt = delivery(1, 'COMPLETED', 11, '30')
+  delete receipt.items[0].acceptedQuantity
+  assert.ok(purchaseReceivingProgress(order, [receipt]).every((row) => row.received === null))
 })
 
 test('unavailable, malformed or duplicate receipt data never becomes confirmed zero', () => {

@@ -1,4 +1,5 @@
 import { useRef, useState, type FormEvent } from 'react'
+import { isAxiosError } from 'axios'
 import { getErrorMessage } from '@/lib/api-client'
 import type { SavedLineAmounts } from '@/lib/order-line-pricing'
 
@@ -28,9 +29,11 @@ export function useOrderSubmission({
   const [confirmationAttempted, setConfirmationAttempted] = useState(false)
   const pending = useRef(false)
   const finished = useRef(false)
+  const reviewLock = useRef(false)
+  const [reviewRequired, setReviewRequired] = useState(false)
 
   async function submit(create: () => Promise<SavedOrder>, confirm: boolean) {
-    if (pending.current || finished.current) return
+    if (pending.current || finished.current || reviewLock.current) return
     pending.current = true
     setError('')
     try {
@@ -60,6 +63,13 @@ export function useOrderSubmission({
       onClose()
     } catch (cause) {
       const message = getErrorMessage(cause)
+      const status = isAxiosError(cause) ? cause.response?.status : undefined
+      if (isAxiosError(cause) && (status === undefined || status >= 500)) {
+        reviewLock.current = true
+        setReviewRequired(true)
+        setError(`The result is uncertain; the server may have saved or confirmed this order. Your input is preserved. Close this form and refresh the order list to review the saved record before trying again. ${message}`)
+        return
+      }
       setError(
         savedRef.current
           ? `Draft ${savedRef.current.orderNumber} is saved. Confirmation did not complete. ${message}`
@@ -75,7 +85,8 @@ export function useOrderSubmission({
     submit,
     savedOrder,
     busy: phase !== 'idle',
-    locked: phase !== 'idle' || !!savedOrder,
+    locked: phase !== 'idle' || !!savedOrder || reviewRequired,
+    reviewRequired,
     phase,
     error,
     clearError: () => setError(''),

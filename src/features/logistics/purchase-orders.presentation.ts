@@ -48,7 +48,7 @@ export function purchaseMaterialsSummary(
   }
 }
 
-/** Only completed incoming transactions represent physically received stock. */
+/** Only backend-accepted goods count toward PO fulfillment; damage stays quarantined. */
 export function purchaseReceivingProgress(
   order: Pick<PurchaseOrderRecord, 'id' | 'items'>,
   deliveries: IncomingDeliveryRecord[],
@@ -63,7 +63,7 @@ export function purchaseReceivingProgress(
       break
     }
     for (const item of delivery.items) {
-      const quantity = parseStockCents(item.receivedQuantity)
+      const quantity = parseStockCents(item.acceptedQuantity)
       if (quantity === null || !received.has(item.purchaseOrderItemId) || seen.has(item.id)) {
         available = false
         break

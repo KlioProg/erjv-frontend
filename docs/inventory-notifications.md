@@ -59,3 +59,9 @@ Local final logs: `.phase4-unit.log`, `.phase4-components-limited.log`, `.phase4
 No browser/computer automation tool was available. Rendered desktop/tablet geometry, overflow, popover placement, and live authenticated backend behavior remain unverified. JSDOM tests establish DOM behavior, not visual QA. No production readiness claim is made while broader checks remain blocked.
 
 The integration depends on the existing backend stock endpoints supplying the published balances and status. Missing values remain explicitly unavailable; no new backend endpoint is required. Backend files, authentication, API contracts, excluded order/delivery workflows, branches, commits, and pushes were not changed.
+
+## Inventory and quarantine navigation finalization
+
+Products remain the default Inventory view, with Active / Archived as the primary product filter. Quarantined Stock is a secondary heading action, with a Back to Products action that preserves catalog filters. Warehouse-row View Quarantine actions open existing lots only. Incoming damaged receiving and damaged outgoing returns are explained in the lot view and empty state. Existing CLEAR/REMOVE permissions, confirmations, and authoritative cache refreshes are preserved.
+
+The subsequent API integration audit verified current backend support for warehouse inspection quarantine. Quarantined Stock now offers the supported manual tag operation with a stable request UUID, current available-stock limits, condition, and inspection reason. Staff can tag stock; managers and admins (including Super Admins) can correct an open lot's condition and resolve CLEAR/REMOVE. Lot details expose the supplied audit history. An uncertain tag requires review and uses the same request ID for any deliberate retry. No quantity-editing workaround or client-side stock mutation is used. See `api-integration-coverage.json` and `api-integration-report.md` for current verification and remaining backend findings.

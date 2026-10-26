@@ -20,6 +20,10 @@ import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal'
+import { OverflowValue } from '@/components/ui/OverflowValue'
+import { ManualQuarantineDialog } from './ManualQuarantineDialog'
+import { CorrectQuarantineConditionDialog } from './CorrectQuarantineConditionDialog'
 import {
   Dialog,
   DialogContent,
@@ -30,10 +34,12 @@ import {
 } from '@/components/ui/dialog'
 
 function sourceLabel(lot: QuarantineLot) {
-  if (lot.incomingDeliveryItemId !== null)
+  if (lot.incomingDeliveryItemId != null)
     return `Incoming delivery item #${lot.incomingDeliveryItemId}`
-  if (lot.outgoingDeliveryItemId !== null)
-    return `Outgoing delivery item #${lot.outgoingDeliveryItemId}`
+  if (lot.outgoingDeliveryItemId != null)
+    return `Outgoing return item #${lot.outgoingDeliveryItemId}`
+  if (lot.sourceKind === 'INCOMING_DELIVERY') return 'Incoming receiving (item details unavailable)'
+  if (lot.sourceKind === 'OUTGOING_DELIVERY') return 'Outgoing return (item details unavailable)'
   return lot.sourceKind === 'MANUAL' ? 'Manual quarantine' : 'Source details unavailable'
 }
 
@@ -49,6 +55,9 @@ export function QuarantinedStock({
   onOpenWarehouse?: (warehouseId: number) => void
 }) {
   const lots = useQuarantineLots(stockItemId)
+  const { user } = useAuth()
+  const canTag = ['ADMIN', 'MANAGER', 'SUPERADMIN', 'STAFF'].includes(user?.role ?? '')
+  const [tagOpen, setTagOpen] = useState(false)
   const stocks = useStockItems({ includeInactive: 'true' })
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [search, setSearch] = useState('')
@@ -59,29 +68,28 @@ export function QuarantinedStock({
     {
       id: 'product',
       header: 'Product',
+      width: 220,
       sortable: true,
       sortKey: (lot) => stockMap.get(lot.stockItemId)?.inventoryItem?.name ?? '',
-      cell: ({ row }) =>
-        stockMap.get(row.stockItemId)?.inventoryItem?.name ?? `Stock item #${row.stockItemId}`,
+      cell: ({ row }) => <OverflowValue value={stockMap.get(row.stockItemId)?.inventoryItem?.name ?? `Stock item #${row.stockItemId}`} />,
     },
     {
       id: 'warehouse',
       header: 'Warehouse',
+      width: 180,
       sortable: true,
       sortKey: (lot) => stockMap.get(lot.stockItemId)?.warehouse?.name ?? '',
       cell: ({ row }) => {
         const stock = stockMap.get(row.stockItemId)
         return stock && onOpenWarehouse ? (
-          <Button variant="link" size="sm" onClick={() => onOpenWarehouse(stock.warehouseId)}>
-            {stock.warehouse?.name ?? `Warehouse #${stock.warehouseId}`}
-          </Button>
+          <OverflowValue value={stock.warehouse?.name ?? `Warehouse #${stock.warehouseId}`} onActivate={() => onOpenWarehouse(stock.warehouseId)} />
         ) : (
-          (stock?.warehouse?.name ?? 'Warehouse unavailable')
+          <OverflowValue value={stock?.warehouse?.name ?? 'Warehouse unavailable'} />
         )
       },
     },
     { id: 'lot', header: 'Lot', sortable: true, sortKey: 'id', cell: ({ row }) => `#${row.id}` },
-    { id: 'source', header: 'Source', cell: ({ row }) => sourceLabel(row) },
+    { id: 'source', header: 'Source', cell: ({ row }) => <OverflowValue value={sourceLabel(row)} /> },
     { id: 'condition', header: 'Condition', accessorKey: 'condition' },
     ...(['initialQuantity', 'remainingQuantity'] as const).map(
       (field): ColumnDef<QuarantineLot> => ({
@@ -102,13 +110,14 @@ export function QuarantinedStock({
       header: 'Date recorded',
       sortable: true,
       sortKey: 'createdAt',
-      cell: ({ row }) => new Date(row.createdAt).toLocaleString(),
+      cell: ({ row }) => <OverflowValue value={new Date(row.createdAt).toLocaleString()} />,
     },
     {
       id: 'actions',
       header: 'Details',
+      width: 180,
       cell: ({ row }) => (
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {parseStockCents(row.remainingQuantity) === 0n && (
             <Badge variant="secondary">No remaining quarantine</Badge>
           )}
@@ -136,13 +145,21 @@ export function QuarantinedStock({
     )
   })
   const error = lots.isError || stocks.isError
+  const loadError = lots.error ?? stocks.error
+  const status = isAxiosError(loadError) ? loadError.response?.status : undefined
+  const loadGuidance =
+    status === 401 || status === 403 || (isAxiosError(loadError) && !loadError.response)
+      ? getErrorMessage(loadError)
+      : 'Select Refresh to try again. If the problem continues, contact your administrator.'
   return (
     <div className="flex min-w-0 flex-col gap-4">
       <p className="text-sm text-muted-foreground">
-        Quarantined goods are held from availability. View a lot to inspect its source and remaining
-        quantity.
+        Quarantined goods are held from available stock. Lots are recorded when damaged quantities
+        are confirmed during incoming receiving or outgoing delivery returns, or recorded after a warehouse inspection. View a lot to inspect
+        its source and remaining quantity.
       </p>
       <div className="flex flex-wrap items-center gap-3">
+        {canTag && <Button variant="outline" disabled={lots.isError || stocks.isError || lots.isFetching || stocks.isFetching} onClick={() => setTagOpen(true)}>Quarantine stock</Button>}
         <Input
           aria-label="Search quarantine lots"
           placeholder="Search product, warehouse, or lot"
@@ -171,8 +188,8 @@ export function QuarantinedStock({
       </div>
       {error && (
         <Alert variant="destructive">
-          <AlertDescription role="alert">
-            Unable to load quarantine data. {getErrorMessage(lots.error ?? stocks.error)}
+          <AlertDescription>
+            Unable to load quarantined stock. {loadGuidance}
           </AlertDescription>
         </Alert>
       )}
@@ -181,13 +198,16 @@ export function QuarantinedStock({
         columns={columns}
         isLoading={lots.isLoading || stocks.isLoading}
         loadingMessage="Loading quarantine lots"
-        tableClassName="min-w-[1100px]"
+        tableClassName="min-w-[1100px] table-fixed"
         emptyContent={
           error
             ? 'Quarantine data unavailable. Refresh to try again.'
-            : 'No quarantine lots match this view.'
+            : lots.data?.length === 0
+              ? 'No quarantined stock has been recorded. Lots will appear here after damaged quantities are confirmed during receiving or outgoing returns, or recorded during warehouse inspection.'
+              : 'No quarantine lots match this view.'
         }
       />
+      {tagOpen && <ManualQuarantineDialog stockItemId={stockItemId} onClose={() => setTagOpen(false)} />}
       {selected && (
         <QuarantineLotDialog
           key={selected.id}
@@ -213,7 +233,8 @@ function QuarantineLotDialog({
   onClose: () => void
 }) {
   const { user } = useAuth()
-  const canResolve = user?.role === 'ADMIN' || user?.role === 'MANAGER'
+  const canResolve = ['ADMIN', 'MANAGER', 'SUPERADMIN'].includes(user?.role ?? '')
+  const [correctionOpen, setCorrectionOpen] = useState(false)
   const mutation = useResolveQuarantine()
   const refresh = useRefreshQuarantine()
   const lock = useRef(false)
@@ -225,6 +246,7 @@ function QuarantineLotDialog({
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [refreshRequired, setRefreshRequired] = useState(false)
+  const [discardOpen, setDiscardOpen] = useState(false)
   const balance = parseStockCents(lot.remainingQuantity)
   const product = stock?.inventoryItem?.name ?? `Stock item #${lot.stockItemId}`
   const warehouse = stock?.warehouse?.name ?? 'Warehouse unavailable'
@@ -290,13 +312,16 @@ function QuarantineLotDialog({
     <Dialog
       open
       onOpenChange={(open) => {
-        if (!open && !busy) onClose()
+        if (!open && !busy) {
+          if (canResolve && (quantity || reason)) setDiscardOpen(true)
+          else onClose()
+        }
       }}
     >
-      <DialogContent closeDisabled={busy}>
+      <DialogContent closeDisabled={busy} className="max-h-[90dvh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Quarantine lot #{lot.id}</DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="[overflow-wrap:anywhere]">
             {product} · {warehouse}
           </DialogDescription>
         </DialogHeader>
@@ -318,6 +343,13 @@ function QuarantineLotDialog({
             </div>
           ))}
         </dl>
+        {lot.tagReason && <p className="break-words text-sm">Inspection reason: {lot.tagReason}{lot.taggedByUserId != null ? ` · User #${lot.taggedByUserId}` : ''}</p>}
+        {((lot.conditionChanges?.length ?? 0) > 0 || (lot.resolutions?.length ?? 0) > 0) && <details className="text-sm"><summary className="cursor-pointer font-medium">Lot audit history</summary><ul className="mt-2 space-y-2 [overflow-wrap:anywhere]">
+          {lot.conditionChanges?.map((entry) => <li key={`condition-${entry.id}`}>{entry.fromCondition} → {entry.toCondition}: {entry.reason} · User #{entry.actorUserId} · {new Date(entry.createdAt).toLocaleString()}</li>)}
+          {lot.resolutions?.map((entry) => <li key={`resolution-${entry.id}`}>{entry.action} {quantityLabel(entry.quantity, stock)}: {entry.reason} · User #{entry.actorUserId} · {new Date(entry.createdAt).toLocaleString()}</li>)}
+        </ul></details>}
+        {canResolve && remaining && <Button variant="outline" disabled={busy || dataUnavailable || refreshRequired || !stock} onClick={() => setCorrectionOpen(true)}>Correct condition</Button>}
+        {correctionOpen && <CorrectQuarantineConditionDialog lot={lot} onClose={() => setCorrectionOpen(false)} />}
         <p className="text-xs text-muted-foreground">
           Physical stock may include quarantined goods. Quarantined stock is held from availability.
           Available stock is calculated by the backend and is eligible for further operations.
@@ -464,6 +496,15 @@ function QuarantineLotDialog({
               : 'This lot has no remaining quarantine to resolve.'}
           </p>
         )}
+        <ConfirmDeleteModal
+          open={discardOpen}
+          onClose={() => setDiscardOpen(false)}
+          onConfirm={onClose}
+          title="Discard unsaved resolution?"
+          description="Your entered quantity and reason will be lost. No resolution will be submitted."
+          confirmText="Discard Changes"
+          cancelText="Keep Editing"
+        />
       </DialogContent>
     </Dialog>
   )

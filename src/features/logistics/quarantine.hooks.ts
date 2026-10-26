@@ -1,8 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { fetchQuarantineLotsApi, resolveQuarantineApi } from './stock-items.api'
+import { fetchQuarantineLotsApi, resolveQuarantineApi, createManualQuarantineApi, correctQuarantineConditionApi } from './stock-items.api'
 import { STOCK_ITEMS_QUERY_KEY } from './stock-items.hooks'
 import { PURCHASE_ORDERS_QUERY_KEY } from './purchase-orders.hooks'
-import type { ResolveQuarantinePayload } from './stock-items.types'
+import type { ResolveQuarantinePayload, CreateManualQuarantinePayload, CorrectQuarantineConditionPayload } from './stock-items.types'
 
 export const QUARANTINE_QUERY_KEY = ['quarantine-lots'] as const
 
@@ -36,4 +36,12 @@ export function useResolveQuarantine() {
       resolveQuarantineApi(lotId, payload),
     retry: false,
   })
+}
+
+export function useCreateManualQuarantine() {
+  return useMutation({ mutationFn: (payload: CreateManualQuarantinePayload) => createManualQuarantineApi(payload), retry: false })
+}
+
+export function useCorrectQuarantineCondition() {
+  return useMutation({ mutationFn: ({ lotId, payload }: { lotId: number; payload: CorrectQuarantineConditionPayload }) => correctQuarantineConditionApi(lotId, payload), retry: false })
 }

@@ -70,6 +70,7 @@ let options: Record<number, OutgoingPlanningOption[]>
 let conflict: { url: string; code?: string; message: string; details?: unknown } | undefined
 let planningFailure: boolean
 let createFailure: boolean
+let uncertainCreate: boolean
 let gate: { url: string; wait: Promise<void> } | undefined
 const originalAdapter = apiClient.defaults.adapter
 beforeEach(() => {
@@ -83,6 +84,7 @@ beforeEach(() => {
   conflict = undefined
   planningFailure = false
   createFailure = false
+  uncertainCreate = false
   gate = undefined
   apiClient.defaults.adapter = async (config) => {
     const url = config.url || ''
@@ -133,6 +135,7 @@ beforeEach(() => {
         }
       data = { ...shipment(), ...body }
       deliveries.push(data as OutgoingDeliveryRecord)
+      if (uncertainCreate) throw { isAxiosError: true, message: 'Network Error' }
     } else if (url.endsWith('/draft')) {
       const id = Number(url.split('/')[2])
       const saved = deliveries.find((delivery) => delivery.id === id)!
@@ -206,6 +209,43 @@ const schedules = () =>
   requests.filter((request) => request.method === 'patch' && request.url.endsWith('/schedule'))
 
 describe('outgoing delivery warehouse planning', () => {
+  it('keeps expanded instructions editable and footer actions usable without changing the saved plan', async () => {
+    const user = userEvent.setup()
+    mount()
+    await selectWarehouse(user)
+    await user.type(quantity(), '3')
+    const disclosure = screen.getByText('Delivery instructions (Optional)')
+    await user.click(disclosure)
+    const notes = await screen.findByRole('textbox', { name: 'Delivery Notes / Instructions' })
+    await user.type(notes, 'Use the rear loading gate.')
+    await user.click(disclosure)
+    await user.click(disclosure)
+    expect((screen.getByRole('textbox', { name: 'Delivery Notes / Instructions' }) as HTMLInputElement).value).toBe('Use the rear loading gate.')
+    expect(creates()).toHaveLength(0)
+    expect((screen.getByRole('button', { name: 'Cancel' }) as HTMLButtonElement).disabled).toBe(false)
+    expect((screen.getByRole('button', { name: 'Schedule Delivery' }) as HTMLButtonElement).disabled).toBe(false)
+    await user.click(screen.getByRole('button', { name: 'Save Draft' }))
+    expect(await screen.findByText('Delivery draft saved')).toBeTruthy()
+    expect(updates()[0].body).toMatchObject({ notes: 'Use the rear loading gate.', plannedItems: [{ salesOrderItemId: 10, plannedQuantity: '3.00' }] })
+    expect(schedules()).toHaveLength(0)
+  })
+
+  it('does not create another header when the server saved it but the response was lost', async () => {
+    const user = userEvent.setup()
+    mount()
+    await selectWarehouse(user)
+    await user.type(quantity(), '3')
+    uncertainCreate = true
+    await user.click(screen.getByRole('button', { name: 'Schedule Delivery' }))
+    expect(await screen.findByText(/The result is uncertain/)).toBeTruthy()
+    expect(screen.getByText(/refresh Outgoing Deliveries to find the draft/)).toBeTruthy()
+    await user.click(screen.getByRole('button', { name: 'Schedule Delivery' }))
+    expect(creates()).toHaveLength(1)
+    expect(deliveries).toHaveLength(1)
+    expect(schedules()).toHaveLength(0)
+    expect(quantity().value).toBe('3')
+  })
+
   it('refreshes a cached draft before restoring its saved plan', async () => {
     const cached = { ...shipment(), revision: 2, warehouseId: 1 }
     deliveries = [

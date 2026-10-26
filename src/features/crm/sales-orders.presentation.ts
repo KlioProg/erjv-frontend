@@ -1,5 +1,42 @@
 import type { SalesOrderRecord } from './sales-orders.types'
 import type { OutgoingDeliveryRecord } from '../logistics/outgoing-deliveries.types'
+import { parseStockCents } from '../logistics/stock-display.ts'
+
+/** Return-confirmed delivered goods only; never infer delivery from the loaded quantity. */
+export function salesDeliveryProgress(
+  order: Pick<SalesOrderRecord, 'id' | 'items'>,
+  deliveries: OutgoingDeliveryRecord[],
+) {
+  const totals = new Map(order.items.map((item) => [item.id, 0n]))
+  const seen = new Set<number>()
+  let available = true
+  for (const delivery of deliveries) {
+    if (delivery.salesOrderId !== order.id || delivery.status !== 'DELIVERED') continue
+    if (!Array.isArray(delivery.items)) {
+      available = false
+      break
+    }
+    for (const item of delivery.items) {
+      const quantity = parseStockCents(item.deliveredQuantity)
+      if (quantity === null || !totals.has(item.salesOrderItemId) || seen.has(item.id)) {
+        available = false
+        break
+      }
+      seen.add(item.id)
+      totals.set(item.salesOrderItemId, totals.get(item.salesOrderItemId)! + quantity)
+    }
+  }
+  return order.items.map((item) => {
+    const ordered = parseStockCents(item.quantity)
+    const delivered = available ? totals.get(item.id)! : null
+    return {
+      item,
+      ordered,
+      delivered,
+      remaining: ordered !== null && delivered !== null && delivered <= ordered ? ordered - delivered : null,
+    }
+  })
+}
 
 const neutralBadge = 'border-border/70! bg-muted/20 text-muted-foreground'
 const infoBadge = 'border-status-info-foreground/15! bg-status-info text-status-info-foreground'

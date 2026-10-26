@@ -1,6 +1,18 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { getSalesOrderDeliveryDisplay } from './sales-orders.presentation.ts'
+import { getSalesOrderDeliveryDisplay, salesDeliveryProgress } from './sales-orders.presentation.ts'
+
+test('sales progress uses confirmed delivered quantities, excluding returned and merely loaded goods', () => {
+  const order = { id: 1, items: [{ id: 11, quantity: '10' }] }
+  const delivered = { id: 1, salesOrderId: 1, status: 'DELIVERED', items: [
+    { id: 101, salesOrderItemId: 11, quantity: '10', deliveredQuantity: '7.25' },
+  ] }
+  const [row] = salesDeliveryProgress(order, [delivered, { ...delivered, status: 'DISPATCHED' }])
+  assert.equal(row.delivered, 725n)
+  assert.equal(row.remaining, 275n)
+  delete delivered.items[0].deliveredQuantity
+  assert.equal(salesDeliveryProgress(order, [delivered])[0].delivered, null)
+})
 
 const order = { id: 1, status: 'DRAFT', completedAt: null, cancelledAt: null }
 const delivery = {

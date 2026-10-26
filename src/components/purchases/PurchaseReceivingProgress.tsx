@@ -78,8 +78,8 @@ export function PurchaseReceivingProgress({
     >
       <h2 className="text-sm font-semibold">Receiving Progress</h2>
       <p className="text-xs text-muted-foreground">
-        Received quantities include completed incoming deliveries only. Scheduled shipments are not
-        received stock.
+        Received quantities count backend-accepted goods from completed receipts. Scheduled shipments
+        and damaged goods in quarantine do not count toward fulfillment.
       </p>
       {unavailable ? (
         <Alert variant="destructive" role="alert">

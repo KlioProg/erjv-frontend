@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { getErrorMessage } from '@/lib/api-client'
-import { fetchSupplierPricesApi, saveSupplierPriceApi } from './supplier-pricing.api'
+import { fetchSupplierPricesApi, saveSupplierPriceApi, SUPPLIER_PRICING_SUPPORTED } from './supplier-pricing.api'
 
 export const SUPPLIER_PRICES_QUERY_KEY = ['supplier-prices'] as const
 
@@ -9,7 +9,7 @@ export function useSupplierPrices(supplierId?: number) {
   return useQuery({
     queryKey: [...SUPPLIER_PRICES_QUERY_KEY, supplierId],
     queryFn: () => fetchSupplierPricesApi(supplierId!),
-    enabled: Boolean(supplierId && supplierId > 0),
+    enabled: SUPPLIER_PRICING_SUPPORTED && Boolean(supplierId && supplierId > 0),
   })
 }
 

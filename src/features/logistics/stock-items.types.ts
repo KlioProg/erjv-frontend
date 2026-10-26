@@ -98,3 +98,13 @@ export type QuarantineLot = {
   }[]
   resolutions: Omit<QuarantineResolution, 'purchaseOrderId'>[]
 }
+
+export type CreateManualQuarantinePayload = {
+  stockItemId: number
+  condition: 'DAMAGED' | 'SPOILED'
+  quantity: string
+  reason: string
+  requestId: string
+}
+
+export type CorrectQuarantineConditionPayload = { condition: 'DAMAGED' | 'SPOILED'; reason: string }

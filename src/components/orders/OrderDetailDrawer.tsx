@@ -22,8 +22,6 @@ import {
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { useQueryClient } from '@tanstack/react-query'
-import { toast } from 'sonner'
 import type { SalesOrderRecord } from '@/features/crm/sales-orders.types'
 import type { Client } from '@/features/crm/clients.types'
 import type { InventoryItemResponse } from '@/features/products/products.types'
@@ -32,15 +30,8 @@ import type { DeliveryVehicle } from '@/features/logistics/delivery-vehicles.typ
 import type { Employee } from '@/features/staffing/staffing.types'
 import type { StockItem } from '@/features/logistics/stock-items.types'
 import type { OutgoingDeliveryRecord } from '@/features/logistics/outgoing-deliveries.types'
-import {
-  useConfirmSalesOrder,
-  useCancelSalesOrder,
-  SALES_ORDERS_QUERY_KEY,
-} from '@/features/crm/sales-orders.hooks'
-import { completeOutgoingDeliveryApi } from '@/features/logistics/outgoing-deliveries.api'
-import { DELIVERIES_QUERY_KEY } from '@/features/logistics/outgoing-deliveries.hooks'
-import { STOCK_ITEMS_QUERY_KEY } from '@/features/logistics/stock-items.hooks'
-import { VEHICLES_QUERY_KEY } from '@/features/logistics/delivery-vehicles.hooks'
+import { useConfirmSalesOrder, useCancelSalesOrder } from '@/features/crm/sales-orders.hooks'
+import { CompleteDeliveryModal } from '@/components/deliveries/shared/CompleteDeliveryModal'
 import { QuickDispatchModal } from './QuickDispatchModal'
 import { useAuth } from '@/features/auth/AuthContext'
 import { getErrorMessage } from '@/lib/api-client'
@@ -80,11 +71,10 @@ export function OrderDetailDrawer({
   onEdit,
   onArrangeDelivery,
 }: OrderDetailDrawerProps) {
-  const queryClient = useQueryClient()
   const { isAdmin, isManager } = useAuth()
   const canManage = !readOnly && (isAdmin || isManager)
   const [isDispatchModalOpen, setIsDispatchModalOpen] = useState(false)
-  const [isCompletingDelivery, setIsCompletingDelivery] = useState(false)
+  const [completionId, setCompletionId] = useState<number | null>(null)
   const [errorMessage, setErrorMessage] = useState('')
   const [orderToCancel, setOrderToCancel] = useState<SalesOrderRecord | null>(null)
 
@@ -136,41 +126,8 @@ export function OrderDetailDrawer({
 
   const isCancelled = order.status === 'CANCELLED'
 
-  // Handle direct customer delivery completion
-  const handleConfirmCustomerDelivery = async () => {
-    if (
-      !canManage ||
-      !activeDelivery ||
-      activeDelivery.status !== 'DISPATCHED' ||
-      isCompletingDelivery
-    )
-      return
-    if (
-      !window.confirm(
-        'Complete this delivery? This deducts the shipment quantities from stock, updates order progress, and releases its vehicle.',
-      )
-    )
-      return
-    try {
-      setIsCompletingDelivery(true)
-      setErrorMessage('')
-      await completeOutgoingDeliveryApi(activeDelivery.id)
-
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: SALES_ORDERS_QUERY_KEY }),
-        queryClient.invalidateQueries({ queryKey: DELIVERIES_QUERY_KEY }),
-        queryClient.invalidateQueries({ queryKey: VEHICLES_QUERY_KEY }),
-        queryClient.invalidateQueries({ queryKey: STOCK_ITEMS_QUERY_KEY }),
-      ])
-
-      toast.success(
-        `Delivery ${activeDelivery.deliveryNumber} confirmed! Stock and order progress have been updated.`,
-      )
-    } catch (err) {
-      setErrorMessage(getErrorMessage(err))
-    } finally {
-      setIsCompletingDelivery(false)
-    }
+  const handleConfirmCustomerDelivery = () => {
+    if (canManage && activeDelivery?.status === 'DISPATCHED') setCompletionId(activeDelivery.id)
   }
 
   // Handle confirmation
@@ -336,7 +293,9 @@ export function OrderDetailDrawer({
                 <div className="flex items-start gap-3">
                   <Clock className="size-4 shrink-0 text-status-warning-foreground mt-0.5" />
                   <div className="flex-1 text-sm">
-                    <p className="font-medium text-foreground">What just happened?</p>
+                    <p className="min-w-0 font-medium text-foreground [overflow-wrap:anywhere]">
+                      What just happened?
+                    </p>
                     <p className="text-muted-foreground">
                       Order <span className="font-medium text-foreground">{order.orderNumber}</span>{' '}
                       was recorded as a Draft.
@@ -480,17 +439,15 @@ export function OrderDetailDrawer({
                     <Button
                       size="sm"
                       onClick={handleConfirmCustomerDelivery}
-                      disabled={!canManage || isCompletingDelivery}
+                      disabled={!canManage || completionId !== null}
                       className="font-medium text-ui"
                     >
-                      {isCompletingDelivery ? (
-                        'Completing...'
-                      ) : (
+                      {
                         <span className="flex items-center gap-1.5">
                           <CheckCircle2 className="size-3.5" />
                           Confirm Customer Delivery / Complete
                         </span>
-                      )}
+                      }
                     </Button>
                   </div>
                 )}
@@ -536,7 +493,9 @@ export function OrderDetailDrawer({
                   {order.deliveryAddress || 'Store Counter / Direct Pick-up'}
                 </div>
                 {order.notes && (
-                  <div className="pt-1 text-xs text-muted-foreground">Note: {order.notes}</div>
+                  <div className="pt-1 text-xs text-muted-foreground [overflow-wrap:anywhere]">
+                    Note: {order.notes}
+                  </div>
                 )}
               </div>
             </div>
@@ -618,7 +577,7 @@ export function OrderDetailDrawer({
                     return (
                       <div
                         key={item.id ?? item.lineNumber ?? idx}
-                        className="py-4 flex flex-wrap items-center justify-between gap-3"
+                        className="py-4 flex min-w-0 flex-wrap items-center justify-between gap-3 [&>div]:min-w-0 [&>div]:max-w-full"
                       >
                         <div>
                           <div className="font-medium text-foreground">
@@ -670,6 +629,13 @@ export function OrderDetailDrawer({
       )}
 
       {/* Quick Dispatch Modal */}
+      {completionId !== null && (
+        <CompleteDeliveryModal
+          key={completionId}
+          deliveryId={completionId}
+          onClose={() => setCompletionId(null)}
+        />
+      )}
       {isDispatchModalOpen && order && (
         <QuickDispatchModal
           open={isDispatchModalOpen}

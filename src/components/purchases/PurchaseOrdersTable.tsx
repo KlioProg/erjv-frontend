@@ -56,7 +56,7 @@ export function PurchaseOrdersTable({
   const supplierNames = new Map(suppliers.map((supplier) => [supplier.id, supplier.name]))
   const rows = orders.map((order) => ({
     order,
-    supplier: supplierNames.get(order.supplierId) ?? `Supplier #${order.supplierId}`,
+    supplier: order.supplierId == null ? 'No supplier assigned' : supplierNames.get(order.supplierId) ?? `Supplier #${order.supplierId}`,
     materials: purchaseMaterialsSummary(order.items, names),
     total: formatPurchaseMoney(storedPurchaseTotal(order.items)),
     expected: purchaseOrderDate(order.expectedAt),
@@ -80,7 +80,6 @@ export function PurchaseOrdersTable({
         <div className="flex min-w-0 flex-col gap-1">
           <OverflowValue
             value={row.order.orderNumber}
-            href={`#purchase-order-${row.order.id}`}
             onActivate={() => onView(row.order.id)}
             className="h-auto justify-start p-0 text-left text-sm font-semibold text-foreground underline decoration-current/40 underline-offset-4 hover:decoration-current focus-visible:ring-2 focus-visible:ring-ring"
           />

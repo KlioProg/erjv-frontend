@@ -35,12 +35,10 @@ import {
   useIncomingDeliveries,
   useCreateIncomingDelivery,
   useScheduleIncomingDelivery,
-  useCompleteIncomingDelivery,
   useCancelIncomingDelivery,
 } from '@/features/logistics/incoming-deliveries.hooks'
 import {
   useOutgoingDeliveries,
-  useCompleteOutgoingDelivery,
   useCancelOutgoingDelivery,
 } from '@/features/logistics/outgoing-deliveries.hooks'
 import { useAllDeliveryVehicles } from '@/features/logistics/delivery-vehicles.hooks'
@@ -55,8 +53,10 @@ import { useStockItems } from '@/features/logistics/stock-items.hooks'
 import type { PurchaseOrderStatus } from '@/features/logistics/purchase-orders.types'
 import type { CreateIncomingDeliveryPayload } from '@/features/logistics/incoming-deliveries.types'
 import { ScheduleIncomingDeliveryModal } from './ScheduleIncomingDeliveryModal'
+import { ReceiveProductsModal } from './ReceiveProductsModal'
 import { ScheduleDeliveryModal } from './ScheduleDeliveryModal'
 import { DispatchDeliveryModal } from './shared/DispatchDeliveryModal'
+import { CompleteDeliveryModal } from './shared/CompleteDeliveryModal'
 import { DeliveryDetailModal } from './shared/DeliveryDetailModal'
 
 // Older callers retain their navigation hints; outgoing aliases share the active view.
@@ -135,9 +135,11 @@ export function DeliveriesHub({
     null,
   )
   const [dispatchId, setDispatchId] = useState<number | null>(null)
+  const [receiveId, setReceiveId] = useState<number | null>(null)
+  const [completeId, setCompleteId] = useState<number | null>(null)
   const [confirmation, setConfirmation] = useState<{
     row: DeliveryRow
-    action: Exclude<DeliveryAction, 'dispatch'>
+    action: Exclude<DeliveryAction, 'dispatch' | 'receive' | 'complete'>
   } | null>(null)
   const incomingQuery = useIncomingDeliveries()
   const outgoingQuery = useOutgoingDeliveries()
@@ -154,17 +156,11 @@ export function DeliveriesHub({
   const { data: stockItems = [] } = useStockItems()
   const createIncoming = useCreateIncomingDelivery()
   const scheduleIncoming = useScheduleIncomingDelivery()
-  const completeIncoming = useCompleteIncomingDelivery()
   const cancelIncoming = useCancelIncomingDelivery()
-  const completeOutgoing = useCompleteOutgoingDelivery()
   const cancelOutgoing = useCancelOutgoingDelivery()
-  const pending = [
-    scheduleIncoming,
-    completeIncoming,
-    cancelIncoming,
-    completeOutgoing,
-    cancelOutgoing,
-  ].some((mutation) => mutation.isPending)
+  const pending = [scheduleIncoming, cancelIncoming, cancelOutgoing].some(
+    (mutation) => mutation.isPending,
+  )
   const hasDeliveryError =
     view === 'incoming'
       ? incomingQuery.isError
@@ -234,6 +230,8 @@ export function DeliveriesHub({
   const handleAction = (row: DeliveryRow, action: DeliveryAction) => {
     if (!canManage || pending || !getDeliveryActions(row).includes(action)) return
     if (action === 'dispatch') setDispatchId(row.record.id)
+    else if (action === 'receive') setReceiveId(row.record.id)
+    else if (action === 'complete') setCompleteId(row.record.id)
     else if (row.type === 'Outgoing' && action === 'schedule') {
       setOutgoingDraftId(row.record.id)
       setCreateType('Outgoing')
@@ -253,15 +251,8 @@ export function DeliveriesHub({
     const { row, action } = confirmation
     if (!canManage || !getDeliveryActions(row).includes(action)) return
     if (row.type === 'Incoming')
-      await (
-        action === 'schedule'
-          ? scheduleIncoming
-          : action === 'receive'
-            ? completeIncoming
-            : cancelIncoming
-      ).mutateAsync(row.record.id)
-    else if (action !== 'schedule')
-      await (action === 'complete' ? completeOutgoing : cancelOutgoing).mutateAsync(row.record.id)
+      await (action === 'schedule' ? scheduleIncoming : cancelIncoming).mutateAsync(row.record.id)
+    else if (action === 'cancel') await cancelOutgoing.mutateAsync(row.record.id)
   }
   return (
     <div className="flex min-w-0 flex-col gap-6">
@@ -494,12 +485,28 @@ export function DeliveriesHub({
           draftId={outgoingDraftId}
         />
       )}
-      <DispatchDeliveryModal
-        key={dispatchId ?? 'dispatch'}
-        delivery={outgoing.find((delivery) => delivery.id === dispatchId) || null}
-        open={dispatchId !== null}
-        onClose={() => setDispatchId(null)}
-      />
+      {dispatchId !== null && (
+        <DispatchDeliveryModal
+          key={dispatchId}
+          deliveryId={dispatchId}
+          open
+          onClose={() => setDispatchId(null)}
+        />
+      )}
+      {completeId !== null && (
+        <CompleteDeliveryModal
+          key={completeId}
+          deliveryId={completeId}
+          onClose={() => setCompleteId(null)}
+        />
+      )}
+      {receiveId !== null && (
+        <ReceiveProductsModal
+          key={receiveId}
+          deliveryId={receiveId}
+          onClose={() => setReceiveId(null)}
+        />
+      )}
       <DeliveryDetailModal
         deliveryId={viewOutgoingId}
         open={viewOutgoingId !== null}
@@ -518,6 +525,9 @@ export function DeliveriesHub({
           products={products}
           warehouses={warehouses}
           incomingDeliveries={incoming}
+          receivingLoading={incomingQuery.isLoading}
+          receivingUnavailable={incomingQuery.isError}
+          onRetryReceiving={() => void incomingQuery.refetch()}
           statusBadge={
             <Badge variant="outline">{purchaseOrderStatusLabels[purchaseOrderToView.status]}</Badge>
           }
@@ -549,20 +559,16 @@ export function DeliveriesHub({
             ? 'Schedule Delivery'
             : confirmation?.action === 'cancel'
               ? 'Cancel Delivery'
-              : confirmation?.row.type === 'Incoming'
-                ? 'Receive Goods'
-                : 'Complete Delivery'
+              : 'Complete Delivery'
         }
         description={
           confirmation?.action === 'schedule'
             ? 'Mark this draft as scheduled and ready for receiving or dispatch. Physical stock is unchanged.'
             : confirmation?.action === 'cancel'
               ? confirmation.row.type === 'Outgoing'
-                ? 'Cancel this shipment. A dispatched vehicle becomes available again. Physical stock and the sales order reservations remain unchanged.'
-                : 'Cancel this supplier shipment. Physical stock is unchanged and its quantities become available for another incoming delivery.'
-              : confirmation?.row.type === 'Incoming'
-                ? 'Confirm the goods have arrived. Receiving adds the recorded quantities to the destination warehouse.'
-                : 'Confirm the customer received the goods. Completion updates stock and releases the vehicle.'
+                ? 'Cancel this shipment before dispatch. Physical stock remains unchanged.'
+                : 'Cancel this supplier shipment. Physical stock remains unchanged.'
+              : 'Confirm the customer received the goods. Completion updates stock and releases the vehicle.'
         }
         itemName={confirmation?.row.reference}
         confirmText={
@@ -570,9 +576,7 @@ export function DeliveriesHub({
             ? 'Schedule Delivery'
             : confirmation?.action === 'cancel'
               ? 'Cancel Delivery'
-              : confirmation?.action === 'receive'
-                ? 'Receive Goods'
-                : 'Complete Delivery'
+              : 'Complete Delivery'
         }
         variant={confirmation?.action === 'cancel' ? 'destructive' : 'warning'}
       />

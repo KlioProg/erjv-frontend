@@ -11,11 +11,13 @@ import {
 } from './incoming-deliveries.api'
 import type {
   CreateIncomingDeliveryPayload,
+  CompleteIncomingDeliveryPayload,
   IncomingDeliveryFilter,
 } from './incoming-deliveries.types'
 import { PURCHASE_ORDERS_QUERY_KEY } from './purchase-orders.hooks'
 import { STOCK_ITEMS_QUERY_KEY } from './stock-items.hooks'
 import { getErrorMessage } from '@/lib/api-client'
+import { QUARANTINE_QUERY_KEY } from './quarantine.hooks'
 
 export const INCOMING_DELIVERIES_QUERY_KEY = ['incoming-deliveries'] as const
 
@@ -53,6 +55,7 @@ export function useIncomingDeliveryByNumber(deliveryNumber?: string) {
 export function useCreateIncomingDelivery() {
   const queryClient = useQueryClient()
   return useMutation({
+    retry: false,
     mutationFn: (payload: CreateIncomingDeliveryPayload) => createIncomingDeliveryApi(payload),
     onSuccess: (delivery) => {
       void queryClient.invalidateQueries({ queryKey: INCOMING_DELIVERIES_QUERY_KEY })
@@ -82,13 +85,37 @@ export function useScheduleIncomingDelivery() {
 export function useCompleteIncomingDelivery() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (id: number) => completeIncomingDeliveryApi(id),
-    onSuccess: (delivery) => {
-      void queryClient.invalidateQueries({ queryKey: INCOMING_DELIVERIES_QUERY_KEY })
-      void queryClient.invalidateQueries({ queryKey: PURCHASE_ORDERS_QUERY_KEY })
-      void queryClient.invalidateQueries({ queryKey: STOCK_ITEMS_QUERY_KEY })
+    retry: false,
+    mutationFn: async ({
+      id,
+      payload,
+    }: {
+      id: number
+      payload: CompleteIncomingDeliveryPayload
+    }) => {
+      const delivery = await completeIncomingDeliveryApi(id, payload)
+      if (delivery?.id !== id || delivery.status !== 'COMPLETED')
+        throw new Error(
+          'The server did not confirm receiving. Refresh this delivery and review its status before trying again.',
+        )
+      return delivery
+    },
+    onSuccess: async (delivery) => {
+      queryClient.setQueryData([...INCOMING_DELIVERIES_QUERY_KEY, 'id', delivery.id], delivery)
+      await Promise.all(
+        [
+          INCOMING_DELIVERIES_QUERY_KEY,
+          PURCHASE_ORDERS_QUERY_KEY,
+          STOCK_ITEMS_QUERY_KEY,
+          ['products'],
+          ['warehouses'],
+          QUARANTINE_QUERY_KEY,
+        ].map((queryKey) => queryClient.invalidateQueries({ queryKey })),
+      )
       toast.success(
-        `Incoming Delivery "${delivery.deliveryNumber}" received and added to warehouse stock!`,
+        delivery.outcome === 'NO_RECEIPT'
+          ? `Incoming Delivery "${delivery.deliveryNumber}" completed with no receipt`
+          : `Incoming Delivery "${delivery.deliveryNumber}" receipt confirmed`,
       )
     },
     onError: (err) => {

@@ -7,6 +7,11 @@ export interface OutgoingDeliveryItemRecord {
   salesOrderItemId: number
   stockItemId: number
   quantity: string
+  deliveredQuantity?: string | null
+  returnedSellableQuantity?: string | null
+  returnedDamagedQuantity?: string | null
+  missingQuantity?: string | null
+  discrepancyReason?: string | null
   createdAt: string
   updatedAt: string
   salesOrderItem?: {
@@ -77,18 +82,27 @@ export interface OutgoingPlanningOption {
   maximumPlannableQuantity: string
 }
 
-export interface CreateOutgoingDeliveryPayload {
-  salesOrderId: number
-  deliveryVehicleId?: number | null
-  driverEmployeeId?: number | null
-  scheduledAt?: string | Date | null
-  notes?: string | null
-  items: OutgoingDeliveryLineCommand[]
+export type CreateOutgoingDeliveryPayload = CreateOutgoingDeliveryDraftPayload
+
+export interface CompleteOutgoingDeliveryPayload {
+  items: {
+    outgoingDeliveryItemId: number
+    deliveredQuantity: string
+    returnedSellableQuantity: string
+    returnedDamagedQuantity: string
+    missingQuantity: string
+    discrepancyReason?: string
+  }[]
 }
 
 export interface DispatchOutgoingDeliveryPayload {
   deliveryVehicleId: number
   driverEmployeeId: number
+  items: {
+    salesOrderItemId: number
+    stockItemId: number
+    loadedQuantity: string
+  }[]
 }
 
 export interface OutgoingDeliveryFilter {

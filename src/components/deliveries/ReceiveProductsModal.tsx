@@ -1,132 +1,209 @@
-import { useState } from 'react'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from '@/components/ui/dialog'
+import { type FormEvent } from 'react'
+import { DeliveryFormDialog, DeliveryFormFooter } from './shared/DeliveryFormDialog'
+import { deliveryFormStyles as styles } from './shared/delivery-form.styles'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { Label } from '@/components/ui/label'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { useCompleteIncomingDelivery } from '@/features/logistics/incoming-deliveries.hooks'
-import { useDeliveryWorkspace } from '@/features/logistics/use-delivery-workspace'
-import { committedIncoming } from '@/features/logistics/delivery-quantities'
-import { parseStockCents } from '@/features/logistics/stock-display'
-import { decimalString } from '@/features/logistics/purchase-pricing'
-import { getErrorMessage } from '@/lib/api-client'
-import { useAuth } from '@/features/auth/AuthContext'
-import type { IncomingDeliveryRecord } from '@/features/logistics/incoming-deliveries.types'
-import { DeliveryItemsTable } from './shared/DeliveryItemsTable'
+import { OverflowValue } from '@/components/ui/OverflowValue'
+import { DataTable, type ColumnDef } from '@/components/ui/data-table'
+import { useIncomingReceiving } from '@/features/logistics/use-incoming-receiving'
+import type { ReceiptRow } from '@/features/logistics/incoming-receiving'
+import { formatStockCents, parseStockCents } from '@/features/logistics/stock-display'
 
 export function ReceiveProductsModal({
-  delivery,
+  deliveryId,
   onClose,
 }: {
-  delivery: IncomingDeliveryRecord
+  deliveryId: number
   onClose: () => void
 }) {
-  const workspace = useDeliveryWorkspace()
-  const complete = useCompleteIncomingDelivery()
-  const { canManageOperations } = useAuth()
-  const [quantities, setQuantities] = useState<Record<number, string>>({})
-  const [error, setError] = useState('')
-  const order = workspace.purchaseOrders.find((order) => order.id === delivery.purchaseOrderId)
-  const unavailable = workspace.incomingQuery.isError || workspace.purchaseQuery.isError
-  const loading = workspace.incomingQuery.isLoading || workspace.purchaseQuery.isLoading
-  const rows = delivery.items.map((item) => {
-    const line = order?.items.find((line) => line.id === item.purchaseOrderItemId)
-    const product = workspace.products.find((product) => product.id === line?.inventoryItemId)
-    const ordered = parseStockCents(line?.quantity)
-    const committed = committedIncoming(item.purchaseOrderItemId, workspace.incoming, delivery.id)
-    const available =
-      ordered !== null && committed !== null && committed <= ordered ? ordered - committed : null
-    return {
-      id: item.purchaseOrderItemId,
-      product: product?.name ?? `Order Item #${item.purchaseOrderItemId}`,
-      unit: product?.unit,
-      available,
-      quantity: quantities[item.purchaseOrderItemId] ?? item.receivedQuantity,
-    }
-  })
+  const form = useIncomingReceiving(deliveryId, onClose)
+  const readOnly = !form.canSubmit
+  const columns: ColumnDef<ReceiptRow>[] = [
+    {
+      id: 'product',
+      header: 'Product',
+      width: '24%',
+      cell: ({ row }) => (
+        <div className="flex min-w-0 flex-col gap-1">
+          <OverflowValue value={row.name} className="font-medium" />
+          <OverflowValue value={row.unit} className="text-xs text-muted-foreground" />
+        </div>
+      ),
+    },
+    ...(
+      [
+        ['ordered', 'Ordered'],
+        ['previouslyReceived', 'Previously received'],
+        ['outstanding', 'Outstanding (good)'],
+      ] as const
+    ).map(([field, header]): ColumnDef<ReceiptRow> => ({
+      id: field,
+      header,
+      align: 'right',
+      width: '14%',
+      cell: ({ row }) => (
+        <OverflowValue
+          value={formatStockCents(parseStockCents(row[field]))}
+          tooltipSuffix={row.unit}
+          className="text-right tabular-nums"
+        />
+      ),
+    })),
+    ...(['received', 'damaged'] as const).map((field): ColumnDef<ReceiptRow> => ({
+      id: field,
+      header: field === 'received' ? 'Received now' : 'Damaged now',
+      width: '17%',
+      cell: ({ row }) => {
+        const error = form.lineErrors[row.id]?.[field]
+        const errorId = `receipt-${field}-error-${row.id}`
+        return (
+          <div className="flex min-w-0 flex-col gap-1.5">
+            <Input
+              type="text"
+              inputMode="decimal"
+              value={form.drafts[row.id]?.[field] ?? ''}
+              onChange={(event) => form.setQuantity(row.id, field, event.target.value)}
+              placeholder={field === 'received' ? 'Enter quantity' : '0'}
+              disabled={readOnly || form.noReceipt}
+              aria-label={`${field === 'received' ? 'Received' : 'Damaged'} now for ${row.name}`}
+              aria-invalid={!!error}
+              aria-describedby={error ? errorId : 'receipt-quantity-help'}
+              className="h-10 min-w-0 tabular-nums"
+            />
+            {error && (
+              <p id={errorId} role="alert" className="whitespace-normal text-xs text-destructive">
+                {error}
+              </p>
+            )}
+          </div>
+        )
+      },
+    })),
+  ]
+  const submit = (event: FormEvent) => {
+    event.preventDefault()
+    void form.submit()
+  }
   return (
-    <Dialog open onOpenChange={(open) => !open && !complete.isPending && onClose()}>
-      <DialogContent className="flex max-h-[90svh] flex-col overflow-hidden p-0 sm:max-w-3xl">
-        <DialogHeader className="px-6 pt-6 text-left">
-          <DialogTitle>Receive {delivery.deliveryNumber}</DialogTitle>
-          <DialogDescription>
-            Confirm actual quantities received at{' '}
-            {workspace.warehouses.find((warehouse) => warehouse.id === delivery.warehouseId)
-              ?.name ?? `Warehouse #${delivery.warehouseId}`}
-            . Only these quantities will be added to stock.
-          </DialogDescription>
-        </DialogHeader>
-        <form
-          className="flex min-h-0 flex-col"
-          onSubmit={async (event) => {
-            event.preventDefault()
-            setError('')
-            try {
-              if (!canManageOperations || unavailable || loading || delivery.status !== 'SCHEDULED')
-                throw Error('Receiving is unavailable. Reload the delivery and try again.')
-              const actual = rows.map((row) => ({ row, quantity: parseStockCents(row.quantity) }))
-              if (
-                actual.some(
-                  ({ row, quantity }) =>
-                    quantity === null || row.available === null || quantity > row.available,
-                ) ||
-                !actual.some(({ quantity }) => quantity !== null && quantity > 0n)
-              )
-                throw Error(
-                  'Confirm valid quantities within the outstanding balance. At least one product must be received; use zero for products that did not arrive.',
-                )
-              await complete.mutateAsync({
-                id: delivery.id,
-                items: actual.map(({ row, quantity }) => ({
-                  purchaseOrderItemId: row.id,
-                  receivedQuantity: decimalString(quantity!),
-                })),
-              })
-              onClose()
-            } catch (error) {
-              setError(getErrorMessage(error))
-            }
-          }}
-        >
-          <div className="flex min-h-0 flex-col gap-4 overflow-y-auto px-6 py-5">
-            {(error || unavailable) && (
+    <DeliveryFormDialog
+      open
+      onClose={onClose}
+      busy={form.busy}
+      title="Receive Goods"
+      description={`Confirm actual quantities${form.delivery ? ` for ${form.delivery.deliveryNumber}` : ''}. Damaged goods are recorded in quarantine and do not fulfill the purchase order.`}
+    >
+      <form onSubmit={submit} className={styles.form}>
+        <div className={styles.body}>
+          <div className={styles.fields}>
+            {form.error && (
               <Alert variant="destructive">
-                <AlertDescription>
-                  {error || 'Receiving quantities could not be loaded. Close and retry.'}
-                </AlertDescription>
+                <AlertDescription>{form.error}</AlertDescription>
               </Alert>
             )}
-            <p className="text-sm text-muted-foreground">
-              Enter zero for products that did not arrive. The outstanding quantity remains
-              available for a later shipment.
+            {form.loading && (
+              <p role="status" className="text-sm text-muted-foreground">
+                Loading delivery and purchase order receipts…
+              </p>
+            )}
+            {form.delivery && (
+              <div className="flex min-w-0 flex-col gap-1 rounded-md bg-secondary p-4 text-sm">
+                <OverflowValue value={form.delivery.deliveryNumber} className="font-medium" />
+                <OverflowValue value={form.order?.orderNumber ?? 'Purchase order unavailable'} />
+                <OverflowValue
+                  value={form.supplier?.name ?? 'Supplier unavailable'}
+                  className="text-xs text-muted-foreground"
+                />
+                <div className="flex min-w-0 items-center gap-1">
+                  <span>Receiving warehouse:</span>
+                  <OverflowValue value={form.warehouse?.name ?? 'Warehouse unavailable'} />
+                </div>
+              </div>
+            )}
+            <p id="receipt-quantity-help" className="text-xs text-muted-foreground">
+              Received now includes damaged goods. Previously received includes past damage;
+              outstanding counts only accepted good stock. Leave a line blank or enter zero to skip
+              it.
             </p>
-            <DeliveryItemsTable
-              rows={rows}
-              quantityLabel="Actual received"
-              onChange={(id, quantity) =>
-                setQuantities((current) => ({ ...current, [id]: quantity }))
-              }
-              disabled={complete.isPending || loading || unavailable}
-            />
-          </div>
-          <DialogFooter className="shrink-0 border-t border-border bg-background px-6 py-4">
-            <Button type="button" variant="outline" onClick={onClose} disabled={complete.isPending}>
-              Cancel
-            </Button>
+            {form.rows.length > 0 && (
+              <DataTable
+                data={form.rows}
+                columns={columns}
+                getRowKey={(row) => row.id}
+                pagination={false}
+                className="shrink-0"
+                tableClassName="min-w-[920px] w-full table-fixed"
+              />
+            )}
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="receipt-none"
+                checked={form.noReceipt}
+                onCheckedChange={(checked) => form.setNoReceipt(checked === true)}
+                disabled={readOnly}
+              />
+              <Label htmlFor="receipt-none">No goods received</Label>
+            </div>
+            {form.noReceipt && (
+              <div className={styles.field}>
+                <Label htmlFor="no-receipt-reason">Reason for no receipt</Label>
+                <Textarea
+                  id="no-receipt-reason"
+                  value={form.reason}
+                  onChange={(event) => form.setReason(event.target.value)}
+                  disabled={readOnly}
+                  aria-required="true"
+                  aria-invalid={!!form.reasonError}
+                  aria-describedby={
+                    form.reasonError ? 'no-receipt-reason-error' : 'no-receipt-help'
+                  }
+                />
+                {form.reasonError && (
+                  <p id="no-receipt-reason-error" role="alert" className="text-xs text-destructive">
+                    {form.reasonError}
+                  </p>
+                )}
+                <p id="no-receipt-help" className="text-xs text-muted-foreground">
+                  This completes the delivery without adding stock or fulfilling purchase order
+                  quantities.
+                </p>
+              </div>
+            )}
             <Button
-              type="submit"
-              disabled={complete.isPending || loading || unavailable || !canManageOperations}
+              type="button"
+              variant="link"
+              className="self-start"
+              disabled={form.busy || form.fetching}
+              onClick={() => void form.refresh()}
             >
-              {complete.isPending ? 'Receiving…' : 'Confirm Receipt'}
+              Refresh receipt data
             </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+          </div>
+        </div>
+        <DeliveryFormFooter>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={form.busy}
+            onClick={onClose}
+            className={styles.button}
+          >
+            Cancel
+          </Button>
+          <Button type="submit" disabled={!form.canSubmit} className={styles.button}>
+            {form.refreshing
+              ? 'Refreshing…'
+              : form.busy
+                ? 'Confirming…'
+                : form.noReceipt
+                  ? 'Confirm No Receipt'
+                  : 'Confirm Receipt'}
+          </Button>
+        </DeliveryFormFooter>
+      </form>
+    </DeliveryFormDialog>
   )
 }

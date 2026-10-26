@@ -41,6 +41,7 @@ const stocks: StockItem[] = [
     warehouseId: 1,
     quantity: '12',
     reservedQuantity: '2',
+    availableQuantity: '10',
     ...timestamps,
   },
   {
@@ -49,6 +50,7 @@ const stocks: StockItem[] = [
     warehouseId: 2,
     quantity: '8',
     reservedQuantity: '1',
+    availableQuantity: '7',
     ...timestamps,
   },
 ]
@@ -173,10 +175,10 @@ describe('purchase composer', () => {
     await user.tab()
     expect(document.activeElement).toBe(cost)
     await user.type(cost, '10.20')
-    expect(screen.getAllByText('₱22.95').length).toBe(4)
+    expect(screen.getAllByText('₱22.95').length).toBe(3)
     await user.click(catalog.getByText(/Fresh orchard harvest/))
     expect(document.activeElement).toBe(quantity)
-    expect((quantity as HTMLInputElement).value).toBe('2.25')
+    expect((quantity as HTMLInputElement).value).toBe('3.25')
     expect((cost as HTMLInputElement).value).toBe('10.20')
     expect((catalog.getByRole('textbox') as HTMLInputElement).value).toBe('orchard')
     expect(screen.getAllByRole('textbox', { name: 'Quantity for Test Mango' })).toHaveLength(1)
@@ -351,6 +353,12 @@ describe('purchase composer', () => {
       ).value,
     ).toBe('Carabao')
     await user.keyboard('{Escape}')
+    expect(onClose).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: 'Keep Editing' }))
+    await user.click(screen.getByRole('tab', { name: /Order Editor/ }))
+    expect((screen.getByLabelText('Notes') as HTMLInputElement).value).toBe('Keep this draft')
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    await user.click(screen.getByRole('button', { name: 'Discard Changes' }))
     expect(onClose).toHaveBeenCalledOnce()
   })
 
@@ -404,19 +412,21 @@ describe('sales composer', () => {
       'Product',
       'Quantity',
       'Unit Price',
-      'Line Discount',
-      'Amounts',
+      'Discount',
+      'Line Total',
       'Remove',
     ])
-    expect(items.queryByRole('combobox')).toBeNull()
+    expect(items.queryByRole('combobox', { name: /warehouse/i })).toBeNull()
     expect(screen.queryByText(/Warehouse source required|Choose warehouse/)).toBeNull()
     await user.clear(quantity)
     await user.type(quantity, '12.5')
     const price = screen.getByRole('textbox', { name: 'Unit price for Test Mango' })
     await user.clear(price)
     await user.type(price, '20')
+    await user.click(screen.getByRole('button', { name: 'Edit discount for Test Mango' }))
     await user.clear(screen.getByRole('textbox', { name: 'Line discount for Test Mango' }))
     await user.type(screen.getByRole('textbox', { name: 'Line discount for Test Mango' }), '10')
+    await user.click(screen.getByRole('button', { name: 'Done' }))
     await user.click(screen.getByText('Additional details'))
     await user.type(screen.getByLabelText('External Reference'), 'REF-2')
     fireEvent.change(screen.getByLabelText('Expected Delivery Date'), {
@@ -444,7 +454,7 @@ describe('sales composer', () => {
           inventoryItemId: 1,
           quantity: '12.5',
           unitPrice: '20',
-          discountRate: '10.00',
+          discountRate: '10',
           taxRate: '12.00',
         },
       ],
@@ -682,7 +692,7 @@ describe('shared catalog', () => {
     const list = [products[0], { ...products[1], name: 'Test Banana' }]
     const stockItems = [
       stocks[0],
-      { ...stocks[1], inventoryItemId: 2, quantity: '30', reservedQuantity: '29' },
+      { ...stocks[1], inventoryItemId: 2, quantity: '30', reservedQuantity: '29', availableQuantity: '1' },
     ]
     const props = { products: list, stockItems, onAdd: vi.fn(), busy: false }
     const { rerender } = render(<OrderProductCatalog {...props} sales />)

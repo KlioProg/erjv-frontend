@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Spinner } from '@/components/ui/spinner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal'
 import {
   useCreateWarehouse,
   useUpdateWarehouseDetails,
@@ -48,6 +49,14 @@ function WarehouseFormContent({
   const [deactivatedWarehouseMatch, setDeactivatedWarehouseMatch] = useState<Warehouse | null>(null)
   const submitting = useRef(false)
   const [checkingName, setCheckingName] = useState(false)
+  const [discardOpen, setDiscardOpen] = useState(false)
+  const dirty = name !== (warehouse?.name ?? '') || address !== (warehouse?.address ?? '') ||
+    contactNumber !== (warehouse?.contactNumber ?? '')
+  function requestClose() {
+    if (submitting.current || isPending) return
+    if (dirty) setDiscardOpen(true)
+    else onClose()
+  }
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
@@ -146,7 +155,8 @@ function WarehouseFormContent({
     reactivateMutation.isPending
 
   return (
-    <>
+    <Dialog open onOpenChange={(open) => !open && requestClose()}>
+      <DialogContent className="sm:max-w-[480px]" closeDisabled={isPending}>
       <DialogHeader>
         <DialogTitle>
           {isEditing ? 'Edit Warehouse Location' : 'Register New Warehouse'}
@@ -253,7 +263,7 @@ function WarehouseFormContent({
         </div>
 
         <DialogFooter className="gap-2 mt-4 pt-3 border-t">
-          <Button type="button" variant="outline" onClick={onClose} disabled={isPending}>
+          <Button type="button" variant="outline" onClick={requestClose} disabled={isPending}>
             Cancel
           </Button>
           {deactivatedWarehouseMatch ? (
@@ -289,22 +299,26 @@ function WarehouseFormContent({
           )}
         </DialogFooter>
       </form>
-    </>
+      <ConfirmDeleteModal
+        open={discardOpen}
+        onClose={() => setDiscardOpen(false)}
+        onConfirm={onClose}
+        title="Discard unsaved warehouse changes?"
+        description="Your unsaved facility details will be lost."
+        confirmText="Discard Changes"
+        cancelText="Keep Editing"
+      />
+      </DialogContent>
+    </Dialog>
   )
 }
 
 export function WarehouseModal({ warehouse, open, onClose }: WarehouseModalProps) {
-  return (
-    <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-      <DialogContent className="sm:max-w-[480px]">
-        {open && (
-          <WarehouseFormContent
-            key={warehouse ? `wh-${warehouse.id}` : 'new-wh'}
-            warehouse={warehouse}
-            onClose={onClose}
-          />
-        )}
-      </DialogContent>
-    </Dialog>
-  )
+  return open ? (
+    <WarehouseFormContent
+      key={warehouse ? `wh-${warehouse.id}` : 'new-wh'}
+      warehouse={warehouse}
+      onClose={onClose}
+    />
+  ) : null
 }

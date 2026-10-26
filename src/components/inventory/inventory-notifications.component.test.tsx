@@ -55,6 +55,45 @@ let failPrice: boolean
 let priceGate: Promise<void> | undefined
 let requests: { method: string; url: string; body: Record<string, unknown> }[]
 const originalAdapter = apiClient.defaults.adapter
+
+it('defaults to products with archive filters and keeps quarantine as a secondary heading action', async () => {
+  const user = userEvent.setup()
+  mount(<InventoryHub />)
+  await screen.findByText('Alpha Empty')
+  expect(screen.getByRole('button', { name: /^Active/ })).toBeTruthy()
+  expect(screen.getByRole('button', { name: /^Archived/ })).toBeTruthy()
+  expect(screen.queryByRole('tablist', { name: 'Inventory views' })).toBeNull()
+  expect(requests.some((request) => request.url === '/stock-items/quarantine-lots')).toBe(false)
+  await user.click(screen.getByRole('button', { name: /^Archived/ }))
+  await user.type(screen.getByRole('textbox', { name: 'Search inventory' }), 'Archived')
+  await user.click(screen.getByRole('button', { name: 'Quarantined Stock' }))
+  expect(screen.getByRole('heading', { name: 'Quarantined Stock' })).toBeTruthy()
+  expect(screen.queryByRole('button', { name: /^Archived/ })).toBeNull()
+  expect(await screen.findByText(/No quarantined stock has been recorded/)).toBeTruthy()
+  expect(screen.getByText(/damaged quantities are confirmed during incoming receiving/)).toBeTruthy()
+  expect(screen.queryByRole('button', { name: /Add Damaged Stock|Create Quarantine|Tag Stock/i })).toBeNull()
+  await user.click(screen.getByRole('button', { name: 'Back to Products' }))
+  expect((screen.getByRole('textbox', { name: 'Search inventory' }) as HTMLInputElement).value).toBe('Archived')
+  expect(screen.getByText('Archived Product')).toBeTruthy()
+  expect(requests.filter((request) => request.method !== 'get')).toHaveLength(0)
+})
+
+it('opens existing quarantine lots for the selected warehouse stock and can show all lots', async () => {
+  const user = userEvent.setup()
+  mount(<InventoryHub />)
+  await screen.findByText('Beta Mixed')
+  await user.click(screen.getByRole('button', { name: 'Show stock by location for Beta Mixed' }))
+  const locations = within(screen.getByRole('region', { name: 'Stock by location for Beta Mixed' }))
+  const viewLots = locations.getByRole('button', { name: 'View quarantine for Beta Mixed in Store' })
+  expect(viewLots.textContent).toBe('View Quarantine')
+  await user.click(viewLots)
+  expect(await screen.findByText(/No quarantined stock has been recorded/)).toBeTruthy()
+  expect(screen.getByRole('button', { name: 'Show all quarantine lots' })).toBeTruthy()
+  await user.click(screen.getByRole('button', { name: 'Show all quarantine lots' }))
+  await waitFor(() => expect(requests.filter((request) => request.url === '/stock-items/quarantine-lots')).toHaveLength(2))
+  expect(screen.queryByRole('button', { name: 'Show all quarantine lots' })).toBeNull()
+  expect(requests.filter((request) => request.method !== 'get')).toHaveLength(0)
+})
 const stock = (
   id: number,
   productId: number,
@@ -174,7 +213,7 @@ beforeEach(() => {
             }
           : item,
       )
-      data = { id: 1, deliveryNumber: 'TEST-MOVEMENT' }
+      data = { id: 1, deliveryNumber: 'TEST-MOVEMENT', status: url.startsWith('/incoming') ? 'COMPLETED' : 'DELIVERED' }
     } else if (url.startsWith('/inventory-items/') && method === 'delete') {
       if (failArchive)
         throw { isAxiosError: true, response: { status: 409, data: { message: 'Archive failed' } } }
@@ -234,12 +273,15 @@ describe('inventory and global stock warnings', () => {
     expect(screen.getAllByText('Beta Mixed')).toHaveLength(1)
     await user.click(screen.getByRole('button', { name: 'Show stock by location for Beta Mixed' }))
     const region = screen.getByRole('region', { name: 'Stock by location for Beta Mixed' })
+    expect(within(region).getAllByRole('columnheader').map((header) => header.textContent)).toEqual([
+      'Warehouse', 'Physical', 'Reserved', 'Damaged', 'Available', 'Actions',
+    ])
     expect(within(region).getByText('100.25')).toBeTruthy()
     expect(within(region).getByText('20.1')).toBeTruthy()
     expect(within(region).getByText('5.05')).toBeTruthy()
     expect(within(region).getByText('75.1')).toBeTruthy()
     expect(within(region).getAllByText('—')).toHaveLength(3)
-    expect(within(region).getByText('Stock status unavailable')).toBeTruthy()
+    expect(within(region).queryByRole('columnheader', { name: 'Stock Status' })).toBeNull()
   })
 
   it('uses available stock and backend LOW/OUT status in warehouse details', async () => {
@@ -270,7 +312,7 @@ describe('inventory and global stock warnings', () => {
       within(row).getByRole('img', { name: 'Out of stock: Alpha Empty in Store' }),
     ).toBeTruthy()
     expect(screen.getByRole('img', { name: 'Low stock: Beta Mixed in Store' })).toBeTruthy()
-    expect(screen.getByText('Threshold not set')).toBeTruthy()
+    expect(screen.queryByText('Threshold not set')).toBeNull()
   })
 
   it('lets keyboard users change the warehouse and return to warning categories', async () => {
@@ -295,8 +337,8 @@ describe('inventory and global stock warnings', () => {
       const deliver = useCompleteOutgoingDelivery()
       return (
         <>
-          <button onClick={() => receive.mutate(1)}>Test receive</button>
-          <button onClick={() => deliver.mutate(1)}>Test complete delivery</button>
+          <button onClick={() => receive.mutate({ id: 1, payload: { items: [{ purchaseOrderItemId: 1, receivedQuantity: '1.00', damagedQuantity: '0.00' }] } })}>Test receive</button>
+          <button onClick={() => deliver.mutate({ id: 1, payload: { items: [{ outgoingDeliveryItemId: 1, deliveredQuantity: '1.00', returnedSellableQuantity: '0.00', returnedDamagedQuantity: '0.00', missingQuantity: '0.00' }] } })}>Test complete delivery</button>
           <StockNotifications onOpenInventory={vi.fn()} />
         </>
       )
@@ -507,7 +549,9 @@ describe('inventory and global stock warnings', () => {
     await screen.findByText('Zulu Empty')
     const table = screen.getByRole('table')
     const visibleRows = () => within(table).getAllByRole('row').slice(1)
-    expect(within(table).getAllByRole('columnheader')).toHaveLength(6)
+    expect(within(table).getAllByRole('columnheader').map((header) => header.textContent)).toEqual([
+      'Product', 'Unit', 'Physical', 'Reserved', 'Damaged', 'Available', 'Quarantine',
+    ])
     expect(screen.queryByRole('columnheader', { name: 'Status' })).toBeNull()
     expect(visibleRows()).toHaveLength(10)
     expect(
@@ -787,6 +831,27 @@ describe('inventory and global stock warnings', () => {
   })
 })
 
+it('uses product counts instead of adding incompatible warehouse units', async () => {
+  stocks = [stock(1, 1, 1, '10'), stock(2, 2, 1, '20')]
+  stocks[0].inventoryItem.unit = 'kg'
+  stocks[1].inventoryItem.unit = 'pieces'
+  const view = mount(<WarehouseList onOpenWarehouse={vi.fn()} />)
+  await screen.findByRole('button', { name: 'Show products for Store' })
+  expect(screen.queryByRole('columnheader', { name: 'Total Stock' })).toBeNull()
+  expect(screen.queryByText('30')).toBeNull()
+  await userEvent.setup().click(screen.getByRole('button', { name: 'Show products for Store' }))
+  const region = await screen.findByRole('region', { name: 'Products at Store' })
+  expect(within(region).getByText('kg')).toBeTruthy()
+  expect(within(region).getByText('piece(s)')).toBeTruthy()
+  view.unmount()
+  mount(<WarehouseInventory warehouse={warehouses[0]} onBack={vi.fn()} />)
+  const summary = await screen.findByRole('region', { name: 'Warehouse stock summary' })
+  await waitFor(() => expect(within(summary).getAllByText('2')).toHaveLength(2))
+  expect(within(summary).getByText('Stocked products')).toBeTruthy()
+  expect(within(summary).queryByText('30')).toBeNull()
+  expect(within(summary).queryByText('units')).toBeNull()
+})
+
 describe('warehouse product expansion', () => {
   it('keeps expansion attached to warehouse IDs through sorting, pagination and search', async () => {
     const user = userEvent.setup()
@@ -902,7 +967,7 @@ it('keeps 17 kg unclassified as low stock and zero-stock warnings consistent acr
   expect(within(row).getAllByText('17')).toHaveLength(2)
   expect(within(row).getByText('kg')).toBeTruthy()
   expect(within(row).queryByRole('img')).toBeNull()
-  expect(within(row).getByText('Threshold not set')).toBeTruthy()
+  expect(within(row).queryByText('Threshold not set')).toBeNull()
   expect(screen.getByRole('img', { name: 'Out of stock: Empty Mango in Store' })).toBeTruthy()
   await user.click(await screen.findByRole('button', { name: /1 unresolved/ }))
   await user.click(screen.getByRole('menuitemradio', { name: 'Low stock' }))

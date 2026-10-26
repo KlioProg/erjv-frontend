@@ -1,4 +1,5 @@
 import { apiClient, extractArray, type FetchParams } from '@/lib/api-client'
+import { parseStockCents } from './stock-display'
 import type {
   AdjustStockQuantityPayload,
   CreateStockItemPayload,
@@ -11,7 +12,37 @@ import type {
   QuarantineLot,
   QuarantineResolution,
   ResolveQuarantinePayload,
+  CreateManualQuarantinePayload,
+  CorrectQuarantineConditionPayload,
 } from './stock-items.types'
+
+function stockQuantity(value: string): string {
+  if (parseStockCents(value) === null)
+    throw new Error('Enter a non-negative quantity with up to two decimal places.')
+  return value.trim()
+}
+
+export async function createManualQuarantineApi(payload: CreateManualQuarantinePayload): Promise<QuarantineLot> {
+  const quantity = parseStockCents(payload.quantity)
+  if (quantity === null || quantity <= 0n || !payload.reason.trim())
+    throw new Error('Enter a positive quarantine quantity with up to two decimals and an inspection reason.')
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(payload.requestId))
+    throw new Error('The inspection request could not be identified. Reopen the form before continuing.')
+  const { data } = await apiClient.post<QuarantineLot>('/stock-items/quarantine-lots', {
+    stockItemId: payload.stockItemId, condition: payload.condition, quantity: payload.quantity.trim(), reason: payload.reason.trim(), requestId: payload.requestId,
+  })
+  if (data?.stockItemId !== payload.stockItemId || data.requestId !== payload.requestId)
+    throw new Error('The server did not confirm the quarantine record. Refresh the lots before trying again.')
+  return data
+}
+
+export async function correctQuarantineConditionApi(lotId: number, payload: CorrectQuarantineConditionPayload): Promise<QuarantineLot> {
+  if (!payload.reason.trim()) throw new Error('Enter a reason for correcting the condition.')
+  const { data } = await apiClient.patch<QuarantineLot>(`/stock-items/quarantine-lots/${lotId}/condition`, { condition: payload.condition, reason: payload.reason.trim() })
+  if (data?.id !== lotId || data.condition !== payload.condition)
+    throw new Error('The server did not confirm the condition correction. Refresh the lot before trying again.')
+  return data
+}
 
 export async function fetchQuarantineLotsApi(stockItemId?: number): Promise<QuarantineLot[]> {
   const { data } = await apiClient.get('/stock-items/quarantine-lots', {
@@ -79,7 +110,7 @@ export async function createStockItemApi(payload: CreateStockItemPayload): Promi
   const cleanPayload = {
     inventoryItemId: Number(payload.inventoryItemId),
     warehouseId: Number(payload.warehouseId),
-    quantity: payload.quantity ? parseFloat(payload.quantity).toFixed(2) : '0.00',
+    quantity: payload.quantity === undefined ? '0.00' : stockQuantity(payload.quantity),
   }
 
   const { data } = await apiClient.post<StockItem>('/stock-items', cleanPayload)
@@ -91,7 +122,7 @@ export async function setStockQuantityApi(
   payload: SetStockQuantityPayload,
 ): Promise<StockItem> {
   const { data } = await apiClient.patch<StockItem>(`/stock-items/${id}/quantity`, {
-    quantity: parseFloat(payload.quantity).toFixed(2),
+    quantity: stockQuantity(payload.quantity),
   })
   return data
 }
@@ -102,7 +133,7 @@ export async function setReorderThresholdApi(
 ): Promise<StockItem> {
   const { data } = await apiClient.patch<StockItem>(`/stock-items/${id}/reorder-threshold`, {
     reorderThreshold:
-      payload.reorderThreshold === null ? null : parseFloat(payload.reorderThreshold).toFixed(2),
+      payload.reorderThreshold === null ? null : stockQuantity(payload.reorderThreshold),
   })
   return data
 }
@@ -112,7 +143,7 @@ export async function increaseStockQuantityApi(
   payload: AdjustStockQuantityPayload,
 ): Promise<StockItem> {
   const { data } = await apiClient.patch<StockItem>(`/stock-items/${id}/quantity/increase`, {
-    amount: parseFloat(payload.amount).toFixed(2),
+    amount: stockQuantity(payload.amount),
   })
   return data
 }
@@ -122,7 +153,7 @@ export async function decreaseStockQuantityApi(
   payload: AdjustStockQuantityPayload,
 ): Promise<StockItem> {
   const { data } = await apiClient.patch<StockItem>(`/stock-items/${id}/quantity/decrease`, {
-    amount: parseFloat(payload.amount).toFixed(2),
+    amount: stockQuantity(payload.amount),
   })
   return data
 }

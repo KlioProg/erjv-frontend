@@ -90,7 +90,7 @@ export function PurchaseModal({
       id: 'quantity',
       header: 'Quantity',
       align: 'right',
-      width: 140,
+      width: 132,
       cell: ({ row }) => (
         <div className="flex min-w-0 flex-col gap-1">
           <span
@@ -115,7 +115,7 @@ export function PurchaseModal({
             </div>
             <span
               id={`purchase-quantity-unit-${row.formId}`}
-              className="max-w-16 text-left text-xs leading-4 text-muted-foreground [overflow-wrap:anywhere]"
+              className="max-w-10 text-left text-xs leading-4 text-muted-foreground [overflow-wrap:anywhere]"
             >
               {formatProductUnit(row.unit)}
             </span>
@@ -127,7 +127,7 @@ export function PurchaseModal({
       id: 'cost',
       header: 'Unit Cost',
       align: 'right',
-      width: 130,
+      width: 112,
       cell: ({ row }) => (
         <OrderDecimalInput
           currency
@@ -142,26 +142,27 @@ export function PurchaseModal({
     },
     {
       id: 'discount',
-      header: 'Line Discount',
-      width: 148,
+      header: 'Discount',
+      width: 112,
       cell: ({ row }) => <OrderLineDiscount id={`purchase-discount-${row.formId}`} name={row.name}
         value={row.discount} line={{ quantity: row.quantity, unitPrice: row.unitCost }}
         onChange={(discount) => form.updateDiscount(row.formId, discount)} />,
     },
     {
       id: 'subtotal',
-      header: 'Amounts',
+      header: 'Line Total',
       width: 140,
       align: 'right',
-      cell: ({ row }) => <OrderLineAmounts line={{ ...row, unitPrice: row.unitCost, ...discountFields(row.discount) }}
+      cell: ({ row }) => <OrderLineAmounts name={row.name} line={{ ...row, unitPrice: row.unitCost, ...discountFields(row.discount) }}
         saved={form.submission.savedOrder?.items?.[form.lines.findIndex((line) => line.formId === row.formId)]} />,
     },
     {
       id: 'remove',
       header: 'Remove',
-      width: 64,
+      width: 68,
       align: 'right',
       className: 'order-entry-remove',
+      headerClassName: 'order-entry-remove-header',
       cell: ({ row }) => (
         <RemoveOrderItem name={row.name} onRemove={() => form.removeLine(row.formId)} />
       ),
@@ -186,6 +187,7 @@ export function PurchaseModal({
       }
       confirmLabel="Confirm & Export Receipt"
       submission={form.submission}
+      hasUnsavedChanges={form.hasUnsavedChanges}
       busy={form.busy}
       error={form.error}
       errorFocusId={form.errorFocusId}

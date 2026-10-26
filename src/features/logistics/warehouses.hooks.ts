@@ -75,27 +75,12 @@ export function useDeactivateWarehouse(options?: { onViewArchive?: () => void })
     mutationFn: async (whOrId: Warehouse | number) => {
       const id = typeof whOrId === 'number' ? whOrId : whOrId.id
       const res = await deactivateWarehouseApi(id)
+      if (!res || res.id !== id || res.isActive !== false)
+        throw new Error('The server did not confirm archiving this warehouse. Refresh and review its status before trying again.')
       return { res, inputWarehouse: typeof whOrId === 'object' ? whOrId : null, id }
     },
-    onMutate: async (whOrId) => {
-      await queryClient.cancelQueries({ queryKey: [...WAREHOUSES_QUERY_KEY, 'true'] })
-      const previousWarehouses = queryClient.getQueryData<Warehouse[]>([
-        ...WAREHOUSES_QUERY_KEY,
-        'true',
-      ])
-      const targetId = typeof whOrId === 'number' ? whOrId : whOrId.id
-
-      queryClient.setQueryData<Warehouse[]>([...WAREHOUSES_QUERY_KEY, 'true'], (old) => {
-        if (!old) return []
-        return old.map((w) => (w.id === targetId ? { ...w, isActive: false } : w))
-      })
-
-      return { previousWarehouses }
-    },
-    onError: (err, _, context) => {
-      if (context?.previousWarehouses) {
-        queryClient.setQueryData([...WAREHOUSES_QUERY_KEY, 'true'], context.previousWarehouses)
-      }
+    retry: false,
+    onError: (err) => {
       toast.error(getErrorMessage(err))
     },
     onSettled: () => {

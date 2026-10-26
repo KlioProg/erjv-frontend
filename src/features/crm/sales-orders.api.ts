@@ -1,6 +1,5 @@
 import axios from 'axios'
 import { serializeLineDiscount } from '@/lib/order-line-pricing'
-import { assertSalesDraftDiscountSupport } from './sales-order-entry.utils'
 import { apiClient, extractArray } from '@/lib/api-client'
 import type {
   CreateSalesOrderPayload,
@@ -70,10 +69,9 @@ export async function updateSalesOrderDraftApi(
   id: number,
   payload: UpdateSalesOrderDraftPayload,
 ): Promise<SalesOrderRecord> {
-  if (!Number.isInteger(payload.expectedRevision) || payload.expectedRevision < 0)
+  if (!Number.isInteger(payload.expectedRevision) || payload.expectedRevision < 1)
     throw new Error('A valid saved revision is required. Reload this draft.')
   if (payload.items?.length === 0) throw new Error('Add at least one product to the sales order.')
-  assertSalesDraftDiscountSupport(payload.items)
   const cleanPayload = {
     expectedRevision: payload.expectedRevision,
     ...(payload.clientId !== undefined ? { clientId: payload.clientId } : {}),

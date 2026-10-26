@@ -1,24 +1,15 @@
 import type { PurchaseOrderRecord } from './purchase-orders.types'
 import type { IncomingDeliveryRecord } from './incoming-deliveries.types'
-import { remainingDeliveryQuantity, sumDeliveryQuantities } from './delivery-quantities.ts'
+import { purchaseReceivingProgress } from './purchase-orders.presentation.ts'
+import { decimalString } from '../../lib/order-amounts.ts'
 
-/** Draft, scheduled and completed shipments all consume the arrangement balance. */
+/** Header-only drafts and schedules do not consume goods; completed accepted stock does. */
 export function incomingOrderRemainingQuantity(
   order: Pick<PurchaseOrderRecord, 'id' | 'items'>,
   deliveries: IncomingDeliveryRecord[],
 ): string | null {
-  const arrangedItems = deliveries
-    .filter((delivery) => delivery.purchaseOrderId === order.id && delivery.status !== 'CANCELLED')
-    .flatMap((delivery) => delivery.items)
-  const remaining = order.items.map((item) =>
-    remainingDeliveryQuantity(
-      item.quantity,
-      arrangedItems
-        .filter((arranged) => arranged.purchaseOrderItemId === item.id)
-        .map((arranged) => arranged.receivedQuantity),
-    ),
-  )
-  return remaining.some((quantity) => quantity === null)
+  const progress = purchaseReceivingProgress(order, deliveries)
+  return progress.some((line) => line.remaining === null)
     ? null
-    : sumDeliveryQuantities(remaining as string[])
+    : decimalString(progress.reduce((sum, line) => sum + line.remaining!, 0n))
 }

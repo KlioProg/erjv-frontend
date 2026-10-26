@@ -7,13 +7,14 @@ import type { StockItemWithInventoryItem } from '@/features/logistics/stock-item
 import { formatStockCents, parseStockCents, stockSortKey } from '@/features/logistics/stock-display'
 import { getErrorMessage } from '@/lib/api-client'
 import { formatProductUnit } from '@/lib/product-unit'
-import { StockStatusBadge } from '@/components/inventory/StockBalanceSummary'
+import { StockIndicator } from '@/components/inventory/StockIndicator'
+import { stockConditionForItem } from '@/features/logistics/stock-warnings'
 
 const columns: ColumnDef<StockItemWithInventoryItem>[] = [
   {
     id: 'product',
     header: 'Product',
-    width: '30%',
+    width: '28%',
     sortable: true,
     sortKey: (row) => row.inventoryItem?.name ?? '',
     cell: ({ row }) => (
@@ -23,7 +24,7 @@ const columns: ColumnDef<StockItemWithInventoryItem>[] = [
   {
     id: 'unit',
     header: 'Unit',
-    width: '10%',
+    width: 72,
     cell: ({ row }) => (
       <span className="whitespace-normal [overflow-wrap:anywhere]">
         {formatProductUnit(row.inventoryItem?.unit, '—')}
@@ -33,7 +34,7 @@ const columns: ColumnDef<StockItemWithInventoryItem>[] = [
   {
     id: 'quantity',
     header: 'Physical',
-    width: '15%',
+    width: 96,
     align: 'right',
     sortable: true,
     sortKey: (row) => stockSortKey(parseStockCents(row.quantity)),
@@ -53,17 +54,22 @@ const columns: ColumnDef<StockItemWithInventoryItem>[] = [
   ).map(([field, label]): ColumnDef<StockItemWithInventoryItem> => ({
     id: field,
     header: label,
-    width: '15%',
+    width: 96,
     align: 'right',
     sortable: true,
     sortKey: (row) => stockSortKey(parseStockCents(row[field])),
     cell: ({ row }) => (
-      <div className="flex min-w-0 flex-col items-end gap-1">
+      <div className="flex min-w-0 items-center justify-end gap-1.5">
+        {field === 'availableQuantity' && (
+          <StockIndicator
+            condition={stockConditionForItem(row)}
+            label={`${stockConditionForItem(row) === 'LOW' ? 'Low stock' : 'Out of stock'}: ${row.inventoryItem?.name ?? 'Product'}`}
+          />
+        )}
         <OverflowValue
           value={formatStockCents(parseStockCents(row[field]))}
           className="text-right tabular-nums"
         />
-        {field === 'availableQuantity' && <StockStatusBadge stock={row} />}
       </div>
     ),
   })),
@@ -80,7 +86,8 @@ export function WarehouseProducts({
   return (
     <DataTableExpandedSection
       id={`warehouse-products-${warehouseId}`}
-      title={`Products at ${warehouseName}`}
+      title={<OverflowValue value={`Products at ${warehouseName}`} />}
+      ariaLabel={`Products at ${warehouseName}`}
       isLoading={stockQuery.isLoading}
       loadingContent={<p role="status">Loading products...</p>}
       isEmpty={stockQuery.data?.length === 0}
@@ -103,7 +110,7 @@ export function WarehouseProducts({
         defaultSort={{ key: 'product', direction: 'asc' }}
         appearance="subtle"
         className="rounded-none border-0 bg-transparent shadow-none"
-        tableClassName="min-w-[640px] w-full table-fixed"
+        tableClassName="min-w-[760px] w-full table-fixed"
       />
     </DataTableExpandedSection>
   )

@@ -1,12 +1,12 @@
 /** Shared density for incoming and outgoing scheduling; workflow stays domain-owned. */
 export const deliveryFormStyles = {
   dialog:
-    'flex max-h-[min(880px,90dvh)] w-[calc(100vw-2rem)] flex-col gap-4 overflow-hidden p-6 sm:max-w-3xl [&>button:last-child]:grid [&>button:last-child]:size-8 [&>button:last-child]:place-items-center pointer-coarse:[&>button:last-child]:size-11',
+    'flex h-[min(880px,90dvh)] min-h-0 max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] flex-col gap-4 overflow-hidden p-6 sm:max-w-3xl [&>button:last-child]:grid [&>button:last-child]:size-8 [&>button:last-child]:place-items-center pointer-coarse:[&>button:last-child]:size-11',
   header: 'shrink-0 gap-1.5 pr-8 text-left',
   title: 'text-xl font-semibold leading-6 [overflow-wrap:anywhere]',
   description: 'text-xs leading-5',
-  form: 'flex min-h-0 flex-1 flex-col gap-4',
-  body: 'min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain',
+  form: 'grid min-h-0 min-w-0 flex-1 grid-rows-[minmax(0,1fr)_auto] gap-4',
+  body: 'min-h-0 min-w-0 overflow-y-auto overscroll-contain [scrollbar-gutter:stable]',
   fields: 'flex min-w-0 flex-col gap-4',
   grid: 'grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2',
   field: 'flex min-w-0 flex-col gap-1.5',
@@ -21,6 +21,6 @@ export const deliveryFormStyles = {
   message: 'mb-4 text-xs leading-5',
   retry: 'ml-2 h-auto px-0 text-xs font-medium pointer-coarse:min-h-11',
   footer:
-    'flex shrink-0 flex-row flex-wrap items-center justify-end gap-2 border-t border-border pt-4 sm:gap-2',
+    'flex min-w-0 shrink-0 flex-row flex-wrap items-center justify-end gap-2 border-t border-border bg-card pt-4 sm:gap-2',
   button: 'h-10 px-4 text-[13px] font-medium pointer-coarse:min-h-11',
 } as const

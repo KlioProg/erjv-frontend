@@ -8,6 +8,9 @@ import { createSalesOrderApi, updateSalesOrderDraftApi } from './crm/sales-order
 import { createPurchaseOrderApi, updatePurchaseOrderDraftApi } from './logistics/purchase-orders.api'
 import { apiClient } from '@/lib/api-client'
 import type { PurchaseOrderRecord } from './logistics/purchase-orders.types'
+import type { SavedOrder } from '@/hooks/use-order-submission'
+import type { OrderFormValues } from './crm/sales-order-entry.types'
+import type { CreatePurchaseOrderPayload } from './logistics/purchase-orders.types'
 import { orderLineAmounts, orderLineTotals, savedLineDiscount, discountFields } from '@/lib/order-line-pricing'
 
 const stamps = { createdAt: '2026-10-01', updatedAt: '2026-10-01' }
@@ -58,6 +61,7 @@ describe('discount request contracts', () => {
     { name: 'sales create', path: '/sales-orders', send: (item: object) => createSalesOrderApi({ clientId: 1, deliveryAddress: 'Davao', items: [item] } as Parameters<typeof createSalesOrderApi>[0]) },
     { name: 'purchase create', path: '/purchase-orders', send: (item: object) => createPurchaseOrderApi({ items: [item] } as Parameters<typeof createPurchaseOrderApi>[0]) },
     { name: 'purchase draft', path: '/purchase-orders/7/draft', send: (item: object) => updatePurchaseOrderDraftApi(7, { items: [item] } as Parameters<typeof updatePurchaseOrderDraftApi>[1]) },
+    { name: 'sales draft', path: '/sales-orders/7/draft', send: (item: object) => updateSalesOrderDraftApi(7, { expectedRevision: 1, items: [item] } as Parameters<typeof updateSalesOrderDraftApi>[1]) },
   ]
   const baseLine = { inventoryItemId: 1, quantity: '2.00', unitPrice: '100.00', taxRate: '12.00' }
   it.each(endpoints)('sends exact fixed pesos and preserves authoritative response totals for $name', async ({ path, send }) => {
@@ -75,17 +79,10 @@ describe('discount request contracts', () => {
     await expect(send({ ...baseLine, discountAmount: '0.00', discountRate: '0.00' })).rejects.toThrow(/either|both/i)
     expect(adapter).not.toHaveBeenCalled()
   })
-  it('does not send fixed discounts to the unverified Sales Order draft item DTO', async () => {
-    const adapter = vi.fn()
-    apiClient.defaults.adapter = adapter
-    await expect(updateSalesOrderDraftApi(7, { expectedRevision: 1,
-      items: [{ ...baseLine, discountAmount: '10.00' }] })).rejects.toThrow(/fixed.*draft/i)
-    expect(adapter).not.toHaveBeenCalled()
-  })
 })
 
 describe.each(['sales', 'purchase'] as const)('%s line discount editor', (kind) => {
-  async function setup(options: { onSubmit?: ReturnType<typeof vi.fn>; onConfirm?: ReturnType<typeof vi.fn> } = {}) {
+  async function setup(options: { onSubmit?: ReturnType<typeof vi.fn<(values: OrderFormValues | CreatePurchaseOrderPayload, intent?: 'draft' | 'confirm') => Promise<SavedOrder>>>; onConfirm?: ReturnType<typeof vi.fn<(id: number) => Promise<SavedOrder>>> } = {}) {
     const user = userEvent.setup()
     const onSubmit = options.onSubmit ?? vi.fn().mockResolvedValue({ id: 7, orderNumber: 'ORDER-7', status: 'DRAFT' })
     if (kind === 'sales') {
@@ -95,24 +92,27 @@ describe.each(['sales', 'purchase'] as const)('%s line discount editor', (kind) 
     } else render(<PurchaseModal open suppliers={suppliers} products={products} processedBy="Manager" onSubmit={onSubmit} onConfirm={options.onConfirm} onClose={vi.fn()} />)
     await user.click(screen.getByRole('button', { name: 'Add Test Mango' }))
     if (kind === 'purchase') await user.type(screen.getByRole('textbox', { name: 'Unit cost for Test Mango' }), '100.00')
-    return { user, onSubmit, payload: () => kind === 'sales' ? buildSalesOrderPayload(onSubmit.mock.calls[0][0]) : onSubmit.mock.calls[0][0] }
+    return { user, onSubmit, payload: () => kind === 'sales' ? buildSalesOrderPayload(onSubmit.mock.calls[0][0] as OrderFormValues) : onSubmit.mock.calls[0][0] as CreatePurchaseOrderPayload }
   }
 
   it('switches explicitly without converting values and submits only the selected discount', async () => {
     const { user, onSubmit, payload } = await setup()
+    expect(screen.queryByRole('textbox', { name: 'Line discount for Test Mango' })).toBeNull()
+    await user.click(screen.getByRole('button', { name: 'Edit discount for Test Mango' }))
     const input = screen.getByRole('textbox', { name: 'Line discount for Test Mango' })
     await user.clear(input)
     await user.type(input, '10')
     await user.click(screen.getByRole('combobox', { name: 'Discount type for Test Mango' }))
-    await user.click(screen.getByRole('option', { name: '₱' }))
+    await user.click(screen.getByRole('option', { name: 'Pesos' }))
     expect((input as HTMLInputElement).value).toBe('')
     await user.type(input, '7.50')
     await user.click(screen.getByRole('combobox', { name: 'Discount type for Test Mango' }))
-    await user.click(screen.getByRole('option', { name: '%' }))
+    await user.click(screen.getByRole('option', { name: 'Percent' }))
     expect((input as HTMLInputElement).value).toBe('10')
     await user.click(screen.getByRole('combobox', { name: 'Discount type for Test Mango' }))
-    await user.click(screen.getByRole('option', { name: '₱' }))
+    await user.click(screen.getByRole('option', { name: 'Pesos' }))
     expect((input as HTMLInputElement).value).toBe('7.50')
+    await user.click(screen.getByRole('button', { name: 'Done' }))
     await user.click(screen.getByRole('button', { name: 'Save Draft' }))
     await waitFor(() => expect(onSubmit).toHaveBeenCalledOnce())
     expect(payload().items[0]).toMatchObject({ discountAmount: '7.50' })
@@ -121,24 +121,31 @@ describe.each(['sales', 'purchase'] as const)('%s line discount editor', (kind) 
 
   it.each(['-1', '1.001', '100.01'])('rejects invalid fixed discount %s while preserving the input', async (value) => {
     const { user, onSubmit } = await setup()
+    await user.click(screen.getByRole('button', { name: 'Edit discount for Test Mango' }))
     await user.click(screen.getByRole('combobox', { name: 'Discount type for Test Mango' }))
-    await user.click(screen.getByRole('option', { name: '₱' }))
+    await user.click(screen.getByRole('option', { name: 'Pesos' }))
     const input = screen.getByRole('textbox', { name: 'Line discount for Test Mango' })
     fireEvent.change(input, { target: { value } })
+    expect((screen.getByRole('button', { name: 'Done' }) as HTMLButtonElement).disabled).toBe(true)
+    await user.keyboard('{Escape}')
     await user.click(screen.getByRole('button', { name: 'Save Draft' }))
     expect(onSubmit).not.toHaveBeenCalled()
-    expect((input as HTMLInputElement).value).toBe(value)
-    expect(input.getAttribute('aria-invalid')).toBe('true')
-    expect(input.getAttribute('aria-describedby')).toBeTruthy()
+    await user.click(screen.getByRole('button', { name: 'Edit discount for Test Mango' }))
+    const restored = screen.getByRole('textbox', { name: 'Line discount for Test Mango' })
+    expect((restored as HTMLInputElement).value).toBe(value)
+    expect(restored.getAttribute('aria-invalid')).toBe('true')
+    expect(restored.getAttribute('aria-describedby')).toBeTruthy()
   })
 
   it('applies a fixed discount once per line and previews tax after the discount', async () => {
     const { user, onSubmit, payload } = await setup()
     const quantity = screen.getByRole('textbox', { name: 'Quantity for Test Mango' })
     fireEvent.change(quantity, { target: { value: '2' } })
+    await user.click(screen.getByRole('button', { name: 'Edit discount for Test Mango' }))
     await user.click(screen.getByRole('combobox', { name: 'Discount type for Test Mango' }))
-    await user.click(screen.getByRole('option', { name: '₱' }))
+    await user.click(screen.getByRole('option', { name: 'Pesos' }))
     await user.type(screen.getByRole('textbox', { name: 'Line discount for Test Mango' }), '10')
+    await user.click(screen.getByRole('button', { name: 'Done' }))
     const row = quantity.closest('tr')!
     expect(within(row).getByText(kind === 'sales' ? '₱212.80' : '₱190.00')).toBeTruthy()
     await user.click(screen.getByRole('button', { name: 'Save Draft' }))
@@ -155,7 +162,7 @@ describe.each(['sales', 'purchase'] as const)('%s line discount editor', (kind) 
       await user.click(screen.getByRole('button', { name: 'Search and choose a supplier' }))
       await user.click(screen.getByRole('menuitem', { name: 'Supplier (SUP-1)' }))
     }
-    await user.click(screen.getByRole('button', { name: 'Confirm Order' }))
+    await user.click(screen.getByRole('button', { name: kind === 'sales' ? 'Confirm Order' : 'Confirm & Export Receipt' }))
     expect(await screen.findByText(/Confirmation did not complete/)).toBeTruthy()
     expect(screen.getAllByText('₱96.00')).toHaveLength(2)
     expect(onSubmit).toHaveBeenCalledOnce()

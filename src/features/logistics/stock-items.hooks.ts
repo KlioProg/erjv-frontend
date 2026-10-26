@@ -19,6 +19,7 @@ import type {
   SetStockQuantityPayload,
 } from './stock-items.types'
 import { getErrorMessage, type FetchParams } from '@/lib/api-client'
+import { parseStockCents } from './stock-display'
 
 export const STOCK_ITEMS_QUERY_KEY = ['stock-items'] as const
 
@@ -97,13 +98,33 @@ export function useSetStockQuantity() {
 
 export function useSetReorderThreshold() {
   const queryClient = useQueryClient()
+  const refresh = () =>
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: STOCK_ITEMS_QUERY_KEY }),
+      queryClient.invalidateQueries({ queryKey: ['products'] }),
+      queryClient.invalidateQueries({ queryKey: ['warehouses'] }),
+    ])
   return useMutation({
-    mutationFn: ({ id, payload }: { id: number; payload: SetReorderThresholdPayload }) =>
-      setReorderThresholdApi(id, payload),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: STOCK_ITEMS_QUERY_KEY })
-      void queryClient.invalidateQueries({ queryKey: ['products'] })
-      void queryClient.invalidateQueries({ queryKey: ['warehouses'] })
+    retry: false,
+    mutationFn: async ({ id, payload }: { id: number; payload: SetReorderThresholdPayload }) => {
+      const saved = await setReorderThresholdApi(id, payload)
+      if (
+        saved?.id !== id ||
+        !(
+          saved.reorderThreshold === null ||
+          (typeof saved.reorderThreshold === 'string' &&
+            parseStockCents(saved.reorderThreshold) !== null)
+        )
+      ) {
+        await refresh()
+        throw new Error(
+          'We could not confirm the saved threshold. Refresh the stock list and review it before trying again.',
+        )
+      }
+      return saved
+    },
+    onSuccess: async () => {
+      await refresh()
       toast.success('Reorder threshold updated')
     },
     onError: (err) => {

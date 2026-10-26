@@ -2,7 +2,8 @@ import { PageHeader } from '@/components/ui/ManagementPage'
 import { InventoryItemCatalog } from './InventoryItemCatalog'
 import type { InventoryNavigationTarget } from '@/features/logistics/stock-warnings'
 import { useState } from 'react'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { ArrowLeft, Settings, ShieldAlert } from 'lucide-react'
+import { StockAlertSettings } from './StockAlertSettings'
 import { QuarantinedStock } from './QuarantinedStock'
 import { Button } from '@/components/ui/button'
 
@@ -13,8 +14,9 @@ export function InventoryHub({
   onOpenWarehouse?: (warehouseId: number) => void
   focusTarget?: InventoryNavigationTarget
 } = {}) {
-  const [view, setView] = useState('catalog')
+  const [view, setView] = useState<'catalog' | 'quarantine'>('catalog')
   const [stockItemId, setStockItemId] = useState<number>()
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const [previousTarget, setPreviousTarget] = useState(focusTarget)
   if (focusTarget !== previousTarget) {
     setPreviousTarget(focusTarget)
@@ -22,35 +24,56 @@ export function InventoryHub({
   }
   return (
     <section aria-labelledby="inventory-heading" className="flex min-w-0 flex-col gap-4">
-      <PageHeader
-        id="inventory-heading"
-        description="Browse products, check stock across warehouses, and manage inventory records."
-      >
-        Inventory
-      </PageHeader>
-      <Tabs
-        value={view}
-        onValueChange={(value) => {
-          setView(value)
-          setStockItemId(undefined)
-        }}
-        className="min-w-0"
-      >
-        <TabsList aria-label="Inventory views">
-          <TabsTrigger value="catalog">Products</TabsTrigger>
-          <TabsTrigger value="quarantine">Quarantined Stock</TabsTrigger>
-        </TabsList>
-        <TabsContent value="catalog">
-          <InventoryItemCatalog
-            onOpenWarehouse={onOpenWarehouse}
-            focusTarget={focusTarget}
-            onOpenQuarantine={(id) => {
-              setStockItemId(id)
-              setView('quarantine')
-            }}
-          />
-        </TabsContent>
-        <TabsContent value="quarantine">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <PageHeader
+          id="inventory-heading"
+          description="Browse products, check stock across warehouses, and manage inventory records."
+        >
+          Inventory
+        </PageHeader>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => setSettingsOpen(true)}>
+            <Settings aria-hidden="true" className="size-4" />
+            Stock Alert Settings
+          </Button>
+          {view === 'catalog' ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setStockItemId(undefined)
+                setView('quarantine')
+              }}
+            >
+              <ShieldAlert aria-hidden="true" className="size-4" />
+              Quarantined Stock
+            </Button>
+          ) : (
+            <Button variant="outline" size="sm" onClick={() => setView('catalog')}>
+              <ArrowLeft aria-hidden="true" className="size-4" />
+              Back to Products
+            </Button>
+          )}
+        </div>
+      </div>
+      <div hidden={view !== 'catalog'}>
+        <InventoryItemCatalog
+          onOpenWarehouse={onOpenWarehouse}
+          focusTarget={focusTarget}
+          onOpenQuarantine={(id) => {
+            setStockItemId(id)
+            setView('quarantine')
+          }}
+        />
+      </div>
+      {view === 'quarantine' && (
+        <section
+          aria-labelledby="inventory-quarantine-heading"
+          className="flex min-w-0 flex-col gap-3"
+        >
+          <h2 id="inventory-quarantine-heading" className="text-lg font-semibold">
+            Quarantined Stock
+          </h2>
           {stockItemId !== undefined && (
             <Button variant="link" onClick={() => setStockItemId(undefined)}>
               Show all quarantine lots
@@ -61,8 +84,9 @@ export function InventoryHub({
             stockItemId={stockItemId}
             onOpenWarehouse={onOpenWarehouse}
           />
-        </TabsContent>
-      </Tabs>
+        </section>
+      )}
+      {settingsOpen && <StockAlertSettings onClose={() => setSettingsOpen(false)} />}
     </section>
   )
 }

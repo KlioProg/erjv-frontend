@@ -17,7 +17,6 @@ import {
 } from '@/features/logistics/stock-warnings'
 import { cn } from '@/lib/utils'
 import { StockIndicator } from './StockIndicator'
-import { StockBalanceSummary } from './StockBalanceSummary'
 import { InventoryWholesalePrice } from './InventoryWholesalePrice'
 import { ArchiveTabNav } from '@/components/ui/ArchiveTabNav'
 import { Button } from '@/components/ui/button'
@@ -46,11 +45,12 @@ import {
   filterCatalogProducts,
 } from '@/features/products/products.catalog.utils'
 import { useAuth } from '@/features/auth/AuthContext'
+import type { StockItemWithRelations } from '@/features/logistics/stock-items.types'
 import type { InventoryItemResponse } from '@/features/products/products.types'
 import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal'
 import { InventoryItemModal } from '@/components/operations/InventoryItemModal'
 import { getErrorMessage } from '@/lib/api-client'
-import { formatStockCents, stockSortKey } from '@/features/logistics/stock-display'
+import { formatStockCents, parseStockCents, stockSortKey } from '@/features/logistics/stock-display'
 
 export interface InventoryItemCatalogProps {
   activeTab?: 'ACTIVE' | 'ARCHIVED'
@@ -428,85 +428,122 @@ export function InventoryItemCatalog({
     if ((!warningScope && !expandedProductIds.has(product.id)) || !stockData?.allocations.length)
       return null
 
+    const locations = [...stockData.allocations]
+      .filter(
+        (stock) =>
+          !warningScope ||
+          warningLocations.some(
+            (warning) =>
+              warning.productId === product.id && warning.warehouseId === stock.warehouseId,
+          ),
+      )
+      .sort((a, b) =>
+        String(a.warehouse?.name ?? '').localeCompare(String(b.warehouse?.name ?? '')),
+      )
+    const locationColumns: ColumnDef<StockItemWithRelations>[] = [
+      {
+        id: 'warehouse',
+        header: 'Warehouse',
+        width: '25%',
+        cell: ({ row: stock }) => (
+          <div
+            id={`inventory-location-${product.id}-${stock.warehouseId}`}
+            tabIndex={-1}
+            aria-label={`Stock location ${stock.warehouse?.name || `Warehouse #${stock.warehouseId}`} for ${product.name}`}
+            className={cn(
+              'flex min-w-0 items-center gap-2 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+              focusTarget?.productId === product.id &&
+                focusTarget.warehouseId === stock.warehouseId &&
+                'ring-2 ring-ring',
+            )}
+          >
+            <WarehouseIcon className="size-4 shrink-0 text-muted-foreground" />
+            <OverflowValue
+              value={stock.warehouse?.name || `Warehouse #${stock.warehouseId}`}
+              onActivate={onOpenWarehouse ? () => onOpenWarehouse(stock.warehouseId) : undefined}
+              className="h-auto min-h-9 p-0 text-left text-sm font-medium pointer-coarse:min-h-11"
+            />
+          </div>
+        ),
+      },
+      ...(
+        [
+          ['quantity', 'Physical'],
+          ['reservedQuantity', 'Reserved'],
+          ['damagedQuantity', 'Damaged'],
+          ['availableQuantity', 'Available'],
+        ] as const
+      ).map(([field, header]): ColumnDef<StockItemWithRelations> => ({
+        id: field,
+        header,
+        width: 104,
+        align: 'right',
+        cell: ({ row }) => (
+          <div className="flex min-w-0 items-center justify-end gap-1.5">
+            {field === 'availableQuantity' && product.isActive && (
+              <StockIndicator
+                condition={stockConditionForItem(row)}
+                label={`${stockConditionForItem(row) === 'LOW' ? 'Low stock' : 'Out of stock'} at ${row.warehouse?.name || `Warehouse #${row.warehouseId}`}`}
+              />
+            )}
+            <OverflowValue
+              value={formatStockCents(parseStockCents(row[field]))}
+              tooltipSuffix={formatProductUnit(product.unit, 'units')}
+              className="text-right tabular-nums"
+            />
+          </div>
+        ),
+      })),
+      {
+        id: 'actions',
+        header: 'Actions',
+        width: 200,
+        align: 'right',
+        cell: ({ row }) => (
+          <DataTableActions>
+            {onOpenQuarantine && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onOpenQuarantine(row.id)}
+                aria-label={`View quarantine for ${product.name} in ${row.warehouse?.name ?? 'warehouse'}`}
+              >
+                View Quarantine
+              </Button>
+            )}
+            {onOpenWarehouse && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => onOpenWarehouse(row.warehouseId)}
+                aria-label={`View inventory in ${String(row.warehouse?.name ?? 'warehouse')}`}
+              >
+                View <ArrowRight className="size-3.5" />
+              </Button>
+            )}
+          </DataTableActions>
+        ),
+      },
+    ]
     return (
       <DataTableExpandedSection
         id={`inventory-locations-${product.id}`}
         title="Stock by location"
         ariaLabel={`Stock by location for ${String(product.name ?? 'product')}`}
+        description={`Quantities in ${formatProductUnit(product.unit, 'units')}. Availability and status are reported by the server.`}
       >
-        <div className="divide-y divide-border">
-          {[...stockData.allocations]
-            .filter(
-              (stock) =>
-                !warningScope ||
-                warningLocations.some(
-                  (warning) =>
-                    warning.productId === product.id && warning.warehouseId === stock.warehouseId,
-                ),
-            )
-            .sort((a, b) =>
-              String(a.warehouse?.name ?? '').localeCompare(String(b.warehouse?.name ?? '')),
-            )
-            .map((stock) => (
-              <div
-                key={stock.id}
-                id={`inventory-location-${product.id}-${stock.warehouseId}`}
-                tabIndex={-1}
-                aria-label={`Stock location ${stock.warehouse?.name || `Warehouse #${stock.warehouseId}`} for ${product.name}`}
-                className={cn(
-                  'grid min-h-11 min-w-0 gap-x-4 gap-y-1 py-1 sm:grid-cols-[minmax(0,1fr)_minmax(0,28rem)] sm:items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                  stockConditionForItem(stock) === 'OUT' && product.isActive && 'bg-destructive/5',
-                  focusTarget?.productId === product.id &&
-                    focusTarget.warehouseId === stock.warehouseId &&
-                    'ring-2 ring-ring',
-                )}
-              >
-                <div className="flex min-w-0 flex-1 items-center gap-2">
-                  <WarehouseIcon className="size-4 shrink-0 text-muted-foreground" />
-                  <OverflowValue
-                    value={stock.warehouse?.name || `Warehouse #${stock.warehouseId}`}
-                    onActivate={
-                      onOpenWarehouse ? () => onOpenWarehouse(stock.warehouseId) : undefined
-                    }
-                    className="h-auto min-h-8 p-0 text-left text-sm font-medium pointer-coarse:min-h-11"
-                  />
-                </div>
-                <div className="flex min-w-0 items-center justify-end gap-2 pl-6 sm:pl-0">
-                  {product.isActive && (
-                    <StockIndicator
-                      condition={stockConditionForItem(stock)}
-                      label={`${stockConditionForItem(stock) === 'LOW' ? 'Low stock' : 'Out of stock'} at ${stock.warehouse?.name || `Warehouse #${stock.warehouseId}`}`}
-                    />
-                  )}
-                  <StockBalanceSummary stock={stock} />
-                  {onOpenQuarantine && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => onOpenQuarantine(stock.id)}
-                      aria-label={`View quarantine for ${product.name} in ${stock.warehouse?.name ?? 'warehouse'}`}
-                    >
-                      Quarantine
-                    </Button>
-                  )}
-                  <span className="min-w-0 text-xs text-muted-foreground [overflow-wrap:anywhere]">
-                    {formatProductUnit(product.unit, 'units')}
-                  </span>
-                  {onOpenWarehouse && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => onOpenWarehouse(stock.warehouseId)}
-                      aria-label={`View inventory in ${String(stock.warehouse?.name ?? 'warehouse')}`}
-                      className="col-start-4 h-8 shrink-0 gap-1 px-2 text-[13px] text-primary-text pointer-coarse:min-h-11"
-                    >
-                      View <ArrowRight className="size-3.5" />
-                    </Button>
-                  )}
-                </div>
-              </div>
-            ))}
-        </div>
+        <DataTable
+          data={locations}
+          columns={locationColumns}
+          getRowKey={(stock) => stock.id}
+          pagination={false}
+          appearance="subtle"
+          rowClassName={(stock) =>
+            stockConditionForItem(stock) === 'OUT' && product.isActive ? 'bg-destructive/5' : ''
+          }
+          className="rounded-none border-0 bg-transparent shadow-none"
+          tableClassName="min-w-[900px] w-full table-fixed"
+        />
       </DataTableExpandedSection>
     )
   }
@@ -587,7 +624,7 @@ export function InventoryItemCatalog({
           </Button>
           <p className="w-full text-xs text-muted-foreground">
             Warnings use backend stock status and available quantities at each active warehouse.
-            Product totals include all warehouses. Unset thresholds are shown separately.
+            Product totals include all warehouses. Configure thresholds in Stock Alert Settings.
           </p>
         </section>
       )}
