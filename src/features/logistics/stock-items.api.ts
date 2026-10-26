@@ -8,7 +8,28 @@ import type {
   StockItemWithInventoryItem,
   StockItemWithRelations,
   StockItemWithWarehouse,
+  QuarantineLot,
+  QuarantineResolution,
+  ResolveQuarantinePayload,
 } from './stock-items.types'
+
+export async function fetchQuarantineLotsApi(stockItemId?: number): Promise<QuarantineLot[]> {
+  const { data } = await apiClient.get('/stock-items/quarantine-lots', {
+    params: stockItemId === undefined ? undefined : { stockItemId },
+  })
+  return extractArray<QuarantineLot>(data)
+}
+
+export async function resolveQuarantineApi(
+  lotId: number,
+  payload: ResolveQuarantinePayload,
+): Promise<QuarantineResolution> {
+  const { data } = await apiClient.post<QuarantineResolution>(
+    `/stock-items/quarantine-lots/${lotId}/resolutions`,
+    payload,
+  )
+  return data
+}
 
 export async function fetchStockItemsApi(params?: FetchParams): Promise<StockItemWithRelations[]> {
   const response = await apiClient.get('/stock-items', { params })

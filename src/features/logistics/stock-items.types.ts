@@ -17,6 +17,8 @@ export type StockItem = {
   quantity: string
   reservedQuantity?: string
   damagedQuantity?: string
+  quarantinedQuantity?: string
+  spoiledQuantity?: string
   availableQuantity?: string
   reorderThreshold?: string | null
   stockStatus?: 'NORMAL' | 'LOW' | 'OUT' | 'UNCONFIGURED'
@@ -55,4 +57,44 @@ export type AdjustStockQuantityPayload = {
 
 export type SetReorderThresholdPayload = {
   reorderThreshold: string | null
+}
+
+export type QuarantineAction = 'CLEAR' | 'REMOVE'
+export type ResolveQuarantinePayload = {
+  action: QuarantineAction
+  quantity: string
+  reason: string
+}
+
+export type QuarantineResolution = ResolveQuarantinePayload & {
+  id: number
+  lotId: number
+  actorUserId: number
+  createdAt: string
+  purchaseOrderId: number | null
+}
+
+export type QuarantineLot = {
+  id: number
+  stockItemId: number
+  incomingDeliveryItemId: number | null
+  outgoingDeliveryItemId: number | null
+  sourceKind: 'INCOMING_DELIVERY' | 'OUTGOING_DELIVERY' | 'MANUAL'
+  condition: 'DAMAGED' | 'SPOILED'
+  reportedCondition: 'DAMAGED' | 'SPOILED'
+  taggedByUserId: number | null
+  tagReason: string | null
+  requestId: string | null
+  initialQuantity: string
+  remainingQuantity: string
+  createdAt: string
+  conditionChanges: {
+    id: number
+    fromCondition: 'DAMAGED' | 'SPOILED'
+    toCondition: 'DAMAGED' | 'SPOILED'
+    reason: string
+    actorUserId: number
+    createdAt: string
+  }[]
+  resolutions: Omit<QuarantineResolution, 'purchaseOrderId'>[]
 }

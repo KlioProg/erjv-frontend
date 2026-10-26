@@ -57,6 +57,7 @@ export interface InventoryItemCatalogProps {
   onArchiveTabChange?: (tab: 'ACTIVE' | 'ARCHIVED') => void
   hideArchiveNav?: boolean
   onOpenWarehouse?: (warehouseId: number) => void
+  onOpenQuarantine?: (stockItemId: number) => void
   focusTarget?: InventoryNavigationTarget
 }
 
@@ -65,6 +66,7 @@ export function InventoryItemCatalog({
   onArchiveTabChange,
   hideArchiveNav = false,
   onOpenWarehouse,
+  onOpenQuarantine,
   focusTarget: navigationTarget,
 }: InventoryItemCatalogProps = {}) {
   const focusTarget =
@@ -477,6 +479,16 @@ export function InventoryItemCatalog({
                     />
                   )}
                   <StockBalanceSummary stock={stock} />
+                  {onOpenQuarantine && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => onOpenQuarantine(stock.id)}
+                      aria-label={`View quarantine for ${product.name} in ${stock.warehouse?.name ?? 'warehouse'}`}
+                    >
+                      Quarantine
+                    </Button>
+                  )}
                   <span className="min-w-0 text-xs text-muted-foreground [overflow-wrap:anywhere]">
                     {formatProductUnit(product.unit, 'units')}
                   </span>

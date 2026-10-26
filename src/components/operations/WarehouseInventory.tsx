@@ -24,6 +24,7 @@ import { stockConditionForItem, stockConditionRank } from '@/features/logistics/
 import { StockIndicator } from '@/components/inventory/StockIndicator'
 import { StockStatusBadge } from '@/components/inventory/StockBalanceSummary'
 import { cn } from '@/lib/utils'
+import { QuarantinedStock } from '@/components/inventory/QuarantinedStock'
 
 type StockRow = {
   stock: StockItemWithInventoryItem
@@ -39,6 +40,7 @@ export function WarehouseInventory({
 }) {
   const stockQuery = useWarehouseStock(warehouse.id)
   const [search, setSearch] = useState('')
+  const [quarantineStockId, setQuarantineStockId] = useState<number>()
   const rows = useMemo<StockRow[]>(
     () =>
       (stockQuery.data ?? [])
@@ -156,6 +158,21 @@ export function WarehouseInventory({
           )
         },
       })),
+      {
+        id: 'quarantine',
+        header: 'Quarantine',
+        width: '110px',
+        cell: ({ row }) => (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setQuarantineStockId(row.stock.id)}
+            aria-label={`View quarantine for ${row.stock.inventoryItem?.name ?? 'product'}`}
+          >
+            View lots
+          </Button>
+        ),
+      },
     ],
     [warehouse.name],
   )
@@ -288,11 +305,22 @@ export function WarehouseInventory({
               }
               pageSizeOptions={[10, 25, 50, 100]}
               className="rounded-none border-0 shadow-none"
-              tableClassName="table-fixed min-w-[640px] w-full"
+              tableClassName="table-fixed min-w-[840px] w-full"
             />
           </>
         )}
       </section>
+      {quarantineStockId !== undefined && (
+        <section aria-label="Warehouse quarantine lots" className="flex min-w-0 flex-col gap-3">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-lg font-semibold">Quarantine lots · {warehouse.name}</h2>
+            <Button variant="ghost" onClick={() => setQuarantineStockId(undefined)}>
+              Close quarantine view
+            </Button>
+          </div>
+          <QuarantinedStock key={quarantineStockId} stockItemId={quarantineStockId} />
+        </section>
+      )}
     </div>
   )
 }
