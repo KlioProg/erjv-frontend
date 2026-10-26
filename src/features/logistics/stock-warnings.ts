@@ -3,7 +3,7 @@ import type { StockItem } from './stock-items.types'
 import type { Warehouse } from './warehouses.types'
 import { parseStockCents } from './stock-display.ts'
 
-export type StockCondition = 'OUT' | 'LOW' | 'NORMAL' | 'UNKNOWN'
+export type StockCondition = 'OUT' | 'LOW' | 'NORMAL' | 'UNCONFIGURED' | 'UNKNOWN'
 export type InventoryFocusTarget = { productId: number; warehouseId: number }
 export type StockWarningFilter = 'ALL' | 'OUT' | 'LOW'
 export type InventoryWarningTarget = { warningFilter: StockWarningFilter; warehouseId?: number }
@@ -29,7 +29,7 @@ export function filterStockWarnings(
   )
 }
 
-/** LOW is valid only with the warehouse threshold returned by the stock API. */
+/** Legacy quantity-only presentation helper; live stock records use stockConditionForItem. */
 export function stockCondition(
   quantity: bigint | null,
   reorderThreshold: bigint | null = null,
@@ -44,20 +44,20 @@ export function stockCondition(
 export function stockConditionForItem(
   stock: Pick<StockItem, 'quantity' | 'reorderThreshold' | 'stockStatus'>,
 ): StockCondition {
-  if (stock.stockStatus === 'OUT') return 'OUT'
-  if (stock.stockStatus === 'LOW') return 'LOW'
-  if (stock.stockStatus === 'NORMAL' || stock.stockStatus === 'UNCONFIGURED')
-    return parseStockCents(stock.quantity) === 0n ? 'OUT' : 'NORMAL'
-  const threshold =
-    stock.reorderThreshold == null ? null : parseStockCents(stock.reorderThreshold)
-  return stockCondition(parseStockCents(stock.quantity), threshold)
+  return stock.stockStatus === 'OUT' ||
+    stock.stockStatus === 'LOW' ||
+    stock.stockStatus === 'NORMAL' ||
+    stock.stockStatus === 'UNCONFIGURED'
+    ? stock.stockStatus
+    : 'UNKNOWN'
 }
 
 export const stockConditionRank: Record<StockCondition, number> = {
   OUT: 0,
   LOW: 1,
   NORMAL: 2,
-  UNKNOWN: 3,
+  UNCONFIGURED: 3,
+  UNKNOWN: 4,
 }
 
 export function buildStockWarnings(
@@ -77,7 +77,7 @@ export function buildStockWarnings(
   for (const stock of stocks) {
     const product = productMap.get(stock.inventoryItemId)
     const location = warehouseMap.get(stock.warehouseId)
-    const quantity = parseStockCents(stock.quantity)
+    const quantity = parseStockCents(stock.availableQuantity)
     const threshold =
       stock.reorderThreshold === null || stock.reorderThreshold === undefined
         ? null

@@ -9,7 +9,6 @@ import { Package, Plus, Search, Tag, ArrowRight, Warehouse as WarehouseIcon } fr
 import {
   buildStockWarnings,
   filterStockWarnings,
-  stockCondition,
   stockConditionForItem,
   stockConditionRank,
   type InventoryNavigationTarget,
@@ -18,6 +17,7 @@ import {
 } from '@/features/logistics/stock-warnings'
 import { cn } from '@/lib/utils'
 import { StockIndicator } from './StockIndicator'
+import { StockBalanceSummary } from './StockBalanceSummary'
 import { InventoryWholesalePrice } from './InventoryWholesalePrice'
 import { ArchiveTabNav } from '@/components/ui/ArchiveTabNav'
 import { Button } from '@/components/ui/button'
@@ -50,7 +50,7 @@ import type { InventoryItemResponse } from '@/features/products/products.types'
 import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal'
 import { InventoryItemModal } from '@/components/operations/InventoryItemModal'
 import { getErrorMessage } from '@/lib/api-client'
-import { formatStockCents, parseStockCents, stockSortKey } from '@/features/logistics/stock-display'
+import { formatStockCents, stockSortKey } from '@/features/logistics/stock-display'
 
 export interface InventoryItemCatalogProps {
   activeTab?: 'ACTIVE' | 'ARCHIVED'
@@ -114,6 +114,25 @@ export function InventoryItemCatalog({
 
   // Calculate stock metrics per product
   const productStockMap = useMemo(() => buildCatalogStockMap(stockItems), [stockItems])
+  const productConditions = useMemo(() => {
+    const conditions = new Map<number, ReturnType<typeof stockConditionForItem>>()
+    for (const [id, entry] of productStockMap) {
+      const statuses = entry.allocations.map(stockConditionForItem)
+      conditions.set(
+        id,
+        statuses.every((status) => status === 'OUT')
+          ? 'OUT'
+          : statuses.includes('LOW')
+            ? 'LOW'
+            : statuses.includes('UNKNOWN')
+              ? 'UNKNOWN'
+              : statuses.includes('UNCONFIGURED')
+                ? 'UNCONFIGURED'
+                : 'NORMAL',
+      )
+    }
+    return conditions
+  }, [productStockMap])
 
   const toggleProductLocations = (productId: number) => {
     setExpandedProductIds((current) => {
@@ -152,16 +171,14 @@ export function InventoryItemCatalog({
       [...filterCatalogProducts(currentList, searchTerm)]
         .filter((product) => !warningScope || warningProductIds.has(product.id))
         .sort((a, b) => {
-          const quantity = (id: number) =>
-            productStockMap.get(id)?.totalCents ?? (productStockMap.has(id) ? null : 0n)
           return (
-            stockConditionRank[stockCondition(quantity(a.id))] -
-              stockConditionRank[stockCondition(quantity(b.id))] ||
+            stockConditionRank[productConditions.get(a.id) ?? 'UNKNOWN'] -
+              stockConditionRank[productConditions.get(b.id) ?? 'UNKNOWN'] ||
             a.name.localeCompare(b.name) ||
             a.id - b.id
           )
         }),
-    [currentList, searchTerm, productStockMap, warningScope, warningProductIds],
+    [currentList, searchTerm, productConditions, warningScope, warningProductIds],
   )
 
   const handleCreateProduct = () => {
@@ -233,7 +250,7 @@ export function InventoryItemCatalog({
     {
       id: 'name',
       header: 'Product',
-      width: '40%',
+      width: '30%',
       sortable: true,
       sortKey: 'name',
       cell: ({ row }) => {
@@ -293,7 +310,7 @@ export function InventoryItemCatalog({
         </>
       ),
       width: '14%',
-      align: 'center',
+      align: 'right',
       sortable: true,
       sortKey: (row) =>
         stockSortKey(
@@ -303,19 +320,18 @@ export function InventoryItemCatalog({
         const total =
           productStockMap.get(row.id)?.totalCents ?? (productStockMap.has(row.id) ? null : 0n)
         return (
-          <div className="flex min-w-0 items-center justify-center gap-1 text-sm font-normal">
+          <div className="flex min-w-0 items-center justify-end gap-1 text-sm font-normal">
             {row.isActive && (
               <StockIndicator
-                condition={stockCondition(total)}
-                label="Out of stock across all locations"
+                condition={productConditions.get(row.id) ?? 'UNKNOWN'}
+                label="Stock warning across locations. Expand Locations for details."
               />
             )}
             {row.isActive &&
-              total !== null &&
-              total > 0n &&
+              productConditions.get(row.id) !== 'OUT' &&
               productStockMap
                 .get(row.id)
-                ?.allocations.some((stock) => parseStockCents(stock.quantity) === 0n) && (
+                ?.allocations.some((stock) => stockConditionForItem(stock) === 'OUT') && (
                 <StockIndicator
                   condition="OUT"
                   label="Out of stock at some locations. Expand Locations for details."
@@ -326,8 +342,8 @@ export function InventoryItemCatalog({
               tooltipSuffix={formatProductUnit(row.unit, 'units')}
               className={
                 total === 0n
-                  ? 'text-center font-medium tabular-nums text-destructive'
-                  : 'text-center tabular-nums text-foreground'
+                  ? 'text-right font-medium tabular-nums text-destructive'
+                  : 'text-right tabular-nums text-foreground'
               }
             />
             <span className="hidden shrink-0 text-xs font-normal text-muted-foreground xl:inline">
@@ -336,6 +352,21 @@ export function InventoryItemCatalog({
           </div>
         )
       },
+    },
+    {
+      id: 'availableStock',
+      header: 'Available',
+      width: '14%',
+      align: 'right',
+      sortable: true,
+      sortKey: (row) => stockSortKey(productStockMap.get(row.id)?.availableCents ?? null),
+      cell: ({ row }) => (
+        <OverflowValue
+          value={formatStockCents(productStockMap.get(row.id)?.availableCents ?? null)}
+          tooltipSuffix={formatProductUnit(row.unit, 'units')}
+          className="text-right text-sm tabular-nums"
+        />
+      ),
     },
     {
       id: 'locations',
@@ -421,10 +452,8 @@ export function InventoryItemCatalog({
                 tabIndex={-1}
                 aria-label={`Stock location ${stock.warehouse?.name || `Warehouse #${stock.warehouseId}`} for ${product.name}`}
                 className={cn(
-                  'grid min-h-11 min-w-0 gap-x-4 gap-y-1 py-1 sm:grid-cols-[minmax(0,1fr)_18rem] sm:items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                  stockConditionForItem(stock) === 'OUT' &&
-                    product.isActive &&
-                    'bg-destructive/5',
+                  'grid min-h-11 min-w-0 gap-x-4 gap-y-1 py-1 sm:grid-cols-[minmax(0,1fr)_minmax(0,28rem)] sm:items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                  stockConditionForItem(stock) === 'OUT' && product.isActive && 'bg-destructive/5',
                   focusTarget?.productId === product.id &&
                     focusTarget.warehouseId === stock.warehouseId &&
                     'ring-2 ring-ring',
@@ -440,22 +469,15 @@ export function InventoryItemCatalog({
                     className="h-auto min-h-8 p-0 text-left text-sm font-medium pointer-coarse:min-h-11"
                   />
                 </div>
-                <div className="grid min-w-0 grid-cols-[1rem_minmax(0,1fr)_minmax(0,4rem)_auto] items-center gap-2 pl-6 sm:pl-0">
+                <div className="flex min-w-0 items-center justify-end gap-2 pl-6 sm:pl-0">
                   {product.isActive && (
                     <StockIndicator
                       condition={stockConditionForItem(stock)}
                       label={`${stockConditionForItem(stock) === 'LOW' ? 'Low stock' : 'Out of stock'} at ${stock.warehouse?.name || `Warehouse #${stock.warehouseId}`}`}
                     />
                   )}
-                  <OverflowValue
-                    value={formatStockCents(parseStockCents(stock.quantity))}
-                    fullValue={
-                      parseStockCents(stock.quantity) === null ? stock.quantity : undefined
-                    }
-                    tooltipSuffix={formatProductUnit(product.unit, 'units')}
-                    className="col-start-2 text-right text-sm font-normal tabular-nums"
-                  />
-                  <span className="col-start-3 min-w-0 text-xs text-muted-foreground [overflow-wrap:anywhere]">
+                  <StockBalanceSummary stock={stock} />
+                  <span className="min-w-0 text-xs text-muted-foreground [overflow-wrap:anywhere]">
                     {formatProductUnit(product.unit, 'units')}
                   </span>
                   {onOpenWarehouse && (
@@ -552,8 +574,8 @@ export function InventoryItemCatalog({
             Clear warning filters
           </Button>
           <p className="w-full text-xs text-muted-foreground">
-            Warnings use physical stock at each active warehouse. Product totals include all
-            warehouses. Low-stock detection requires configured reorder thresholds.
+            Warnings use backend stock status and available quantities at each active warehouse.
+            Product totals include all warehouses. Unset thresholds are shown separately.
           </p>
         </section>
       )}
@@ -584,6 +606,10 @@ export function InventoryItemCatalog({
           </Button>
         )}
       </PageToolbar>
+      <p className="text-xs text-muted-foreground">
+        Total Stock is physical stock. Available stock is reported by the server. — means
+        unavailable data.
+      </p>
 
       {(productsQuery.isError ||
         stockQuery.isError ||
@@ -630,7 +656,7 @@ export function InventoryItemCatalog({
                   {searchTerm
                     ? 'No warning items match your search.'
                     : warningScope.warningFilter === 'LOW'
-                      ? 'No low-stock items can be identified without configured reorder thresholds.'
+                      ? 'No low-stock items for the selected warehouses.'
                       : warningScope.warningFilter === 'OUT'
                         ? 'No out-of-stock items for the selected warehouses.'
                         : warningScope.warehouseId
@@ -652,9 +678,7 @@ export function InventoryItemCatalog({
             pageSizeOptions={[10, 25, 50, 100]}
             tableClassName="table-fixed w-full"
             rowClassName={(row) => {
-              const total =
-                productStockMap.get(row.id)?.totalCents ?? (productStockMap.has(row.id) ? null : 0n)
-              const condition = stockCondition(total)
+              const condition = productConditions.get(row.id) ?? 'UNKNOWN'
               return row.isActive === false
                 ? 'opacity-75 bg-background'
                 : condition === 'OUT'

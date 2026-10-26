@@ -66,6 +66,10 @@ const stock = (
   warehouseId,
   quantity,
   reservedQuantity: '0',
+  damagedQuantity: '0',
+  availableQuantity: quantity,
+  stockStatus: quantity === 'bad' ? undefined : quantity === '0' ? 'OUT' : 'UNCONFIGURED',
+  reorderThreshold: null,
   inventoryItem: {
     id: productId,
     name: products.find((p) => p.id === productId)?.name || 'Unknown',
@@ -161,7 +165,14 @@ beforeEach(() => {
       url === '/outgoing-deliveries/1/complete'
     ) {
       stocks = stocks.map((item) =>
-        item.id === 1 ? { ...item, quantity: url.startsWith('/incoming') ? '5' : '0' } : item,
+        item.id === 1
+          ? {
+              ...item,
+              quantity: url.startsWith('/incoming') ? '5' : '0',
+              availableQuantity: url.startsWith('/incoming') ? '5' : '0',
+              stockStatus: url.startsWith('/incoming') ? 'UNCONFIGURED' : 'OUT',
+            }
+          : item,
       )
       data = { id: 1, deliveryNumber: 'TEST-MOVEMENT' }
     } else if (url.startsWith('/inventory-items/') && method === 'delete') {
@@ -200,6 +211,68 @@ afterEach(() => {
 })
 
 describe('inventory and global stock warnings', () => {
+  it('shows all four backend balances, distinguishes missing values, and keeps one product row', async () => {
+    stocks[2] = {
+      ...stocks[2],
+      quantity: '100.25',
+      reservedQuantity: '20.10',
+      damagedQuantity: '5.05',
+      availableQuantity: '75.10',
+      stockStatus: 'LOW',
+      reorderThreshold: '80',
+    }
+    stocks[1] = {
+      ...stocks[1],
+      reservedQuantity: undefined,
+      damagedQuantity: undefined,
+      availableQuantity: undefined,
+      stockStatus: undefined,
+    }
+    const user = userEvent.setup()
+    mount(<InventoryHub />)
+    await screen.findByText('Beta Mixed')
+    expect(screen.getAllByText('Beta Mixed')).toHaveLength(1)
+    await user.click(screen.getByRole('button', { name: 'Show stock by location for Beta Mixed' }))
+    const region = screen.getByRole('region', { name: 'Stock by location for Beta Mixed' })
+    expect(within(region).getByText('100.25')).toBeTruthy()
+    expect(within(region).getByText('20.1')).toBeTruthy()
+    expect(within(region).getByText('5.05')).toBeTruthy()
+    expect(within(region).getByText('75.1')).toBeTruthy()
+    expect(within(region).getAllByText('—')).toHaveLength(3)
+    expect(within(region).getByText('Stock status unavailable')).toBeTruthy()
+  })
+
+  it('uses available stock and backend LOW/OUT status in warehouse details', async () => {
+    stocks = [
+      {
+        ...stock(1, 1, 1, '10'),
+        reservedQuantity: '6',
+        damagedQuantity: '4',
+        availableQuantity: '0',
+        stockStatus: 'OUT',
+      },
+      {
+        ...stock(2, 2, 1, '25.25'),
+        reservedQuantity: '10',
+        damagedQuantity: '5',
+        availableQuantity: '10.25',
+        stockStatus: 'LOW',
+        reorderThreshold: '12',
+      },
+      { ...stock(3, 3, 1, '0'), stockStatus: 'UNCONFIGURED' },
+    ]
+    mount(<WarehouseInventory warehouse={warehouses[0]} onBack={vi.fn()} />)
+    const row = (await screen.findByText('Alpha Empty')).closest('tr')!
+    expect(within(row).getByText('10')).toBeTruthy()
+    expect(within(row).getByText('6')).toBeTruthy()
+    expect(within(row).getByText('4')).toBeTruthy()
+    expect(
+      within(row).getByRole('img', { name: 'Out of stock: Alpha Empty in Store' }),
+    ).toBeTruthy()
+    expect(screen.getByRole('img', { name: 'Low stock: Beta Mixed in Store' })).toBeTruthy()
+    expect(screen.getByText('Threshold not set')).toBeTruthy()
+  })
+
   it('lets keyboard users change the warehouse and return to warning categories', async () => {
     const user = userEvent.setup()
     mount(<StockNotifications onOpenInventory={vi.fn()} />)
@@ -241,7 +314,13 @@ describe('inventory and global stock warnings', () => {
 
   it('hides the warehouse selector for one active warehouse and provides honest empty category states', async () => {
     warehouses[1].isActive = false
-    stocks = stocks.map((item) => ({ ...item, quantity: '50', reservedQuantity: '50' }))
+    stocks = stocks.map((item) => ({
+      ...item,
+      quantity: '50',
+      reservedQuantity: '0',
+      availableQuantity: '50',
+      stockStatus: 'UNCONFIGURED',
+    }))
     const user = userEvent.setup()
     mount(<StockNotifications onOpenInventory={vi.fn()} />)
     await user.click(await screen.findByRole('button', { name: /0 unresolved/ }))
@@ -250,9 +329,7 @@ describe('inventory and global stock warnings', () => {
     await user.click(screen.getByRole('menuitemradio', { name: 'Out of stock' }))
     expect(screen.getByRole('status').textContent).toContain('No out-of-stock items')
     await user.click(screen.getByRole('menuitemradio', { name: 'Low stock' }))
-    expect(screen.getByRole('status').textContent).toContain(
-      'without configured reorder thresholds',
-    )
+    expect(screen.getByRole('status').textContent).toContain('No low-stock items')
   })
 
   it('filters warnings by active warehouse and opens Inventory with the same warning scope', async () => {
@@ -287,7 +364,7 @@ describe('inventory and global stock warnings', () => {
     expect(screen.getByText('Showing 6 of 9 warnings')).toBeTruthy()
     await user.click(screen.getByRole('menuitemradio', { name: 'Low stock' }))
     expect(screen.getByRole('status').textContent).toContain('No low-stock items')
-    expect(screen.getByText(/Low-stock detection is unavailable/)).toBeTruthy()
+    expect(screen.getByText(/Warnings use backend stock status/)).toBeTruthy()
     expect(screen.queryByRole('menuitem', { name: /Out of stock:/ })).toBeNull()
   })
 
@@ -430,7 +507,7 @@ describe('inventory and global stock warnings', () => {
     await screen.findByText('Zulu Empty')
     const table = screen.getByRole('table')
     const visibleRows = () => within(table).getAllByRole('row').slice(1)
-    expect(within(table).getAllByRole('columnheader')).toHaveLength(3)
+    expect(within(table).getAllByRole('columnheader')).toHaveLength(6)
     expect(screen.queryByRole('columnheader', { name: 'Status' })).toBeNull()
     expect(visibleRows()).toHaveLength(10)
     expect(
@@ -440,7 +517,7 @@ describe('inventory and global stock warnings', () => {
     ).toEqual(['Zulu Empty', 'Alpha Healthy', 'Healthy 0', 'Healthy 1'])
     expect(screen.getByRole('img', { name: 'Out of stock: Zulu Empty in Store' })).toBeTruthy()
     expect(screen.queryByRole('img', { name: /Low stock:/ })).toBeNull()
-    expect(within(visibleRows()[1]).getByText('20.01')).toBeTruthy()
+    expect(within(visibleRows()[1]).getAllByText('20.01')).toHaveLength(2)
     expect(within(visibleRows()[3]).queryByRole('img')).toBeNull()
     expect(screen.queryByText('In Stock')).toBeNull()
 
@@ -507,7 +584,7 @@ describe('inventory and global stock warnings', () => {
     ])
       expect(screen.queryByText(text)).toBeNull()
     expect(screen.queryByRole('columnheader', { name: 'Status' })).toBeNull()
-    expect(screen.getAllByRole('columnheader')).toHaveLength(5)
+    expect(screen.getAllByRole('columnheader')).toHaveLength(6)
     const rows = screen.getAllByRole('row').slice(1)
     expect(rows[0].textContent).toContain('Alpha Empty')
     expect(rows[0].className).toContain('bg-destructive/5')
@@ -641,7 +718,11 @@ describe('inventory and global stock warnings', () => {
     expect(
       screen.getByRole('button', { name: 'Stock notifications, 2 unresolved warnings' }),
     ).toBeTruthy()
-    stocks = stocks.map((s) => (s.inventoryItemId === 2 ? { ...s, quantity: '5' } : s))
+    stocks = stocks.map((s) =>
+      s.inventoryItemId === 2
+        ? { ...s, quantity: '5', availableQuantity: '5', stockStatus: 'UNCONFIGURED' }
+        : s,
+    )
     await act(async () => {
       await queryClient.invalidateQueries({ queryKey: ['stock-items'] })
     })
@@ -755,19 +836,19 @@ describe('warehouse product expansion', () => {
     store.focus()
     await user.keyboard('{Enter}')
     const region = await screen.findByRole('region', { name: 'Products at Store' })
-    expect(await within(region).findByText('3,429.25')).toBeTruthy()
+    expect(await within(region).findAllByText('3,429.25')).toHaveLength(2)
     expect(within(region).getByRole('heading', { name: 'Products at Store' })).toBeTruthy()
     expect(within(region).queryByText(/Total products:/)).toBeNull()
     expect(document.activeElement).toBe(store)
     expect(within(region).getByText('piece(s)')).toBeTruthy()
-    expect(within(region).getByText('158')).toBeTruthy()
+    expect(within(region).getAllByText('158')).toHaveLength(2)
     expect(store.getAttribute('aria-expanded')).toBe('true')
     expect(store.getAttribute('aria-controls')).toBe(region.id)
     expect(openWarehouse).not.toHaveBeenCalled()
     await user.click(screen.getByRole('button', { name: 'Show products for Main Warehouse' }))
     const main = await screen.findByRole('region', { name: 'Products at Main Warehouse' })
     expect(await within(main).findByText('Gamma Small')).toBeTruthy()
-    expect(within(main).getByText('0')).toBeTruthy()
+    expect(within(main).getAllByText('0')).toHaveLength(4)
     await user.click(store)
     expect(screen.queryByRole('region', { name: 'Products at Store' })).toBeNull()
     expect(screen.getByRole('region', { name: 'Products at Main Warehouse' })).toBeTruthy()
@@ -810,7 +891,6 @@ it('keeps 17 kg unclassified as low stock and zero-stock warnings consistent acr
   products = [product(1, 'Lakatan Banana'), product(2, 'Empty Mango'), product(3, 'Normal Coconut')]
   products[0].unit = 'kg'
   stocks = [stock(1, 1, 1, '17'), stock(2, 2, 1, '0'), stock(3, 3, 2, '100')]
-  stocks[0].reservedQuantity = '17'
   stocks[0].inventoryItem.unit = 'kg'
   mount(
     <>
@@ -819,13 +899,14 @@ it('keeps 17 kg unclassified as low stock and zero-stock warnings consistent acr
     </>,
   )
   const row = (await screen.findByText('Lakatan Banana')).closest('tr')!
-  expect(within(row).getByText('17')).toBeTruthy()
+  expect(within(row).getAllByText('17')).toHaveLength(2)
   expect(within(row).getByText('kg')).toBeTruthy()
   expect(within(row).queryByRole('img')).toBeNull()
+  expect(within(row).getByText('Threshold not set')).toBeTruthy()
   expect(screen.getByRole('img', { name: 'Out of stock: Empty Mango in Store' })).toBeTruthy()
   await user.click(await screen.findByRole('button', { name: /1 unresolved/ }))
   await user.click(screen.getByRole('menuitemradio', { name: 'Low stock' }))
-  expect(screen.getByText(/No low-stock items can be identified/)).toBeTruthy()
+  expect(screen.getByText(/No low-stock items/)).toBeTruthy()
   await user.click(screen.getByRole('menuitemradio', { name: 'Out of stock' }))
   expect(screen.getByRole('menuitem', { name: /Out of stock: Empty Mango, Store, 0/ })).toBeTruthy()
   await user.click(screen.getByRole('combobox', { name: 'Warning warehouse' }))

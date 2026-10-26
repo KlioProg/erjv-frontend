@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useRef, useState, type FormEvent } from 'react'
 import { Building2, MapPin, Phone, RotateCcw } from 'lucide-react'
 import {
   Dialog,
@@ -46,9 +46,12 @@ function WarehouseFormContent({
   const [contactNumber, setContactNumber] = useState(warehouse?.contactNumber || '')
   const [errorMsg, setErrorMsg] = useState('')
   const [deactivatedWarehouseMatch, setDeactivatedWarehouseMatch] = useState<Warehouse | null>(null)
+  const submitting = useRef(false)
+  const [checkingName, setCheckingName] = useState(false)
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
+    if (submitting.current) return
     setErrorMsg('')
     setDeactivatedWarehouseMatch(null)
 
@@ -69,11 +72,8 @@ function WarehouseFormContent({
       return
     }
 
-    // NOTE: removed client-side constraint validation, need backend to provide constraint errors
-    // - deactivatedWarehouseMatch: set when there exists a deactivated warehouse with the specified name.
-    // recommendations:
-    // - just let the DB check the constraints and interpret it later
-
+    submitting.current = true
+    setCheckingName(true)
     try {
       const cleanContactNumber = sanitizePhilippinePhone(contactNumber) || null
 
@@ -119,18 +119,31 @@ function WarehouseFormContent({
         }
       }
       setErrorMsg(msg)
+    } finally {
+      submitting.current = false
+      setCheckingName(false)
     }
   }
 
   const handleRestoreFoundWarehouse = async () => {
-    if (deactivatedWarehouseMatch) {
+    if (!deactivatedWarehouseMatch || submitting.current) return
+    submitting.current = true
+    setErrorMsg('')
+    try {
       await reactivateMutation.mutateAsync(deactivatedWarehouseMatch.id)
       onClose()
+    } catch (error) {
+      setErrorMsg(getErrorMessage(error))
+    } finally {
+      submitting.current = false
     }
   }
 
   const isPending =
-    createMutation.isPending || updateMutation.isPending || reactivateMutation.isPending
+    checkingName ||
+    createMutation.isPending ||
+    updateMutation.isPending ||
+    reactivateMutation.isPending
 
   return (
     <>
@@ -145,7 +158,7 @@ function WarehouseFormContent({
         </DialogDescription>
       </DialogHeader>
 
-      {errorMsg && !deactivatedWarehouseMatch && (
+      {errorMsg && (
         <Alert
           variant="destructive"
           className="animate-in fade-in-0 slide-in-from-top-1 duration-200"

@@ -1,12 +1,12 @@
 import { useMemo } from 'react'
-import { useProducts } from '../products/products.hooks'
+import { useAllProducts } from '../products/products.hooks'
 import { useStockItems } from './stock-items.hooks'
 import { useWarehouses } from './warehouses.hooks'
 import { buildStockWarnings } from './stock-warnings'
 
 /** Shares existing query caches and mutation invalidations; no notification persistence. */
 export function useStockWarnings() {
-  const products = useProducts()
+  const products = useAllProducts()
   const stocks = useStockItems()
   const warehouses = useWarehouses()
   const unavailable = products.isError || stocks.isError || warehouses.isError
@@ -24,6 +24,11 @@ export function useStockWarnings() {
     loading,
     unavailable,
     refreshing: products.isFetching || stocks.isFetching || warehouses.isFetching,
-    refresh: () => Promise.all([products.refetch(), stocks.refetch(), warehouses.refetch()]),
+    refresh: () =>
+      Promise.all([
+        products.refetch({ cancelRefetch: false }),
+        stocks.refetch({ cancelRefetch: false }),
+        warehouses.refetch({ cancelRefetch: false }),
+      ]),
   }
 }

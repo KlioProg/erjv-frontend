@@ -16,6 +16,7 @@ export type StockItem = {
   id: number
   quantity: string
   reservedQuantity?: string
+  damagedQuantity?: string
   availableQuantity?: string
   reorderThreshold?: string | null
   stockStatus?: 'NORMAL' | 'LOW' | 'OUT' | 'UNCONFIGURED'

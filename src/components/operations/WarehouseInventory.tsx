@@ -22,6 +22,7 @@ import type { Warehouse } from '@/features/logistics/warehouses.types'
 import { getErrorMessage } from '@/lib/api-client'
 import { stockConditionForItem, stockConditionRank } from '@/features/logistics/stock-warnings'
 import { StockIndicator } from '@/components/inventory/StockIndicator'
+import { StockStatusBadge } from '@/components/inventory/StockBalanceSummary'
 import { cn } from '@/lib/utils'
 
 type StockRow = {
@@ -74,7 +75,7 @@ export function WarehouseInventory({
       {
         id: 'product',
         header: 'Product',
-        width: '55%',
+        width: '30%',
         sortable: true,
         sortKey: (row) => row.stock.inventoryItem?.name ?? '',
         cell: ({ row }) => (
@@ -84,7 +85,7 @@ export function WarehouseInventory({
       {
         id: 'unit',
         header: 'Unit',
-        width: '20%',
+        width: '10%',
         className: 'hidden sm:table-cell',
         headerClassName: 'hidden sm:table-cell',
         sortable: true,
@@ -98,16 +99,31 @@ export function WarehouseInventory({
       },
       {
         id: 'quantity',
-        header: (
-          <>
-            <span className="sm:hidden">Qty</span>
-            <span className="hidden sm:inline">Quantity</span>
-          </>
-        ),
-        width: '25%',
+        header: 'Physical',
+        width: '15%',
         align: 'right',
         sortable: true,
         sortKey: (row) => stockSortKey(row.quantityCents),
+        cell: ({ row }) => (
+          <OverflowValue
+            value={formatStockCents(row.quantityCents)}
+            className="text-right text-sm tabular-nums"
+          />
+        ),
+      },
+      ...(
+        [
+          ['reservedQuantity', 'Reserved'],
+          ['damagedQuantity', 'Damaged'],
+          ['availableQuantity', 'Available'],
+        ] as const
+      ).map(([field, label]): ColumnDef<StockRow> => ({
+        id: field,
+        header: label,
+        width: '15%',
+        align: 'right',
+        sortable: true,
+        sortKey: (row) => stockSortKey(parseStockCents(row.stock[field])),
         cell: ({ row }) => {
           const condition = stockConditionForItem(row.stock)
           const warning =
@@ -116,30 +132,30 @@ export function WarehouseInventory({
             <div
               className={cn(
                 'flex min-w-0 flex-col items-end gap-0.5',
-                condition === 'OUT' && 'text-destructive',
-                condition === 'LOW' && 'text-status-warning-foreground',
+                field === 'availableQuantity' && condition === 'OUT' && 'text-destructive',
+                field === 'availableQuantity' &&
+                  condition === 'LOW' &&
+                  'text-status-warning-foreground',
               )}
             >
               <div className="flex max-w-full items-center justify-end gap-1.5">
-                <StockIndicator
-                  condition={condition}
-                  label={`${warning}: ${row.stock.inventoryItem?.name ?? 'Product'} in ${warehouse.name}`}
-                />
+                {field === 'availableQuantity' && (
+                  <StockIndicator
+                    condition={condition}
+                    label={`${warning}: ${row.stock.inventoryItem?.name ?? 'Product'} in ${warehouse.name}`}
+                  />
+                )}
                 <OverflowValue
-                  value={formatStockCents(row.quantityCents)}
-                  fullValue={row.quantityCents === null ? row.stock.quantity : undefined}
+                  value={formatStockCents(parseStockCents(row.stock[field]))}
                   tooltipSuffix={formatProductUnit(row.stock.inventoryItem?.unit, 'units')}
                   className="text-right text-sm font-normal tabular-nums"
                 />
               </div>
-              {warning && <span className="text-xs font-medium">{warning}</span>}
-              {condition === 'NORMAL' && row.stock.reorderThreshold == null && (
-                <span className="text-xs text-muted-foreground">Threshold not set</span>
-              )}
+              {field === 'availableQuantity' && <StockStatusBadge stock={row.stock} />}
             </div>
           )
         },
-      },
+      })),
     ],
     [warehouse.name],
   )
@@ -245,31 +261,36 @@ export function WarehouseInventory({
             </Button>
           </div>
         ) : (
-          <DataTable
-            data={filteredRows}
-            columns={columns}
-            getRowKey={(row) => row.stock.id}
-            rowClassName={(row) => {
-              const condition = stockConditionForItem(row.stock)
-              return condition === 'OUT'
-                ? 'bg-destructive/5 hover:bg-destructive/10'
-                : condition === 'LOW'
-                  ? 'bg-status-warning/50 hover:bg-status-warning'
-                  : ''
-            }}
-            isLoading={stockQuery.isLoading}
-            loadingMessage="Loading warehouse inventory..."
-            emptyContent={
-              <div className="px-4 py-12 text-center text-xs text-muted-foreground">
-                {search
-                  ? 'No products match your search.'
-                  : 'No stock records for this warehouse yet.'}
-              </div>
-            }
-            pageSizeOptions={[10, 25, 50, 100]}
-            className="rounded-none border-0 shadow-none"
-            tableClassName="table-fixed w-full"
-          />
+          <>
+            <p className="px-4 py-2 text-xs text-muted-foreground">
+              — means unavailable stock data.
+            </p>
+            <DataTable
+              data={filteredRows}
+              columns={columns}
+              getRowKey={(row) => row.stock.id}
+              rowClassName={(row) => {
+                const condition = stockConditionForItem(row.stock)
+                return condition === 'OUT'
+                  ? 'bg-destructive/5 hover:bg-destructive/10'
+                  : condition === 'LOW'
+                    ? 'bg-status-warning/50 hover:bg-status-warning'
+                    : ''
+              }}
+              isLoading={stockQuery.isLoading}
+              loadingMessage="Loading warehouse inventory..."
+              emptyContent={
+                <div className="px-4 py-12 text-center text-xs text-muted-foreground">
+                  {search
+                    ? 'No products match your search.'
+                    : 'No stock records for this warehouse yet.'}
+                </div>
+              }
+              pageSizeOptions={[10, 25, 50, 100]}
+              className="rounded-none border-0 shadow-none"
+              tableClassName="table-fixed min-w-[640px] w-full"
+            />
+          </>
         )}
       </section>
     </div>

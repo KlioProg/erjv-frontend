@@ -19,6 +19,8 @@ export function buildCatalogStockMap<T extends StockItem>(stocks: T[]) {
     {
       totalCents: bigint | null
       availableCents: bigint | null
+      reservedCents: bigint | null
+      damagedCents: bigint | null
       warehouseCount: number
       allocations: T[]
     }
@@ -27,19 +29,25 @@ export function buildCatalogStockMap<T extends StockItem>(stocks: T[]) {
     const current = map.get(stock.inventoryItemId) ?? {
       totalCents: 0n,
       availableCents: 0n,
+      reservedCents: 0n,
+      damagedCents: 0n,
       warehouseCount: 0,
       allocations: [],
     }
     const physical = parseStockCents(stock.quantity)
-    const reserved = parseStockCents(stock.reservedQuantity ?? '0')
-    const available =
-      physical === null || reserved === null ? null : physical > reserved ? physical - reserved : 0n
+    const reserved = parseStockCents(stock.reservedQuantity)
+    const damaged = parseStockCents(stock.damagedQuantity)
+    const available = parseStockCents(stock.availableQuantity)
     current.totalCents =
       current.totalCents === null || physical === null ? null : current.totalCents + physical
     current.availableCents =
       current.availableCents === null || available === null
         ? null
         : current.availableCents + available
+    current.reservedCents =
+      current.reservedCents === null || reserved === null ? null : current.reservedCents + reserved
+    current.damagedCents =
+      current.damagedCents === null || damaged === null ? null : current.damagedCents + damaged
     current.warehouseCount += 1
     current.allocations.push(stock)
     map.set(stock.inventoryItemId, current)

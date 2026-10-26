@@ -19,14 +19,42 @@ test('catalog searches existing name, variety and description without mutating p
 
 test('catalog totals physical stock independently from unreserved availability with exact decimal arithmetic', () => {
   const stocks = [
-    { id: 1, inventoryItemId: 1, quantity: '12.25', reservedQuantity: '2.10' },
-    { id: 2, inventoryItemId: 1, quantity: '0.10', reservedQuantity: '0.20' },
+    {
+      id: 1,
+      warehouseId: 1,
+      inventoryItemId: 1,
+      quantity: '12.25',
+      reservedQuantity: '2.10',
+      damagedQuantity: '1.25',
+      availableQuantity: '8.90',
+    },
+    {
+      id: 2,
+      warehouseId: 2,
+      inventoryItemId: 1,
+      quantity: '0.10',
+      reservedQuantity: '0',
+      damagedQuantity: '0',
+      availableQuantity: '0.10',
+    },
   ]
   const entry = buildCatalogStockMap(stocks).get(1)
   assert.equal(entry.totalCents, 1235n)
-  assert.equal(entry.availableCents, 1015n)
+  assert.equal(entry.availableCents, 900n)
+  assert.equal(entry.reservedCents, 210n)
+  assert.equal(entry.damagedCents, 125n)
   assert.equal(entry.warehouseCount, 2)
   assert.deepEqual(entry.allocations, stocks)
+})
+
+test('missing stock fields remain unknown without recalculating backend availability', () => {
+  const entry = buildCatalogStockMap([
+    { id: 1, inventoryItemId: 1, warehouseId: 1, quantity: '10' },
+  ]).get(1)
+  assert.equal(entry.totalCents, 1000n)
+  assert.equal(entry.availableCents, null)
+  assert.equal(entry.reservedCents, null)
+  assert.equal(entry.damagedCents, null)
 })
 
 test('unknown balances stay unknown and large supported values never lose precision', () => {

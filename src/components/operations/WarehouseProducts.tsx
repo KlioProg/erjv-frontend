@@ -7,12 +7,13 @@ import type { StockItemWithInventoryItem } from '@/features/logistics/stock-item
 import { formatStockCents, parseStockCents, stockSortKey } from '@/features/logistics/stock-display'
 import { getErrorMessage } from '@/lib/api-client'
 import { formatProductUnit } from '@/lib/product-unit'
+import { StockStatusBadge } from '@/components/inventory/StockBalanceSummary'
 
 const columns: ColumnDef<StockItemWithInventoryItem>[] = [
   {
     id: 'product',
     header: 'Product',
-    width: '60%',
+    width: '30%',
     sortable: true,
     sortKey: (row) => row.inventoryItem?.name ?? '',
     cell: ({ row }) => (
@@ -22,7 +23,7 @@ const columns: ColumnDef<StockItemWithInventoryItem>[] = [
   {
     id: 'unit',
     header: 'Unit',
-    width: '20%',
+    width: '10%',
     cell: ({ row }) => (
       <span className="whitespace-normal [overflow-wrap:anywhere]">
         {formatProductUnit(row.inventoryItem?.unit, '—')}
@@ -31,8 +32,8 @@ const columns: ColumnDef<StockItemWithInventoryItem>[] = [
   },
   {
     id: 'quantity',
-    header: 'Quantity',
-    width: '20%',
+    header: 'Physical',
+    width: '15%',
     align: 'right',
     sortable: true,
     sortKey: (row) => stockSortKey(parseStockCents(row.quantity)),
@@ -43,6 +44,29 @@ const columns: ColumnDef<StockItemWithInventoryItem>[] = [
       />
     ),
   },
+  ...(
+    [
+      ['reservedQuantity', 'Reserved'],
+      ['damagedQuantity', 'Damaged'],
+      ['availableQuantity', 'Available'],
+    ] as const
+  ).map(([field, label]): ColumnDef<StockItemWithInventoryItem> => ({
+    id: field,
+    header: label,
+    width: '15%',
+    align: 'right',
+    sortable: true,
+    sortKey: (row) => stockSortKey(parseStockCents(row[field])),
+    cell: ({ row }) => (
+      <div className="flex min-w-0 flex-col items-end gap-1">
+        <OverflowValue
+          value={formatStockCents(parseStockCents(row[field]))}
+          className="text-right tabular-nums"
+        />
+        {field === 'availableQuantity' && <StockStatusBadge stock={row} />}
+      </div>
+    ),
+  })),
 ]
 
 export function WarehouseProducts({
@@ -79,7 +103,7 @@ export function WarehouseProducts({
         defaultSort={{ key: 'product', direction: 'asc' }}
         appearance="subtle"
         className="rounded-none border-0 bg-transparent shadow-none"
-        tableClassName="w-full table-fixed"
+        tableClassName="min-w-[640px] w-full table-fixed"
       />
     </DataTableExpandedSection>
   )

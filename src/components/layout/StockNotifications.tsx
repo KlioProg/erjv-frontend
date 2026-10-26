@@ -44,7 +44,7 @@ export function StockNotifications({
   const preview = filtered.slice(0, 6)
   const emptyMessage =
     warningFilter === 'LOW'
-      ? 'No low-stock items can be identified without configured reorder thresholds.'
+      ? 'No low-stock items' + (warehouse ? ' for the selected warehouse.' : '.')
       : warningFilter === 'OUT'
         ? 'No out-of-stock items' + (warehouse ? ' for the selected warehouse.' : '.')
         : warehouse
@@ -183,6 +183,9 @@ export function StockNotifications({
                   </DropdownMenuRadioItem>
                 ))}
               </DropdownMenuRadioGroup>
+              <p aria-live="polite" className="px-2 py-1 text-xs text-muted-foreground">
+                {filtered.length} {filtered.length === 1 ? 'warning' : 'warnings'}
+              </p>
               <DropdownMenuSeparator />
             </>
           )}
@@ -277,8 +280,8 @@ export function StockNotifications({
         )}
         <DropdownMenuSeparator />
         <p className="px-2 py-2 text-xs text-muted-foreground">
-          Low-stock detection is unavailable because warehouse reorder thresholds are not
-          configured. Quantities shown are physical stock.
+          Warnings use backend stock status. Quantities shown are available stock. Stock with an
+          unset threshold is shown separately in inventory locations.
         </p>
       </DropdownMenuContent>
     </DropdownMenu>
