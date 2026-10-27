@@ -7,6 +7,7 @@ export type SavedOrder = { id: number; orderNumber: string; status: string; item
 export type OrderSubmissionProps<Values> = {
   onSubmit: (values: Values, intent?: 'draft' | 'confirm') => Promise<SavedOrder>
   onConfirm?: (id: number) => Promise<SavedOrder>
+  onExportReceipt?: (id: number) => Promise<void> | void
   onConfirmed?: (order: SavedOrder) => void
   savedDraft?: SavedOrder
 }
@@ -16,15 +17,20 @@ export function wantsOrderConfirmation(event: FormEvent<HTMLFormElement>) {
   return (event.nativeEvent as SubmitEvent).submitter?.getAttribute('value') === 'confirm'
 }
 
+export function wantsReceiptExport(event: FormEvent<HTMLFormElement>) {
+  return (event.nativeEvent as SubmitEvent).submitter?.getAttribute('value') === 'receipt'
+}
+
 export function useOrderSubmission({
   onConfirm,
+  onExportReceipt,
   onConfirmed,
   savedDraft,
   onClose,
 }: Omit<OrderSubmissionProps<never>, 'onSubmit'> & { onClose: () => void }) {
   const savedRef = useRef(savedDraft)
   const [savedOrder, setSavedOrder] = useState(savedDraft)
-  const [phase, setPhase] = useState<'idle' | 'saving' | 'confirming'>('idle')
+  const [phase, setPhase] = useState<'idle' | 'saving' | 'confirming' | 'exporting'>('idle')
   const [error, setError] = useState('')
   const [confirmationAttempted, setConfirmationAttempted] = useState(false)
   const pending = useRef(false)
@@ -32,7 +38,10 @@ export function useOrderSubmission({
   const reviewLock = useRef(false)
   const [reviewRequired, setReviewRequired] = useState(false)
 
-  async function submit(create: () => Promise<SavedOrder>, confirm: boolean) {
+  async function submit(
+    create: () => Promise<SavedOrder>,
+    action: boolean | 'draft' | 'confirm' | 'receipt',
+  ) {
     if (pending.current || finished.current || reviewLock.current) return
     pending.current = true
     setError('')
@@ -45,7 +54,7 @@ export function useOrderSubmission({
         savedRef.current = order
         setSavedOrder(order)
       }
-      if (confirm) {
+      if (action === true || action === 'confirm') {
         if (!onConfirm) throw new Error('Confirmation is unavailable.')
         if (order.status !== 'DRAFT') throw new Error('Only a saved Draft can be confirmed.')
         setConfirmationAttempted(true)
@@ -57,6 +66,11 @@ export function useOrderSubmission({
           )
         finished.current = true
         onConfirmed?.(confirmed)
+      } else if (action === 'receipt') {
+        if (!onExportReceipt) throw new Error('Receipt download is unavailable.')
+        setPhase('exporting')
+        await onExportReceipt(order.id)
+        finished.current = true
       } else {
         finished.current = true
       }
@@ -92,5 +106,6 @@ export function useOrderSubmission({
     clearError: () => setError(''),
     confirmationAttempted,
     canConfirm: !!onConfirm,
+    canExportReceipt: !!onExportReceipt,
   }
 }
