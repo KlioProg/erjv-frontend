@@ -46,6 +46,7 @@ type PurchaseModalProps = OrderSubmissionProps<CreatePurchaseOrderPayload> & {
   stockItems?: StockItem[]
   catalogState?: OrderCatalogState
   processedBy: string
+  onExportReceipt?: (id: number) => void
   draftOrder?: PurchaseOrderRecord
   onUpdateDraft?: (
     id: number,
@@ -58,6 +59,7 @@ export function PurchaseModal({
   onClose,
   onSubmit,
   onConfirm,
+  onExportReceipt,
   onConfirmed,
   savedDraft,
   suppliers,
@@ -73,6 +75,7 @@ export function PurchaseModal({
     products,
     onSubmit,
     onConfirm,
+    onExportReceipt,
     onConfirmed,
     savedDraft,
     draftOrder,
@@ -158,6 +161,8 @@ export function PurchaseModal({
           value={row.discount}
           line={{ quantity: row.quantity, unitPrice: row.unitCost }}
           compact
+          vatExempt={form.taxExemption}
+          onVatExemptChange={form.setTaxExemption}
           onChange={(discount) => form.updateDiscount(row.formId, discount)}
         />
       ),

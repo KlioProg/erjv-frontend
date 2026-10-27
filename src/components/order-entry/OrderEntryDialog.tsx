@@ -176,6 +176,18 @@ export function OrderEntryDialog({
                       {submission.phase === 'saving' ? 'Saving…' : 'Save Draft'}
                     </Button>
                   )}
+                  {submission.canExportReceipt && (
+                    <Button
+                      type="submit"
+                      name="intent"
+                      value="receipt"
+                      disabled={busy || submitDisabled || submission.reviewRequired}
+                      variant="outline"
+                      className="h-9 text-ui"
+                    >
+                      {submission.phase === 'exporting' ? 'Downloading…' : 'Print / Download Receipt'}
+                    </Button>
+                  )}
                   {submission.canConfirm && (
                     <Button
                       type="submit"

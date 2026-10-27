@@ -16,6 +16,7 @@ import {
 import {
   useOrderSubmission,
   wantsOrderConfirmation,
+  wantsReceiptExport,
   type OrderSubmissionProps,
 } from '@/hooks/use-order-submission'
 import { useOrderItemFocus } from '@/hooks/use-order-item-focus'
@@ -25,6 +26,7 @@ export function usePurchaseOrderEntry({
   products,
   onSubmit,
   onConfirm,
+  onExportReceipt,
   onConfirmed,
   savedDraft,
   draftOrder,
@@ -42,6 +44,10 @@ export function usePurchaseOrderEntry({
   ) => Promise<PurchaseOrderRecord>
   onLoadLatest?: (id: number) => Promise<PurchaseOrderRecord | null>
 } & OrderSubmissionProps<CreatePurchaseOrderPayload>) {
+  const defaultTaxRate = '12.00'
+  const [taxExemption, setTaxExemptionState] = useState(
+    () => !!draftOrder?.items.length && draftOrder.items.every((item) => item.taxRate === '0.00'),
+  )
   const [draft, setDraft] = useState(draftOrder)
   const [conflict, setConflict] = useState<{ latest?: PurchaseOrderRecord; loading: boolean; error?: string }>()
   const [supplierId, setSupplierId] = useState(
@@ -60,7 +66,7 @@ export function usePurchaseOrderEntry({
           unitCost: item.unitPrice,
           quantity: item.quantity,
           discount: savedLineDiscount(item),
-          taxRate: item.taxRate,
+          taxRate: item.taxRate ?? defaultTaxRate,
           notes: item.notes,
         }))
   }
@@ -70,7 +76,13 @@ export function usePurchaseOrderEntry({
   const [initialSignature] = useState(signature)
   const [error, setError] = useState('')
   const [errorFocusId, setErrorFocusId] = useState<string>()
-  const submission = useOrderSubmission({ onConfirm, onConfirmed, savedDraft, onClose })
+  const submission = useOrderSubmission({
+    onConfirm,
+    onExportReceipt,
+    onConfirmed,
+    savedDraft,
+    onClose,
+  })
   const focus = useOrderItemFocus(lines)
   const editUnavailable = draft && (draft.status !== 'DRAFT'
     ? 'Only a Draft purchase order can be edited. Close this form and review its current status.'
@@ -98,6 +110,9 @@ export function usePurchaseOrderEntry({
     setExpectedAt(latest.expectedAt?.slice(0, 10) ?? '')
     setNotes(latest.notes ?? '')
     setLines(draftLines(latest))
+    setTaxExemptionState(
+      !!latest.items.length && latest.items.every((item) => item.taxRate === '0.00'),
+    )
     nextFormId.current = latest.items.length
     setConflict(undefined)
     setError('')
@@ -133,6 +148,7 @@ export function usePurchaseOrderEntry({
           unitCost: '',
           quantity: '1',
           discount: { type: 'percentage', percentage: '', peso: '' },
+          taxRate: taxExemption ? '0.00' : defaultTaxRate,
         },
       ]
     })
@@ -150,6 +166,15 @@ export function usePurchaseOrderEntry({
     setError('')
   }
 
+  function setTaxExemption(exempt: boolean) {
+    setTaxExemptionState(exempt)
+    setLines((current) => current.map((line) => ({
+      ...line,
+      taxRate: exempt ? '0.00' : defaultTaxRate,
+    })))
+    setError('')
+  }
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (submission.busy) return
@@ -157,8 +182,12 @@ export function usePurchaseOrderEntry({
     if (conflict) return
     setErrorFocusId(undefined)
     const confirm = wantsOrderConfirmation(event)
+    const receipt = wantsReceiptExport(event)
     if (submission.savedOrder) {
-      await submission.submit(() => Promise.reject(new Error('Draft already saved.')), confirm)
+      await submission.submit(
+        () => Promise.reject(new Error('Draft already saved.')),
+        receipt ? 'receipt' : confirm ? 'confirm' : 'draft',
+      )
       return
     }
     const selectedSupplier = suppliers.find((supplier) => String(supplier.id) === supplierId)
@@ -222,7 +251,7 @@ export function usePurchaseOrderEntry({
           await fetchLatestDraft()
         throw cause
       }
-    }, confirm)
+    }, receipt ? 'receipt' : confirm ? 'confirm' : 'draft')
   }
   return {
     hasUnsavedChanges: signature !== initialSignature,
@@ -234,6 +263,8 @@ export function usePurchaseOrderEntry({
     setExpectedAt,
     notes,
     setNotes,
+    taxExemption,
+    setTaxExemption,
     lines,
     amounts,
     error: editUnavailable || error || (conflict

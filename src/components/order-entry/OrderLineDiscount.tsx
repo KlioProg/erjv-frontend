@@ -37,6 +37,8 @@ export function OrderLineDiscount({
   onChange,
   fixedDisabled = false,
   compact = false,
+  vatExempt = false,
+  onVatExemptChange,
 }: {
   id: string
   name: string
@@ -45,42 +47,59 @@ export function OrderLineDiscount({
   onChange: (value: LineDiscount) => void
   fixedDisabled?: boolean
   compact?: boolean
+  vatExempt?: boolean
+  onVatExemptChange?: (exempt: boolean) => void
 }) {
   const [open, setOpen] = useState(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const error = lineDiscountError({ ...line, ...discountFields(value) })
   const editor = (
-    <div className="flex min-w-0 items-center gap-1">
-      <Select
-        value={value.type}
-        onValueChange={(type) => onChange({ ...value, type: type as LineDiscount['type'] })}
-      >
-        <SelectTrigger aria-label={`Discount type for ${name}`} className="h-9 w-13 shrink-0 px-2">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectGroup>
-            <SelectItem value="percentage">%</SelectItem>
-            <SelectItem value="peso" disabled={fixedDisabled}>
-              ₱
-            </SelectItem>
-          </SelectGroup>
-        </SelectContent>
-      </Select>
-      <Input
-        id={compact ? `${id}-value` : id}
-        aria-label={`Line discount for ${name}`}
-        type="text"
-        inputMode="decimal"
-        autoComplete="off"
-        placeholder="0"
-        value={value[value.type]}
-        disabled={fixedDisabled && value.type === 'peso'}
-        onChange={(event) => onChange({ ...value, [value.type]: event.target.value })}
-        aria-invalid={!!error}
-        aria-describedby={error ? `${id}-${compact ? 'editor-error' : 'error'}` : undefined}
-        className="h-9 min-w-0 px-2 text-right text-sm tabular-nums"
-      />
+    <div className="flex min-w-0 flex-col gap-2">
+      <div className="flex min-w-0 items-center gap-1">
+        <Select
+          value={value.type}
+          onValueChange={(type) => onChange({ ...value, type: type as LineDiscount['type'] })}
+        >
+          <SelectTrigger aria-label={`Discount type for ${name}`} className="h-9 w-13 shrink-0 px-2">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              <SelectItem value="percentage">%</SelectItem>
+              <SelectItem value="peso" disabled={fixedDisabled}>
+                ₱
+              </SelectItem>
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+        <Input
+          id={compact ? `${id}-value` : id}
+          aria-label={`Line discount for ${name}`}
+          type="text"
+          inputMode="decimal"
+          autoComplete="off"
+          placeholder="0"
+          value={value[value.type]}
+          disabled={fixedDisabled && value.type === 'peso'}
+          onChange={(event) => onChange({ ...value, [value.type]: event.target.value })}
+          aria-invalid={!!error}
+          aria-describedby={error ? `${id}-${compact ? 'editor-error' : 'error'}` : undefined}
+          className="h-9 min-w-0 px-2 text-right text-sm tabular-nums"
+        />
+      </div>
+      {onVatExemptChange && (
+        <label className="flex items-center gap-2 text-xs text-muted-foreground">
+          <input
+            type="checkbox"
+            role="switch"
+            aria-label={`VAT exempt for ${name}`}
+            checked={vatExempt}
+            onChange={(event) => onVatExemptChange(event.target.checked)}
+            className="h-4 w-7 accent-primary"
+          />
+          VAT Exempt
+        </label>
+      )}
     </div>
   )
   if (compact) {
@@ -146,7 +165,7 @@ export function OrderLineDiscount({
                 {error}
               </p>
             )}
-            <div className="flex justify-end">
+            <div className="flex justify-end gap-1">
               <Button type="button" variant="outline" onClick={() => {
                 onChange({ type: 'percentage', percentage: '', peso: '' })
                 setOpen(false)

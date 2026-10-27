@@ -39,6 +39,7 @@ import {
   useCancelPurchaseOrder,
   useUpdatePurchaseOrderDraft,
 } from '@/features/logistics/purchase-orders.hooks'
+import { fetchPurchaseOrderByIdApi } from '@/features/logistics/purchase-orders.api'
 import {
   useSuppliers,
   useCreateSupplier,
@@ -151,13 +152,21 @@ export function PurchasesView({
     }
   }
 
-  const exportPurchaseReceipt = (id: number) => {
-    const order = purchaseOrders.find((candidate) => candidate.id === id)
+  const exportPurchaseReceipt = async (id: number) => {
+    let order = purchaseOrders.find((candidate) => candidate.id === id)
+    if (!order) {
+      try {
+        order = (await fetchPurchaseOrderByIdApi(id)) ?? undefined
+      } catch {
+        toast.error('Purchase order could not be found. Refresh the list and try again.')
+        return
+      }
+    }
     if (!order) {
       toast.error('Purchase order could not be found. Refresh the list and try again.')
       return
     }
-    if (order.status === 'DRAFT' || order.status === 'CANCELLED') return
+    if (order.status === 'CANCELLED') return
     const supplier = order.supplierId == null ? undefined : supplierMap.get(order.supplierId)
     if (!exportPurchaseReceiptPdf(order, supplier, products)) {
       toast.error('The purchase order document could not be downloaded. Try again.')
@@ -815,6 +824,7 @@ export function PurchasesView({
           onSubmit={handleCreatePO}
           onUpdateDraft={editingOrder ? handleUpdateDraft : undefined}
           onConfirm={canConfirmPurchaseOrder ? confirmPurchaseOrder : undefined}
+          onExportReceipt={(id) => exportPurchaseReceipt(id)}
           suppliers={suppliers}
           products={products}
           stockItems={stockItems}
