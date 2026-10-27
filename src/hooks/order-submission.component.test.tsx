@@ -3,6 +3,18 @@ import { describe, expect, it, vi } from 'vitest'
 import { useOrderSubmission } from './use-order-submission'
 
 describe('saved order confirmation', () => {
+  it.each([undefined, 500])('blocks a second create after an uncertain response (%s)', async (status) => {
+    const create = vi.fn().mockRejectedValue({ isAxiosError: true, response: status ? { status } : undefined })
+    const onClose = vi.fn()
+    const { result } = renderHook(() => useOrderSubmission({ onClose }))
+    await act(() => result.current.submit(create, false))
+    await act(() => result.current.submit(create, false))
+    expect(create).toHaveBeenCalledOnce()
+    expect(result.current.reviewRequired).toBe(true)
+    expect(result.current.error).toContain('result is uncertain')
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
   it('confirms an existing draft without creating, and ignores further submits after success', async () => {
     const savedDraft = { id: 42, orderNumber: 'ORDER-42', status: 'DRAFT' }
     const confirmed = { ...savedDraft, status: 'CONFIRMED' }

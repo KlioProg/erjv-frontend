@@ -93,6 +93,12 @@ export function QuarantineLotDialog({
     CORRECT: { quantity: '', reason: '' },
   })
   const [confirmedSnapshot, setConfirmedSnapshot] = useState<string | null>(null)
+  const [discardOpen, setDiscardOpen] = useState(false)
+  function requestClose() {
+    if (pending) return
+    if (Object.values(drafts).some((draft) => draft.quantity.trim() || draft.reason.trim())) setDiscardOpen(true)
+    else onClose()
+  }
   const [removal, setRemoval] = useState<{
     snapshot: string
     quantity: string
@@ -228,7 +234,7 @@ export function QuarantineLotDialog({
   const quantityLabel = action === 'CLEAR' ? 'Quantity to release' : 'Quantity to remove'
   return (
     <>
-      <Dialog open onOpenChange={(next) => !next && !pending && onClose()}>
+      <Dialog open onOpenChange={(next) => !next && requestClose()}>
         <DialogContent
           closeDisabled={pending}
           className="flex max-h-[calc(100svh-2rem)] flex-col overflow-hidden p-0 sm:max-w-2xl"
@@ -503,7 +509,7 @@ export function QuarantineLotDialog({
             )}
           </div>
           <DialogFooter className="shrink-0 border-t px-6 py-4">
-            <Button type="button" variant="outline" disabled={pending} onClick={onClose}>
+            <Button type="button" variant="outline" disabled={pending} onClick={requestClose}>
               Close
             </Button>
             {action && canManage && isOpen && (
@@ -525,8 +531,17 @@ export function QuarantineLotDialog({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <ConfirmDeleteModal
+        open={discardOpen}
+        title="Discard Changes?"
+        description="Your unsubmitted quarantine entries will be lost."
+        confirmText="Discard Changes"
+        cancelText="Keep Editing"
+        onClose={() => setDiscardOpen(false)}
+        onConfirm={onClose}
+      />
       {removal && (
-        <ConfirmDeleteModal
+      <ConfirmDeleteModal
           open
           title="Remove from Inventory"
           description="This decreases physical inventory and permanently removes the selected goods. The quarantine audit history will be retained."

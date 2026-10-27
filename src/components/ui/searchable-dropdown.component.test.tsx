@@ -5,6 +5,38 @@ import { SearchableDropdown } from './SearchableDropdown'
 
 afterEach(() => vi.restoreAllMocks())
 
+it('searches safely when labels are missing or contain multilingual markup-looking text', async () => {
+  const user = userEvent.setup()
+  const text = '倉庫 <b>safe</b>'
+  render(<SearchableDropdown
+    options={[{ id: 1, label: null }, { id: 2, label: text }]}
+    value="1" onValueChange={vi.fn()} getOptionValue={(option) => String(option.id)}
+    getOptionLabel={(option) => option.label as string}
+    placeholder="Choose a location" searchPlaceholder="Find location"
+    emptyMessage="No locations" ariaLabel="Location" />)
+  await user.click(screen.getByRole('button', { name: 'Location' }))
+  await user.type(screen.getByRole('searchbox', { name: 'Find location' }), '倉庫')
+  expect(screen.getByRole('menuitem', { name: text })).toBeTruthy()
+  expect(document.body.querySelector('b')).toBeNull()
+})
+
+it('prevents opening or choosing options while disabled', async () => {
+  const user = userEvent.setup()
+  const props = {
+    options: ['Alpha'], value: '', onValueChange: vi.fn(),
+    getOptionValue: (value: string) => value, getOptionLabel: (value: string) => value,
+    placeholder: 'Choose', searchPlaceholder: 'Search', emptyMessage: 'Empty', ariaLabel: 'Picker',
+  }
+  const view = render(<SearchableDropdown {...props} />)
+  await user.click(screen.getByRole('button', { name: 'Picker' }))
+  expect(screen.getByRole('menuitem', { name: 'Alpha' })).toBeTruthy()
+  view.rerender(<SearchableDropdown {...props} disabled />)
+  expect(screen.queryByRole('menuitem')).toBeNull()
+  await user.click(screen.getByRole('button', { name: 'Picker' }))
+  expect(screen.queryByRole('menuitem')).toBeNull()
+  expect(props.onValueChange).not.toHaveBeenCalled()
+})
+
 it('reveals clipped selected text on trigger focus and hover while keeping full options available', async () => {
   const user = userEvent.setup()
   const longType = 'Heavy Truck (6-Wheeler)'

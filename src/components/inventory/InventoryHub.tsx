@@ -8,6 +8,7 @@ import { useAuth } from '@/features/auth/AuthContext'
 import { useStockItems } from '@/features/logistics/stock-items.hooks'
 import { QuarantinedStock } from './QuarantinedStock'
 import { StockConditionReportModal } from './StockConditionReportModal'
+import { StockAlertSettings } from './StockAlertSettings'
 
 export function InventoryHub({
   onOpenWarehouse,
@@ -17,6 +18,7 @@ export function InventoryHub({
   focusTarget?: InventoryNavigationTarget
 } = {}) {
   const [reportOpen, setReportOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const [quarantineOpen, setQuarantineOpen] = useState(false)
   const [productTab, setProductTab] = useState<'ACTIVE' | 'ARCHIVED'>('ACTIVE')
   const { isAdmin, isManager, isStaff } = useAuth()
@@ -44,10 +46,17 @@ export function InventoryHub({
           onOpenWarehouse={onOpenWarehouse}
           focusTarget={focusTarget}
           navigationAction={
+            <>
+            {(isAdmin || isManager) && (
+              <Button variant="ghost" size="sm" onClick={() => setSettingsOpen(true)}>
+                Stock Alert Settings
+              </Button>
+            )}
             <Button variant="ghost" size="sm" onClick={() => setQuarantineOpen(true)}>
               <ShieldAlert className="size-4" />
               Quarantined Stock
             </Button>
+            </>
           }
           reportAction={
             (isAdmin || isManager || isStaff) && (
@@ -72,6 +81,7 @@ export function InventoryHub({
           stocksError={stocks.isError}
         />
       )}
+      {settingsOpen && <StockAlertSettings onClose={() => setSettingsOpen(false)} />}
     </section>
   )
 }

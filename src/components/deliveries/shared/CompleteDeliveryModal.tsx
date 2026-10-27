@@ -53,6 +53,8 @@ export function CompleteDeliveryModal({
   const [selection, setSelection] = useState<{ outcome: Outcome; signature: string } | null>(null)
   const [confirmAll, setConfirmAll] = useState(false)
   const [error, setError] = useState('')
+  const [needsRefresh, setNeedsRefresh] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
   const inFlight = useRef(false)
   const signature = JSON.stringify([
     deliveryId,
@@ -88,6 +90,7 @@ export function CompleteDeliveryModal({
       (row) => !Number.isSafeInteger(row.item.id) || row.item.id <= 0 || row.loaded === null,
     )
   const disabled =
+    needsRefresh || refreshing ||
     complete.isPending ||
     query.isFetching ||
     query.isError ||
@@ -165,6 +168,7 @@ export function CompleteDeliveryModal({
               await complete.mutateAsync({ id: deliveryId, payload: { items } })
               onClose()
             } catch (cause) {
+              setNeedsRefresh(true)
               setError(getErrorMessage(cause))
             } finally {
               inFlight.current = false
@@ -172,6 +176,17 @@ export function CompleteDeliveryModal({
           }}
         >
           <div className="flex min-h-0 flex-col gap-5 overflow-y-auto px-6 pb-6">
+            {!(isAdmin || isManager) && <Alert><AlertDescription>You do not have permission to complete deliveries.</AlertDescription></Alert>}
+            <Button type="button" variant="link" disabled={complete.isPending || refreshing} onClick={async () => {
+              setRefreshing(true)
+              try {
+                const results = await Promise.all([query.refetch(), order.refetch(), products.refetch(), warehouses.refetch()])
+                if (results.some((result) => result.isError)) throw new Error('Delivery details could not be refreshed.')
+                setNeedsRefresh(false)
+                setError('')
+              } catch (cause) { setError(getErrorMessage(cause)) }
+              finally { setRefreshing(false) }
+            }}>Refresh delivery data</Button>
             {(error || query.isError) && (
               <Alert variant="destructive">
                 <AlertDescription>

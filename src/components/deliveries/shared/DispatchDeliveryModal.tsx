@@ -42,7 +42,8 @@ import { DeliveryUtils } from '@/features/logistics/delivery-utils'
 import { useAllProducts } from '@/features/products/products.hooks'
 
 interface DispatchDeliveryModalProps {
-  delivery: OutgoingDeliveryRecord | null
+  delivery?: OutgoingDeliveryRecord | null
+  deliveryId?: number
   open: boolean
   onClose: () => void
   onSuccess?: () => void
@@ -50,16 +51,19 @@ interface DispatchDeliveryModalProps {
 
 export function DispatchDeliveryModal({
   delivery: initialDelivery,
+  deliveryId,
   open,
   onClose,
   onSuccess,
 }: DispatchDeliveryModalProps) {
-  const latest = useOutgoingDeliveryById(open ? initialDelivery?.id : undefined)
+  const latest = useOutgoingDeliveryById(open ? (initialDelivery?.id ?? deliveryId) : undefined)
   const delivery = latest.data ?? initialDelivery
   const currentOrder = useSalesOrderById(open ? delivery?.salesOrderId : undefined)
   const stocks = useStockItems()
   const products = useAllProducts()
   const [loaded, setLoaded] = useState<Record<number, string>>({})
+  const [needsRefresh, setNeedsRefresh] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
   const inFlight = useRef(false)
   const vehiclesQuery = useDeliveryVehicles()
   const { data: vehicles = [] } = vehiclesQuery
@@ -80,11 +84,12 @@ export function DispatchDeliveryModal({
     : []
   const rows = (delivery?.plannedItems ?? []).map((plan) => {
     const line = order?.items.find((item) => item.id === plan.salesOrderItemId)
-    const stock = stocks.data?.find(
+    const matches = stocks.data?.filter(
       (stock) =>
         stock.inventoryItemId === line?.inventoryItemId &&
         stock.warehouseId === delivery?.warehouseId,
     )
+    const stock = matches?.length === 1 ? matches[0] : undefined
     const planned = parseStockCents(plan.plannedQuantity)
     const available = stock ? availableStockCents(stock) : null
     const ordered = parseStockCents(line?.quantity)
@@ -123,6 +128,7 @@ export function DispatchDeliveryModal({
     }
   })
   const unavailable =
+    needsRefresh || refreshing ||
     deliveriesQuery.isFetching ||
     deliveriesQuery.isError ||
     latest.isFetching ||
@@ -290,6 +296,7 @@ export function DispatchDeliveryModal({
       onSuccess?.()
       onClose()
     } catch (err) {
+      setNeedsRefresh(true)
       setErrorMessage(getErrorMessage(err))
     } finally {
       inFlight.current = false
@@ -314,6 +321,16 @@ export function DispatchDeliveryModal({
         </DialogHeader>
         <form onSubmit={handleSubmit} className="flex min-h-0 flex-col overflow-hidden">
           <div className="flex min-h-0 flex-col gap-5 overflow-y-auto px-6 pb-6">
+            <Button type="button" variant="link" disabled={dispatchMutation.isPending || refreshing} onClick={async () => {
+              setRefreshing(true)
+              try {
+                const results = await Promise.all([latest.refetch(), currentOrder.refetch(), stocks.refetch(), products.refetch(), vehiclesQuery.refetch(), employeesQuery.refetch(), deliveriesQuery.refetch()])
+                if (results.some((result) => result.isError)) throw new Error('Shipment data could not be refreshed.')
+                setNeedsRefresh(false)
+                setErrorMessage('')
+              } catch (cause) { setErrorMessage(getErrorMessage(cause)) }
+              finally { setRefreshing(false) }
+            }}>Refresh shipment</Button>
             {errorMessage && (
               <Alert variant="destructive">
                 <AlertDescription>{errorMessage}</AlertDescription>
@@ -433,7 +450,7 @@ export function DispatchDeliveryModal({
                           }
                         />
                         {quantityError(row) && (
-                          <p id={`dispatch-error-${row.id}`} className="text-xs text-destructive">
+                          <p role="alert" id={`dispatch-error-${row.id}`} className="text-xs text-destructive">
                             {quantityError(row)}
                           </p>
                         )}

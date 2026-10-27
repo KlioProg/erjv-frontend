@@ -1,5 +1,10 @@
 import { formatProductUnit } from '@/lib/product-unit'
-import type { ReactNode } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { getErrorMessage } from '@/lib/api-client'
+import { formatPurchaseMoney, purchaseDecimal, storedPurchaseTotal } from '@/features/logistics/purchase-pricing'
+import { PurchaseReceivingProgress } from './PurchaseReceivingProgress'
+import { OverflowValue } from '@/components/ui/OverflowValue'
 import {
   Dialog,
   DialogContent,
@@ -24,16 +29,19 @@ type Props = {
   products: InventoryItemResponse[]
   warehouses: Warehouse[]
   incomingDeliveries: IncomingDeliveryRecord[]
+  receivingLoading?: boolean
+  receivingUnavailable?: boolean
+  onRetryReceiving?: () => void
   statusBadge: ReactNode
   onClose: () => void
-  onConfirm?: () => void
+  onConfirm?: () => Promise<unknown> | void
   onExportReceipt?: () => void
   confirming?: boolean
   onNavigateToDeliveries?: (purchaseOrderId?: number) => void
 }
 
 const currency = (value: string | number) =>
-  `₱${Number(value).toLocaleString('en-US', { minimumFractionDigits: 2 })}`
+  formatPurchaseMoney(purchaseDecimal(String(value)))
 
 export function PurchaseOrderDetailModal({
   order,
@@ -41,6 +49,9 @@ export function PurchaseOrderDetailModal({
   products,
   warehouses,
   incomingDeliveries,
+  receivingLoading = false,
+  receivingUnavailable = false,
+  onRetryReceiving = () => {},
   statusBadge,
   onClose,
   onConfirm,
@@ -48,6 +59,24 @@ export function PurchaseOrderDetailModal({
   confirming,
   onNavigateToDeliveries,
 }: Props) {
+  const [confirmationError, setConfirmationError] = useState('')
+  const [pending, setPending] = useState(false)
+  const confirmationLock = useRef(false)
+  const busy = confirming || pending
+  async function confirm() {
+    if (confirmationLock.current || busy || !onConfirm) return
+    confirmationLock.current = true
+    setPending(true)
+    setConfirmationError('')
+    try {
+      await onConfirm()
+    } catch (error) {
+      setConfirmationError(getErrorMessage(error))
+    } finally {
+      confirmationLock.current = false
+      setPending(false)
+    }
+  }
   const linkedDeliveries = incomingDeliveries.filter(
     (delivery) => delivery.purchaseOrderId === order.id && delivery.status !== 'CANCELLED',
   )
@@ -65,10 +94,7 @@ export function PurchaseOrderDetailModal({
       accessorKey: 'inventoryItemId',
       header: 'Product / Material',
       cell: ({ row }) => (
-        <span>
-          {products.find((product) => product.id === row.inventoryItemId)?.name ||
-            `Item #${row.inventoryItemId}`}
-        </span>
+        <OverflowValue value={products.find((product) => product.id === row.inventoryItemId)?.name || `Item #${row.inventoryItemId}`} />
       ),
     },
     {
@@ -109,8 +135,8 @@ export function PurchaseOrderDetailModal({
   ]
 
   return (
-    <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
+    <Dialog open onOpenChange={(open) => !open && !busy && onClose()}>
+      <DialogContent closeDisabled={busy} className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{order.orderNumber}</DialogTitle>
           <DialogDescription>
@@ -118,10 +144,10 @@ export function PurchaseOrderDetailModal({
           </DialogDescription>
         </DialogHeader>
         <div>{statusBadge}</div>
-        <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4 [&_dt]:text-ui [&_dd]:text-sm">
+        <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4 [&>div]:min-w-0 [&_dt]:text-ui [&_dd]:text-sm [&_dd]:[overflow-wrap:anywhere]">
           <div>
             <dt className="text-muted-foreground">Supplier</dt>
-            <dd className="font-medium">{supplier?.name || `Supplier #${order.supplierId}`}</dd>
+            <dd className="font-medium">{supplier?.name || (order.supplierId == null ? 'No supplier assigned' : `Supplier #${order.supplierId}`)}</dd>
           </div>
           <div>
             <dt className="text-muted-foreground">Supplier Reference</dt>
@@ -152,11 +178,11 @@ export function PurchaseOrderDetailModal({
           data={order.items || []}
           columns={columns}
           pagination={false}
-          tableClassName="tabular-nums"
+          tableClassName="min-w-[640px] table-fixed tabular-nums"
         />
         <p className="text-right text-sm font-semibold tabular-nums">
           Total:{' '}
-          {currency((order.items || []).reduce((sum, item) => sum + Number(item.totalAmount), 0))}
+          {formatPurchaseMoney(storedPurchaseTotal(order.items || []))}
         </p>
         <p className="text-xs text-muted-foreground">
           Choose the destination warehouse when scheduling an incoming delivery. Incoming deliveries
@@ -169,10 +195,23 @@ export function PurchaseOrderDetailModal({
           </p>
         )}
         {onConfirm && order.status === 'DRAFT' && (
-          <Button size="sm" disabled={confirming} onClick={onConfirm}>
-            {confirming ? 'Confirming...' : 'Confirm Purchase Order'}
+          <Button size="sm" disabled={busy} onClick={() => void confirm()}>
+            {busy ? 'Confirming...' : 'Confirm Purchase Order'}
           </Button>
         )}
+        {confirmationError && (
+          <Alert variant="destructive" role="alert">
+            <AlertDescription>{confirmationError}</AlertDescription>
+          </Alert>
+        )}
+        <PurchaseReceivingProgress
+          order={order}
+          deliveries={incomingDeliveries}
+          products={products}
+          isLoading={receivingLoading}
+          unavailable={receivingUnavailable}
+          onRetry={onRetryReceiving}
+        />
         {onExportReceipt && order.status !== 'DRAFT' && order.status !== 'CANCELLED' && (
           <Button size="sm" variant="outline" onClick={onExportReceipt}>
             Print / Download Purchase Order

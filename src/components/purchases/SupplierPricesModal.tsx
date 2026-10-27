@@ -142,9 +142,8 @@ export function SupplierPricesModal({
               <SearchableDropdown
                 id="supplier-price-product"
                 options={products.filter((row) => row.isActive)}
-                isLoading={productsLoading}
                 value={productId}
-                disabled={save.isPending || prices.isLoading || prices.isError}
+                disabled={productsLoading || save.isPending || prices.isLoading || prices.isError}
                 onValueChange={(value) => {
                   setProductId(value)
                   setCost(null)

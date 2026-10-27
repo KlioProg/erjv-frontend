@@ -17,6 +17,7 @@ import {
 } from '@/features/logistics/use-incoming-receiving'
 import { formatStockCents } from '@/features/logistics/stock-display'
 import type { IncomingDeliveryRecord } from '@/features/logistics/incoming-deliveries.types'
+import { useIncomingDeliveryById } from '@/features/logistics/incoming-deliveries.hooks'
 import { deliveryFormStyles } from './shared/delivery-form.styles'
 
 const outcomes = [
@@ -25,7 +26,25 @@ const outcomes = [
   ['none', 'No goods arrived'],
 ] as const
 
-export function ReceiveProductsModal({
+export function ReceiveProductsModal(props: {
+  onClose: () => void
+} & ({ delivery: IncomingDeliveryRecord; deliveryId?: never } | { deliveryId: number; delivery?: never })) {
+  const current = useIncomingDeliveryById(props.deliveryId)
+  const delivery = props.delivery ?? current.data
+  if (delivery) return <ReceiveProductsForm delivery={delivery} onClose={props.onClose} />
+  return (
+    <Dialog open onOpenChange={(open) => !open && props.onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Receive Goods</DialogTitle>
+          <DialogDescription>{current.isError ? 'Unable to load delivery. Close and retry.' : 'Loading delivery…'}</DialogDescription>
+        </DialogHeader>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function ReceiveProductsForm({
   delivery,
   onClose,
 }: {
@@ -77,6 +96,10 @@ export function ReceiveProductsModal({
                 </AlertDescription>
               </Alert>
             )}
+            {!form.canReceive && <Alert><AlertDescription>You do not have permission to confirm incoming receipts.</AlertDescription></Alert>}
+            <Button type="button" variant="link" disabled={busy} onClick={() => void form.refresh()}>
+              Refresh receipt data
+            </Button>
             {form.latest && form.latest.status !== 'SCHEDULED' && (
               <Alert>
                 <AlertDescription>
@@ -85,7 +108,7 @@ export function ReceiveProductsModal({
               </Alert>
             )}
             {form.regularUnavailable && !form.loading && (
-              <p className="text-sm text-muted-foreground">
+              <p role="alert" className="text-sm text-muted-foreground">
                 Outstanding product information is unavailable. Reload before recording received
                 quantities.
               </p>

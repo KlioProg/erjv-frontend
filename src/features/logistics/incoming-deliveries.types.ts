@@ -7,8 +7,8 @@ export interface IncomingDeliveryItemRecord {
   incomingDeliveryId: number
   purchaseOrderItemId: number
   receivedQuantity: string
-  damagedQuantity?: string | null
   acceptedQuantity?: string | null
+  damagedQuantity?: string | null
   createdAt: string
   updatedAt: string
   purchaseOrderItem?: {
@@ -23,6 +23,9 @@ export interface IncomingDeliveryRecord {
   purchaseOrderId: number
   warehouseId: number
   status: IncomingDeliveryStatus
+  outcome?: 'RECEIVED' | 'RECEIVED_WITH_DAMAGE' | 'NO_RECEIPT' | null
+  noReceiptReason?: string | null
+  confirmedByUserId?: number | null
   scheduledAt: string | null
   completedAt: string | null
   cancelledAt: string | null
@@ -35,11 +38,12 @@ export interface IncomingDeliveryRecord {
 
 export interface IncomingDeliveryLineCommand {
   purchaseOrderItemId: number
-  receivedQuantity: number | string
+  receivedQuantity: string
+  damagedQuantity: string
 }
 
 export interface CompleteIncomingDeliveryPayload {
-  items: { purchaseOrderItemId: number; receivedQuantity: string; damagedQuantity: string }[]
+  items: IncomingDeliveryLineCommand[]
   noReceiptReason?: string
 }
 

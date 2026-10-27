@@ -19,9 +19,9 @@ import type { QuarantineCondition, QuarantineLot } from '@/features/logistics/st
 import { getErrorMessage } from '@/lib/api-client'
 import { QuarantineLotDialog } from './QuarantineLotDialog'
 
-export function QuarantinedStock() {
+export function QuarantinedStock({ stockItemId }: { stockItemId?: number } = {}) {
   const stocks = useStockItems()
-  const [stockId, setStockId] = useState('ALL')
+  const [stockId, setStockId] = useState(stockItemId === undefined ? 'ALL' : String(stockItemId))
   const [condition, setCondition] = useState<QuarantineCondition | 'ALL'>('ALL')
   const [openOnly, setOpenOnly] = useState(true)
   const [selected, setSelected] = useState<QuarantineLot>()

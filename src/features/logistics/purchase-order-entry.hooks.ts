@@ -5,7 +5,7 @@ import { fetchPurchaseOrderByIdApi } from './purchase-orders.api'
 import { getApiError, getErrorMessage } from '@/lib/api-client'
 import type { PurchaseLine } from './purchase-order-entry.types'
 import type { InventoryItemResponse } from '@/features/products/products.types'
-import { lineSubtotal } from '@/lib/order-amounts'
+import { decimalString, lineSubtotal, parseOrderDecimal } from '@/lib/order-amounts'
 import { discountFields, lineDiscountError, orderLineAmounts, orderLineTotals, savedOrderTotals, savedLineDiscount, type LineDiscount } from '@/lib/order-line-pricing'
 import {
   expectedDateError,
@@ -66,6 +66,8 @@ export function usePurchaseOrderEntry({
   }
   const [lines, setLines] = useState<PurchaseLine[]>(() => draftOrder ? draftLines(draftOrder) : [])
   const nextFormId = useRef(lines.length)
+  const signature = JSON.stringify({ supplierId, reference, expectedAt, notes, lines })
+  const [initialSignature] = useState(signature)
   const [error, setError] = useState('')
   const [errorFocusId, setErrorFocusId] = useState<string>()
   const submission = useOrderSubmission({ onConfirm, onConfirmed, savedDraft, onClose })
@@ -110,20 +112,30 @@ export function usePurchaseOrderEntry({
     const formId = existing?.formId ?? ++nextFormId.current
     focus.requestQuantityFocus(formId)
     setError('')
-    if (existing) return
-    setLines((current) => [
-      ...current,
-      {
-        formId,
-        inventoryItemId: product.id,
-        name: product.name,
-        variety: product.variety,
-        unit: product.unit,
-        unitCost: '',
-        quantity: '1',
-        discount: { type: 'percentage', percentage: '', peso: '' },
-      },
-    ])
+    setLines((current) => {
+      const selected = current.find((line) => line.inventoryItemId === product.id)
+      if (selected) {
+        const quantity = parseOrderDecimal(selected.quantity || '0')
+        return current.map((line) =>
+          line.formId === selected.formId && quantity !== null
+            ? { ...line, quantity: decimalString(quantity + 100n).replace(/\.00$/, '') }
+            : line,
+        )
+      }
+      return [
+        ...current,
+        {
+          formId,
+          inventoryItemId: product.id,
+          name: product.name,
+          variety: product.variety,
+          unit: product.unit,
+          unitCost: '',
+          quantity: '1',
+          discount: { type: 'percentage', percentage: '', peso: '' },
+        },
+      ]
+    })
   }
 
   function updateLine(id: number, field: 'quantity' | 'unitCost', value: string) {
@@ -213,6 +225,7 @@ export function usePurchaseOrderEntry({
     }, confirm)
   }
   return {
+    hasUnsavedChanges: signature !== initialSignature,
     supplierId,
     setSupplierId,
     reference,

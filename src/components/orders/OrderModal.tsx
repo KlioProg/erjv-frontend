@@ -204,6 +204,7 @@ export function OrderModal({
       }
       description="Choose a customer, add products, and review the order."
       submission={form.submission}
+      hasUnsavedChanges={form.hasUnsavedChanges}
       busy={form.busy}
       error={form.error}
       errorFocusId={form.errorFocusId}

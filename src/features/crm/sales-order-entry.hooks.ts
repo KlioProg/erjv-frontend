@@ -90,6 +90,8 @@ export function useSalesOrderEntry({
   )
   const [taxExemption, setTaxExemption] = useState(order?.taxRate === '0.00')
   const defaultTaxRate = taxExemption ? '0.00' : '12.00'
+  const signature = JSON.stringify({ clientId, deliveryAddress, expectedAt, reference, notes, storedLines, taxExemption })
+  const [initialSignature] = useState(signature)
   const lines = storedLines.map((line) => {
     const product = products.find((candidate) => candidate.id === line.productId)
     return { ...line, taxRate: line.taxRate ?? defaultTaxRate,
@@ -311,6 +313,7 @@ export function useSalesOrderEntry({
     submission,
     focus,
     amounts,
+    hasUnsavedChanges: signature !== initialSignature,
     editing: !!draft,
     submitDisabled: !!editUnavailable || !!conflict,
     conflict,

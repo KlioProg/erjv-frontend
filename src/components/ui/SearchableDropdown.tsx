@@ -67,7 +67,7 @@ export function SearchableDropdown<T>({
   const customValue = query.trim().replace(/\s+/g, ' ')
   const exactMatch = options.find(
     (option) =>
-      getOptionLabel(option).trim().replace(/\s+/g, ' ').toLocaleLowerCase() ===
+      String(getOptionLabel(option) ?? '').trim().replace(/\s+/g, ' ').toLocaleLowerCase() ===
       customValue.toLocaleLowerCase(),
   )
   const tooLong = !!onCreateValue && customValue.length > maxCustomLength
@@ -88,7 +88,7 @@ export function SearchableDropdown<T>({
     const normalizedQuery = query.trim().replace(/\s+/g, ' ').toLocaleLowerCase()
     if (!normalizedQuery) return options
     return options.filter((option) =>
-      getOptionSearchText(option)
+      String(getOptionSearchText(option) ?? '')
         .replace(/\s+/g, ' ')
         .toLocaleLowerCase()
         .includes(normalizedQuery),

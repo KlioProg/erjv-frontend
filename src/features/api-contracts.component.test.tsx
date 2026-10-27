@@ -166,12 +166,10 @@ const creations = [
       createOutgoingDeliveryApi({
         salesOrderId: 1,
         notes: ' Handle carefully ',
-        items: [{ salesOrderItemId: 8, stockItemId: 9, quantity: '0.50' }],
       }),
     body: {
       salesOrderId: 1,
       notes: 'Handle carefully',
-      items: [{ salesOrderItemId: 8, stockItemId: 9, quantity: '0.50' }],
     },
   },
 ]

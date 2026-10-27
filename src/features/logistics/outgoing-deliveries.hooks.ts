@@ -15,8 +15,8 @@ import {
 } from './outgoing-deliveries.api'
 import type {
   CreateOutgoingDeliveryPayload,
-  DispatchOutgoingDeliveryPayload,
   CompleteOutgoingDeliveryPayload,
+  DispatchOutgoingDeliveryPayload,
   OutgoingDeliveryFilter,
   CreateOutgoingDeliveryDraftPayload,
   UpdateOutgoingDeliveryDraftPayload,
@@ -146,12 +146,9 @@ export function useScheduleOutgoingDelivery() {
   const queryClient = useQueryClient()
   return useMutation({
     retry: false,
-    mutationFn: async (command: number | { id: number; expectedRevision: number }) => {
-      const id = typeof command === 'number' ? command : command.id
-      const delivery = await scheduleOutgoingDeliveryApi(
-        id,
-        typeof command === 'number' ? undefined : command.expectedRevision,
-      )
+    mutationFn: async (command: { id: number; expectedRevision: number }) => {
+      const id = command.id
+      const delivery = await scheduleOutgoingDeliveryApi(id, command.expectedRevision)
       if (delivery.id !== id || delivery.status !== 'SCHEDULED')
         throw new Error(
           'The server did not confirm scheduling this delivery. Review it in Outgoing Deliveries before retrying.',
@@ -183,16 +180,30 @@ export function useDispatchOutgoingDelivery() {
   const queryClient = useQueryClient()
   return useMutation({
     retry: false,
-    mutationFn: ({ id, payload }: { id: number; payload: DispatchOutgoingDeliveryPayload }) =>
-      dispatchOutgoingDeliveryApi(id, payload),
-    onSuccess: (delivery) => {
-      void queryClient.invalidateQueries({ queryKey: DELIVERIES_QUERY_KEY })
-      void queryClient.invalidateQueries({ queryKey: VEHICLES_QUERY_KEY })
-      void queryClient.invalidateQueries({ queryKey: ['products'] })
-      void queryClient.invalidateQueries({ queryKey: ['warehouses'] })
-      void queryClient.invalidateQueries({ queryKey: ['quarantine-lots'] })
-      void queryClient.invalidateQueries({ queryKey: STOCK_ITEMS_QUERY_KEY })
-      void queryClient.invalidateQueries({ queryKey: SALES_ORDERS_QUERY_KEY })
+    mutationFn: async ({
+      id,
+      payload,
+    }: {
+      id: number
+      payload: DispatchOutgoingDeliveryPayload
+    }) => {
+      const delivery = await dispatchOutgoingDeliveryApi(id, payload)
+      if (delivery?.id !== id || delivery.status !== 'DISPATCHED')
+        throw new Error(
+          'The server did not confirm dispatch. Refresh this shipment and review its status before trying again.',
+        )
+      return delivery
+    },
+    onSuccess: async (delivery) => {
+      queryClient.setQueryData([...DELIVERIES_QUERY_KEY, 'id', delivery.id], delivery)
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: DELIVERIES_QUERY_KEY }),
+        queryClient.invalidateQueries({ queryKey: VEHICLES_QUERY_KEY }),
+        queryClient.invalidateQueries({ queryKey: STOCK_ITEMS_QUERY_KEY }),
+        queryClient.invalidateQueries({ queryKey: SALES_ORDERS_QUERY_KEY }),
+        queryClient.invalidateQueries({ queryKey: ['products'] }),
+        queryClient.invalidateQueries({ queryKey: ['warehouses'] }),
+      ])
       toast.success(`Delivery "${delivery.deliveryNumber}" dispatched to transit`)
     },
     onError: (err) => {
@@ -212,17 +223,34 @@ export function useCompleteOutgoingDelivery() {
   const queryClient = useQueryClient()
   return useMutation({
     retry: false,
-    mutationFn: ({ id, payload }: { id: number; payload: CompleteOutgoingDeliveryPayload }) =>
-      completeOutgoingDeliveryApi(id, payload),
-    onSuccess: (delivery) => {
-      void queryClient.invalidateQueries({ queryKey: DELIVERIES_QUERY_KEY })
-      void queryClient.invalidateQueries({ queryKey: VEHICLES_QUERY_KEY })
-      void queryClient.invalidateQueries({ queryKey: ['products'] })
-      void queryClient.invalidateQueries({ queryKey: ['warehouses'] })
-      void queryClient.invalidateQueries({ queryKey: ['quarantine-lots'] })
-      void queryClient.invalidateQueries({ queryKey: STOCK_ITEMS_QUERY_KEY })
-      void queryClient.invalidateQueries({ queryKey: SALES_ORDERS_QUERY_KEY })
-      toast.success(`Delivery "${delivery.deliveryNumber}" marked as DELIVERED. Inventory updated.`)
+    mutationFn: async ({
+      id,
+      payload,
+    }: {
+      id: number
+      payload: CompleteOutgoingDeliveryPayload
+    }) => {
+      const delivery = await completeOutgoingDeliveryApi(id, payload)
+      if (delivery?.id !== id || delivery.status !== 'DELIVERED')
+        throw new Error(
+          'The server did not confirm completion. Refresh this delivery and review its status before trying again.',
+        )
+      return delivery
+    },
+    onSuccess: async (delivery) => {
+      queryClient.setQueryData([...DELIVERIES_QUERY_KEY, 'id', delivery.id], delivery)
+      await Promise.all(
+        [
+          DELIVERIES_QUERY_KEY,
+          VEHICLES_QUERY_KEY,
+          STOCK_ITEMS_QUERY_KEY,
+          SALES_ORDERS_QUERY_KEY,
+          ['products'],
+          ['warehouses'],
+          ['quarantine-lots'],
+        ].map((queryKey) => queryClient.invalidateQueries({ queryKey })),
+      )
+      toast.success(`Delivery "${delivery.deliveryNumber}" reconciliation confirmed`)
     },
     onError: (err) => {
       void queryClient.invalidateQueries({ queryKey: ['outgoing-deliveries'] })
@@ -242,9 +270,11 @@ export function useCancelOutgoingDelivery() {
   return useMutation({
     retry: false,
     mutationFn: (id: number) => cancelOutgoingDeliveryApi(id),
-    onSuccess: (delivery) => {
-      void queryClient.invalidateQueries({ queryKey: DELIVERIES_QUERY_KEY })
-      void queryClient.invalidateQueries({ queryKey: VEHICLES_QUERY_KEY })
+    onSuccess: async (delivery) => {
+      await Promise.all([
+        DELIVERIES_QUERY_KEY, VEHICLES_QUERY_KEY, STOCK_ITEMS_QUERY_KEY, SALES_ORDERS_QUERY_KEY,
+        ['products'], ['warehouses'],
+      ].map((queryKey) => queryClient.invalidateQueries({ queryKey })))
       toast.info(`Delivery "${delivery.deliveryNumber}" has been cancelled`)
     },
     onError: (err) => {

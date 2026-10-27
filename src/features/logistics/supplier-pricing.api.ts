@@ -1,9 +1,11 @@
-import { apiClient, extractArray } from '@/lib/api-client'
 import type { SupplierProductPrice } from './supplier-pricing.types'
 
+export const SUPPLIER_PRICING_SUPPORTED = false
+const unavailable = () => new Error('Supplier reference pricing is not available in this backend. Enter unit costs on the purchase order.')
+
 export async function fetchSupplierPricesApi(supplierId: number): Promise<SupplierProductPrice[]> {
-  const { data } = await apiClient.get(`/suppliers/${supplierId}/products`)
-  return extractArray<SupplierProductPrice>(data)
+  void supplierId
+  throw unavailable()
 }
 
 export async function saveSupplierPriceApi({
@@ -15,9 +17,8 @@ export async function saveSupplierPriceApi({
   inventoryItemId: number
   latestUnitCost: string | null
 }): Promise<SupplierProductPrice> {
-  const { data } = await apiClient.put<SupplierProductPrice>(
-    `/suppliers/${supplierId}/products/${inventoryItemId}`,
-    { latestUnitCost },
-  )
-  return data
+  void supplierId
+  void inventoryItemId
+  void latestUnitCost
+  throw unavailable()
 }

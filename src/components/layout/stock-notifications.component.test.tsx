@@ -51,6 +51,23 @@ beforeEach(() => {
 const dot = (name: string) =>
   screen.getByRole('menuitemradio', { name }).querySelector('[aria-hidden="true"]')
 
+it('counts filtered warnings and passes the selected warehouse and severity to View All', async () => {
+  const user = userEvent.setup()
+  const onOpenInventory = vi.fn()
+  render(<StockNotifications onOpenInventory={onOpenInventory} />)
+  await user.click(screen.getByRole('button', { name: /Stock notifications/ }))
+  expect(screen.getByText('2 warnings')).toBeTruthy()
+  await user.click(screen.getByRole('combobox', { name: 'Warning warehouse' }))
+  await user.click(screen.getByRole('option', { name: 'Main Warehouse' }))
+  expect(screen.getByText('1 warning')).toBeTruthy()
+  await user.click(screen.getByRole('menuitemradio', { name: 'Out of stock' }))
+  expect(screen.getByText('0 warnings')).toBeTruthy()
+  await user.click(screen.getByRole('menuitemradio', { name: 'Low stock' }))
+  expect(screen.getByText('1 warning')).toBeTruthy()
+  await user.click(screen.getByRole('menuitem', { name: 'View All' }))
+  expect(onOpenInventory).toHaveBeenCalledExactlyOnceWith({ warningFilter: 'LOW', warehouseId: 2 })
+})
+
 it('shows warehouse-scoped severity dots independently of the selected category and never on All', async () => {
   const user = userEvent.setup()
   render(<StockNotifications onOpenInventory={vi.fn()} />)

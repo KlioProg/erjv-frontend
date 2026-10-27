@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Spinner } from '@/components/ui/spinner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal'
 import {
   useCreateWarehouse,
   useUpdateWarehouseDetails,
@@ -36,8 +37,6 @@ function WarehouseFormContent({
   warehouse: Warehouse | null
   onClose: () => void
 }) {
-  const submitting = useRef(false)
-  const [checking, setChecking] = useState(false)
   const isEditing = !!warehouse
   const createMutation = useCreateWarehouse()
   const updateMutation = useUpdateWarehouseDetails()
@@ -48,110 +47,120 @@ function WarehouseFormContent({
   const [contactNumber, setContactNumber] = useState(warehouse?.contactNumber || '')
   const [errorMsg, setErrorMsg] = useState('')
   const [deactivatedWarehouseMatch, setDeactivatedWarehouseMatch] = useState<Warehouse | null>(null)
+  const submitting = useRef(false)
+  const [checkingName, setCheckingName] = useState(false)
+  const [discardOpen, setDiscardOpen] = useState(false)
+  const dirty = name !== (warehouse?.name ?? '') || address !== (warehouse?.address ?? '') ||
+    contactNumber !== (warehouse?.contactNumber ?? '')
+  function requestClose() {
+    if (submitting.current || isPending) return
+    if (dirty) setDiscardOpen(true)
+    else onClose()
+  }
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     if (submitting.current) return
+    setErrorMsg('')
+    setDeactivatedWarehouseMatch(null)
+
+    const cleanName = name.trim()
+    if (!cleanName) {
+      setErrorMsg('Warehouse name is required.')
+      return
+    }
+
+    if (!address.trim()) {
+      setErrorMsg('Warehouse address / location is required.')
+      return
+    }
+
+    const phoneError = validatePhilippinePhone(contactNumber, 'Contact number')
+    if (phoneError) {
+      setErrorMsg(phoneError)
+      return
+    }
+
     submitting.current = true
-    setChecking(true)
+    setCheckingName(true)
     try {
-      setErrorMsg('')
-      setDeactivatedWarehouseMatch(null)
+      const cleanContactNumber = sanitizePhilippinePhone(contactNumber) || null
 
-      const cleanName = name.trim()
-      if (!cleanName) {
-        setErrorMsg('Warehouse name is required.')
-        return
-      }
-
-      if (!address.trim()) {
-        setErrorMsg('Warehouse address / location is required.')
-        return
-      }
-
-      const phoneError = validatePhilippinePhone(contactNumber, 'Contact number')
-      if (phoneError) {
-        setErrorMsg(phoneError)
-        return
-      }
-
-      // NOTE: removed client-side constraint validation, need backend to provide constraint errors
-      // - deactivatedWarehouseMatch: set when there exists a deactivated warehouse with the specified name.
-      // recommendations:
-      // - just let the DB check the constraints and interpret it later
-
-      try {
-        const cleanContactNumber = sanitizePhilippinePhone(contactNumber) || null
-
-        if (isEditing && warehouse) {
-          await updateMutation.mutateAsync({
-            id: warehouse.id,
-            payload: {
-              name: name.trim(),
-              address: address.trim(),
-              contactNumber: cleanContactNumber,
-            },
-          })
-        } else {
-          // Pre-check if an archived warehouse with this name exists so user can restore it directly
-          const existingMatch = await fetchWarehouseByNameApi(cleanName).catch((error: unknown) => {
-            const lookup = getApiError(error)
-            if (lookup?.status === 404 && lookup.code === 'RESOURCE_NOT_FOUND') return null
-            throw error
-          })
-          if (existingMatch && existingMatch.isActive === false) {
-            setDeactivatedWarehouseMatch(existingMatch)
-            return
-          }
-
-          await createMutation.mutateAsync({
+      if (isEditing && warehouse) {
+        await updateMutation.mutateAsync({
+          id: warehouse.id,
+          payload: {
             name: name.trim(),
             address: address.trim(),
             contactNumber: cleanContactNumber,
-            isActive: true,
-          })
+          },
+        })
+      } else {
+        // Pre-check if an archived warehouse with this name exists so user can restore it directly
+        const existingMatch = await fetchWarehouseByNameApi(cleanName).catch((error: unknown) => {
+          const lookup = getApiError(error)
+          if (lookup?.status === 404 && lookup.code === 'RESOURCE_NOT_FOUND') return null
+          throw error
+        })
+        if (existingMatch && existingMatch.isActive === false) {
+          setDeactivatedWarehouseMatch(existingMatch)
+          return
         }
-        onClose()
-      } catch (err) {
-        const msg = getErrorMessage(err)
-        if (
-          !isEditing &&
-          (msg.toLowerCase().includes('already exists') || msg.toLowerCase().includes('duplicate'))
-        ) {
-          try {
-            const match = await fetchWarehouseByNameApi(cleanName)
-            if (match && match.isActive === false) {
-              setDeactivatedWarehouseMatch(match)
-              return
-            }
-          } catch {
-            // Ignore
-          }
-        }
-        setErrorMsg(msg)
+
+        await createMutation.mutateAsync({
+          name: name.trim(),
+          address: address.trim(),
+          contactNumber: cleanContactNumber,
+          isActive: true,
+        })
       }
+      onClose()
+    } catch (err) {
+      const msg = getErrorMessage(err)
+      if (
+        !isEditing &&
+        (msg.toLowerCase().includes('already exists') || msg.toLowerCase().includes('duplicate'))
+      ) {
+        try {
+          const match = await fetchWarehouseByNameApi(cleanName)
+          if (match && match.isActive === false) {
+            setDeactivatedWarehouseMatch(match)
+            return
+          }
+        } catch {
+          // Ignore
+        }
+      }
+      setErrorMsg(msg)
     } finally {
       submitting.current = false
-      setChecking(false)
+      setCheckingName(false)
     }
   }
 
   const handleRestoreFoundWarehouse = async () => {
+    if (!deactivatedWarehouseMatch || submitting.current) return
+    submitting.current = true
+    setErrorMsg('')
     try {
-      if (deactivatedWarehouseMatch) {
-        await reactivateMutation.mutateAsync(deactivatedWarehouseMatch.id)
-        onClose()
-      }
+      await reactivateMutation.mutateAsync(deactivatedWarehouseMatch.id)
+      onClose()
     } catch (error) {
       setErrorMsg(getErrorMessage(error))
+    } finally {
+      submitting.current = false
     }
   }
 
   const isPending =
-    checking || createMutation.isPending || updateMutation.isPending || reactivateMutation.isPending
+    checkingName ||
+    createMutation.isPending ||
+    updateMutation.isPending ||
+    reactivateMutation.isPending
 
   return (
-    <>
+    <Dialog open onOpenChange={(open) => !open && requestClose()}>
+      <DialogContent className="sm:max-w-[480px]" closeDisabled={isPending}>
       <DialogHeader>
         <DialogTitle>
           {isEditing ? 'Edit Warehouse Location' : 'Register New Warehouse'}
@@ -163,7 +172,7 @@ function WarehouseFormContent({
         </DialogDescription>
       </DialogHeader>
 
-      {errorMsg && (!deactivatedWarehouseMatch || reactivateMutation.isError) && (
+      {errorMsg && (
         <Alert
           variant="destructive"
           className="animate-in fade-in-0 slide-in-from-top-1 duration-200"
@@ -258,7 +267,7 @@ function WarehouseFormContent({
         </div>
 
         <DialogFooter className="gap-2 mt-4 pt-3 border-t">
-          <Button type="button" variant="outline" onClick={onClose} disabled={isPending}>
+          <Button type="button" variant="outline" onClick={requestClose} disabled={isPending}>
             Cancel
           </Button>
           {deactivatedWarehouseMatch ? (
@@ -294,22 +303,26 @@ function WarehouseFormContent({
           )}
         </DialogFooter>
       </form>
-    </>
+      <ConfirmDeleteModal
+        open={discardOpen}
+        onClose={() => setDiscardOpen(false)}
+        onConfirm={onClose}
+        title="Discard unsaved warehouse changes?"
+        description="Your unsaved facility details will be lost."
+        confirmText="Discard Changes"
+        cancelText="Keep Editing"
+      />
+      </DialogContent>
+    </Dialog>
   )
 }
 
 export function WarehouseModal({ warehouse, open, onClose }: WarehouseModalProps) {
-  return (
-    <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-      <DialogContent className="sm:max-w-[480px]">
-        {open && (
-          <WarehouseFormContent
-            key={warehouse ? `wh-${warehouse.id}` : 'new-wh'}
-            warehouse={warehouse}
-            onClose={onClose}
-          />
-        )}
-      </DialogContent>
-    </Dialog>
-  )
+  return open ? (
+    <WarehouseFormContent
+      key={warehouse ? `wh-${warehouse.id}` : 'new-wh'}
+      warehouse={warehouse}
+      onClose={onClose}
+    />
+  ) : null
 }

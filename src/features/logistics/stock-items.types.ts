@@ -60,6 +60,7 @@ export type SetReorderThresholdPayload = {
 }
 
 export type QuarantineCondition = 'DAMAGED' | 'SPOILED'
+export type CreateManualQuarantinePayload = ManualQuarantinePayload
 export type QuarantineAction = 'CLEAR' | 'REMOVE'
 export type ManualQuarantinePayload = {
   stockItemId: number

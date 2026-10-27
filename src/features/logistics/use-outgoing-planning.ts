@@ -269,6 +269,21 @@ export function useOutgoingPlanning(
       return persisted
     } catch (error) {
       const conflict = axios.isAxiosError(error) ? error.response?.data : undefined
+      const status = axios.isAxiosError(error) ? error.response?.status : undefined
+      if (axios.isAxiosError(error) && (status === undefined || status >= 500)) {
+        setReviewRequired(true)
+        setErrors({
+          request: 'The result is uncertain; the server may have saved or scheduled this delivery. Review the saved record before retrying. Your input is preserved.',
+        })
+        if (persisted) {
+          try {
+            await fetchLatest(persisted.id)
+          } catch (loadError) {
+            setErrors((current) => ({ ...current, review: getErrorMessage(loadError) }))
+          }
+        }
+        return
+      }
       const messages: Record<string, string> = {
         STALE_REVISION:
           'Another user changed this delivery. Review the latest saved draft before continuing. Your unsaved input is kept below.',

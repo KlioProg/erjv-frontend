@@ -18,6 +18,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal'
 import { useOrderComposerLayout } from '@/hooks/use-order-composer-layout'
 import type { useOrderSubmission } from '@/hooks/use-order-submission'
 import './order-entry.css'
@@ -38,6 +39,7 @@ export function OrderEntryDialog({
   itemCount,
   submitDisabled = false,
   readOnly = false,
+  hasUnsavedChanges = false,
 }: {
   open: boolean
   onClose: () => void
@@ -54,8 +56,15 @@ export function OrderEntryDialog({
   itemCount: number
   submitDisabled?: boolean
   readOnly?: boolean
+  hasUnsavedChanges?: boolean
 }) {
   const [view, setView] = useState('editor')
+  const [discardOpen, setDiscardOpen] = useState(false)
+  function requestClose() {
+    if (busy) return
+    if (hasUnsavedChanges && !submission.savedOrder) setDiscardOpen(true)
+    else onClose()
+  }
   const split = useOrderComposerLayout()
   const errorRef = useRef<HTMLDivElement>(null)
   const launcherRef = useRef<HTMLElement | null>(null)
@@ -75,7 +84,7 @@ export function OrderEntryDialog({
     }
   }, [error, errorFocusId])
   return (
-    <Dialog open={open} onOpenChange={(next) => !next && !busy && onClose()}>
+    <Dialog open={open} onOpenChange={(next) => !next && requestClose()}>
       <DialogContent
         className="order-entry-dialog order-composer-dialog flex flex-col gap-0 overflow-hidden p-0"
         closeDisabled={busy}
@@ -142,7 +151,7 @@ export function OrderEntryDialog({
                   <Button
                     type="button"
                     variant="outline"
-                    onClick={onClose}
+                    onClick={requestClose}
                     disabled={busy}
                     className="h-9 text-ui"
                   >
@@ -154,7 +163,7 @@ export function OrderEntryDialog({
                       name="intent"
                       value="draft"
                       variant="outline"
-                      disabled={busy || submitDisabled}
+                      disabled={busy || submitDisabled || submission.reviewRequired}
                       className="h-9 text-ui"
                     >
                       {submission.phase === 'saving' && (
@@ -172,7 +181,7 @@ export function OrderEntryDialog({
                       type="submit"
                       name="intent"
                       value="confirm"
-                      disabled={busy || submitDisabled}
+                      disabled={busy || submitDisabled || submission.reviewRequired}
                       variant="primary-contrast"
                       className="h-9"
                     >
@@ -207,6 +216,15 @@ export function OrderEntryDialog({
             </TabsContent>
           </div>
         </Tabs>
+        <ConfirmDeleteModal
+          open={discardOpen}
+          onClose={() => setDiscardOpen(false)}
+          onConfirm={onClose}
+          title="Discard unsaved order changes?"
+          description="Your unsaved entries will be lost. Keep editing to review or save the draft."
+          confirmText="Discard Changes"
+          cancelText="Keep Editing"
+        />
       </DialogContent>
     </Dialog>
   )

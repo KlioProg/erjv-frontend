@@ -147,6 +147,10 @@ export function OrderLineDiscount({
               </p>
             )}
             <div className="flex justify-end">
+              <Button type="button" variant="outline" onClick={() => {
+                onChange({ type: 'percentage', percentage: '', peso: '' })
+                setOpen(false)
+              }}>Remove discount</Button>
               <Button type="button" disabled={!!error} onClick={() => setOpen(false)}>
                 Done
               </Button>

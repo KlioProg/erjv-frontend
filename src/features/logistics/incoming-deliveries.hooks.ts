@@ -18,6 +18,7 @@ import { PURCHASE_ORDERS_QUERY_KEY } from './purchase-orders.hooks'
 import { STOCK_ITEMS_QUERY_KEY } from './stock-items.hooks'
 import { getErrorMessage } from '@/lib/api-client'
 
+
 export const INCOMING_DELIVERIES_QUERY_KEY = ['incoming-deliveries'] as const
 
 export function useIncomingDeliveries(filter?: IncomingDeliveryFilter) {
@@ -98,16 +99,30 @@ export function useCompleteIncomingDelivery() {
   const queryClient = useQueryClient()
   return useMutation({
     retry: false,
-    mutationFn: ({ id, ...payload }: CompleteIncomingDeliveryPayload & { id: number }) => completeIncomingDeliveryApi(id, payload),
-    onSuccess: (delivery) => {
-      void queryClient.invalidateQueries({ queryKey: INCOMING_DELIVERIES_QUERY_KEY })
-      void queryClient.invalidateQueries({ queryKey: PURCHASE_ORDERS_QUERY_KEY })
-      void queryClient.invalidateQueries({ queryKey: STOCK_ITEMS_QUERY_KEY })
-      void queryClient.invalidateQueries({ queryKey: ['products'] })
-      void queryClient.invalidateQueries({ queryKey: ['warehouses'] })
-      void queryClient.invalidateQueries({ queryKey: ['quarantine-lots'] })
+    mutationFn: async ({ id, ...payload }: CompleteIncomingDeliveryPayload & { id: number }) => {
+      const delivery = await completeIncomingDeliveryApi(id, payload)
+      if (delivery?.id !== id || delivery.status !== 'COMPLETED')
+        throw new Error(
+          'The server did not confirm receiving. Refresh this delivery and review its status before trying again.',
+        )
+      return delivery
+    },
+    onSuccess: async (delivery) => {
+      queryClient.setQueryData([...INCOMING_DELIVERIES_QUERY_KEY, 'id', delivery.id], delivery)
+      await Promise.all(
+        [
+          INCOMING_DELIVERIES_QUERY_KEY,
+          PURCHASE_ORDERS_QUERY_KEY,
+          STOCK_ITEMS_QUERY_KEY,
+          ['products'],
+          ['warehouses'],
+          ['quarantine-lots'],
+        ].map((queryKey) => queryClient.invalidateQueries({ queryKey })),
+      )
       toast.success(
-        `Incoming Delivery "${delivery.deliveryNumber}" receipt recorded.`,
+        delivery.outcome === 'NO_RECEIPT'
+          ? `Incoming Delivery "${delivery.deliveryNumber}" completed with no receipt`
+          : `Incoming Delivery "${delivery.deliveryNumber}" receipt confirmed`,
       )
     },
     onError: (err) => {

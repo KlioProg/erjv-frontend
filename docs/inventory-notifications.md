@@ -1,6 +1,6 @@
 # Inventory cleanup and global stock warnings
 
-Inventory opens directly to its canonical DataTable. The page hierarchy is Inventory, Active/Archived, Search/Register Product, then Product, Wholesale Price, Total Stock, Locations and permitted Actions. The redundant Inventory/Low-Stock Alerts subtabs, Status column, In Stock badges and four inventory KPI cards are removed. Inventory has no sidebar chevron. Existing responsive column visibility and mobile product actions are preserved.
+Inventory opens directly to its canonical DataTable. The page hierarchy is Inventory, Active/Archived, Search/Register Product, then Product, Wholesale Price, Total Stock, Available, Locations and permitted Actions. Existing responsive column visibility and mobile product actions are preserved.
 
 The extra outer inventory card border/padding and the stock-breakdown cards are removed. Product registration, editing, archiving, restoration, searching, employee-selected sorting, pagination and location navigation still use their existing services and controls. Archive failures now keep the confirmation open for correction/retry. Staff retain read-only access.
 
@@ -8,13 +8,13 @@ Warehouse Locations, Total Stored Units and Catalog Products remain in the exist
 
 ## Stock conditions
 
-Physical quantity, rather than unreserved sales availability, determines shortages. Quantities and totals reuse the existing exact decimal utilities. Malformed quantities remain unknown. A complete empty product stock list has zero total; it does not invent any warehouse association.
+Phase 4 uses backend `availableQuantity` and `stockStatus` as authoritative. The frontend does not subtract reservations or damage to recreate availability. Quantities and totals reuse the existing exact two-decimal utilities. Missing or malformed balances display as an em dash, separately from zero. A complete empty product stock list has zero physical total and no reported availability; it does not invent any warehouse association.
 
-An overall product total of zero gets a subtle destructive-color background and an accessible warning beside its quantity. A zero balance in one warehouse with stock elsewhere gets a location warning, without making the entire product globally out of stock. Expanded Locations shows each location's actual balance, unit and warning. Archived products retain their stock breakdown without active shortage indicators.
+A product whose tracked locations all report OUT gets the existing destructive row treatment. An OUT location with stock elsewhere gets a location warning without declaring the whole product depleted. Expanded Locations and warehouse inventory tables show physical, reserved, damaged and available balances. Shared status badges distinguish NORMAL, LOW, OUT, UNCONFIGURED (Threshold not set), and missing status (Stock status unavailable). Archived products retain their balances without active shortage indicators.
 
-Default ordering sorts the full returned product array by overall OUT, LOW, NORMAL, UNKNOWN condition, then name and ID before DataTable pagination. Explicit employee sorting takes precedence; search still operates on the full list. Notification navigation clears the previous workspace filters and opens the page containing the requested product.
+Default ordering sorts the full returned product array by OUT, LOW, NORMAL, UNCONFIGURED, UNKNOWN condition, then name and ID before DataTable pagination. Explicit employee sorting takes precedence; search still operates on the full list. Notification navigation clears the previous workspace filters and opens the page containing the requested product.
 
-**Low-stock dependency:** read-only inspection of the current InventoryItem, Warehouse and StockItem schema, stock-items service/controller and response DTO found no product or location reorder thresholds. The removed alert page used a universal 20-unit threshold. That threshold is not reused. Positive stock is not labeled LOW without an authoritative configured threshold. The shared condition helper supports an explicitly supplied threshold and the table has a muted warning-color treatment, but the current live data produces only verified OUT warnings. Location-specific threshold data is needed to activate accurate LOW warnings; no API field or operational value was fabricated.
+**Backend contract:** read-only inspection of the stock response DTO and mapper confirms `quantity`, `reservedQuantity`, `damagedQuantity`, `availableQuantity`, `reorderThreshold`, and `stockStatus`. LOW and OUT come exclusively from that status; missing statuses remain unknown. No threshold defaults, transfer workflows, or allocation controls were introduced.
 
 ## Shared header notifications
 
@@ -22,30 +22,46 @@ The shared header now has a stock notification bell. The former Product Catalog 
 
 Each warning identifies an active product, active warehouse/store, quantity, unit and severity. IDs use product ID, location ID and condition, and duplicate alerts are removed. Missing, archived and malformed source records do not produce invented notifications. Selecting an alert navigates to Inventory, opens the correct product's Locations, selects its pagination page and focuses/highlights the affected location. Removed/archived products and missing locations have safe explanatory fallbacks.
 
-The bell shares existing products, stock-items and warehouses query caches. Existing mutation invalidations refresh warnings after product, stock and delivery operations. Opening the menu refreshes those queries; entries pause during refresh to avoid navigation from stale warning data. Existing query window-focus behavior also refreshes data. This is not server push or continuous polling.
+The bell shares the inventory catalog's all-products query and the existing stock-items and warehouses caches. Existing mutation invalidations refresh warnings after supported stock operations. Opening the menu refreshes those queries without cancelling/refetching an already pending request; entries pause during refresh. No polling was added. All Warnings includes LOW + OUT only. Severity and warehouse filters determine both the displayed count and the View All inventory destination. The bell badge remains the global unresolved warning count.
 
 The badge counts unresolved shortages, not unread messages. Reading does not remove a warning; changing its authoritative stock balance does. Loading, failure/retry and empty states are distinct. No notification endpoint, localStorage business state, persistent read/unread behavior or unsupported delivery notification category was introduced.
 
-## Frontend files
+## Phase 4 files
 
-| Area                             | Files                                                                                                                                                               |
-| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Inventory                        | `src/components/inventory/InventoryHub.tsx`, `InventoryItemCatalog.tsx`; obsolete `LowStockList.tsx` removed                                                        |
-| Shared navigation/header         | `src/components/dashboard/MainDashboard.tsx`, `src/components/layout/DashboardLayout.tsx`, new `StockNotifications.tsx`                                             |
-| Warning rules/cache coordination | New `src/features/logistics/stock-warnings.ts`, `stock-warnings.hooks.ts`                                                                                           |
-| Verification                     | New `src/features/logistics/stock-warnings.test.mjs`, `src/components/inventory/inventory-notifications.component.test.tsx`; unit command updated in `package.json` |
+- Inventory: `src/components/inventory/InventoryItemCatalog.tsx`, new `StockBalanceSummary.tsx`.
+- Warehouses: `src/components/operations/WarehouseInventory.tsx`, `WarehouseProducts.tsx`, `WarehouseModal.tsx`.
+- Warning popover/cache: `src/components/layout/StockNotifications.tsx`, `src/features/logistics/stock-warnings.ts`, `stock-warnings.hooks.ts`, `stock-alerts.hooks.ts`.
+- Stock contract and catalog aggregation: `src/features/logistics/stock-items.types.ts`, `src/features/products/products.catalog.utils.ts`.
+- Tests: `src/features/products/products.catalog.test.mjs`, `src/features/logistics/stock-warnings.test.mjs`, `src/components/inventory/inventory-notifications.component.test.tsx`, `src/components/layout/stock-notifications.component.test.tsx`, new `src/components/operations/warehouse-modal.component.test.tsx`.
 
-The existing DataTable, ArchiveTabNav, OverflowValue, DataTableActions, DropdownMenu, Button and product dialogs are reused. No dependency was added for this pass. Existing order/delivery changes are retained.
+The warehouse form now blocks duplicate submission during its asynchronous name lookup. Failed restoration keeps the form open with a visible API error and a retry action. Existing listing, details, create/edit API mappings, archive stock checks, and backend restrictions remain in place. Existing stock and delivery mutation invalidations were inspected and exercised by the inventory integration tests; no delivery workflow edits were needed.
 
-## Verification
+## Phase 3 handoff audit
 
-- `npm test`: 42 unit tests and 56 component tests pass (98 total).
-- `npm run build`: TypeScript and production build pass. The existing Vite chunk-size warning remains (approximately 892 kB JavaScript before gzip).
-- `npm run lint`: passes.
-- Targeted Prettier and `git diff --check`: pass.
+Baseline: merged HEAD `5a7f3ae`, including `2d83794` (PO-SO Implementation). The initial working tree had changes to `skills-lock.json` and untracked `.codex/skills/`; these were preserved. No pre-existing Phase 3 verification log was found in the relevant repository documentation. Fresh baseline logs were captured before implementation in `.phase4-baseline-tests.log`, `.phase4-baseline-build.log`, and `.phase4-baseline-lint.log` (local ignored artifacts).
 
-New coverage checks authoritative threshold requirements, exact physical quantities, location versus global shortages, stable/deduplicated warning IDs, archived/unknown exclusions, default urgency ordering and explicit sorting, search, registration/editing, archive failure/retry, restoration and retained stock links, staff permissions, sidebar account access, cleanup of redundant controls, notification refresh/error recovery, unresolved warning behavior, and cross-module navigation/focus to a product on a later page. Component fixtures and the HTTP adapter exist only in tests. Prior order/delivery regressions remain passing.
+The baseline component run had 134 passes, six failures, and one unhandled purchase-confirmation rejection. Four failures look for the old purchase composer button label `Confirm Order`; merged purchase code uses `Confirm & Export Receipt`. The rejection comes from the purchase list confirmation path. The other two baseline failures were a Sales composer timeout and an asynchronous zero-total assertion; they pass in the final reduced-concurrency run. Full lint reported the purchase view's `react-hooks/preserve-manual-memoization` error. TypeScript/build reported 46 diagnostics, including obsolete stock-alert polling arguments and mismatches in legacy order/delivery components.
 
-Computer-use inventory returned no apps or browser sessions. Desktop and landscape-tablet geometry, overlap, horizontal overflow, popover placement, scrolling, theme contrast and touch behavior remain unverified. JSDOM tests do not establish rendered visual correctness. Live authenticated requests and changes from another employee were not tested; no live business records were created.
+Historical inspection of `018b2c7` confirms the stock-alert call mismatch, old OrderItemsTable field references, and missing delivery-workflow exports already existed before `2d83794`. The purchase label and confirmation callback changed in `2d83794`, which also includes delivery-planning changes. This establishes that the remaining blockers predate Phase 4; it does not establish that every blocker predates all Phase 3 work. No regression was isolated to the Phase 3 delivery-planning changes. Purchase workflow changes remain outside the explicit Phase 4 edit scope.
 
-Backend files, contracts, schemas and business rules were not modified. The backend working tree remains clean. Frontend changes are committed locally on `main`; nothing was pushed.
+## Phase 4 verification
+
+- `npm run test:unit`: **51/51 pass**.
+- Focused component run covering inventory, warnings, warehouse form, suppliers, deliveries, routing, and Sales Order drafts with `--maxWorkers=2`: **160 pass, four fail, one unhandled rejection** across nine files (164 tests). The four failures and rejection are the purchase issues reproduced before implementation. All affected inventory/warehouse/warning tests and the outgoing-planning/Sales Order draft/routing suites pass.
+- The first consolidated component run under default concurrency hit additional five-second timeouts. The bounded-concurrency rerun removed those timing failures without changing timeouts or disabling assertions.
+- Changed-source ESLint and targeted Prettier: **pass**.
+- `npm run lint`: **blocked by the same existing PurchasesView memoization error**.
+- `npm run build` (includes `tsc -b`): **blocked by 43 existing TypeScript diagnostics**, down from 46 after correcting the three stock-alert hook calls. Diagnostic comparison found no newly introduced errors. Vite production bundling does not run because TypeScript fails.
+- `git diff --check`: **pass**.
+
+Local final logs: `.phase4-unit.log`, `.phase4-components-limited.log`, `.phase4-lint.log`, `.phase4-build.log`. The entire component suite was not run; the targeted regression selection above covers the affected modules and requested order/delivery checks.
+
+No browser/computer automation tool was available. Rendered desktop/tablet geometry, overflow, popover placement, and live authenticated backend behavior remain unverified. JSDOM tests establish DOM behavior, not visual QA. No production readiness claim is made while broader checks remain blocked.
+
+The integration depends on the existing backend stock endpoints supplying the published balances and status. Missing values remain explicitly unavailable; no new backend endpoint is required. Backend files, authentication, API contracts, excluded order/delivery workflows, branches, commits, and pushes were not changed.
+
+## Inventory and quarantine navigation finalization
+
+Products remain the default Inventory view, with Active / Archived as the primary product filter. Quarantined Stock is a secondary heading action, with a Back to Products action that preserves catalog filters. Warehouse-row View Quarantine actions open existing lots only. Incoming damaged receiving and damaged outgoing returns are explained in the lot view and empty state. Existing CLEAR/REMOVE permissions, confirmations, and authoritative cache refreshes are preserved.
+
+The subsequent API integration audit verified current backend support for warehouse inspection quarantine. Quarantined Stock now offers the supported manual tag operation with a stable request UUID, current available-stock limits, condition, and inspection reason. Staff can tag stock; managers and admins (including Super Admins) can correct an open lot's condition and resolve CLEAR/REMOVE. Lot details expose the supplied audit history. An uncertain tag requires review and uses the same request ID for any deliberate retry. No quantity-editing workaround or client-side stock mutation is used. See `api-integration-coverage.json` and `api-integration-report.md` for current verification and remaining backend findings.

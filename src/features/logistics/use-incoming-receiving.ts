@@ -52,6 +52,7 @@ export function useIncomingReceiving(delivery: IncomingDeliveryRecord, onClose: 
   const [reason, setReason] = useState('')
   const [error, setError] = useState('')
   const [checking, setChecking] = useState(false)
+  const [needsRefresh, setNeedsRefresh] = useState(false)
   const [fullReceipt, setFullReceipt] = useState<{
     signature: string
     items: CompleteIncomingDeliveryPayload['items']
@@ -78,6 +79,7 @@ export function useIncomingReceiving(delivery: IncomingDeliveryRecord, onClose: 
   const loading = latest.isFetching || purchase.isFetching || receipts.isFetching
   const loadFailed = latest.isError || purchase.isError || receipts.isError
   const disabled =
+    needsRefresh ||
     checking ||
     complete.isPending ||
     loading ||
@@ -185,6 +187,7 @@ export function useIncomingReceiving(delivery: IncomingDeliveryRecord, onClose: 
     inFlight.current = true
     setChecking(true)
     setError('')
+    let mutationStarted = false
     try {
       const fresh = await currentReceipt()
       let items: CompleteIncomingDeliveryPayload['items'] = []
@@ -204,6 +207,7 @@ export function useIncomingReceiving(delivery: IncomingDeliveryRecord, onClose: 
           )
         items = current.items
       }
+      mutationStarted = true
       await complete.mutateAsync({
         id: delivery.id,
         items,
@@ -211,6 +215,7 @@ export function useIncomingReceiving(delivery: IncomingDeliveryRecord, onClose: 
       })
       onClose()
     } catch (cause) {
+      setNeedsRefresh(mutationStarted)
       setError(getErrorMessage(cause))
     } finally {
       inFlight.current = false
@@ -218,6 +223,22 @@ export function useIncomingReceiving(delivery: IncomingDeliveryRecord, onClose: 
     }
   }
   return {
+    canReceive: isAdmin || isManager,
+    refresh: async () => {
+      if (inFlight.current) return
+      inFlight.current = true
+      setChecking(true)
+      try {
+        await currentReceipt()
+        setNeedsRefresh(false)
+        setError('')
+      } catch (cause) {
+        setError(getErrorMessage(cause))
+      } finally {
+        inFlight.current = false
+        setChecking(false)
+      }
+    },
     purchase: purchase.data,
     latest: latest.data,
     rows,

@@ -11,6 +11,7 @@ import { AppRoutes } from './routing/AppRoutes'
 
 const queryClient = new QueryClient({
   defaultOptions: {
+    mutations: { retry: false },
     queries: {
       retry: 1,
       refetchOnWindowFocus: true, // Instantly sync when switching from Prisma Studio or another tab

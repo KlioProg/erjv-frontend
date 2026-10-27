@@ -21,6 +21,7 @@ import {
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
+import { OverflowValue } from '@/components/ui/OverflowValue'
 
 export type ColumnAlign = 'left' | 'center' | 'right'
 
@@ -635,9 +636,7 @@ export function DataTable<T>({
                           {column.cell ? (
                             column.cell({ row, value, index: rowIndex })
                           ) : (
-                            <span>
-                              {value != null && typeof value !== 'object' ? String(value) : '—'}
-                            </span>
+                            <OverflowValue value={value != null && typeof value !== 'object' ? value : null} />
                           )}
                         </TableCell>
                       )

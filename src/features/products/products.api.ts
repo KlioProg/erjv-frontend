@@ -1,9 +1,18 @@
 import { apiClient, extractArray, type FetchParams } from '@/lib/api-client'
+import { parseStockCents } from '@/features/logistics/stock-display'
+import { decimalString } from '@/lib/order-amounts'
 import type {
   CreateInventoryItemPayload,
   InventoryItemResponse,
   UpdateInventoryItemDetailsPayload,
 } from './products.types'
+
+function priceValue(value: number | string) {
+  const cents = parseStockCents(String(value))
+  if (cents === null || cents > 999_999_999_999n)
+    throw new Error('Enter a non-negative price up to 9,999,999,999.99 with at most two decimal places.')
+  return decimalString(cents)
+}
 
 export async function fetchProductsApi(params?: FetchParams): Promise<InventoryItemResponse[]> {
   const response = await apiClient.get('/inventory-items', { params })
@@ -33,10 +42,7 @@ export async function createProductApi(
   const cleanPayload = {
     name: payload.name.trim(),
     unit: payload.unit.trim(),
-    unitPrice:
-      typeof payload.unitPrice === 'number'
-        ? payload.unitPrice.toFixed(2)
-        : String(payload.unitPrice).trim(),
+    unitPrice: priceValue(payload.unitPrice),
     ...(payload.variety?.trim() ? { variety: payload.variety.trim() } : {}),
     ...(payload.description?.trim() ? { description: payload.description.trim() } : {}),
     ...(payload.isActive !== undefined ? { isActive: payload.isActive } : { isActive: true }),
@@ -73,7 +79,7 @@ export async function updateProductPriceApi(
   const { data } = await apiClient.patch<InventoryItemResponse>(
     `/inventory-items/${id}/unit-price`,
     {
-      unitPrice: typeof unitPrice === 'number' ? unitPrice.toFixed(2) : String(unitPrice).trim(),
+      unitPrice: priceValue(unitPrice),
     },
   )
   return data

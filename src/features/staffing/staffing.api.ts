@@ -187,6 +187,11 @@ export async function unassignEmployeeJobApi(
 }
 
 export async function replaceEmployeeJobsApi(employeeId: number, jobIds: number[]): Promise<void> {
+  if (jobIds.length === 0) {
+    const assignments = await fetchEmployeeJobsByEmployeeApi(employeeId)
+    for (const assignment of assignments) await unassignEmployeeJobApi(employeeId, assignment.jobId)
+    return
+  }
   await apiClient.put(`/employee-jobs/employees/${employeeId}/jobs`, { jobIds })
 }
 

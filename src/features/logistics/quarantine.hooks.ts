@@ -14,6 +14,16 @@ import type {
 
 export const QUARANTINE_QUERY_KEY = ['quarantine-lots'] as const
 
+export function useRefreshQuarantine() {
+  const client = useQueryClient()
+  return () => Promise.all(
+    ['stock-items', 'products', 'warehouses', 'quarantine-lots', 'purchase-orders', 'incoming-deliveries', 'outgoing-deliveries']
+      .map((key) => client.invalidateQueries({ queryKey: [key] }, { throwOnError: true })),
+  )
+}
+
+export const useCreateManualQuarantine = useManualQuarantineTag
+
 function refreshStockConditionQueries(client: QueryClient) {
   // Warnings share stock/product/warehouse caches; planning and receipt balances also depend on these writes.
   return Promise.all(

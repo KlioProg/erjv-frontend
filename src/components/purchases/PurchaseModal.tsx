@@ -210,6 +210,7 @@ export function PurchaseModal({
       }
       confirmLabel="Confirm Purchase Order"
       submission={form.submission}
+      hasUnsavedChanges={form.hasUnsavedChanges}
       busy={form.busy}
       error={form.error}
       errorFocusId={form.errorFocusId}

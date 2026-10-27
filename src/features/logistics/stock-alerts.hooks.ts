@@ -4,13 +4,11 @@ import { useAllWarehouses } from './warehouses.hooks'
 import { useStockItems } from './stock-items.hooks'
 import { buildStockAlerts } from './stock-alerts'
 
-const ALERT_REFRESH_INTERVAL = 30_000
-
 /** Live active conditions share the existing query cache and stock invalidations; no inbox writes. */
 export function useStockAlerts() {
-  const stockQuery = useStockItems(undefined, ALERT_REFRESH_INTERVAL)
-  const productsQuery = useAllProducts(ALERT_REFRESH_INTERVAL)
-  const warehousesQuery = useAllWarehouses(ALERT_REFRESH_INTERVAL)
+  const stockQuery = useStockItems()
+  const productsQuery = useAllProducts()
+  const warehousesQuery = useAllWarehouses()
   const verified = stockQuery.isSuccess && productsQuery.isSuccess && warehousesQuery.isSuccess
   const alerts = useMemo(
     () =>

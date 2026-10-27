@@ -28,7 +28,7 @@ export class DeliveryUtils {
       label: 'Scheduled',
       badgeClass: 'bg-status-info text-status-info-foreground border-status-info-foreground/20',
       dotClass: 'bg-status-info-foreground',
-      description: 'Scheduled for dispatch with allocated inventory',
+      description: 'Scheduled and awaiting actual loading confirmation',
     },
     DISPATCHED: {
       label: 'In Transit',
@@ -48,7 +48,7 @@ export class DeliveryUtils {
       label: 'Cancelled',
       badgeClass: 'bg-destructive/10 text-destructive border-destructive/20',
       dotClass: 'bg-destructive',
-      description: 'Shipment cancelled and allocations released',
+      description: 'Shipment cancelled before dispatch',
     },
   }
 
@@ -166,7 +166,7 @@ export class DeliveryUtils {
   }
 
   public static canCancel(status: OutgoingDeliveryStatus): boolean {
-    return isActiveDeliveryStatus(status)
+    return status === 'DRAFT' || status === 'SCHEDULED'
   }
 
   public static getVehicleAvailability(

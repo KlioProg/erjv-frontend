@@ -87,20 +87,7 @@ export interface OutgoingPlanningOption {
   warehouseRemainingQuantity: string
 }
 
-export interface CreateOutgoingDeliveryPayload {
-  salesOrderId: number
-  deliveryVehicleId?: number | null
-  driverEmployeeId?: number | null
-  scheduledAt?: string | Date | null
-  notes?: string | null
-  items: OutgoingDeliveryLineCommand[]
-}
-
-export interface DispatchOutgoingDeliveryPayload {
-  deliveryVehicleId: number
-  driverEmployeeId: number
-  items: { salesOrderItemId: number; stockItemId: number; loadedQuantity: string }[]
-}
+export type CreateOutgoingDeliveryPayload = CreateOutgoingDeliveryDraftPayload
 
 export interface CompleteOutgoingDeliveryPayload {
   items: {
@@ -112,6 +99,14 @@ export interface CompleteOutgoingDeliveryPayload {
     discrepancyReason?: string
   }[]
 }
+
+export interface DispatchOutgoingDeliveryPayload {
+  deliveryVehicleId: number
+  driverEmployeeId: number
+  items: { salesOrderItemId: number; stockItemId: number; loadedQuantity: string }[]
+}
+
+
 
 export interface OutgoingDeliveryFilter extends CursorParams {
   status?: OutgoingDeliveryStatus
