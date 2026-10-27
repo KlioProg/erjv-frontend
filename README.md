@@ -74,9 +74,28 @@ The modern web application for the **ERJV Enterprise Business Platform**. Built 
 
 ### Prerequisites
 
-- **Node.js**: v22.x
+- **Node.js**: v22 or newer
 - **npm**: v9.x or later
 - Running **ERJV Backend** API server (default at `http://localhost:3000`)
+
+### Windows quick setup
+
+With Node.js 22 or newer and npm installed, double-click `setup-frontend.bat` or run
+`.\setup-frontend.bat` from PowerShell. Use Node **22.23.4 or newer**
+if running the backend on the same machine. Internet access is needed to install
+dependencies.
+
+The script preserves an existing `.env`, otherwise copies `.env.example`,
+installs locked dependencies with `npm ci --include=dev`, and checks TypeScript.
+Then run `npm run dev` from this folder and open `http://localhost:5173`.
+Set up the backend separately with its `setup-backend.bat`, then run
+`npm run start:dev` in the backend folder. Vite proxies local API requests to
+`http://localhost:3000`.
+
+This prepares local development. Before a production build, replace the example
+`VITE_API_BASE_URL` with the actual backend HTTPS origin. The setup script does
+not build a production bundle with the placeholder URL. It stops on errors and
+can be rerun; pass `--no-pause` for automation with a nonzero exit code on failure.
 
 ---
 
