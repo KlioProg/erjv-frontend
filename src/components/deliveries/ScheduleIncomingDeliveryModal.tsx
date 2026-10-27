@@ -1,5 +1,5 @@
-import { useState, useMemo, type FormEvent } from 'react'
-import { Calendar, RotateCcw, Warehouse as WarehouseIcon } from 'lucide-react'
+import { useState, useMemo, useRef, type FormEvent } from 'react'
+import { Calendar, Warehouse as WarehouseIcon } from 'lucide-react'
 import { DeliveryFormDialog, DeliveryFormFooter } from './shared/DeliveryFormDialog'
 import { deliveryFormStyles } from './shared/delivery-form.styles'
 import { Spinner } from '@/components/ui/spinner'
@@ -22,14 +22,12 @@ import type { Supplier } from '@/features/logistics/suppliers.types'
 import type { InventoryItemResponse } from '@/features/products/products.types'
 import type { CreateIncomingDeliveryPayload } from '@/features/logistics/incoming-deliveries.types'
 import { getErrorMessage } from '@/lib/api-client'
-import {
-  remainingDeliveryQuantity,
-  deliveryQuantityError,
-  sumDeliveryQuantities,
-} from '@/features/logistics/delivery-quantities'
-import { parseOrderDecimal } from '@/lib/order-amounts'
 import { incomingOrderRemainingQuantity } from '@/features/logistics/incoming-order-balance'
-import { DeliveryQuantityTable } from './DeliveryQuantityTable'
+import { purchaseReceivingProgress } from '@/features/logistics/purchase-orders.presentation'
+import { DataTable, type ColumnDef } from '@/components/ui/data-table'
+import { OverflowValue } from '@/components/ui/OverflowValue'
+import { formatStockCents } from '@/features/logistics/stock-display'
+import { isAxiosError } from 'axios'
 
 type ScheduleIncomingDeliveryModalProps = {
   open: boolean
@@ -40,18 +38,6 @@ type ScheduleIncomingDeliveryModalProps = {
   suppliers: Supplier[]
   products: InventoryItemResponse[]
   preselectedOrderId?: number
-}
-
-type DeliveryLineState = {
-  purchaseOrderItemId: number
-  inventoryItemId: number
-  name: string
-  unit?: string
-  variety?: string | null
-  orderedQty: string
-  alreadyReceivedQty: string
-  remainingQty: string | null
-  receivedQty: string
 }
 
 export function ScheduleIncomingDeliveryModal({
@@ -108,6 +94,8 @@ export function ScheduleIncomingDeliveryModal({
   const [notes, setNotes] = useState('')
   const [errorMessage, setErrorMessage] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [needsReview, setNeedsReview] = useState(false)
+  const lock = useRef(false)
 
   const supplierMap = useMemo(() => new Map(suppliers.map((s) => [s.id, s])), [suppliers])
   const productMap = useMemo(() => new Map(products.map((p) => [p.id, p])), [products])
@@ -116,45 +104,45 @@ export function ScheduleIncomingDeliveryModal({
     return eligiblePOs.find(({ po }) => String(po.id) === selectedPOId)?.po
   }, [eligiblePOs, selectedPOId])
 
-  const [customQuantities, setCustomQuantities] = useState<Record<number, string>>({})
-
-  // Compute lines purely with useMemo based on selected PO, previous receipts, and any user quantity overrides
-  const lines: DeliveryLineState[] = useMemo(() => {
-    if (!selectedPO) return []
-
-    // Deliveries already tied to this PO that are not cancelled
-    const poDeliveries = allIncomingDeliveries.filter(
-      (d) => d.purchaseOrderId === selectedPO.id && d.status !== 'CANCELLED',
-    )
-
-    return selectedPO.items.map((item) => {
-      const product = productMap.get(item.inventoryItemId)
-      const orderedQty = item.quantity
-
-      // Sum already received from non-cancelled incoming deliveries
-      const alreadyReceivedQty = poDeliveries
-        .flatMap((d) => d.items)
-        .filter((dItem) => dItem.purchaseOrderItemId === item.id)
-        .map((dItem) => dItem.receivedQuantity)
-
-      const remainingQty = remainingDeliveryQuantity(orderedQty, alreadyReceivedQty)
-      const override = customQuantities[item.id]
-      const receivedQty = override !== undefined ? override : (remainingQty ?? '')
-
-      return {
-        purchaseOrderItemId: item.id,
-        inventoryItemId: item.inventoryItemId,
-        name: product ? product.name : `Item #${item.inventoryItemId}`,
-        variety: product?.variety,
-        unit: product?.unit,
-        orderedQty,
-        alreadyReceivedQty: sumDeliveryQuantities(alreadyReceivedQty) ?? '',
-        remainingQty,
-        receivedQty,
-      }
-    })
-  }, [selectedPO, allIncomingDeliveries, productMap, customQuantities])
-
+  const lines = useMemo(
+    () => (selectedPO ? purchaseReceivingProgress(selectedPO, allIncomingDeliveries) : []),
+    [selectedPO, allIncomingDeliveries],
+  )
+  const columns: ColumnDef<(typeof lines)[number]>[] = [
+    {
+      id: 'product',
+      header: 'Product',
+      width: '40%',
+      cell: ({ row }) => (
+        <div className="flex min-w-0 flex-col gap-1">
+          <OverflowValue
+            value={
+              productMap.get(row.item.inventoryItemId)?.name ??
+              'Product #' + row.item.inventoryItemId
+            }
+          />
+          <OverflowValue
+            value={productMap.get(row.item.inventoryItemId)?.unit ?? 'units'}
+            className="text-xs text-muted-foreground"
+          />
+        </div>
+      ),
+    },
+    ...(
+      [
+        ['ordered', 'Ordered'],
+        ['received', 'Previously accepted'],
+        ['remaining', 'Outstanding'],
+      ] as const
+    ).map(([field, header]): ColumnDef<(typeof lines)[number]> => ({
+      id: field,
+      header,
+      align: 'right',
+      cell: ({ row }) => (
+        <OverflowValue value={formatStockCents(row[field])} className="text-right tabular-nums" />
+      ),
+    })),
+  ]
   const handlePOChange = (newPOId: string) => {
     // Radix's form select can emit an empty value when async options change.
     if (!newPOId) return
@@ -171,26 +159,12 @@ export function ScheduleIncomingDeliveryModal({
     }
     const expectedAt = purchaseOrders.find((order) => order.id === Number(newPOId))?.expectedAt
     if (expectedAt) setScheduledAt(DeliveryUtils.toDateTimeInput(expectedAt))
-    setCustomQuantities({})
     setErrorMessage('')
   }
-
-  const handleQtyChange = (purchaseOrderItemId: number, qty: string) => {
-    setCustomQuantities((previous) => ({ ...previous, [purchaseOrderItemId]: qty }))
-    setErrorMessage('')
-  }
-
-  const handleResetToRemaining = () => {
-    setCustomQuantities({})
-    setErrorMessage('')
-  }
-
-  const totalRemainingAcrossPO = sumDeliveryQuantities(lines.map((line) => line.remainingQty ?? ''))
-  const totalReceivingNow = sumDeliveryQuantities(lines.map((line) => line.receivedQty))
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    if (isSubmitting || unavailable) return
+    if (lock.current || isSubmitting || unavailable || needsReview) return
     const pId = Number(selectedPOId)
     const wId = Number(selectedWarehouseId)
 
@@ -203,27 +177,7 @@ export function ScheduleIncomingDeliveryModal({
       return
     }
 
-    for (const line of lines) {
-      const issue = deliveryQuantityError(line.receivedQty, line.remainingQty)
-      if (issue) {
-        setErrorMessage(line.name + ': ' + issue)
-        document.getElementById('delivery-quantity-' + line.purchaseOrderItemId)?.focus()
-        return
-      }
-    }
-
-    const itemsToReceive = lines
-      .filter((l) => (parseOrderDecimal(l.receivedQty) ?? 0n) > 0n)
-      .map((l) => ({
-        purchaseOrderItemId: l.purchaseOrderItemId,
-        receivedQuantity: l.receivedQty,
-      }))
-
-    if (itemsToReceive.length === 0) {
-      setErrorMessage('At least one item must have a quantity to receive greater than 0.')
-      return
-    }
-
+    lock.current = true
     try {
       setIsSubmitting(true)
       setErrorMessage('')
@@ -233,12 +187,19 @@ export function ScheduleIncomingDeliveryModal({
         scheduledAt: scheduledAt ? new Date(scheduledAt).toISOString() : null,
         supplierReference: supplierRef.trim() || undefined,
         notes: notes.trim() || undefined,
-        items: itemsToReceive,
       })
       onClose()
     } catch (err: unknown) {
-      setErrorMessage(getErrorMessage(err))
+      const uncertain = isAxiosError(err) && (!err.response || err.response.status >= 500)
+      setNeedsReview(uncertain)
+      setErrorMessage(
+        uncertain
+          ? getErrorMessage(err) +
+              ' Review Incoming Deliveries before creating another shipment; the save may have succeeded.'
+          : getErrorMessage(err),
+      )
     } finally {
+      lock.current = false
       setIsSubmitting(false)
     }
   }
@@ -255,7 +216,7 @@ export function ScheduleIncomingDeliveryModal({
       onClose={onClose}
       busy={isSubmitting}
       title="Schedule Incoming Delivery"
-      description="Choose a purchase order, review quantities, and select the receiving location."
+      description="Choose a purchase order and receiving warehouse. Actual counts are confirmed when goods arrive."
     >
       <form onSubmit={handleSubmit} className={deliveryFormStyles.form}>
         <div className={deliveryFormStyles.body}>
@@ -290,7 +251,10 @@ export function ScheduleIncomingDeliveryModal({
             </p>
           )}
 
-          <fieldset disabled={isSubmitting || unavailable} className={deliveryFormStyles.fields}>
+          <fieldset
+            disabled={isSubmitting || unavailable || needsReview}
+            className={deliveryFormStyles.fields}
+          >
             <div className={deliveryFormStyles.grid}>
               <div className={deliveryFormStyles.field}>
                 <Label htmlFor="incoming-purchase-order" className={deliveryFormStyles.label}>
@@ -310,7 +274,8 @@ export function ScheduleIncomingDeliveryModal({
                   <SelectContent className={deliveryFormStyles.popover}>
                     <SelectGroup>
                       {eligiblePOs.map(({ po, remaining }) => {
-                        const sup = po.supplierId == null ? undefined : supplierMap.get(po.supplierId)
+                        const sup =
+                          po.supplierId == null ? undefined : supplierMap.get(po.supplierId)
 
                         return (
                           <SelectItem
@@ -338,7 +303,7 @@ export function ScheduleIncomingDeliveryModal({
 
               <div className={deliveryFormStyles.field}>
                 <Label htmlFor="incoming-warehouse" className={deliveryFormStyles.label}>
-                  Target Warehouse <span className="text-primary">*</span>
+                  Destination Warehouse <span className="text-primary">*</span>
                 </Label>
                 <Select value={selectedWarehouseId} onValueChange={setSelectedWarehouseId}>
                   <SelectTrigger id="incoming-warehouse" className={deliveryFormStyles.control}>
@@ -383,7 +348,7 @@ export function ScheduleIncomingDeliveryModal({
 
               <div className={deliveryFormStyles.field}>
                 <Label htmlFor="supplier-ref" className={deliveryFormStyles.label}>
-                  Supplier Delivery Receipt / Waybill #
+                  Supplier Reference (optional)
                 </Label>
                 <Input
                   id="supplier-ref"
@@ -396,30 +361,15 @@ export function ScheduleIncomingDeliveryModal({
             </div>
 
             {/* PO Materials Intake Breakdown */}
-            <section aria-label="Shipment quantities" className="flex min-w-0 flex-col gap-2">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <p className={deliveryFormStyles.sectionTitle}>Shipment quantities</p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">
-                    Supplier:{' '}
-                    <span className="font-semibold text-foreground">{selectedSupplierName}</span>
-                  </p>
-                </div>
-
-                {(parseOrderDecimal(totalRemainingAcrossPO ?? '') ?? 0n) > 0n && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={handleResetToRemaining}
-                    className="h-8 shrink-0 text-[13px] pointer-coarse:min-h-11"
-                  >
-                    <RotateCcw className="size-4" />
-                    Auto-fill Remaining
-                  </Button>
-                )}
-              </div>
-
+            <section
+              className="flex min-w-0 flex-col gap-3"
+              aria-label="Purchase order receiving summary"
+            >
+              <p className={deliveryFormStyles.sectionTitle}>Purchase order summary</p>
+              <p className="text-xs text-muted-foreground">
+                Supplier: {selectedSupplierName}. This schedules the delivery only. Enter actual
+                received and damaged counts in Receive Goods.
+              </p>
               {lines.length === 0 ? (
                 <div role="status" className={deliveryFormStyles.empty}>
                   {unavailable
@@ -431,42 +381,18 @@ export function ScheduleIncomingDeliveryModal({
                         : 'Select an order to view its remaining quantities.'}
                 </div>
               ) : (
-                <DeliveryQuantityTable
-                  direction="Incoming"
-                  disabled={isSubmitting}
-                  rows={lines.map((line) => ({
-                    id: line.purchaseOrderItemId,
-                    name: line.name,
-                    variety: line.variety,
-                    unit: line.unit,
-                    ordered: line.orderedQty,
-                    committed: line.alreadyReceivedQty,
-                    remaining: line.remainingQty,
-                    quantity: line.receivedQty,
-                  }))}
-                  onChange={handleQtyChange}
+                <DataTable
+                  data={lines}
+                  columns={columns}
+                  getRowKey={(row) => row.item.id}
+                  pagination={false}
+                  tableClassName="min-w-[560px] w-full table-fixed"
                 />
               )}
-
-              {(parseOrderDecimal(totalRemainingAcrossPO ?? '') ?? 0n) > 0n && (
-                <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                  <div className="flex items-center gap-1.5 text-muted-foreground">
-                    <span>
-                      Choose quantities within the remaining order balance. Use 0 to skip an item.
-                    </span>
-                  </div>
-                  <div className="font-semibold text-foreground">
-                    Receiving Now:{' '}
-                    <span className="tabular-nums text-primary-text">{totalReceivingNow}</span>{' '}
-                    units
-                  </div>
-                </div>
-              )}
             </section>
-
             <div className={deliveryFormStyles.field}>
               <Label htmlFor="intake-notes" className={deliveryFormStyles.label}>
-                Dock Notes / Inspection Remarks
+                Notes (optional)
               </Label>
               <Input
                 id="intake-notes"
@@ -497,9 +423,8 @@ export function ScheduleIncomingDeliveryModal({
               isSubmitting ||
               unavailable ||
               !selectedPO ||
-              totalRemainingAcrossPO === null ||
-              totalRemainingAcrossPO === '0.00' ||
-              totalReceivingNow === '0.00'
+              needsReview ||
+              lines.some((line) => line.remaining === null)
             }
             className={deliveryFormStyles.button}
           >

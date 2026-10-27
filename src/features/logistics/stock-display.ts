@@ -1,4 +1,16 @@
 /** Backend stock balances use decimal strings with up to two fractional digits. */
+import type { StockItem } from './stock-items.types'
+
+export function availableStockCents(stock: Pick<StockItem, 'quantity' | 'availableQuantity' | 'reservedQuantity' | 'damagedQuantity' | 'quarantinedQuantity'>): bigint | null {
+  if (stock.availableQuantity !== undefined) return parseStockCents(stock.availableQuantity)
+  const physical = parseStockCents(stock.quantity)
+  const reserved = parseStockCents(stock.reservedQuantity ?? '0')
+  const quarantined = parseStockCents(stock.damagedQuantity ?? stock.quarantinedQuantity ?? '0')
+  if (physical === null || reserved === null || quarantined === null) return null
+  const available = physical - reserved - quarantined
+  return available > 0n ? available : 0n
+}
+
 export function parseStockCents(value: unknown): bigint | null {
   if (typeof value !== 'string' && typeof value !== 'number') return null
   const raw = String(value).trim()

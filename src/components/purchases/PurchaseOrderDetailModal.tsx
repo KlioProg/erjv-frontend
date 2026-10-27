@@ -175,7 +175,7 @@ export function PurchaseOrderDetailModal({
         )}
         {onExportReceipt && order.status !== 'DRAFT' && order.status !== 'CANCELLED' && (
           <Button size="sm" variant="outline" onClick={onExportReceipt}>
-            Export Receipt
+            Print / Download Purchase Order
           </Button>
         )}
         {onNavigateToDeliveries && ['CONFIRMED', 'PARTIALLY_RECEIVED'].includes(order.status) && (

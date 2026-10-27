@@ -63,7 +63,7 @@ export function purchaseReceivingProgress(
       break
     }
     for (const item of delivery.items) {
-      const quantity = parseStockCents(item.receivedQuantity)
+      const quantity = parseStockCents(item.acceptedQuantity ?? item.receivedQuantity)
       if (quantity === null || !received.has(item.purchaseOrderItemId) || seen.has(item.id)) {
         available = false
         break

@@ -1,3 +1,5 @@
+import type { CursorParams } from '@/lib/cursor-pagination'
+
 export type IncomingDeliveryStatus = 'DRAFT' | 'SCHEDULED' | 'COMPLETED' | 'CANCELLED'
 
 export interface IncomingDeliveryItemRecord {
@@ -5,6 +7,8 @@ export interface IncomingDeliveryItemRecord {
   incomingDeliveryId: number
   purchaseOrderItemId: number
   receivedQuantity: string
+  damagedQuantity?: string | null
+  acceptedQuantity?: string | null
   createdAt: string
   updatedAt: string
   purchaseOrderItem?: {
@@ -34,16 +38,20 @@ export interface IncomingDeliveryLineCommand {
   receivedQuantity: number | string
 }
 
+export interface CompleteIncomingDeliveryPayload {
+  items: { purchaseOrderItemId: number; receivedQuantity: string; damagedQuantity: string }[]
+  noReceiptReason?: string
+}
+
 export interface CreateIncomingDeliveryPayload {
   purchaseOrderId: number
   warehouseId: number
   scheduledAt?: string | Date | null
   supplierReference?: string | null
   notes?: string | null
-  items: IncomingDeliveryLineCommand[]
 }
 
-export interface IncomingDeliveryFilter {
+export interface IncomingDeliveryFilter extends CursorParams {
   status?: IncomingDeliveryStatus
   purchaseOrderId?: number
   warehouseId?: number

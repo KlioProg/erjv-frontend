@@ -32,6 +32,8 @@ type SearchableDropdownProps<T> = {
   align?: 'start' | 'center' | 'end'
   side?: 'top' | 'right' | 'bottom' | 'left'
   avoidCollisions?: boolean
+  disabled?: boolean
+  isLoading?: boolean
 }
 
 export function SearchableDropdown<T>({
@@ -54,6 +56,8 @@ export function SearchableDropdown<T>({
   align = 'start',
   side = 'bottom',
   avoidCollisions,
+  disabled = false,
+  isLoading = false,
 }: SearchableDropdownProps<T>) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
@@ -93,9 +97,9 @@ export function SearchableDropdown<T>({
 
   return (
     <DropdownMenu
-      open={open}
+      open={open && !disabled && !isLoading}
       onOpenChange={(nextOpen) => {
-        setOpen(nextOpen)
+        setOpen(nextOpen && !disabled && !isLoading)
         if (nextOpen) setQuery('')
       }}
     >
@@ -104,6 +108,7 @@ export function SearchableDropdown<T>({
           <Button
             id={id}
             type="button"
+            disabled={disabled || isLoading}
             variant="outline"
             className={cn(
               'h-10 min-w-0 w-full justify-between text-sm font-normal pointer-coarse:min-h-11',

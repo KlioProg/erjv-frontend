@@ -222,8 +222,38 @@ describe('inventory and global stock warnings', () => {
       const deliver = useCompleteOutgoingDelivery()
       return (
         <>
-          <button onClick={() => receive.mutate(1)}>Test receive</button>
-          <button onClick={() => deliver.mutate(1)}>Test complete delivery</button>
+          <button
+            onClick={() =>
+              receive.mutate({
+                id: 1,
+                items: [
+                  { purchaseOrderItemId: 1, receivedQuantity: '1.00', damagedQuantity: '0.00' },
+                ],
+              })
+            }
+          >
+            Test receive
+          </button>
+          <button
+            onClick={() =>
+              deliver.mutate({
+                id: 1,
+                payload: {
+                  items: [
+                    {
+                      outgoingDeliveryItemId: 1,
+                      deliveredQuantity: '1.00',
+                      returnedSellableQuantity: '0.00',
+                      returnedDamagedQuantity: '0.00',
+                      missingQuantity: '0.00',
+                    },
+                  ],
+                },
+              })
+            }
+          >
+            Test complete delivery
+          </button>
           <StockNotifications onOpenInventory={vi.fn()} />
         </>
       )
@@ -430,13 +460,15 @@ describe('inventory and global stock warnings', () => {
     await screen.findByText('Zulu Empty')
     const table = screen.getByRole('table')
     const visibleRows = () => within(table).getAllByRole('row').slice(1)
-    expect(within(table).getAllByRole('columnheader')).toHaveLength(3)
+    expect(within(table).getAllByRole('columnheader')).toHaveLength(4)
     expect(screen.queryByRole('columnheader', { name: 'Status' })).toBeNull()
     expect(visibleRows()).toHaveLength(10)
     expect(
       visibleRows()
         .slice(0, 4)
-        .map((row) => within(row).getAllByRole('cell')[0].textContent),
+        .map(
+          (row) => within(row).getByText(/^(Zulu Empty|Alpha Healthy|Healthy [01])$/).textContent,
+        ),
     ).toEqual(['Zulu Empty', 'Alpha Healthy', 'Healthy 0', 'Healthy 1'])
     expect(screen.getByRole('img', { name: 'Out of stock: Zulu Empty in Store' })).toBeTruthy()
     expect(screen.queryByRole('img', { name: /Low stock:/ })).toBeNull()
@@ -468,6 +500,81 @@ describe('inventory and global stock warnings', () => {
     expect(await screen.findByText('Alpha Empty')).toBeTruthy()
   })
 
+  it('separates physical, available, and quarantined stock without combining units or inventing missing balances', async () => {
+    const longName = 'Carabao Mango from the Davao distribution harvest with a long product name'
+    products = [product(1, longName), product(2, 'Banana'), product(3, 'Unknown balances')]
+    stocks = [
+      {
+        ...stock(1, 1, 1, '50.25'),
+        availableQuantity: '42.25',
+        quarantinedQuantity: '8.00',
+        damagedQuantity: '3.00',
+        conditionQuantities: { DAMAGED: '3.00', SPOILED: '5.00' },
+        inventoryItem: { id: 1, name: longName, unit: 'kg' },
+      },
+      {
+        ...stock(2, 2, 1, '0.00'),
+        availableQuantity: '0.00',
+        quarantinedQuantity: '0.00',
+        conditionQuantities: { DAMAGED: '0.00', SPOILED: '0.00' },
+        inventoryItem: { id: 2, name: 'Banana', unit: 'pieces' },
+      },
+      {
+        ...stock(3, 3, 1, '10.00'),
+        damagedQuantity: '1.00',
+        reservedQuantity: '2.00',
+        inventoryItem: { id: 3, name: 'Unknown balances', unit: 'L' },
+      },
+    ]
+    mount(<WarehouseInventory warehouse={warehouses[0]} onBack={vi.fn()} />)
+    await screen.findByText(longName)
+    const table = screen.getByRole('table')
+    expect(
+      within(table)
+        .getAllByRole('columnheader')
+        .map((header) => header.textContent),
+    ).toEqual(['Product', 'Physical', 'Available', 'Quarantined'])
+    const mango = within(table).getByRole('row', { name: new RegExp(longName) })
+    const cells = within(mango).getAllByRole('cell')
+    expect(cells.map((cell) => cell.textContent)).toEqual([
+      `${longName}kg`,
+      '50.25',
+      '42.25',
+      '8 kg',
+    ])
+    expect(mango.textContent).not.toMatch(
+      /damaged|spoiled|Threshold not set|Available:|Quarantined:/,
+    )
+    const zero = within(table).getByRole('row', { name: /Banana/ })
+    expect(
+      within(zero)
+        .getAllByRole('cell')
+        .slice(1)
+        .map((cell) => cell.textContent),
+    ).toEqual(['0', '0', '0'])
+    expect(within(zero).getByText('piece(s)')).toBeTruthy()
+    const unknown = within(table).getByRole('row', { name: /Unknown balances/ })
+    expect(
+      within(unknown)
+        .getAllByRole('cell')
+        .slice(1)
+        .map((cell) => cell.textContent),
+    ).toEqual(['10', '—', '—'])
+    const summary = screen.getByRole('region', { name: 'Warehouse stock summary' })
+    expect(within(summary).getByText('Stock records')).toBeTruthy()
+    expect(within(summary).getAllByText('3')).toHaveLength(2)
+    expect(within(summary).queryByText('units')).toBeNull()
+    expect(within(summary).queryByText('Total stock')).toBeNull()
+    const user = userEvent.setup()
+    await user.click(within(table).getByRole('button', { name: 'Available' }))
+    expect(
+      within(table)
+        .getAllByRole('row')
+        .slice(1)
+        .map((row) => within(row).getAllByRole('cell')[2].textContent),
+    ).toEqual(['0', '42.25', '—'])
+  })
+
   it('registers and edits products through the existing services and refreshes the table', async () => {
     const user = userEvent.setup()
     mount(<InventoryHub />)
@@ -476,6 +583,7 @@ describe('inventory and global stock warnings', () => {
     let dialog = within(screen.getByRole('dialog'))
     await user.type(dialog.getByRole('textbox', { name: /Product Item Name/ }), 'New Product')
     await user.type(dialog.getByRole('spinbutton', { name: /Standard Wholesale Unit Price/ }), '25')
+    await user.type(dialog.getByRole('textbox', { name: /^Unit/ }), 'pieces')
     await user.click(dialog.getByRole('button', { name: 'Register Product' }))
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
     const row = (await screen.findByText('New Product')).closest('tr')!
@@ -805,6 +913,49 @@ describe('warehouse product expansion', () => {
   })
 })
 
+it('shows available location stock without zero quarantine details and preserves the View action', async () => {
+  products = [{ ...product(1, 'Rice'), unit: 'kg' }]
+  stocks = [
+    {
+      ...stock(1, 1, 1, '42.00'),
+      availableQuantity: '42.00',
+      quarantinedQuantity: '0.00',
+      conditionQuantities: { DAMAGED: '0.00', SPOILED: '0.00' },
+    },
+  ]
+  const openWarehouse = vi.fn()
+  mount(<InventoryHub onOpenWarehouse={openWarehouse} />)
+  const user = userEvent.setup()
+  await user.click(await screen.findByRole('button', { name: 'Show stock by location for Rice' }))
+  const section = screen.getByRole('region', { name: 'Stock by location for Rice' })
+  expect(within(section).getByText('42 kg')).toBeTruthy()
+  expect(within(section).getByText('Available')).toBeTruthy()
+  expect(section.textContent).not.toMatch(/quarantined|damaged|spoiled|;|\(/i)
+  await user.click(within(section).getByRole('button', { name: 'View inventory in Store' }))
+  expect(openWarehouse).toHaveBeenCalledWith(1)
+})
+
+it('keeps backend available stock prominent and shows only a positive quarantine summary', async () => {
+  products = [{ ...product(1, 'Rice'), unit: 'kg' }]
+  stocks = [
+    {
+      ...stock(1, 1, 1, '50.25'),
+      availableQuantity: '42.25',
+      quarantinedQuantity: '8.00',
+      damagedQuantity: '3.00',
+      conditionQuantities: { DAMAGED: '3.00', SPOILED: '5.00' },
+    },
+  ]
+  mount(<InventoryHub onOpenWarehouse={vi.fn()} />)
+  const user = userEvent.setup()
+  await user.click(await screen.findByRole('button', { name: 'Show stock by location for Rice' }))
+  const section = screen.getByRole('region', { name: 'Stock by location for Rice' })
+  expect(within(section).getByText('42.25 kg')).toBeTruthy()
+  expect(within(section).getByText('8 kg quarantined')).toBeTruthy()
+  expect(section.textContent).not.toMatch(/50.25|damaged|spoiled|;|\(/i)
+  expect(within(section).getByRole('button', { name: 'View inventory in Store' })).toBeTruthy()
+})
+
 it('keeps 17 kg unclassified as low stock and zero-stock warnings consistent across warehouse filters', async () => {
   const user = userEvent.setup()
   products = [product(1, 'Lakatan Banana'), product(2, 'Empty Mango'), product(3, 'Normal Coconut')]
@@ -834,4 +985,44 @@ it('keeps 17 kg unclassified as low stock and zero-stock warnings consistent acr
   await user.click(screen.getByRole('combobox', { name: 'Warning warehouse' }))
   await user.click(screen.getByRole('option', { name: 'Store' }))
   expect(screen.getByRole('menuitem', { name: /Out of stock: Empty Mango, Store, 0/ })).toBeTruthy()
+})
+
+it('makes product status primary and returns from quarantine to the selected archived view', async () => {
+  const user = userEvent.setup()
+  const base = apiClient.defaults.adapter as import('axios').AxiosAdapter
+  const quarantineFilters: unknown[] = []
+  apiClient.defaults.adapter = async (config) => {
+    if (config.url === '/stock-items/quarantine-lots') quarantineFilters.push(config.params)
+    return base(config)
+  }
+  mount(<InventoryHub />)
+  await screen.findByText('Alpha Empty')
+  expect(screen.getByText('Manage products and stock across warehouses.')).toBeTruthy()
+  expect(screen.queryByRole('tab')).toBeNull()
+  expect(screen.queryByText('Products & Stock')).toBeNull()
+  const active = screen.getByRole('button', { name: /^Active/ })
+  const archived = screen.getByRole('button', { name: /^Archived/ })
+  expect(within(active).getByText('4')).toBeTruthy()
+  expect(within(archived).getByText('1')).toBeTruthy()
+  const quarantine = screen.getByRole('button', { name: 'Quarantined Stock' })
+  expect(quarantine.className).not.toContain('bg-primary-contrast')
+  await user.click(archived)
+  await screen.findByText('Archived Product')
+  await user.click(quarantine)
+  expect(await screen.findByRole('heading', { name: 'Quarantined Stock' })).toBeTruthy()
+  expect(screen.queryByRole('button', { name: /^Active/ })).toBeNull()
+  expect(screen.queryByRole('button', { name: /^Archived/ })).toBeNull()
+  await user.click(screen.getByRole('combobox', { name: 'Condition' }))
+  await user.click(screen.getByRole('option', { name: 'Spoiled' }))
+  await waitFor(() =>
+    expect(quarantineFilters).toContainEqual({ openOnly: true, condition: 'SPOILED' }),
+  )
+  await user.click(screen.getByRole('button', { name: 'Back to Products' }))
+  expect(await screen.findByText('Archived Product')).toBeTruthy()
+  expect(screen.getByRole('button', { name: /^Archived/ }).getAttribute('aria-pressed')).toBe(
+    'true',
+  )
+  expect(screen.queryByText('Alpha Empty')).toBeNull()
+  await user.click(screen.getByRole('button', { name: /^Active/ }))
+  expect(await screen.findByText('Alpha Empty')).toBeTruthy()
 })

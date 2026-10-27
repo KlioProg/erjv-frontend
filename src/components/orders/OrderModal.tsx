@@ -123,7 +123,7 @@ export function OrderModal({
       id: 'price',
       header: 'Unit Price',
       align: 'right',
-      width: 130,
+      width: 120,
       cell: ({ row }) => (
         <>
           <OrderDecimalInput
@@ -148,26 +148,43 @@ export function OrderModal({
     },
     {
       id: 'discount',
-      header: 'Line Discount',
-      width: 148,
-      cell: ({ row }) => <OrderLineDiscount id={`order-discount-${row.formId}`} name={row.name}
-        value={row.discount} line={row} fixedDisabled={form.editing}
-        onChange={(discount) => form.updateDiscount(row.formId, discount)} />,
+      header: 'Discount',
+      width: 112,
+      cell: ({ row }) => (
+        <OrderLineDiscount
+          id={`order-discount-${row.formId}`}
+          name={row.name}
+          value={row.discount}
+          line={row}
+          compact
+          onChange={(discount) => form.updateDiscount(row.formId, discount)}
+        />
+      ),
     },
     {
       id: 'subtotal',
-      header: 'Amounts',
-      width: 140,
+      header: 'Line Total',
+      width: 112,
       align: 'right',
-      cell: ({ row }) => <OrderLineAmounts line={{ ...row, ...discountFields(row.discount) }}
-        saved={form.submission.savedOrder?.items?.[form.lines.findIndex((line) => line.formId === row.formId)]} />,
+      cell: ({ row }) => (
+        <OrderLineAmounts
+          name={row.name}
+          line={{ ...row, ...discountFields(row.discount) }}
+          saved={
+            form.submission.savedOrder?.items?.[
+              form.lines.findIndex((line) => line.formId === row.formId)
+            ]
+          }
+        />
+      ),
     },
     {
       id: 'remove',
       header: 'Remove',
-      width: 48,
-      align: 'right',
+      width: 56,
+      align: 'center',
       className: 'order-entry-remove',
+      headerClassName: 'order-entry-remove-header',
       cell: ({ row }) => (
         <RemoveOrderItem name={row.name} onRemove={() => form.removeLine(row.formId)} />
       ),
@@ -306,8 +323,8 @@ export function OrderModal({
             <p className="text-xs text-muted-foreground">
               Discounts apply to each entire line. VAT is calculated after the discount.
             </p>
-            {form.editing && <p className="text-xs text-muted-foreground">Fixed discounts are not available for draft line changes yet. Header fields can be updated without replacing saved lines.</p>}
             <OrderItemsTable
+              className="sales-order-items"
               data={form.lines}
               columns={columns}
               getRowKey={(line) => line.formId}

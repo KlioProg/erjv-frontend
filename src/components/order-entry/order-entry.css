@@ -57,6 +57,18 @@
 .order-entry-dialog .order-entry-items table {
   min-width: 0;
 }
+.order-entry-dialog :is(.sales-order-items, .purchase-order-items) > div {
+  overflow-x: auto;
+  scroll-padding-inline: 8px 64px;
+}
+.order-entry-dialog :is(.sales-order-items, .purchase-order-items) table {
+  min-width: 700px;
+}
+:is(.sales-order-items, .purchase-order-items) .order-entry-product p:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .order-entry-dialog .order-entry-items td {
   white-space: normal;
   overflow-wrap: anywhere;
@@ -68,11 +80,31 @@
   opacity: 0.5;
 }
 @media (min-width: 640px) {
+  .order-entry-dialog .purchase-order-items table {
+    min-width: 760px;
+  }
+  :is(.sales-order-items, .purchase-order-items) .order-entry-remove,
+  :is(.sales-order-items, .purchase-order-items) .order-entry-remove-header {
+    position: sticky;
+    right: 0;
+    z-index: 1;
+    padding-inline: 4px;
+    background: var(--card);
+  }
+  :is(.sales-order-items, .purchase-order-items) .order-entry-remove-header {
+    background: var(--secondary);
+  }
   .order-entry-items tbody > tr:not(:has(td[colspan])) {
     height: 56px;
   }
 }
 @media (max-width: 639px) {
+  .order-entry-dialog :is(.sales-order-items, .purchase-order-items) table {
+    min-width: 0;
+  }
+  .order-entry-dialog :is(.sales-order-items, .purchase-order-items) .order-entry-product {
+    padding-right: 56px !important;
+  }
   .order-entry-dialog {
     width: 100vw;
     max-width: 100vw;

@@ -37,8 +37,10 @@ export function ReorderThresholdModal({
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const parsed = threshold.trim() ? parseStockCents(threshold) : null
-    if (threshold.trim() && (parsed === null || parsed < 0n)) {
-      setError('Enter a non-negative threshold with up to two decimal places, or leave it blank.')
+    if (threshold.trim() && (parsed === null || parsed > 999_999_999_999n)) {
+      setError(
+        'Enter a non-negative threshold with up to two decimals and 10 whole digits, or leave it blank.',
+      )
       return
     }
     try {
@@ -80,7 +82,11 @@ export function ReorderThresholdModal({
               disabled={mutation.isPending}
             />
             {error && (
-              <p id="stock-reorder-threshold-error" role="alert" className="text-xs text-destructive">
+              <p
+                id="stock-reorder-threshold-error"
+                role="alert"
+                className="text-xs text-destructive"
+              >
                 {error}
               </p>
             )}

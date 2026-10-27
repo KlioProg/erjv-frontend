@@ -166,7 +166,7 @@ beforeEach(() => {
     if (Array.isArray(data) && config.params?.includeInactive !== 'true') {
       data = data.filter((record) => record.isActive !== false)
     }
-    return { data, status: 200, statusText: 'OK', headers: {}, config }
+    return { data: config.method === 'get' && /^\/(sales-orders|purchase-orders|incoming-deliveries|outgoing-deliveries)$/.test(config.url ?? '') ? { items: data, nextCursor: null } : data, status: 200, statusText: 'OK', headers: {}, config }
   }
 })
 

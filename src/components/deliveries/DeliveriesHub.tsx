@@ -35,12 +35,10 @@ import {
   useIncomingDeliveries,
   useCreateIncomingDelivery,
   useScheduleIncomingDelivery,
-  useCompleteIncomingDelivery,
   useCancelIncomingDelivery,
 } from '@/features/logistics/incoming-deliveries.hooks'
 import {
   useOutgoingDeliveries,
-  useCompleteOutgoingDelivery,
   useCancelOutgoingDelivery,
 } from '@/features/logistics/outgoing-deliveries.hooks'
 import { useAllDeliveryVehicles } from '@/features/logistics/delivery-vehicles.hooks'
@@ -56,8 +54,11 @@ import type { PurchaseOrderStatus } from '@/features/logistics/purchase-orders.t
 import type { CreateIncomingDeliveryPayload } from '@/features/logistics/incoming-deliveries.types'
 import { ScheduleIncomingDeliveryModal } from './ScheduleIncomingDeliveryModal'
 import { ScheduleDeliveryModal } from './ScheduleDeliveryModal'
+import { ReceiveProductsModal } from './ReceiveProductsModal'
+import { CompleteDeliveryModal } from './shared/CompleteDeliveryModal'
 import { DispatchDeliveryModal } from './shared/DispatchDeliveryModal'
 import { DeliveryDetailModal } from './shared/DeliveryDetailModal'
+import type { OutgoingDeliveryRecord } from '@/features/logistics/outgoing-deliveries.types'
 
 // Older callers retain their navigation hints; outgoing aliases share the active view.
 export type DeliverySubTab =
@@ -129,15 +130,18 @@ export function DeliveriesHub({
     arrangeOrder ? (view === 'incoming' ? 'Incoming' : 'Outgoing') : null,
   )
   const [outgoingDraftId, setOutgoingDraftId] = useState<number | undefined>()
+  const [lastSavedOutgoing, setLastSavedOutgoing] = useState<OutgoingDeliveryRecord | null>(null)
   const [viewIncomingId, setViewIncomingId] = useState<number | null>(null)
   const [viewOutgoingId, setViewOutgoingId] = useState<number | null>(null)
   const [viewOrder, setViewOrder] = useState<{ type: 'Incoming' | 'Outgoing'; id: number } | null>(
     null,
   )
+  const [receiveId, setReceiveId] = useState<number | null>(null)
+  const [completeId, setCompleteId] = useState<number | null>(null)
   const [dispatchId, setDispatchId] = useState<number | null>(null)
   const [confirmation, setConfirmation] = useState<{
     row: DeliveryRow
-    action: Exclude<DeliveryAction, 'dispatch'>
+    action: 'schedule' | 'cancel'
   } | null>(null)
   const incomingQuery = useIncomingDeliveries()
   const outgoingQuery = useOutgoingDeliveries()
@@ -154,17 +158,11 @@ export function DeliveriesHub({
   const { data: stockItems = [] } = useStockItems()
   const createIncoming = useCreateIncomingDelivery()
   const scheduleIncoming = useScheduleIncomingDelivery()
-  const completeIncoming = useCompleteIncomingDelivery()
   const cancelIncoming = useCancelIncomingDelivery()
-  const completeOutgoing = useCompleteOutgoingDelivery()
   const cancelOutgoing = useCancelOutgoingDelivery()
-  const pending = [
-    scheduleIncoming,
-    completeIncoming,
-    cancelIncoming,
-    completeOutgoing,
-    cancelOutgoing,
-  ].some((mutation) => mutation.isPending)
+  const pending = [scheduleIncoming, cancelIncoming, cancelOutgoing].some(
+    (mutation) => mutation.isPending,
+  )
   const hasDeliveryError =
     view === 'incoming'
       ? incomingQuery.isError
@@ -233,7 +231,9 @@ export function DeliveriesHub({
   )
   const handleAction = (row: DeliveryRow, action: DeliveryAction) => {
     if (!canManage || pending || !getDeliveryActions(row).includes(action)) return
-    if (action === 'dispatch') setDispatchId(row.record.id)
+    if (action === 'receive') setReceiveId(row.record.id)
+    else if (action === 'complete') setCompleteId(row.record.id)
+    else if (action === 'dispatch') setDispatchId(row.record.id)
     else if (row.type === 'Outgoing' && action === 'schedule') {
       setOutgoingDraftId(row.record.id)
       setCreateType('Outgoing')
@@ -253,16 +253,25 @@ export function DeliveriesHub({
     const { row, action } = confirmation
     if (!canManage || !getDeliveryActions(row).includes(action)) return
     if (row.type === 'Incoming')
-      await (
-        action === 'schedule'
-          ? scheduleIncoming
-          : action === 'receive'
-            ? completeIncoming
-            : cancelIncoming
-      ).mutateAsync(row.record.id)
-    else if (action !== 'schedule')
-      await (action === 'complete' ? completeOutgoing : cancelOutgoing).mutateAsync(row.record.id)
+      await (action === 'schedule' ? scheduleIncoming : cancelIncoming).mutateAsync(row.record.id)
+    else if (action === 'cancel') await cancelOutgoing.mutateAsync(row.record.id)
   }
+  const clearFilters = () => {
+    setType('ALL')
+    setStatus('ALL')
+    setWarehouseId('ALL')
+    setSearch('')
+    setFromDate('')
+    setToDate('')
+    setOrderScope(null)
+  }
+  const hasFilters =
+    status !== 'ALL' ||
+    warehouseId !== 'ALL' ||
+    !!search.trim() ||
+    !!fromDate ||
+    !!toDate ||
+    orderScope !== null
   return (
     <div className="flex min-w-0 flex-col gap-6">
       <PageHeader
@@ -305,19 +314,7 @@ export function DeliveriesHub({
           />
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              setType('ALL')
-              setStatus('ALL')
-              setWarehouseId('ALL')
-              setSearch('')
-              setFromDate('')
-              setToDate('')
-              setOrderScope(null)
-            }}
-          >
+          <Button variant="ghost" size="sm" onClick={clearFilters}>
             Clear Filters
           </Button>
           {canManage && view !== 'history' && (
@@ -449,6 +446,46 @@ export function DeliveriesHub({
           </AlertDescription>
         </Alert>
       )}
+      {view === 'outgoing' &&
+        lastSavedOutgoing &&
+        (outgoingQuery.isError ||
+          !filtered.some(
+            (row) =>
+              row.record.id === lastSavedOutgoing.id && row.status === lastSavedOutgoing.status,
+          )) && (
+          <Alert>
+            <AlertDescription>
+              {lastSavedOutgoing.deliveryNumber}{' '}
+              {lastSavedOutgoing.status === 'SCHEDULED' ? 'was scheduled' : 'was saved'}.{' '}
+              {outgoingQuery.isFetching
+                ? 'Refreshing outgoing deliveries...'
+                : outgoingQuery.isError
+                  ? 'The list could not be refreshed. Do not schedule it again.'
+                  : hasFilters
+                    ? 'Current filters hide this delivery.'
+                    : 'It is not currently visible in the list.'}
+              <Button
+                variant="link"
+                size="sm"
+                onClick={() => setViewOutgoingId(lastSavedOutgoing.id)}
+              >
+                View New Delivery
+              </Button>
+              {hasFilters && (
+                <Button
+                  variant="link"
+                  size="sm"
+                  onClick={() => {
+                    clearFilters()
+                    setSearch(lastSavedOutgoing.deliveryNumber)
+                  }}
+                >
+                  Show in List
+                </Button>
+              )}
+            </AlertDescription>
+          </Alert>
+        )}
       {hasDeliveryError && filtered.length === 0 && !isLoadingDeliveries ? (
         <div className="flex min-h-[360px] items-center justify-center rounded-lg border border-border bg-card px-4 py-12 text-center text-sm text-muted-foreground">
           Delivery records are unavailable until the request succeeds.
@@ -457,7 +494,11 @@ export function DeliveriesHub({
         <DeliveryTable
           rows={filtered}
           view={view}
-          isLoading={isLoadingDeliveries}
+          isLoading={
+            isLoadingDeliveries ||
+            (view === 'outgoing' && outgoingQuery.isFetching && !filtered.length)
+          }
+          hasFilters={view === 'outgoing' && hasFilters}
           canManage={canManage}
           pending={pending}
           onView={(row) =>
@@ -484,7 +525,7 @@ export function DeliveriesHub({
       )}
       {canManage && createType === 'Outgoing' && (
         <ScheduleDeliveryModal
-          key={outgoingDraftId ?? orderScope ?? 'outgoing'}
+          key={outgoingDraftId ?? 'outgoing'}
           open
           onClose={() => {
             setCreateType(null)
@@ -492,6 +533,35 @@ export function DeliveriesHub({
           }}
           preselectedOrderId={orderScope ?? undefined}
           draftId={outgoingDraftId}
+          onSaved={(delivery) => {
+            setLastSavedOutgoing(delivery)
+            if (orderScope !== null && orderScope !== delivery.salesOrderId)
+              setOrderScope(delivery.salesOrderId)
+          }}
+          onViewDelivery={(delivery) => {
+            setCreateType(null)
+            setOutgoingDraftId(undefined)
+            setViewOutgoingId(delivery.id)
+          }}
+          onViewDeliveries={(id) => {
+            setCreateType(null)
+            setOutgoingDraftId(undefined)
+            setOrderScope(id)
+          }}
+        />
+      )}
+      {receiveId !== null && incoming.find((d) => d.id === receiveId) && (
+        <ReceiveProductsModal
+          key={receiveId}
+          delivery={incoming.find((d) => d.id === receiveId)!}
+          onClose={() => setReceiveId(null)}
+        />
+      )}
+      {completeId !== null && (
+        <CompleteDeliveryModal
+          key={completeId}
+          deliveryId={completeId}
+          onClose={() => setCompleteId(null)}
         />
       )}
       <DispatchDeliveryModal
@@ -544,36 +614,14 @@ export function DeliveriesHub({
         open={confirmation !== null}
         onClose={() => setConfirmation(null)}
         onConfirm={confirm}
-        title={
-          confirmation?.action === 'schedule'
-            ? 'Schedule Delivery'
-            : confirmation?.action === 'cancel'
-              ? 'Cancel Delivery'
-              : confirmation?.row.type === 'Incoming'
-                ? 'Receive Goods'
-                : 'Complete Delivery'
-        }
+        title={confirmation?.action === 'schedule' ? 'Schedule Delivery' : 'Cancel Delivery'}
         description={
           confirmation?.action === 'schedule'
-            ? 'Mark this draft as scheduled and ready for receiving or dispatch. Physical stock is unchanged.'
-            : confirmation?.action === 'cancel'
-              ? confirmation.row.type === 'Outgoing'
-                ? 'Cancel this shipment. A dispatched vehicle becomes available again. Physical stock and the sales order reservations remain unchanged.'
-                : 'Cancel this supplier shipment. Physical stock is unchanged and its quantities become available for another incoming delivery.'
-              : confirmation?.row.type === 'Incoming'
-                ? 'Confirm the goods have arrived. Receiving adds the recorded quantities to the destination warehouse.'
-                : 'Confirm the customer received the goods. Completion updates stock and releases the vehicle.'
+            ? 'Mark this draft as scheduled and ready for receiving. Physical stock is unchanged.'
+            : 'Cancel this draft or scheduled shipment. Physical stock is unchanged.'
         }
         itemName={confirmation?.row.reference}
-        confirmText={
-          confirmation?.action === 'schedule'
-            ? 'Schedule Delivery'
-            : confirmation?.action === 'cancel'
-              ? 'Cancel Delivery'
-              : confirmation?.action === 'receive'
-                ? 'Receive Goods'
-                : 'Complete Delivery'
-        }
+        confirmText={confirmation?.action === 'schedule' ? 'Schedule Delivery' : 'Cancel Delivery'}
         variant={confirmation?.action === 'cancel' ? 'destructive' : 'warning'}
       />
     </div>

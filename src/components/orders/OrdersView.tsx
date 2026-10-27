@@ -27,21 +27,18 @@ import { useStockItems } from '@/features/logistics/stock-items.hooks'
 import { useDeliveryVehicles } from '@/features/logistics/delivery-vehicles.hooks'
 import { useEmployees } from '@/features/staffing/staffing.hooks'
 import { useOutgoingDeliveries } from '@/features/logistics/outgoing-deliveries.hooks'
-import { completeOutgoingDeliveryApi } from '@/features/logistics/outgoing-deliveries.api'
+import { CompleteDeliveryModal } from '@/components/deliveries/shared/CompleteDeliveryModal'
 import {
   useSalesOrders,
+  SALES_ORDERS_QUERY_KEY,
   useCreateSalesOrder,
   useConfirmSalesOrder,
   useCancelSalesOrder,
   useSalesOrderById,
   useUpdateSalesOrderDraft,
-  SALES_ORDERS_QUERY_KEY,
 } from '@/features/crm/sales-orders.hooks'
-import { DELIVERIES_QUERY_KEY } from '@/features/logistics/outgoing-deliveries.hooks'
-import { STOCK_ITEMS_QUERY_KEY } from '@/features/logistics/stock-items.hooks'
-import { VEHICLES_QUERY_KEY } from '@/features/logistics/delivery-vehicles.hooks'
-import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
+import { useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '@/features/auth/AuthContext'
 import type { SalesOrderRecord } from '@/features/crm/sales-orders.types'
 import { fetchSalesOrderByIdApi } from '@/features/crm/sales-orders.api'
@@ -107,6 +104,7 @@ export function OrdersView({
   const [selectedOrderRecord, setSelectedOrderRecord] = useState<SalesOrderRecord | null>(null)
   const [isDetailDrawerOpen, setIsDetailDrawerOpen] = useState(false)
   const [dispatchOrder, setDispatchOrder] = useState<SalesOrderRecord | null>(null)
+  const [deliveryToComplete, setDeliveryToComplete] = useState<number | null>(null)
   const [deliveryToView, setDeliveryToView] = useState<number | null>(null)
   const [orderToCancel, setOrderToCancel] = useState<SalesOrderRecord | null>(null)
 
@@ -221,28 +219,6 @@ export function OrdersView({
     if (canManage && !cancelOrderMutation.isPending) setOrderToCancel(order)
   }
 
-  // Direct arrival confirmation
-  const handleConfirmArrival = async (deliveryId: number, orderNo: string) => {
-    if (
-      !window.confirm(
-        'Complete this delivery? This deducts shipment quantities from stock and releases its vehicle.',
-      )
-    )
-      return
-    try {
-      await completeOutgoingDeliveryApi(deliveryId)
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: SALES_ORDERS_QUERY_KEY }),
-        queryClient.invalidateQueries({ queryKey: DELIVERIES_QUERY_KEY }),
-        queryClient.invalidateQueries({ queryKey: VEHICLES_QUERY_KEY }),
-        queryClient.invalidateQueries({ queryKey: STOCK_ITEMS_QUERY_KEY }),
-      ])
-      toast.success(`Delivery completed for order ${orderNo}! Physical stock deducted.`)
-    } catch (err) {
-      toast.error(getErrorMessage(err))
-    }
-  }
-
   const orderRows = filteredOrders.map((order) => {
     const items = order.items || []
     const itemSummary = items
@@ -300,7 +276,7 @@ export function OrdersView({
       case 'confirm-arrival':
         if (!delivery) break
         if (onNavigateToDeliveries) onNavigateToDeliveries('outgoing', order.id)
-        else void handleConfirmArrival(delivery.id, order.orderNumber)
+        else setDeliveryToComplete(delivery.id)
         break
       case 'view-order':
         openOrderDetails(order)
@@ -716,6 +692,7 @@ export function OrdersView({
           </Dialog>
         ))}
 
+      {deliveryToComplete !== null && <CompleteDeliveryModal key={deliveryToComplete} deliveryId={deliveryToComplete} onClose={() => setDeliveryToComplete(null)} />}
       {/* Guided Order Detail Drawer */}
       <OrderDetailDrawer
         open={isDetailDrawerOpen}

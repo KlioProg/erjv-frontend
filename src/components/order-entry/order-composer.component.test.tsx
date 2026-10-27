@@ -109,7 +109,114 @@ beforeEach(() => {
   } as unknown as MediaQueryList)
 })
 
+it('keeps Sales Order removal keyboard-accessible and preserves the other line and its discount', async () => {
+  const user = userEvent.setup()
+  const onSubmit = vi.fn().mockResolvedValue({ id: 8, orderNumber: 'SO-8', status: 'DRAFT' })
+  render(<OrderModal {...salesProps} onClose={vi.fn()} onSubmit={onSubmit} />)
+  await user.click(screen.getByRole('button', { name: 'Search and choose a customer' }))
+  await user.click(screen.getByRole('menuitem', { name: 'Test Customer' }))
+  for (const product of products)
+    await user.click(screen.getByRole('button', { name: `Add ${product.name}` }))
+  const banana = products[1].name
+  const quantity = screen.getByRole('textbox', { name: `Quantity for ${banana}` })
+  const price = screen.getByRole('textbox', { name: `Unit price for ${banana}` })
+  fireEvent.change(quantity, { target: { value: '2.5' } })
+  fireEvent.change(price, { target: { value: '20' } })
+  expect(screen.queryByRole('textbox', { name: `Line discount for ${banana}` })).toBeNull()
+  const trigger = screen.getByRole('button', { name: `Edit discount for ${banana}` })
+  expect(trigger.textContent).toBe('No discount')
+  await user.click(trigger)
+  await user.clear(screen.getByRole('textbox', { name: `Line discount for ${banana}` }))
+  await user.type(screen.getByRole('textbox', { name: `Line discount for ${banana}` }), '10')
+  await user.keyboard('{Enter}')
+  expect(document.activeElement).toBe(trigger)
+  expect(trigger.textContent).toBe('10%')
+  expect(onSubmit).not.toHaveBeenCalled()
+  const amounts = screen.getByLabelText(`Line amounts for ${banana}`)
+  expect(amounts.textContent).toContain('50.40')
+  expect(within(quantity.closest('tr')!).queryByText('Subtotal')).toBeNull()
+  await user.click(amounts)
+  expect(await within(quantity.closest('tr')!).findByText('Subtotal')).toBeTruthy()
+  expect(within(quantity.closest('tr')!).getByText('VAT')).toBeTruthy()
+  expect(screen.getByText(banana, { selector: 'p' }).getAttribute('title')).toBe(banana)
+  expect(screen.getAllByRole('button', { name: /^Remove Test/ })).toHaveLength(2)
+  screen.getByLabelText('Line amounts for Test Mango').focus()
+  await user.tab()
+  expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Remove Test Mango' }))
+  await user.keyboard('{Enter}')
+  expect(screen.queryByRole('textbox', { name: 'Quantity for Test Mango' })).toBeNull()
+  expect((quantity as HTMLInputElement).value).toBe('2.5')
+  expect((price as HTMLInputElement).value).toBe('20')
+  expect(trigger.textContent).toBe('10%')
+  await user.click(screen.getByRole('button', { name: 'Save Draft' }))
+  await waitFor(() => expect(onSubmit).toHaveBeenCalledOnce())
+  const values = onSubmit.mock.calls[0][0]
+  expect(values.total).toBe('50.40')
+  expect(buildSalesOrderPayload(values).items).toEqual([
+    { inventoryItemId: 2, quantity: '2.5', unitPrice: '20', discountRate: '10', taxRate: '12.00' },
+  ])
+})
+
+it('retains large Sales Order numeric inputs without adding financial controls to the default row', async () => {
+  const user = userEvent.setup()
+  render(<OrderModal {...salesProps} onClose={vi.fn()} onSubmit={vi.fn()} />)
+  await user.click(screen.getByRole('button', { name: 'Add Test Mango' }))
+  const quantity = screen.getByRole('textbox', { name: 'Quantity for Test Mango' })
+  const price = screen.getByRole('textbox', { name: 'Unit price for Test Mango' })
+  fireEvent.change(quantity, { target: { value: '999999.99' } })
+  fireEvent.change(price, { target: { value: '9999999.99' } })
+  expect((quantity as HTMLInputElement).value).toBe('999999.99')
+  expect((price as HTMLInputElement).value).toBe('9999999.99')
+  expect(screen.getByRole('button', { name: 'Remove Test Mango' })).toBeTruthy()
+  expect(screen.queryByRole('combobox', { name: 'Discount type for Test Mango' })).toBeNull()
+  expect(within(quantity.closest('tr')!).queryByText('VAT')).toBeNull()
+})
+
 describe('purchase composer', () => {
+  it('keeps large Purchase Order totals compact and preserves discounts and remaining lines after removal', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn().mockResolvedValue({ id: 10, orderNumber: 'PO-10', status: 'DRAFT' })
+    render(<PurchaseModal {...purchaseProps} onClose={vi.fn()} onSubmit={onSubmit} />)
+    for (const product of products)
+      await user.click(screen.getByRole('button', { name: `Add ${product.name}` }))
+    const name = products[1].name
+    const quantity = screen.getByRole('textbox', { name: `Quantity for ${name}` })
+    const cost = screen.getByRole('textbox', { name: `Unit cost for ${name}` })
+    fireEvent.change(quantity, { target: { value: '1514.13' } })
+    fireEvent.change(cost, { target: { value: '100' } })
+    const row = quantity.closest('tr')!
+    expect(
+      within(row.closest('table')!)
+        .getAllByRole('columnheader')
+        .map((header) => header.textContent),
+    ).toEqual(['Product', 'Quantity', 'Unit Cost', 'Discount', 'Line Total', 'Remove'])
+    expect(screen.getByLabelText(`Line amounts for ${name}`).textContent).toBe('₱151,413.00')
+    expect(within(row).queryByText('VAT')).toBeNull()
+    await user.click(screen.getByRole('button', { name: `Edit discount for ${name}` }))
+    await user.click(screen.getByRole('combobox', { name: `Discount type for ${name}` }))
+    await user.click(screen.getByRole('option', { name: '₱' }))
+    await user.type(screen.getByRole('textbox', { name: `Line discount for ${name}` }), '50')
+    await user.click(screen.getByRole('button', { name: 'Done' }))
+    expect(screen.getByLabelText(`Line amounts for ${name}`).textContent).toBe('₱151,363.00')
+    await user.click(screen.getByLabelText(`Line amounts for ${name}`))
+    expect(await within(row).findByText('VAT')).toBeTruthy()
+    await user.click(screen.getByRole('button', { name: 'Remove Test Mango' }))
+    expect((quantity as HTMLInputElement).value).toBe('1514.13')
+    expect((cost as HTMLInputElement).value).toBe('100')
+    expect(screen.getByRole('button', { name: `Edit discount for ${name}` }).textContent).toBe(
+      '₱50.00',
+    )
+    await user.click(screen.getByRole('button', { name: 'Save Draft' }))
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledOnce())
+    expect(onSubmit.mock.calls[0][0].items).toEqual([
+      expect.objectContaining({
+        inventoryItemId: 2,
+        quantity: '1514.13',
+        unitPrice: '100',
+        discountAmount: '50',
+      }),
+    ])
+  })
   it('places each product unit beside its quantity instead of beneath the selected product name', async () => {
     const user = userEvent.setup()
     render(
@@ -173,7 +280,7 @@ describe('purchase composer', () => {
     await user.tab()
     expect(document.activeElement).toBe(cost)
     await user.type(cost, '10.20')
-    expect(screen.getAllByText('₱22.95').length).toBe(4)
+    expect(screen.getAllByText('₱22.95').length).toBe(3)
     await user.click(catalog.getByText(/Fresh orchard harvest/))
     expect(document.activeElement).toBe(quantity)
     expect((quantity as HTMLInputElement).value).toBe('2.25')
@@ -256,6 +363,7 @@ describe('purchase composer', () => {
     const onClose = vi.fn()
     const draftOrder: PurchaseOrderRecord = {
       id: 7,
+      revision: 1,
       orderNumber: 'PO-DRAFT-7',
       status: 'DRAFT',
       supplierId: 1,
@@ -287,7 +395,7 @@ describe('purchase composer', () => {
         },
       ],
     }
-    const onUpdateDraft = vi.fn().mockResolvedValue(draftOrder)
+    const onUpdateDraft = vi.fn().mockResolvedValue({ ...draftOrder, revision: 2 })
     render(
       <PurchaseModal
         {...purchaseProps}
@@ -303,6 +411,7 @@ describe('purchase composer', () => {
     await user.click(screen.getByRole('button', { name: 'Save Draft' }))
     await waitFor(() => expect(onClose).toHaveBeenCalledOnce())
     expect(onUpdateDraft).toHaveBeenCalledWith(7, {
+      expectedRevision: 1,
       supplierId: 1,
       expectedAt: '2026-10-15T00:00:00.000Z',
       externalReference: 'INV-7',
@@ -404,8 +513,8 @@ describe('sales composer', () => {
       'Product',
       'Quantity',
       'Unit Price',
-      'Line Discount',
-      'Amounts',
+      'Discount',
+      'Line Total',
       'Remove',
     ])
     expect(items.queryByRole('combobox')).toBeNull()
@@ -415,8 +524,10 @@ describe('sales composer', () => {
     const price = screen.getByRole('textbox', { name: 'Unit price for Test Mango' })
     await user.clear(price)
     await user.type(price, '20')
+    await user.click(screen.getByRole('button', { name: 'Edit discount for Test Mango' }))
     await user.clear(screen.getByRole('textbox', { name: 'Line discount for Test Mango' }))
     await user.type(screen.getByRole('textbox', { name: 'Line discount for Test Mango' }), '10')
+    await user.click(screen.getByRole('button', { name: 'Done' }))
     await user.click(screen.getByText('Additional details'))
     await user.type(screen.getByLabelText('External Reference'), 'REF-2')
     fireEvent.change(screen.getByLabelText('Expected Delivery Date'), {
@@ -444,7 +555,7 @@ describe('sales composer', () => {
           inventoryItemId: 1,
           quantity: '12.5',
           unitPrice: '20',
-          discountRate: '10.00',
+          discountRate: '10',
           taxRate: '12.00',
         },
       ],
@@ -510,15 +621,12 @@ describe('sales composer', () => {
   it('allows creating a sales order for products with no available stock', async () => {
     const user = userEvent.setup()
     const onSubmit = vi.fn().mockResolvedValue({ id: 43, orderNumber: 'SO-43', status: 'DRAFT' })
-    render(
-      <OrderModal
-        {...salesProps}
-        stockItems={[]}
-        onClose={vi.fn()}
-        onSubmit={onSubmit}
-      />,
+    render(<OrderModal {...salesProps} stockItems={[]} onClose={vi.fn()} onSubmit={onSubmit} />)
+    await user.click(
+      screen.getByRole('button', {
+        name: 'Add Test Banana with a long product identity for order entry',
+      }),
     )
-    await user.click(screen.getByRole('button', { name: 'Add Test Banana with a long product identity for order entry' }))
     await user.click(screen.getByRole('button', { name: 'Search and choose a customer' }))
     await user.click(screen.getByRole('menuitem', { name: 'Test Customer' }))
     await user.click(screen.getByRole('button', { name: 'Save Draft' }))

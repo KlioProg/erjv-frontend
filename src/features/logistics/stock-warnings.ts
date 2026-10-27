@@ -1,7 +1,7 @@
 import type { InventoryItemResponse } from '../products/products.types'
 import type { StockItem } from './stock-items.types'
 import type { Warehouse } from './warehouses.types'
-import { parseStockCents } from './stock-display.ts'
+import { availableStockCents, parseStockCents } from './stock-display.ts'
 
 export type StockCondition = 'OUT' | 'LOW' | 'NORMAL' | 'UNKNOWN'
 export type InventoryFocusTarget = { productId: number; warehouseId: number }
@@ -42,15 +42,15 @@ export function stockCondition(
 }
 
 export function stockConditionForItem(
-  stock: Pick<StockItem, 'quantity' | 'reorderThreshold' | 'stockStatus'>,
+  stock: Pick<StockItem, 'quantity' | 'reorderThreshold' | 'stockStatus' | 'availableQuantity' | 'reservedQuantity' | 'damagedQuantity' | 'quarantinedQuantity'>,
 ): StockCondition {
   if (stock.stockStatus === 'OUT') return 'OUT'
   if (stock.stockStatus === 'LOW') return 'LOW'
   if (stock.stockStatus === 'NORMAL' || stock.stockStatus === 'UNCONFIGURED')
-    return parseStockCents(stock.quantity) === 0n ? 'OUT' : 'NORMAL'
+    return 'NORMAL'
   const threshold =
     stock.reorderThreshold == null ? null : parseStockCents(stock.reorderThreshold)
-  return stockCondition(parseStockCents(stock.quantity), threshold)
+  return stockCondition(stock.availableQuantity === undefined ? parseStockCents(stock.quantity) : availableStockCents(stock), threshold)
 }
 
 export const stockConditionRank: Record<StockCondition, number> = {
@@ -77,7 +77,7 @@ export function buildStockWarnings(
   for (const stock of stocks) {
     const product = productMap.get(stock.inventoryItemId)
     const location = warehouseMap.get(stock.warehouseId)
-    const quantity = parseStockCents(stock.quantity)
+    const quantity = stock.availableQuantity === undefined ? parseStockCents(stock.quantity) : availableStockCents(stock)
     const threshold =
       stock.reorderThreshold === null || stock.reorderThreshold === undefined
         ? null

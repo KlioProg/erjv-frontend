@@ -250,7 +250,7 @@ describe('sales draft integration', () => {
     expect(onClose).toHaveBeenCalledOnce()
   })
 
-  it('keeps independent form identities and blocks unverified fixed-discount draft replacement without losing edits', async () => {
+  it('keeps independent form identities and saves verified fixed-discount draft replacement without losing edits', async () => {
     const repeated = {
       ...draft,
       items: [
@@ -264,8 +264,12 @@ describe('sales draft integration', () => {
     expect(result.current.lines[0].quantity).toBe('2.00')
     expect(result.current.amounts?.total).toBe('534.98')
     await act(() => result.current.submit(submitEvent()))
-    expect(onUpdateDraft).not.toHaveBeenCalled()
-    expect(result.current.error).toContain('Fixed line discounts cannot be saved on Sales Order drafts yet')
+    expect(onUpdateDraft).toHaveBeenCalledOnce()
+    expect(onUpdateDraft.mock.calls[0][1].items[1]).toMatchObject({
+      quantity: '3',
+      discountAmount: '12.34',
+    })
+    expect(result.current.error).toBe('')
     expect(result.current.lines[1].quantity).toBe('3')
     expect(result.current.lines[1].discount.peso).toBe('12.34')
   })
@@ -340,15 +344,13 @@ describe('sales draft integration', () => {
       .fn()
       .mockRejectedValueOnce(new Error('Offline'))
       .mockResolvedValueOnce({ ...draft, revision: 5, status: 'CONFIRMED' })
-    const onUpdateDraft = vi
-      .fn()
-      .mockRejectedValue({
-        isAxiosError: true,
-        response: {
-          status: 409,
-          data: { code: 'STALE_REVISION', details: { currentRevision: 5 } },
-        },
-      })
+    const onUpdateDraft = vi.fn().mockRejectedValue({
+      isAxiosError: true,
+      response: {
+        status: 409,
+        data: { code: 'STALE_REVISION', details: { currentRevision: 5 } },
+      },
+    })
     const { result } = setup({ onLoadLatest, onUpdateDraft })
     act(() => result.current.setNotes('Unsaved'))
     await act(() => result.current.submit(submitEvent()))
@@ -380,7 +382,7 @@ describe('sales draft integration', () => {
         config.method === 'patch'
           ? { ...draft, revision: 4, notes: 'Changed through UI' }
           : url === '/sales-orders'
-            ? [draft]
+            ? { items: [draft], nextCursor: null }
             : url === '/sales-orders/42'
               ? draft
               : url === '/clients'
@@ -429,7 +431,7 @@ describe('sales draft integration', () => {
       status: 200,
       statusText: 'OK',
       headers: {},
-      data: config.url === '/sales-orders' ? [draft] : [],
+      data: config.url === '/sales-orders' ? { items: [draft], nextCursor: null } : [],
     })
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     render(
@@ -445,15 +447,13 @@ describe('sales draft integration', () => {
 
   it('preserves edits in the conflict UI until explicitly reloading and disables both submit actions', async () => {
     const user = userEvent.setup()
-    const onUpdateDraft = vi
-      .fn()
-      .mockRejectedValue({
-        isAxiosError: true,
-        response: {
-          status: 409,
-          data: { code: 'STALE_REVISION', details: { currentRevision: 4 } },
-        },
-      })
+    const onUpdateDraft = vi.fn().mockRejectedValue({
+      isAxiosError: true,
+      response: {
+        status: 409,
+        data: { code: 'STALE_REVISION', details: { currentRevision: 4 } },
+      },
+    })
     render(
       <OrderModal
         open

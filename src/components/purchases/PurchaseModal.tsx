@@ -1,6 +1,7 @@
 import { formatProductUnit } from '@/lib/product-unit'
 import type { OrderSubmissionProps } from '@/hooks/use-order-submission'
 import { Button } from '@/components/ui/button'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Input } from '@/components/ui/input'
 import { SearchableDropdown } from '@/components/ui/SearchableDropdown'
 import type { ColumnDef } from '@/components/ui/data-table'
@@ -13,7 +14,11 @@ import {
 } from '@/components/order-entry/OrderEntryFields'
 import { OrderAdditionalDetails } from '@/components/order-entry/OrderAdditionalDetails'
 import { OrderItemsTable } from '@/components/order-entry/OrderItemsTable'
-import { OrderLineAmounts, OrderLineDiscount, OrderPricingSummary } from '@/components/order-entry/OrderLineDiscount'
+import {
+  OrderLineAmounts,
+  OrderLineDiscount,
+  OrderPricingSummary,
+} from '@/components/order-entry/OrderLineDiscount'
 import { discountFields } from '@/lib/order-line-pricing'
 import {
   OrderProductCatalog,
@@ -27,6 +32,7 @@ import type { InventoryItemResponse } from '@/features/products/products.types'
 import type {
   CreatePurchaseOrderPayload,
   PurchaseOrderRecord,
+  UpdatePurchaseOrderDraftPayload,
 } from '@/features/logistics/purchase-orders.types'
 import { priceError, quantityError } from '@/lib/order-entry.schema'
 
@@ -41,7 +47,10 @@ type PurchaseModalProps = OrderSubmissionProps<CreatePurchaseOrderPayload> & {
   catalogState?: OrderCatalogState
   processedBy: string
   draftOrder?: PurchaseOrderRecord
-  onUpdateDraft?: (id: number, payload: CreatePurchaseOrderPayload) => Promise<PurchaseOrderRecord>
+  onUpdateDraft?: (
+    id: number,
+    payload: UpdatePurchaseOrderDraftPayload,
+  ) => Promise<PurchaseOrderRecord>
 }
 
 export function PurchaseModal({
@@ -108,9 +117,7 @@ export function PurchaseModal({
                 value={row.quantity}
                 aria-invalid={!!quantityError(row.quantity)}
                 ref={(input) => form.focus.quantityRef(row.formId, input)}
-                onChange={(event) =>
-                  form.updateLine(row.formId, 'quantity', event.target.value)
-                }
+                onChange={(event) => form.updateLine(row.formId, 'quantity', event.target.value)}
               />
             </div>
             <span
@@ -127,7 +134,7 @@ export function PurchaseModal({
       id: 'cost',
       header: 'Unit Cost',
       align: 'right',
-      width: 130,
+      width: 120,
       cell: ({ row }) => (
         <OrderDecimalInput
           currency
@@ -142,26 +149,43 @@ export function PurchaseModal({
     },
     {
       id: 'discount',
-      header: 'Line Discount',
-      width: 148,
-      cell: ({ row }) => <OrderLineDiscount id={`purchase-discount-${row.formId}`} name={row.name}
-        value={row.discount} line={{ quantity: row.quantity, unitPrice: row.unitCost }}
-        onChange={(discount) => form.updateDiscount(row.formId, discount)} />,
+      header: 'Discount',
+      width: 112,
+      cell: ({ row }) => (
+        <OrderLineDiscount
+          id={`purchase-discount-${row.formId}`}
+          name={row.name}
+          value={row.discount}
+          line={{ quantity: row.quantity, unitPrice: row.unitCost }}
+          compact
+          onChange={(discount) => form.updateDiscount(row.formId, discount)}
+        />
+      ),
     },
     {
       id: 'subtotal',
-      header: 'Amounts',
-      width: 140,
+      header: 'Line Total',
+      width: 128,
       align: 'right',
-      cell: ({ row }) => <OrderLineAmounts line={{ ...row, unitPrice: row.unitCost, ...discountFields(row.discount) }}
-        saved={form.submission.savedOrder?.items?.[form.lines.findIndex((line) => line.formId === row.formId)]} />,
+      cell: ({ row }) => (
+        <OrderLineAmounts
+          name={row.name}
+          line={{ ...row, unitPrice: row.unitCost, ...discountFields(row.discount) }}
+          saved={
+            form.submission.savedOrder?.items?.[
+              form.lines.findIndex((line) => line.formId === row.formId)
+            ]
+          }
+        />
+      ),
     },
     {
       id: 'remove',
       header: 'Remove',
-      width: 64,
-      align: 'right',
+      width: 56,
+      align: 'center',
       className: 'order-entry-remove',
+      headerClassName: 'order-entry-remove-header',
       cell: ({ row }) => (
         <RemoveOrderItem name={row.name} onRemove={() => form.removeLine(row.formId)} />
       ),
@@ -184,12 +208,14 @@ export function PurchaseModal({
           ? 'Update the saved draft, then save it or confirm the purchase order.'
           : "Choose catalog products, then enter the supplier's cost and quantity. A supplier is required only when confirming."
       }
-      confirmLabel="Confirm & Export Receipt"
+      confirmLabel="Confirm Purchase Order"
       submission={form.submission}
       busy={form.busy}
       error={form.error}
       errorFocusId={form.errorFocusId}
       itemCount={form.lines.length}
+      submitDisabled={form.submitDisabled}
+      readOnly={form.submitDisabled && !form.conflict}
       catalog={(returnToEditor) => (
         <OrderProductCatalog
           products={products}
@@ -205,6 +231,80 @@ export function PurchaseModal({
     >
       {(openCatalog) => (
         <>
+          {form.conflict && (
+            <Alert>
+              <AlertDescription className="flex flex-col gap-3">
+                {form.conflict.loading ? (
+                  <p role="status">Loading the latest server version...</p>
+                ) : form.conflict.error ? (
+                  <>
+                    <p>{form.conflict.error}</p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => void form.fetchLatestDraft()}
+                    >
+                      Retry loading latest version
+                    </Button>
+                  </>
+                ) : (
+                  form.conflict.latest && (
+                    <>
+                      <details>
+                        <summary className="cursor-pointer font-medium">
+                          Review latest server values (revision {form.conflict.latest.revision})
+                        </summary>
+                        <dl className="mt-2 flex flex-col gap-2 text-sm">
+                          <div>
+                            <dt>Status</dt>
+                            <dd>{form.conflict.latest.status}</dd>
+                          </div>
+                          <div>
+                            <dt>Supplier</dt>
+                            <dd>
+                              {suppliers.find(
+                                (supplier) => supplier.id === form.conflict?.latest?.supplierId,
+                              )?.name ?? 'Not set'}
+                            </dd>
+                          </div>
+                          <div>
+                            <dt>Expected date</dt>
+                            <dd>{form.conflict.latest.expectedAt?.slice(0, 10) || 'Not set'}</dd>
+                          </div>
+                          <div>
+                            <dt>Reference</dt>
+                            <dd>{form.conflict.latest.externalReference || 'Not set'}</dd>
+                          </div>
+                          <div>
+                            <dt>Notes</dt>
+                            <dd>{form.conflict.latest.notes || 'Not set'}</dd>
+                          </div>
+                          {form.conflict.latest.items.map((item) => (
+                            <div key={item.id}>
+                              <dt>
+                                {products.find((product) => product.id === item.inventoryItemId)
+                                  ?.name ?? `Product #${item.inventoryItemId}`}
+                              </dt>
+                              <dd>
+                                {item.quantity} × {item.unitPrice}; discount {item.discountAmount};
+                                tax {item.taxAmount}
+                              </dd>
+                            </div>
+                          ))}
+                        </dl>
+                      </details>
+                      <p>
+                        Your edits remain unsaved. Reloading replaces them with the server values.
+                      </p>
+                      <Button type="button" variant="outline" onClick={form.reloadLatestDraft}>
+                        Reload latest draft and discard my edits
+                      </Button>
+                    </>
+                  )
+                )}
+              </AlertDescription>
+            </Alert>
+          )}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <OrderField id="po-supplier" label="Supplier (optional for drafts)">
               <SearchableDropdown
@@ -264,6 +364,7 @@ export function PurchaseModal({
               Enter supplier cost per unit. Discounts apply to each entire line, before VAT.
             </p>
             <OrderItemsTable
+              className="purchase-order-items"
               data={displayLines}
               columns={columns}
               getRowKey={(line) => line.formId}

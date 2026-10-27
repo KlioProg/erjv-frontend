@@ -1,9 +1,11 @@
 import type { InventoryItemResponse } from '@/features/products/products.types'
 import type { Supplier } from '@/features/logistics/suppliers.types'
 import type { PurchaseOrderRecord } from '@/features/logistics/purchase-orders.types'
+import { formatOrderCurrency } from '@/lib/order-amounts'
+import { savedOrderTotals } from '@/lib/order-line-pricing'
+import { formatProductUnit } from '@/lib/product-unit'
 
-const money = (value: string | number) =>
-  `PHP ${Number(value).toLocaleString('en-US', { minimumFractionDigits: 2 })}`
+const money = (value: string | null) => formatOrderCurrency(value).replace('₱', 'PHP ')
 
 const pdfText = (value: string) =>
   value
@@ -19,14 +21,22 @@ const text = (value: string, x: number, y: number, size = 10, color = '0.12 0.16
 const line = (x1: number, y1: number, x2: number, y2: number, color = '0.90 0.91 0.92') =>
   `${color} RG\n1 w\n${x1} ${y1} m\n${x2} ${y2} l\nS`
 
-function createPdf(content: string): Blob {
+function createPdf(pages: string[]): Blob {
   const objects = [
     '<< /Type /Catalog /Pages 2 0 R >>',
-    '<< /Type /Pages /Kids [4 0 R] /Count 1 >>',
+    '',
     '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
-    `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 5 0 R >>`,
-    `<< /Length ${content.length} >>\nstream\n${content}\nendstream`,
   ]
+  const pageIds: number[] = []
+  for (const content of pages) {
+    const pageId = objects.length + 1
+    pageIds.push(pageId)
+    objects.push(
+      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents ${pageId + 1} 0 R >>`,
+      `<< /Length ${content.length} >>\nstream\n${content}\nendstream`,
+    )
+  }
+  objects[1] = `<< /Type /Pages /Kids [${pageIds.map((id) => `${id} 0 R`).join(' ')}] /Count ${pageIds.length} >>`
   let pdf = '%PDF-1.4\n'
   const offsets = [0]
   objects.forEach((object, index) => {
@@ -50,12 +60,12 @@ export function exportPurchaseReceiptPdf(
 ): boolean {
   if (typeof document === 'undefined') return false
 
-  const productNames = new Map(products.map((product) => [product.id, product.name]))
+  const productMap = new Map(products.map((product) => [product.id, product]))
   const supplierName =
     supplier?.name ??
     (order.supplierId == null ? 'No supplier assigned' : `Supplier #${order.supplierId}`)
-  const total = order.items.reduce((sum, item) => sum + Number(item.totalAmount), 0)
-  const content: string[] = [
+  const totals = savedOrderTotals(order.items)
+  const header: string[] = [
     'q',
     '0.50 0.73 0.09 RG',
     '2 w',
@@ -63,7 +73,7 @@ export function exportPurchaseReceiptPdf(
     '545 778 l',
     'S',
     'Q',
-    text('Purchase Receipt', 50, 800, 20),
+    text('Purchase Order', 50, 800, 20),
     text(order.orderNumber, 50, 783, 10, '0.42 0.45 0.49'),
     text('SUPPLIER', 50, 744, 8, '0.42 0.45 0.49'),
     text(supplierName, 50, 728, 10),
@@ -77,33 +87,51 @@ export function exportPurchaseReceiptPdf(
     '50 648 495 24 re',
     'f',
     text('ITEM', 56, 656, 8, '0.25 0.28 0.32'),
-    text('QUANTITY', 355, 656, 8, '0.25 0.28 0.32'),
-    text('UNIT PRICE', 414, 656, 8, '0.25 0.28 0.32'),
-    text('AMOUNT', 500, 656, 8, '0.25 0.28 0.32'),
+    text('QUANTITY', 300, 656, 8, '0.25 0.28 0.32'),
+    text('UNIT COST', 390, 656, 8, '0.25 0.28 0.32'),
+    text('LINE TOTAL', 485, 656, 8, '0.25 0.28 0.32'),
   ]
 
+  const pages: string[][] = []
+  let content = [...header]
   let y = 630
   order.items.forEach((item) => {
-    const name = productNames.get(item.inventoryItemId) ?? `Item #${item.inventoryItemId}`
+    const product = productMap.get(item.inventoryItemId)
+    const name = product?.name ?? 'Product unavailable'
+    const nameLines = name.match(/.{1,43}/g) ?? [name]
+    const rowHeight = Math.max(nameLines.length * 12, 14) + 27
+    if (y - rowHeight < 145) {
+      pages.push(content)
+      content = [...header]
+      y = 630
+    }
+    nameLines.forEach((part, index) => content.push(text(part, 56, y - index * 12, 9)))
+    const detailY = y - Math.max(nameLines.length * 12, 14)
     content.push(
-      text(name.slice(0, 43), 56, y, 9),
-      text(item.quantity, 375, y, 9),
-      text(money(item.unitPrice), 414, y, 9),
-      text(money(item.totalAmount), 500, y, 9),
-      line(50, y - 9, 545, y - 9),
+      text([item.quantity, formatProductUnit(product?.unit)].filter(Boolean).join(' '), 300, y, 9),
+      text(money(item.unitPrice), 390, y, 9),
+      text(money(item.totalAmount), 485, y, 9),
+      text(`Discount: ${money(item.discountAmount)}`, 56, detailY, 8),
+      text(`VAT: ${money(item.taxAmount)}`, 270, detailY, 8),
+      text(`Subtotal: ${money(item.subtotalAmount)}`, 410, detailY, 8),
+      line(50, y - rowHeight + 10, 545, y - rowHeight + 10),
     )
-    y -= 27
+    y -= rowHeight
   })
 
   content.push(
-    text(`Total: ${money(total)}`, 414, Math.max(y - 8, 80), 13),
+    text(`Subtotal: ${money(totals?.subtotal ?? null)}`, 350, y - 5, 10),
+    text(`Discount: ${money(totals?.discount ?? null)}`, 350, y - 20, 10),
+    text(`VAT: ${money(totals?.vat ?? null)}`, 350, y - 35, 10),
+    text(`Total: ${money(totals?.total ?? null)}`, 350, y - 55, 13),
     text('Generated from ERJVPOS', 218, 42, 8, '0.42 0.45 0.49'),
   )
 
-  const url = URL.createObjectURL(createPdf(content.join('\n')))
+  pages.push(content)
+  const url = URL.createObjectURL(createPdf(pages.map((page) => page.join('\n'))))
   const link = document.createElement('a')
   link.href = url
-  link.download = `purchase-receipt-${order.orderNumber}.pdf`
+  link.download = `purchase-order-${order.orderNumber}.pdf`
   link.click()
   setTimeout(() => URL.revokeObjectURL(url), 1000)
   return true

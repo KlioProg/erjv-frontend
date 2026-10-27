@@ -67,7 +67,7 @@ export function RemoveOrderItem({ name, onRemove }: { name: string; onRemove: ()
       type="button"
       variant="ghost"
       size="icon"
-      className="size-9 text-destructive/80 hover:bg-destructive/10 hover:text-destructive pointer-coarse:size-11"
+      className="size-9 shrink-0 text-destructive/80 hover:bg-destructive/10 hover:text-destructive pointer-coarse:size-11"
       onClick={onRemove}
       aria-label={`Remove ${name}`}
       title={`Remove ${name}`}

@@ -7,7 +7,6 @@ import type {
 import type { InventoryItemResponse } from '../products/products.types'
 import { parseOrderDecimal } from '../../lib/order-amounts.ts'
 import { discountFields, savedLineDiscount } from '../../lib/order-line-pricing.ts'
-import type { SalesOrderLineCommand } from './sales-orders.types'
 
 export function buildSalesOrderPayload(values: OrderFormValues): CreateSalesOrderPayload {
   return {
@@ -20,9 +19,15 @@ export function buildSalesOrderPayload(values: OrderFormValues): CreateSalesOrde
       inventoryItemId: line.productId,
       quantity: line.quantity,
       unitPrice: line.unitPrice,
-      ...discountFields(line.discount ?? savedLineDiscount(line.terms ?? {
-        discountRate: values.discountRate ?? '0.00', discountAmount: '0.00',
-      })),
+      ...discountFields(
+        line.discount ??
+          savedLineDiscount(
+            line.terms ?? {
+              discountRate: values.discountRate ?? '0.00',
+              discountAmount: '0.00',
+            },
+          ),
+      ),
       taxRate: line.taxRate ?? line.terms?.taxRate ?? values.taxRate,
       ...(line.terms?.notes !== undefined ? { notes: line.terms.notes } : {}),
     })),
@@ -85,14 +90,7 @@ export function buildSalesOrderDraftPayload(
       )
     })
   if (itemsChanged) {
-    assertSalesDraftDiscountSupport(items)
     payload.items = items
   }
   return payload
-}
-
-export function assertSalesDraftDiscountSupport(items?: SalesOrderLineCommand[]) {
-  // shortcut: the verified backend has no SO draft item DTO; enable fixed drafts only after verifying that contract.
-  if (items?.some((item) => item.discountAmount !== undefined))
-    throw new Error('Fixed line discounts cannot be saved on Sales Order drafts yet. Your changes have not been submitted.')
 }

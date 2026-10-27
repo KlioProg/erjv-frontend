@@ -1,4 +1,6 @@
 import { apiClient, extractArray, type FetchParams } from '@/lib/api-client'
+import { parseStockCents } from './stock-display'
+import { decimalString } from './purchase-pricing'
 import type {
   CreateDeliveryVehiclePayload,
   DeliveryVehicle,
@@ -30,15 +32,23 @@ export async function fetchVehicleByPlateNumberApi(
   return data
 }
 
+function vehicleCapacity(value: string | number | null | undefined): string | null {
+  if (value == null || String(value).trim() === '') return null
+  const parsed = parseStockCents(value)
+  if (parsed === null || parsed > 999_999_999_999n)
+    throw new Error('Capacity must be non-negative, with up to two decimals and 10 whole digits.')
+  return decimalString(parsed)
+}
+
 export async function createVehicleApi(
   payload: CreateDeliveryVehiclePayload,
 ): Promise<DeliveryVehicle> {
-  const parsedCap = payload.capacity ? parseFloat(String(payload.capacity)) : null
+  const parsedCap = vehicleCapacity(payload.capacity)
   const cleanPayload: Record<string, unknown> = {
     plateNumber: payload.plateNumber.trim().toUpperCase(),
     vehicleType: payload.vehicleType.trim(),
     ...(payload.model?.trim() ? { model: payload.model.trim() } : {}),
-    ...(parsedCap !== null && !isNaN(parsedCap) ? { capacity: parsedCap.toFixed(2) } : {}),
+    ...(parsedCap !== null ? { capacity: parsedCap } : {}),
     ...(payload.status ? { status: payload.status } : {}),
     isActive: true,
   }
@@ -51,13 +61,13 @@ export async function updateVehicleDetailsApi(
   id: number,
   payload: UpdateDeliveryVehicleDetailsPayload,
 ): Promise<DeliveryVehicle> {
-  const parsedCap = payload.capacity ? parseFloat(String(payload.capacity)) : null
+  const parsedCap = vehicleCapacity(payload.capacity)
   const cleanPayload: Record<string, unknown> = {
     ...(payload.plateNumber ? { plateNumber: payload.plateNumber.trim().toUpperCase() } : {}),
     ...(payload.vehicleType ? { vehicleType: payload.vehicleType.trim() } : {}),
     ...(payload.model !== undefined ? { model: payload.model?.trim() || null } : {}),
     ...(payload.capacity === null ? { capacity: null } : {}),
-    ...(parsedCap !== null && !isNaN(parsedCap) ? { capacity: parsedCap.toFixed(2) } : {}),
+    ...(parsedCap !== null ? { capacity: parsedCap } : {}),
   }
 
   const { data } = await apiClient.patch<DeliveryVehicle>(

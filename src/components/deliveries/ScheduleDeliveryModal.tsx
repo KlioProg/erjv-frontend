@@ -1,4 +1,4 @@
-﻿import { useState, type FormEvent } from 'react'
+import { useState, type FormEvent } from 'react'
 import { DeliveryFormDialog, DeliveryFormFooter } from './shared/DeliveryFormDialog'
 import { deliveryFormStyles } from './shared/delivery-form.styles'
 import { Spinner } from '@/components/ui/spinner'
@@ -20,11 +20,16 @@ import { outgoingOrderRemaining } from '@/features/logistics/outgoing-planning'
 import type { OutgoingDeliveryRecord } from '@/features/logistics/outgoing-deliveries.types'
 import type { SalesOrderItemRecord } from '@/features/crm/sales-orders.types'
 import { decimalString, parseOrderDecimal } from '@/lib/order-amounts'
+import { formatStockCents } from '@/features/logistics/stock-display'
 
 interface ScheduleDeliveryModalProps {
   open: boolean
   onClose: () => void
   preselectedOrderId?: number
+  onScheduled?: (delivery: OutgoingDeliveryRecord) => void
+  onSaved?: (delivery: OutgoingDeliveryRecord) => void
+  onViewDeliveries?: (salesOrderId: number) => void
+  onViewDelivery?: (delivery: OutgoingDeliveryRecord) => void
   draftId?: number
 }
 const description =
@@ -77,6 +82,10 @@ function OutgoingPlanningForm({
   open,
   onClose,
   preselectedOrderId,
+  onScheduled,
+  onSaved,
+  onViewDeliveries,
+  onViewDelivery,
   initialDraft,
 }: ScheduleDeliveryModalProps & { initialDraft?: OutgoingDeliveryRecord | null }) {
   const form = useOutgoingPlanning(initialDraft, preselectedOrderId)
@@ -94,7 +103,37 @@ function OutgoingPlanningForm({
         {message}
       </p>
     ) : null
-  const rows = order?.items ?? []
+  const remaining = (item: SalesOrderItemRecord) =>
+    outgoingOrderRemaining(
+      form.orderOptions.find(
+        (option) =>
+          option.salesOrderItemId === item.id && option.inventoryItemId === item.inventoryItemId,
+      ),
+    )
+  const fullyPlanned =
+    !form.planningLoading &&
+    !form.loadFailed &&
+    !savedDraft &&
+    !!order?.items.length &&
+    order.items.every((item) => remaining(item) === '0.00')
+  const unknownPlanning = !!order?.items.some((item) => remaining(item) === null)
+  const unavailableEnteredLines = savedDraft
+    ? []
+    : (order?.items ?? []).filter(
+        (item) =>
+          remaining(item) === '0.00' &&
+          (parseOrderDecimal(form.quantities[item.id] ?? '') ?? 0n) > 0n,
+      )
+  const rows = (order?.items ?? []).filter(
+    (item) => savedDraft || (parseOrderDecimal(remaining(item) ?? '') ?? 0n) > 0n,
+  )
+  const hasWarehouseCapacity = rows.some(
+    (item) =>
+      (parseOrderDecimal(
+        form.options.find((option) => option.salesOrderItemId === item.id)
+          ?.maximumPlannableQuantity ?? '',
+      ) ?? 0n) > 0n,
+  )
   const columns: ColumnDef<SalesOrderItemRecord>[] = [
     {
       id: 'product',
@@ -122,22 +161,26 @@ function OutgoingPlanningForm({
     },
     {
       id: 'available',
-      header: 'Warehouse Available',
+      header: 'Warehouse Remaining',
       align: 'right',
       cell: ({ row }) =>
         formatQuantity(
-          form.options.find((option) => option.salesOrderItemId === row.id)?.availableQuantity,
+          form.options.find((option) => option.salesOrderItemId === row.id)
+            ?.warehouseRemainingQuantity,
         ),
     },
     {
       id: 'quantity',
       header: 'Planned Quantity',
-      align: 'right',
+      align: 'center',
       width: '34%',
       cell: ({ row }) => {
         const product = form.products.find((product) => product.id === row.inventoryItemId)
         const option = form.options.find((option) => option.salesOrderItemId === row.id)
         const field = `quantity-${row.id}`
+        const maximum = parseOrderDecimal(option?.maximumPlannableQuantity ?? '')
+        const quantity = parseOrderDecimal(form.quantities[row.id] || '0')
+        const maximumHint = `Max ${formatStockCents(maximum)} ${product?.unit || 'units'}`
         const hint = !form.warehouseId
           ? 'Select a source warehouse.'
           : form.planningLoading
@@ -146,36 +189,58 @@ function OutgoingPlanningForm({
               ? 'Planning availability is unavailable. Retry loading.'
               : parseOrderDecimal(option.maximumPlannableQuantity) === 0n
                 ? 'No planning capacity in this warehouse.'
-                : `Maximum ${formatQuantity(option.maximumPlannableQuantity)} ${product?.unit || 'units'}`
+                : `Maximum planned quantity: ${formatStockCents(maximum)} ${product?.unit || 'units'}.`
         return (
-          <div className="ml-auto flex min-w-36 max-w-56 flex-col gap-1.5">
+          <div className="mx-auto flex w-28 max-w-full flex-col items-center justify-center gap-1.5 text-center">
             <Input
               id={`delivery-${field}`}
               aria-label={`Quantity to ship for ${product?.name || `Product #${row.inventoryItemId}`}`}
-              type="number"
+              type="text"
+              inputMode="decimal"
               min="0"
               step="0.01"
               placeholder="0"
+              title={hint}
               max={option?.maximumPlannableQuantity}
               value={form.quantities[row.id] ?? ''}
-              disabled={readOnly || !form.activeWarehouse || form.planningLoading || !option}
+              disabled={
+                readOnly ||
+                !form.activeWarehouse ||
+                form.planningLoading ||
+                !option ||
+                (maximum === 0n && quantity === 0n)
+              }
               onChange={(event) => form.changeQuantity(row.id, event.target.value)}
               aria-invalid={!!errors[field]}
               aria-describedby={`delivery-${field}-hint${errors[field] ? ` delivery-${field}-error` : ''}`}
-              className={`${deliveryFormStyles.control} text-right tabular-nums`}
+              className={`${deliveryFormStyles.control} text-center tabular-nums`}
             />
-            {fieldError(field)}
-            <p id={`delivery-${field}-hint`} className="text-xs text-muted-foreground">
+            <p id={`delivery-${field}-hint`} className="sr-only">
               {hint}
             </p>
+            {maximum === 0n && (
+              <p className="text-xs text-muted-foreground">
+                No planning capacity in this warehouse.
+              </p>
+            )}
+            {fieldError(
+              field,
+              errors[field] && maximum !== null && quantity !== null && quantity > maximum
+                ? maximumHint
+                : errors[field],
+            )}
           </div>
         )
       },
     },
   ]
+  const save = async (intent: 'draft' | 'schedule') => {
+    const delivery = await form.submit(intent)
+    if (delivery) onSaved?.(delivery)
+  }
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault()
-    void form.submit('schedule')
+    void save('schedule')
   }
   return (
     <DeliveryFormDialog
@@ -199,12 +264,21 @@ function OutgoingPlanningForm({
             </p>
           </div>
           <DeliveryFormFooter>
+            {savedDraft && onViewDelivery && (
+              <Button variant="outline" onClick={() => onViewDelivery(savedDraft)}>
+                View Delivery
+              </Button>
+            )}
             <Button
               variant="primary-contrast"
-              onClick={dismiss}
+              onClick={() => {
+                if (form.completed === 'SCHEDULED' && savedDraft && onScheduled)
+                  onScheduled(savedDraft)
+                else dismiss()
+              }}
               className={deliveryFormStyles.button}
             >
-              Done
+              {form.completed === 'SCHEDULED' && onScheduled ? 'Continue to Dispatch' : 'Done'}
             </Button>
           </DeliveryFormFooter>
         </div>
@@ -418,9 +492,58 @@ function OutgoingPlanningForm({
                       pagination={false}
                       appearance="subtle"
                       tableClassName="min-w-[580px] tabular-nums"
-                      emptyContent="This Sales Order has no current product lines."
+                      emptyContent={
+                        fullyPlanned ? (
+                          <div className="flex flex-col items-center gap-2 p-4 text-sm">
+                            <p>All quantities for this Sales Order are already planned.</p>
+                            <p className="text-xs text-muted-foreground">
+                              View its existing outgoing deliveries or choose another order.
+                            </p>
+                            {onViewDeliveries && order && (
+                              <Button
+                                type="button"
+                                variant="link"
+                                onClick={() => onViewDeliveries(order.id)}
+                              >
+                                View existing deliveries
+                              </Button>
+                            )}
+                          </div>
+                        ) : !form.warehouseId ? (
+                          'Select a source warehouse to load planning quantities.'
+                        ) : form.planningLoading ? (
+                          'Loading planning availability...'
+                        ) : (
+                          'No known positive planning quantities are available.'
+                        )
+                      }
                     />
+                    {!!form.warehouseId && !form.planningLoading && unknownPlanning && (
+                      <p className="text-xs text-muted-foreground">
+                        Some planning quantities are unavailable. Reload availability before
+                        planning those products.
+                      </p>
+                    )}
                     {fieldError('plan')}
+                    {!!unavailableEnteredLines.length && (
+                      <div className="text-xs text-muted-foreground">
+                        <p>
+                          Some entered quantities are no longer available to plan. Clear those
+                          values and review the remaining products.
+                        </p>
+                        <Button
+                          type="button"
+                          variant="link"
+                          onClick={() =>
+                            unavailableEnteredLines.forEach((item) =>
+                              form.changeQuantity(item.id, ''),
+                            )
+                          }
+                        >
+                          Clear quantities no longer available
+                        </Button>
+                      </div>
+                    )}
                     <p className="text-xs text-muted-foreground">
                       Planning limits include existing shipments and scheduled plans. Scheduling
                       fixes the warehouse and quantities; it does not reserve physical stock.
@@ -495,9 +618,11 @@ function OutgoingPlanningForm({
                 form.loading ||
                 form.loadFailed ||
                 !form.eligible ||
-                !form.activeWarehouse
+                !form.activeWarehouse ||
+                fullyPlanned ||
+                (!savedDraft && !rows.length)
               }
-              onClick={() => void form.submit('draft')}
+              onClick={() => void save('draft')}
               className={deliveryFormStyles.button}
             >
               Save Draft
@@ -511,7 +636,9 @@ function OutgoingPlanningForm({
                 form.loading ||
                 form.loadFailed ||
                 !form.eligible ||
-                !form.activeWarehouse
+                !form.activeWarehouse ||
+                fullyPlanned ||
+                !hasWarehouseCapacity
               }
             >
               {form.phase === 'checking'

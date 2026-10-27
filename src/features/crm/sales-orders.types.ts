@@ -1,3 +1,5 @@
+import type { CursorParams } from '@/lib/cursor-pagination'
+
 export type SalesOrderStatus =
   'DRAFT' | 'CONFIRMED' | 'PARTIALLY_DELIVERED' | 'DELIVERED' | 'CANCELLED'
 
@@ -72,7 +74,7 @@ export interface CreateSalesOrderPayload {
   items: SalesOrderLineCommand[]
 }
 
-export interface SalesOrderFilter {
+export interface SalesOrderFilter extends CursorParams {
   status?: SalesOrderStatus
   clientId?: number
 }

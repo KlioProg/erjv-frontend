@@ -1,5 +1,10 @@
 /** Shared density for incoming and outgoing scheduling; workflow stays domain-owned. */
 export const deliveryFormStyles = {
+  outcomeChoice:
+    'flex min-h-11 cursor-pointer items-center gap-3 rounded-md border border-input bg-card p-3 has-[:checked]:border-primary has-[:checked]:bg-primary/5 has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-60',
+  outcomeRadio:
+    'size-4 shrink-0 appearance-none rounded-full border border-input bg-card checked:border-primary checked:bg-primary checked:shadow-[inset_0_0_0_3px_var(--card)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background',
+
   dialog:
     'flex max-h-[min(880px,90dvh)] w-[calc(100vw-2rem)] flex-col gap-4 overflow-hidden p-6 sm:max-w-3xl [&>button:last-child]:grid [&>button:last-child]:size-8 [&>button:last-child]:place-items-center pointer-coarse:[&>button:last-child]:size-11',
   header: 'shrink-0 gap-1.5 pr-8 text-left',

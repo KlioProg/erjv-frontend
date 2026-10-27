@@ -4,7 +4,7 @@ import {
 } from '@/components/ui/DataTableExpandedSection'
 import { formatProductUnit } from '@/lib/product-unit'
 import { PageToolbar } from '@/components/ui/ManagementPage'
-import { useState, useMemo, useEffect, useRef } from 'react'
+import { useState, useMemo, useEffect, useRef, type ReactNode } from 'react'
 import { Package, Plus, Search, Tag, ArrowRight, Warehouse as WarehouseIcon } from 'lucide-react'
 import {
   buildStockWarnings,
@@ -50,7 +50,7 @@ import type { InventoryItemResponse } from '@/features/products/products.types'
 import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal'
 import { InventoryItemModal } from '@/components/operations/InventoryItemModal'
 import { getErrorMessage } from '@/lib/api-client'
-import { formatStockCents, parseStockCents, stockSortKey } from '@/features/logistics/stock-display'
+import { availableStockCents, formatStockCents, parseStockCents, stockSortKey } from '@/features/logistics/stock-display'
 
 export interface InventoryItemCatalogProps {
   activeTab?: 'ACTIVE' | 'ARCHIVED'
@@ -58,6 +58,8 @@ export interface InventoryItemCatalogProps {
   hideArchiveNav?: boolean
   onOpenWarehouse?: (warehouseId: number) => void
   focusTarget?: InventoryNavigationTarget
+  reportAction?: ReactNode
+  navigationAction?: ReactNode
 }
 
 export function InventoryItemCatalog({
@@ -66,6 +68,8 @@ export function InventoryItemCatalog({
   hideArchiveNav = false,
   onOpenWarehouse,
   focusTarget: navigationTarget,
+  reportAction,
+  navigationAction,
 }: InventoryItemCatalogProps = {}) {
   const focusTarget =
     navigationTarget && 'productId' in navigationTarget ? navigationTarget : undefined
@@ -414,64 +418,75 @@ export function InventoryItemCatalog({
             .sort((a, b) =>
               String(a.warehouse?.name ?? '').localeCompare(String(b.warehouse?.name ?? '')),
             )
-            .map((stock) => (
-              <div
-                key={stock.id}
-                id={`inventory-location-${product.id}-${stock.warehouseId}`}
-                tabIndex={-1}
-                aria-label={`Stock location ${stock.warehouse?.name || `Warehouse #${stock.warehouseId}`} for ${product.name}`}
-                className={cn(
-                  'grid min-h-11 min-w-0 gap-x-4 gap-y-1 py-1 sm:grid-cols-[minmax(0,1fr)_18rem] sm:items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                  stockConditionForItem(stock) === 'OUT' &&
-                    product.isActive &&
-                    'bg-destructive/5',
-                  focusTarget?.productId === product.id &&
-                    focusTarget.warehouseId === stock.warehouseId &&
-                    'ring-2 ring-ring',
-                )}
-              >
-                <div className="flex min-w-0 flex-1 items-center gap-2">
-                  <WarehouseIcon className="size-4 shrink-0 text-muted-foreground" />
-                  <OverflowValue
-                    value={stock.warehouse?.name || `Warehouse #${stock.warehouseId}`}
-                    onActivate={
-                      onOpenWarehouse ? () => onOpenWarehouse(stock.warehouseId) : undefined
-                    }
-                    className="h-auto min-h-8 p-0 text-left text-sm font-medium pointer-coarse:min-h-11"
-                  />
-                </div>
-                <div className="grid min-w-0 grid-cols-[1rem_minmax(0,1fr)_minmax(0,4rem)_auto] items-center gap-2 pl-6 sm:pl-0">
-                  {product.isActive && (
-                    <StockIndicator
-                      condition={stockConditionForItem(stock)}
-                      label={`${stockConditionForItem(stock) === 'LOW' ? 'Low stock' : 'Out of stock'} at ${stock.warehouse?.name || `Warehouse #${stock.warehouseId}`}`}
-                    />
+            .map((stock) => {
+              const quarantined = parseStockCents(
+                stock.quarantinedQuantity ?? stock.damagedQuantity ?? '0',
+              )
+              return (
+                <div
+                  key={stock.id}
+                  id={`inventory-location-${product.id}-${stock.warehouseId}`}
+                  tabIndex={-1}
+                  aria-label={`Stock location ${stock.warehouse?.name || `Warehouse #${stock.warehouseId}`} for ${product.name}`}
+                  className={cn(
+                    'grid min-h-11 min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                    stockConditionForItem(stock) === 'OUT' &&
+                      product.isActive &&
+                      'bg-destructive/5',
+                    focusTarget?.productId === product.id &&
+                      focusTarget.warehouseId === stock.warehouseId &&
+                      'ring-2 ring-ring',
                   )}
-                  <OverflowValue
-                    value={formatStockCents(parseStockCents(stock.quantity))}
-                    fullValue={
-                      parseStockCents(stock.quantity) === null ? stock.quantity : undefined
-                    }
-                    tooltipSuffix={formatProductUnit(product.unit, 'units')}
-                    className="col-start-2 text-right text-sm font-normal tabular-nums"
-                  />
-                  <span className="col-start-3 min-w-0 text-xs text-muted-foreground [overflow-wrap:anywhere]">
-                    {formatProductUnit(product.unit, 'units')}
-                  </span>
-                  {onOpenWarehouse && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => onOpenWarehouse(stock.warehouseId)}
-                      aria-label={`View inventory in ${String(stock.warehouse?.name ?? 'warehouse')}`}
-                      className="col-start-4 h-8 shrink-0 gap-1 px-2 text-[13px] text-primary-text pointer-coarse:min-h-11"
-                    >
-                      View <ArrowRight className="size-3.5" />
-                    </Button>
-                  )}
+                >
+                  <div className="flex min-w-0 flex-col gap-0.5">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <WarehouseIcon className="size-4 shrink-0 text-muted-foreground" />
+                      <OverflowValue
+                        value={stock.warehouse?.name || `Warehouse #${stock.warehouseId}`}
+                        onActivate={
+                          onOpenWarehouse ? () => onOpenWarehouse(stock.warehouseId) : undefined
+                        }
+                        className="h-auto min-h-8 whitespace-normal p-0 text-left text-sm font-medium [overflow-wrap:anywhere] pointer-coarse:min-h-11"
+                      />
+                    </div>
+                    {quarantined !== null && quarantined > 0n && (
+                      <span className="pl-6 text-xs text-status-warning-foreground [overflow-wrap:anywhere]">
+                        {formatStockCents(quarantined)} {formatProductUnit(product.unit, 'units')}{' '}
+                        quarantined
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+                    <div className="flex w-24 min-w-0 flex-col items-end gap-0.5 sm:w-28">
+                      <div className="flex max-w-full items-center justify-end gap-1.5">
+                        {product.isActive && (
+                          <StockIndicator
+                            condition={stockConditionForItem(stock)}
+                            label={`${stockConditionForItem(stock) === 'LOW' ? 'Low stock' : 'Out of stock'} at ${stock.warehouse?.name || `Warehouse #${stock.warehouseId}`}`}
+                          />
+                        )}
+                        <span className="min-w-0 text-right text-sm font-medium tabular-nums [overflow-wrap:anywhere]">
+                          {formatStockCents(availableStockCents(stock))}{' '}
+                          {formatProductUnit(product.unit, 'units')}
+                        </span>
+                      </div>
+                      <span className="text-[11px] text-muted-foreground">Available</span>
+                    </div>
+                    {onOpenWarehouse && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => onOpenWarehouse(stock.warehouseId)}
+                        aria-label={`View inventory in ${String(stock.warehouse?.name ?? 'warehouse')}`}
+                        className="h-8 shrink-0 gap-1 px-2 text-[13px] text-primary-text pointer-coarse:min-h-11"
+                      >
+                        View <ArrowRight className="size-3.5" />
+                      </Button>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
         </div>
       </DataTableExpandedSection>
     )
@@ -481,16 +496,21 @@ export function InventoryItemCatalog({
     <div className="flex flex-col gap-4">
       {/* Archive / Active Tabs (Only shown if not hidden by parent UnifiedNavbar) */}
       {!hideArchiveNav && (
-        <ArchiveTabNav
-          activeTab={activeTab}
-          onTabChange={handleTabChange}
-          activeLabel="Active"
-          activeCount={activeProducts.length}
-          archivedLabel="Archived"
-          archivedCount={archivedProducts.length}
-          activeIcon={<Package className="size-3.5" />}
-          bannerDescription="Showing deactivated catalog items. Pricing history and warehouse stock linkages are preserved and can be reactivated anytime."
-        />
+        <div className="grid min-w-0 gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
+          <ArchiveTabNav
+            activeTab={activeTab}
+            onTabChange={handleTabChange}
+            activeLabel="Active"
+            activeCount={activeProducts.length}
+            archivedLabel="Archived"
+            archivedCount={archivedProducts.length}
+            activeIcon={<Package className="size-3.5" />}
+            bannerDescription="Showing deactivated catalog items. Pricing history and warehouse stock linkages are preserved and can be reactivated anytime."
+          />
+          {navigationAction && (
+            <div className="justify-self-start sm:justify-self-end">{navigationAction}</div>
+          )}
+        </div>
       )}
 
       {warningScope && (
@@ -552,7 +572,7 @@ export function InventoryItemCatalog({
             Clear warning filters
           </Button>
           <p className="w-full text-xs text-muted-foreground">
-            Warnings use physical stock at each active warehouse. Product totals include all
+            Warnings use available stock at each active warehouse. Product totals include all
             warehouses. Low-stock detection requires configured reorder thresholds.
           </p>
         </section>
@@ -573,6 +593,8 @@ export function InventoryItemCatalog({
           />
         </div>
 
+        <div className="flex flex-wrap items-center gap-2">
+        {reportAction}
         {(isAdmin || isManager) && activeTab === 'ACTIVE' && (
           <Button
             onClick={handleCreateProduct}
@@ -583,6 +605,7 @@ export function InventoryItemCatalog({
             Register Product
           </Button>
         )}
+        </div>
       </PageToolbar>
 
       {(productsQuery.isError ||

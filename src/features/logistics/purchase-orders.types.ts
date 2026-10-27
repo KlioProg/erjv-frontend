@@ -1,3 +1,5 @@
+import type { CursorParams } from '@/lib/cursor-pagination'
+
 export type PurchaseOrderStatus =
   'DRAFT' | 'CONFIRMED' | 'PARTIALLY_RECEIVED' | 'RECEIVED' | 'CANCELLED'
 
@@ -32,6 +34,7 @@ export interface PurchaseOrderItemRecord {
 
 export interface PurchaseOrderRecord {
   id: number
+  revision: number
   orderNumber: string
   status: PurchaseOrderStatus
   supplierId: number | null
@@ -65,9 +68,9 @@ export interface CreatePurchaseOrderPayload {
   items: PurchaseOrderLineCommand[]
 }
 
-export type UpdatePurchaseOrderDraftPayload = Partial<CreatePurchaseOrderPayload>
+export type UpdatePurchaseOrderDraftPayload = Partial<CreatePurchaseOrderPayload> & { expectedRevision: number }
 
-export interface PurchaseOrderFilter {
+export interface PurchaseOrderFilter extends CursorParams {
   status?: PurchaseOrderStatus
   supplierId?: number
 }

@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { apiClient } from '@/lib/api-client'
+import { getAdapter } from 'axios'
 import { OrdersView } from '@/components/orders/OrdersView'
 import { PurchasesView } from '@/components/purchases/PurchasesView'
 import { AppRoutes } from '@/routing/AppRoutes'
@@ -16,6 +17,9 @@ import type { IncomingDeliveryRecord } from '@/features/logistics/incoming-deliv
 import type { OutgoingDeliveryRecord } from '@/features/logistics/outgoing-deliveries.types'
 import type { ReactNode } from 'react'
 import { toast } from 'sonner'
+import { exportPurchaseReceiptPdf } from '@/lib/purchase-receipt'
+
+vi.mock('@/lib/purchase-receipt', () => ({ exportPurchaseReceiptPdf: vi.fn(() => true) }))
 
 const auth = vi.hoisted(() => ({
   isAdmin: true,
@@ -70,6 +74,7 @@ const salesFixture: SalesOrderRecord = {
 }
 const purchaseFixture: PurchaseOrderRecord = {
   id: 2,
+  revision: 1,
   orderNumber: 'PO-TEST',
   status: 'DRAFT',
   supplierId: 2,
@@ -97,6 +102,7 @@ const incomingFixture = (
       incomingDeliveryId: id,
       purchaseOrderItemId: 20,
       receivedQuantity: '0.20',
+      acceptedQuantity: '0.20',
       ...stamps,
     },
   ],
@@ -200,6 +206,7 @@ beforeEach(() => {
   failReceipt = false
   failIncomingQuery = false
   requests = []
+  vi.mocked(exportPurchaseReceiptPdf).mockClear()
   apiClient.defaults.adapter = async (config) => {
     const url = config.url || ''
     const method = config.method || 'get'
@@ -259,6 +266,7 @@ beforeEach(() => {
       data =
         collections[url] ??
         sales.find((item) => url === `/sales-orders/${item.id}`) ??
+        purchases.find((item) => url === `/purchase-orders/${item.id}`) ??
         (url === '/outgoing-deliveries/planning-options'
           ? [
               {
@@ -270,6 +278,7 @@ beforeEach(() => {
                 availableQuantity: '18.75',
                 plannedQuantity: '0.50',
                 maximumPlannableQuantity: '0.75',
+                warehouseRemainingQuantity: '18.25',
               },
             ]
           : undefined) ??
@@ -317,8 +326,16 @@ beforeEach(() => {
       data = { ...outgoingFixture(90, 'DRAFT'), ...body }
       outgoing = [...outgoing, data as OutgoingDeliveryRecord]
     } else if (method === 'post' && url === '/incoming-deliveries') {
-      data = { ...incomingFixture(91, 'DRAFT'), ...body }
+      data = { ...incomingFixture(91, 'DRAFT'), ...body, items: [] }
       incoming = [...incoming, data as IncomingDeliveryRecord]
+    } else if (url.startsWith('/purchase-orders/') && url.endsWith('/draft')) {
+      const id = Number(url.split('/')[2])
+      purchases = purchases.map((order) =>
+        order.id === id
+          ? ({ ...order, ...body, revision: order.revision + 1 } as PurchaseOrderRecord)
+          : order,
+      )
+      data = purchases.find((order) => order.id === id)
     } else if (url.startsWith('/outgoing-deliveries/') && url.endsWith('/draft')) {
       const id = Number(url.split('/')[2])
       outgoing = outgoing.map((delivery) =>
@@ -369,6 +386,11 @@ beforeEach(() => {
       )
       data = incoming.find((delivery) => delivery.id === 22)
     }
+    if (
+      method === 'get' &&
+      /^\/(sales-orders|purchase-orders|incoming-deliveries|outgoing-deliveries)$/.test(url)
+    )
+      data = { items: data, nextCursor: null }
     return { data, config, headers: {}, status: 200, statusText: 'OK' }
   }
 })
@@ -430,7 +452,9 @@ describe.each(['Sales', 'Purchase'])('%s composer confirmation', (kind) => {
 
   it('creates and confirms the saved ID, shows one notification and opens deliveries only on request', async () => {
     const { user, navigate } = await fillComposer()
-    await user.click(screen.getByRole('button', { name: 'Confirm Order' }))
+    await user.click(
+      screen.getByRole('button', { name: salesOrder ? 'Confirm Order' : 'Confirm Purchase Order' }),
+    )
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
     expect(toast.success).toHaveBeenCalledWith(
       'Order confirmed',
@@ -450,19 +474,24 @@ describe.each(['Sales', 'Purchase'])('%s composer confirmation', (kind) => {
     await user.click(deliveries)
     expect(navigate.mock.calls).toEqual([salesOrder ? ['outgoing', savedId] : [savedId]])
     expect(mutations()).toHaveLength(2)
+    expect(exportPurchaseReceiptPdf).not.toHaveBeenCalled()
   })
 
   it('retains editable data after failed creation and never calls confirm until creation succeeds', async () => {
     const { user } = await fillComposer()
     failCreation = true
-    await user.click(screen.getByRole('button', { name: 'Confirm Order' }))
+    await user.click(
+      screen.getByRole('button', { name: salesOrder ? 'Confirm Order' : 'Confirm Purchase Order' }),
+    )
     expect(await screen.findByText('Create failed.')).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Retry Confirmation' })).toBeNull()
     expect((screen.getByLabelText('Notes') as HTMLTextAreaElement).value).toBe('Keep these details')
     expect(screen.getByLabelText('Notes').matches(':disabled')).toBe(false)
     expect(mutations()).toHaveLength(1)
     failCreation = false
-    await user.click(screen.getByRole('button', { name: 'Confirm Order' }))
+    await user.click(
+      screen.getByRole('button', { name: salesOrder ? 'Confirm Order' : 'Confirm Purchase Order' }),
+    )
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
     expect(toast.success).toHaveBeenCalledWith(
       'Order confirmed',
@@ -475,7 +504,9 @@ describe.each(['Sales', 'Purchase'])('%s composer confirmation', (kind) => {
   it('keeps the saved draft and retries confirmation without a second create', async () => {
     const { user, navigate } = await fillComposer()
     failConfirmation = true
-    await user.click(screen.getByRole('button', { name: 'Confirm Order' }))
+    await user.click(
+      screen.getByRole('button', { name: salesOrder ? 'Confirm Order' : 'Confirm Purchase Order' }),
+    )
     const retry = await screen.findByRole('button', { name: 'Retry Confirmation' })
     expect(screen.getByRole('alert').textContent).toContain('Confirm failed.')
     expect(toast.success).not.toHaveBeenCalled()
@@ -510,7 +541,9 @@ describe.each(['Sales', 'Purchase'])('%s composer confirmation', (kind) => {
         finishCreate = resolve
       }),
     }
-    const confirm = screen.getByRole('button', { name: 'Confirm Order' })
+    const confirm = screen.getByRole('button', {
+      name: salesOrder ? 'Confirm Order' : 'Confirm Purchase Order',
+    })
     const form = confirm.closest('form')!
     fireEvent.click(confirm)
     fireEvent.submit(form, { submitter: confirm })
@@ -533,6 +566,108 @@ describe.each(['Sales', 'Purchase'])('%s composer confirmation', (kind) => {
     expect(mutations()).toHaveLength(2)
   })
 })
+
+it.each(['quick', 'details', 'draft'] as const)(
+  'confirms a Purchase Order from %s without exporting a document',
+  async (source) => {
+    const user = userEvent.setup()
+    mount(<PurchasesView />)
+    await screen.findByText('PO-TEST')
+    if (source === 'quick') await user.click(screen.getByRole('button', { name: 'Confirm' }))
+    else {
+      await user.click(screen.getByRole('button', { name: 'More actions for PO-TEST' }))
+      await user.click(
+        screen.getByRole('menuitem', { name: source === 'draft' ? 'Edit Draft' : 'View Order' }),
+      )
+      await user.click(screen.getByRole('button', { name: 'Confirm Purchase Order' }))
+    }
+    await waitFor(() =>
+      expect(
+        requests.filter((request) => request.url === '/purchase-orders/2/confirm'),
+      ).toHaveLength(1),
+    )
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(exportPurchaseReceiptPdf).not.toHaveBeenCalled()
+    expect(toast.success).toHaveBeenCalledWith('Order confirmed', expect.anything())
+  },
+)
+
+it('prevents duplicate quick confirmations while the Purchase Order request is pending', async () => {
+  let release!: () => void
+  requestGate = {
+    url: '/purchase-orders/2/confirm',
+    wait: new Promise<void>((resolve) => {
+      release = resolve
+    }),
+  }
+  mount(<PurchasesView />)
+  const confirm = await screen.findByRole('button', { name: 'Confirm' })
+  fireEvent.click(confirm)
+  fireEvent.click(confirm)
+  await waitFor(() =>
+    expect(requests.filter((request) => request.url === '/purchase-orders/2/confirm')).toHaveLength(
+      1,
+    ),
+  )
+  expect(exportPurchaseReceiptPdf).not.toHaveBeenCalled()
+  await act(async () => release())
+  await waitFor(() => expect(screen.queryByRole('button', { name: 'Confirm' })).toBeNull())
+  expect(exportPurchaseReceiptPdf).not.toHaveBeenCalled()
+})
+
+it('does not report confirmation or export when the server returns an unconfirmed Purchase Order', async () => {
+  const errorToast = vi.spyOn(toast, 'error').mockReturnValue('confirmation-error')
+  const base = getAdapter(apiClient.defaults.adapter)
+  apiClient.defaults.adapter = async (config) => {
+    const response = await base(config)
+    if (config.url === '/purchase-orders/2/confirm')
+      response.data = { ...response.data, status: 'DRAFT' }
+    return response
+  }
+  const user = userEvent.setup()
+  mount(<PurchasesView />)
+  await user.click(await screen.findByRole('button', { name: 'Confirm' }))
+  await waitFor(() =>
+    expect(errorToast).toHaveBeenCalledWith(expect.stringContaining('server did not confirm')),
+  )
+  expect(toast.success).not.toHaveBeenCalled()
+  expect(exportPurchaseReceiptPdf).not.toHaveBeenCalled()
+})
+
+it.each(['DRAFT', 'CONFIRMED', 'PARTIALLY_RECEIVED', 'RECEIVED', 'CANCELLED'] as const)(
+  'offers explicit Purchase Order export only for eligible %s records',
+  async (status) => {
+    purchases[0].status = status
+    const user = userEvent.setup()
+    mount(<PurchasesView />)
+    if (status === 'RECEIVED' || status === 'CANCELLED')
+      await user.click(
+        screen.getByRole('button', {
+          name: status === 'RECEIVED' ? /^Received Orders/ : /^Cancelled/,
+        }),
+      )
+    await user.click(await screen.findByRole('button', { name: 'More actions for PO-TEST' }))
+    const eligible = status !== 'DRAFT' && status !== 'CANCELLED'
+    if (eligible) {
+      await user.click(screen.getByRole('menuitem', { name: 'Print / Download Purchase Order' }))
+      expect(exportPurchaseReceiptPdf).toHaveBeenCalledOnce()
+      await user.click(screen.getByRole('button', { name: 'More actions for PO-TEST' }))
+    } else
+      expect(screen.queryByRole('menuitem', { name: 'Print / Download Purchase Order' })).toBeNull()
+    await user.click(screen.getByRole('menuitem', { name: 'View Order' }))
+    if (eligible) {
+      await user.click(screen.getByRole('button', { name: 'Print / Download Purchase Order' }))
+      expect(exportPurchaseReceiptPdf).toHaveBeenCalledTimes(2)
+      expect(exportPurchaseReceiptPdf).toHaveBeenLastCalledWith(
+        expect.objectContaining({ id: 2, status }),
+        expect.objectContaining({ name: 'Test Supplier' }),
+        expect.any(Array),
+      )
+    } else
+      expect(screen.queryByRole('button', { name: 'Print / Download Purchase Order' })).toBeNull()
+    expect(requests.filter((request) => request.method !== 'get')).toHaveLength(0)
+  },
+)
 
 describe('order to delivery workflow', () => {
   it('opens an existing outgoing draft for review before scheduling its current revision', async () => {
@@ -558,7 +693,7 @@ describe('order to delivery workflow', () => {
     const schedule = await screen.findByRole('button', { name: 'Schedule OUT-5' })
     expect(schedule.closest('tr')?.textContent).toContain('Test Warehouse')
     await user.click(schedule)
-    const quantity = await screen.findByRole('spinbutton', {
+    const quantity = await screen.findByRole('textbox', {
       name: 'Quantity to ship for Test Mango',
     })
     await waitFor(() => expect((quantity as HTMLInputElement).disabled).toBe(false))
@@ -905,7 +1040,7 @@ describe('order to delivery workflow', () => {
     mount(<ScheduleDeliveryModal open preselectedOrderId={1} onClose={close} />)
     await user.click(await screen.findByRole('combobox', { name: /Stock Source \/ Warehouse/ }))
     await user.click(screen.getByRole('option', { name: /Test Warehouse/ }))
-    const quantity = await screen.findByRole('spinbutton', {
+    const quantity = await screen.findByRole('textbox', {
       name: 'Quantity to ship for Test Mango',
     })
     await waitFor(() => expect((quantity as HTMLInputElement).disabled).toBe(false))
@@ -937,26 +1072,35 @@ describe('order to delivery workflow', () => {
   it('opens incoming arrangement with the correct PO and preserves a fractional receiving balance', async () => {
     purchases[0].status = 'CONFIRMED'
     purchases[0].items[0].quantity = '0.25'
-    incoming = [incomingFixture(22, 'SCHEDULED'), incomingFixture(24, 'CANCELLED')]
+    incoming = [incomingFixture(22, 'COMPLETED'), incomingFixture(24, 'CANCELLED')]
     const user = userEvent.setup()
     mount(<DeliveriesHub initialTab="incoming" purchaseOrderId={2} arrangeOrder />)
-    const quantity = await screen.findByRole('textbox', {
-      name: 'Quantity to receive for Test Mango',
-    })
-    expect((quantity as HTMLInputElement).value).toBe('0.05')
-    await user.click(screen.getByRole('combobox', { name: /Target Warehouse/ }))
+    const summary = await screen.findByRole('region', { name: 'Purchase order receiving summary' })
+    await waitFor(() => expect(within(summary).getByText('0.05')).toBeTruthy())
+    expect(within(summary).queryByRole('textbox')).toBeNull()
+    await user.click(screen.getByRole('combobox', { name: /Destination Warehouse/ }))
     await user.click(screen.getByRole('option', { name: 'Test Warehouse' }))
+    await user.type(screen.getByLabelText('Supplier Reference (optional)'), ' WAYBILL-12 ')
+    await user.type(screen.getByLabelText('Notes (optional)'), ' Dock 2 ')
     await user.click(screen.getByRole('button', { name: 'Schedule Incoming Delivery' }))
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
-    expect(requests.find((request) => request.method === 'post')?.body.items).toEqual([
-      { purchaseOrderItemId: 20, receivedQuantity: '0.05' },
-    ])
+    expect(requests.find((request) => request.method === 'post')?.body).toMatchObject({
+      purchaseOrderId: 2,
+      warehouseId: 1,
+      supplierReference: 'WAYBILL-12',
+      notes: 'Dock 2',
+    })
+    expect(requests.find((request) => request.method === 'post')?.body).not.toHaveProperty('items')
+    expect(
+      requests.find((request) => request.url === '/incoming-deliveries/91/schedule')?.body,
+    ).toEqual({})
+    expect(await screen.findByText('IN-91')).toBeTruthy()
     expect(requests.some((request) => request.url.endsWith('/complete'))).toBe(false)
   })
 
-  it('hides fully arranged purchases while retaining partial and cancelled shipment balances', async () => {
+  it('hides fully received purchases while retaining scheduled and cancelled shipment balances', async () => {
     purchases[0].status = 'CONFIRMED'
-    purchases[0].items[0].quantity = '0.60'
+    purchases[0].items[0].quantity = '0.20'
     const partial = structuredClone(purchases[0])
     partial.id = 3
     partial.orderNumber = 'PO-PARTIAL'
@@ -1001,27 +1145,26 @@ describe('order to delivery workflow', () => {
     expect(
       screen.getByRole('option', { name: /PO-CANCELLED-SHIPMENT.*0.20 remaining/ }),
     ).toBeTruthy()
-    await user.click(screen.getByRole('option', { name: /PO-PARTIAL.*0.05 remaining/ }))
+    await user.click(screen.getByRole('option', { name: /PO-PARTIAL.*0.25 remaining/ }))
     expect(
-      (
-        screen.getByRole('textbox', {
-          name: 'Quantity to receive for Test Mango',
-        }) as HTMLInputElement
-      ).value,
-    ).toBe('0.05')
-    await user.click(screen.getByRole('combobox', { name: /Target Warehouse/ }))
+      within(screen.getByRole('region', { name: 'Purchase order receiving summary' })).getAllByText(
+        '0.25',
+      ),
+    ).toHaveLength(2)
+    expect(screen.queryByRole('textbox', { name: /Quantity to receive/ })).toBeNull()
+    await user.click(screen.getByRole('combobox', { name: /Destination Warehouse/ }))
     await user.click(screen.getByRole('option', { name: 'Test Warehouse' }))
     await user.click(screen.getByRole('button', { name: 'Schedule Incoming Delivery' }))
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
     expect(requests.find((request) => request.method === 'post')?.body).toMatchObject({
       purchaseOrderId: 3,
-      items: [{ purchaseOrderItemId: 30, receivedQuantity: '0.05' }],
+      warehouseId: 1,
     })
   })
 
   it('shows an empty picker when every purchase is already arranged and prevents scheduling', async () => {
     purchases[0].status = 'CONFIRMED'
-    purchases[0].items[0].quantity = '0.60'
+    purchases[0].items[0].quantity = '0.20'
     mount(<DeliveriesHub initialTab="incoming" purchaseOrderId={2} arrangeOrder />)
     await screen.findByText(
       'No purchase orders have remaining quantities to arrange. Review existing Incoming Deliveries.',
@@ -1050,9 +1193,10 @@ describe('order to delivery workflow', () => {
     const { queryClient } = mount(
       <DeliveriesHub initialTab="incoming" purchaseOrderId={2} arrangeOrder />,
     )
-    await screen.findByRole('textbox', { name: 'Quantity to receive for Test Mango' })
-    const added = incomingFixture(25, 'DRAFT')
-    added.items[0].receivedQuantity = '0.65'
+    await screen.findByRole('columnheader', { name: 'Outstanding' })
+    const added = incomingFixture(25, 'COMPLETED')
+    added.items[0].receivedQuantity = '1.05'
+    added.items[0].acceptedQuantity = '1.05'
     incoming = [...incoming, added]
     await act(async () => {
       await queryClient.invalidateQueries({ queryKey: ['incoming-deliveries'] })
@@ -1074,19 +1218,28 @@ describe('order to delivery workflow', () => {
   it('requires confirmation for receipt, keeps failed confirmation open, and filters the completed row into history', async () => {
     const user = userEvent.setup()
     failReceipt = true
+    purchases[0].status = 'CONFIRMED'
     mount(<DeliveriesHub initialTab="incoming" />)
     await user.click(await screen.findByRole('button', { name: 'Receive Goods IN-22' }))
-    expect(screen.getByText(/Receiving adds the recorded quantities/)).toBeTruthy()
+    const partial = await screen.findByRole('radio', { name: 'Some goods arrived or were damaged' })
+    await waitFor(() => expect(partial.matches(':disabled')).toBe(false))
+    await user.click(partial)
+    await user.type(screen.getByLabelText('Received now for Test Mango (1)'), '0.20')
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Confirm Receipt' }).hasAttribute('disabled')).toBe(
+        false,
+      ),
+    )
     expect(requests.some((request) => request.url.endsWith('/complete'))).toBe(false)
     await user.click(
       within(screen.getByRole('dialog')).getByRole('button', {
-        name: 'Receive Goods',
+        name: 'Confirm Receipt',
       }),
     )
     expect(await screen.findByText('Receipt retry required.')).toBeTruthy()
     await user.click(
       within(screen.getByRole('dialog')).getByRole('button', {
-        name: 'Receive Goods',
+        name: 'Confirm Receipt',
       }),
     )
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())

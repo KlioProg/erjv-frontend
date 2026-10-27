@@ -48,6 +48,15 @@ test('multiple completed receipts sum exactly per order line, without mixing pro
   )
 })
 
+test('backend accepted quantities preserve the outstanding balance for damaged receipts', () => {
+  const receipt = delivery(1, 'COMPLETED', 11, '50')
+  receipt.items[0].acceptedQuantity = '45'
+  receipt.items[0].damagedQuantity = '5'
+  const [row] = purchaseReceivingProgress(order, [receipt])
+  assert.equal(row.received, 4500n)
+  assert.equal(row.remaining, 500n)
+})
+
 test('unavailable, malformed or duplicate receipt data never becomes confirmed zero', () => {
   for (const deliveries of [
     [{ id: 1, purchaseOrderId: 1, status: 'COMPLETED' }],

@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useRef, useState, type FormEvent } from 'react'
 import { Hash, Gauge, Layers, RotateCcw } from 'lucide-react'
 import {
   Dialog,
@@ -34,7 +34,9 @@ import {
   type DeliveryVehicle,
   type VehicleStatus,
 } from '@/features/logistics/delivery-vehicles.types'
-import { getErrorMessage } from '@/lib/api-client'
+import { getApiError, getErrorMessage } from '@/lib/api-client'
+import { parseStockCents } from '@/features/logistics/stock-display'
+import { decimalString } from '@/features/logistics/purchase-pricing'
 
 type VehicleModalProps = {
   vehicle: DeliveryVehicle | null
@@ -57,6 +59,8 @@ function VehicleFormContent({
   vehicle: DeliveryVehicle | null
   onClose: () => void
 }) {
+  const submitting = useRef(false)
+  const [checking, setChecking] = useState(false)
   const isEditing = !!vehicle
   const { data: allVehicles = [] } = useDeliveryVehicles()
   const createMutation = useCreateVehicle()
@@ -68,6 +72,11 @@ function VehicleFormContent({
   const [model, setModel] = useState(vehicle?.model || '')
   const [capacity, setCapacity] = useState(vehicle?.capacity ? String(vehicle.capacity) : '')
   const [status, setStatus] = useState<VehicleStatus>(vehicle?.status || 'AVAILABLE')
+  const capacityCents = parseStockCents(capacity)
+  const capacityError =
+    capacity.trim() && (capacityCents === null || capacityCents > 999_999_999_999n)
+      ? 'Use a non-negative capacity with up to two decimals and 10 whole digits.'
+      : ''
   const [errorMsg, setErrorMsg] = useState('')
   const [deactivatedVehicleMatch, setDeactivatedVehicleMatch] = useState<DeliveryVehicle | null>(
     null,
@@ -75,101 +84,122 @@ function VehicleFormContent({
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
-    setErrorMsg('')
-    setDeactivatedVehicleMatch(null)
+    if (submitting.current) return
+    submitting.current = true
+    setChecking(true)
+    try {
+      setErrorMsg('')
+      setDeactivatedVehicleMatch(null)
 
-    const cleanPlate = plateNumber.trim().toUpperCase()
-    if (!cleanPlate) {
-      setErrorMsg('Vehicle plate number is required.')
-      return
-    }
-
-    if (!isEditing) {
-      let backendMatch: DeliveryVehicle | null
-      try {
-        backendMatch = await fetchVehicleByPlateNumberApi(cleanPlate)
-      } catch (err) {
-        setErrorMsg(getErrorMessage(err))
+      const cleanPlate = plateNumber.trim().toUpperCase()
+      if (capacityError) {
+        setErrorMsg(capacityError)
+        return
+      }
+      if (!cleanPlate) {
+        setErrorMsg('Vehicle plate number is required.')
         return
       }
 
-      if (
-        backendMatch &&
-        typeof backendMatch === 'object' &&
-        backendMatch.id &&
-        backendMatch.isActive === false
-      ) {
-        setDeactivatedVehicleMatch(backendMatch)
-        setErrorMsg(
-          `Vehicle with plate number "${cleanPlate}" is currently deactivated. You can reactivate it directly.`,
-        )
-        return
-      }
+      if (!isEditing) {
+        let backendMatch: DeliveryVehicle | null
+        try {
+          backendMatch = await fetchVehicleByPlateNumberApi(cleanPlate)
+        } catch (err) {
+          const lookupError = getApiError(err)
+          if (lookupError?.status === 404 && lookupError.code === 'RESOURCE_NOT_FOUND') {
+            backendMatch = null
+          } else {
+            setErrorMsg(getErrorMessage(err))
+            return
+          }
+        }
 
-      // Check if active duplicate exists
-      const isDuplicatePlate = allVehicles.some(
-        (v) => v.plateNumber.toUpperCase().trim() === cleanPlate && v.isActive !== false,
-      )
-      if (
-        isDuplicatePlate ||
-        (backendMatch &&
+        if (
+          backendMatch &&
           typeof backendMatch === 'object' &&
           backendMatch.id &&
-          backendMatch.isActive !== false)
-      ) {
-        setErrorMsg(`A vehicle with plate number "${cleanPlate}" is already active in Vehicles.`)
+          backendMatch.isActive === false
+        ) {
+          setDeactivatedVehicleMatch(backendMatch)
+          setErrorMsg(
+            `Vehicle with plate number "${cleanPlate}" is currently deactivated. You can reactivate it directly.`,
+          )
+          return
+        }
+
+        // Check if active duplicate exists
+        const isDuplicatePlate = allVehicles.some(
+          (v) => v.plateNumber.toUpperCase().trim() === cleanPlate && v.isActive !== false,
+        )
+        if (
+          isDuplicatePlate ||
+          (backendMatch &&
+            typeof backendMatch === 'object' &&
+            backendMatch.id &&
+            backendMatch.isActive !== false)
+        ) {
+          setErrorMsg(`A vehicle with plate number "${cleanPlate}" is already active in Vehicles.`)
+          return
+        }
+      }
+
+      if (!vehicleType.trim()) {
+        setErrorMsg('Vehicle type is required.')
         return
       }
-    }
 
-    if (!vehicleType.trim()) {
-      setErrorMsg('Vehicle type is required.')
-      return
-    }
+      if (vehicleType.trim().length > 100) {
+        setErrorMsg('Vehicle type must be 100 characters or fewer.')
+        return
+      }
 
-    if (vehicleType.trim().length > 100) {
-      setErrorMsg('Vehicle type must be 100 characters or fewer.')
-      return
-    }
+      const parsedCap = capacity.trim() ? decimalString(capacityCents!) : null
 
-    const parsedCap = capacity.trim() ? parseFloat(capacity) : null
-
-    try {
-      if (isEditing && vehicle) {
-        await updateMutation.mutateAsync({
-          id: vehicle.id,
-          payload: {
+      try {
+        if (isEditing && vehicle) {
+          await updateMutation.mutateAsync({
+            id: vehicle.id,
+            payload: {
+              plateNumber: plateNumber.trim().toUpperCase(),
+              vehicleType: vehicleType.trim(),
+              model: model.trim() || null,
+              capacity: parsedCap,
+            },
+          })
+        } else {
+          await createMutation.mutateAsync({
             plateNumber: plateNumber.trim().toUpperCase(),
             vehicleType: vehicleType.trim(),
             model: model.trim() || null,
-            capacity: parsedCap !== null && !isNaN(parsedCap) ? parsedCap.toFixed(2) : null,
-          },
-        })
-      } else {
-        await createMutation.mutateAsync({
-          plateNumber: plateNumber.trim().toUpperCase(),
-          vehicleType: vehicleType.trim(),
-          model: model.trim() || null,
-          capacity: parsedCap !== null && !isNaN(parsedCap) ? parsedCap.toFixed(2) : null,
-          status,
-          isActive: true,
-        })
+            capacity: parsedCap,
+            status,
+            isActive: true,
+          })
+        }
+        onClose()
+      } catch (err) {
+        setErrorMsg(getErrorMessage(err))
       }
-      onClose()
-    } catch (err) {
-      setErrorMsg(getErrorMessage(err))
+    } finally {
+      submitting.current = false
+      setChecking(false)
     }
   }
 
   const handleRestoreFoundVehicle = async () => {
-    if (deactivatedVehicleMatch) {
-      await reactivateMutation.mutateAsync(deactivatedVehicleMatch.id)
-      onClose()
+    try {
+      if (deactivatedVehicleMatch) {
+        await reactivateMutation.mutateAsync(deactivatedVehicleMatch.id)
+        onClose()
+      }
+    } catch (error) {
+      setErrorMsg(getErrorMessage(error))
     }
   }
 
   const isPending =
-    createMutation.isPending || updateMutation.isPending || reactivateMutation.isPending
+    checking || createMutation.isPending || updateMutation.isPending || reactivateMutation.isPending
 
   return (
     <>
@@ -182,7 +212,7 @@ function VehicleFormContent({
         </DialogDescription>
       </DialogHeader>
 
-      {errorMsg && !deactivatedVehicleMatch && (
+      {errorMsg && (!deactivatedVehicleMatch || reactivateMutation.isError) && (
         <Alert
           variant="destructive"
           className="animate-in fade-in-0 slide-in-from-top-1 duration-200"
@@ -277,15 +307,21 @@ function VehicleFormContent({
               <Gauge className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
               <Input
                 id="v-capacity"
-                type="number"
-                step="0.01"
-                min="0"
+                type="text"
+                inputMode="decimal"
+                aria-invalid={!!capacityError}
+                aria-describedby={capacityError ? 'vehicle-capacity-error' : undefined}
                 placeholder="e.g. 2500"
                 value={capacity}
                 onChange={(e) => setCapacity(e.target.value)}
                 className="pl-9 transition-all duration-200"
               />
             </div>
+            {capacityError && (
+              <p id="vehicle-capacity-error" role="alert" className="text-xs text-destructive">
+                {capacityError}
+              </p>
+            )}
           </div>
         </div>
 
@@ -344,7 +380,11 @@ function VehicleFormContent({
               )}
             </Button>
           ) : (
-            <Button type="submit" disabled={isPending} className="font-medium cursor-pointer">
+            <Button
+              type="submit"
+              disabled={isPending || !!capacityError}
+              className="font-medium cursor-pointer"
+            >
               {isPending ? (
                 <>
                   <Spinner data-icon="inline-start" />

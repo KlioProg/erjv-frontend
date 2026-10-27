@@ -1,3 +1,5 @@
+import type { CursorParams } from '@/lib/cursor-pagination'
+
 export type OutgoingDeliveryStatus =
   'DRAFT' | 'SCHEDULED' | 'DISPATCHED' | 'DELIVERED' | 'CANCELLED'
 
@@ -7,6 +9,13 @@ export interface OutgoingDeliveryItemRecord {
   salesOrderItemId: number
   stockItemId: number
   quantity: string
+  legacyAllocation?: boolean
+  loadedQuantity?: string
+  deliveredQuantity?: string | null
+  returnedSellableQuantity?: string | null
+  returnedDamagedQuantity?: string | null
+  missingQuantity?: string | null
+  discrepancyReason?: string | null
   createdAt: string
   updatedAt: string
   salesOrderItem?: {
@@ -75,6 +84,7 @@ export interface OutgoingPlanningOption {
   availableQuantity: string
   plannedQuantity: string
   maximumPlannableQuantity: string
+  warehouseRemainingQuantity: string
 }
 
 export interface CreateOutgoingDeliveryPayload {
@@ -89,9 +99,21 @@ export interface CreateOutgoingDeliveryPayload {
 export interface DispatchOutgoingDeliveryPayload {
   deliveryVehicleId: number
   driverEmployeeId: number
+  items: { salesOrderItemId: number; stockItemId: number; loadedQuantity: string }[]
 }
 
-export interface OutgoingDeliveryFilter {
+export interface CompleteOutgoingDeliveryPayload {
+  items: {
+    outgoingDeliveryItemId: number
+    deliveredQuantity: string
+    returnedSellableQuantity: string
+    returnedDamagedQuantity: string
+    missingQuantity: string
+    discrepancyReason?: string
+  }[]
+}
+
+export interface OutgoingDeliveryFilter extends CursorParams {
   status?: OutgoingDeliveryStatus
   salesOrderId?: number
   warehouseId?: number

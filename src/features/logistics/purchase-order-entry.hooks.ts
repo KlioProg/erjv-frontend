@@ -1,6 +1,8 @@
 import { useRef, useState, type FormEvent } from 'react'
 import type { Supplier } from './suppliers.types'
-import type { CreatePurchaseOrderPayload, PurchaseOrderRecord } from './purchase-orders.types'
+import type { CreatePurchaseOrderPayload, PurchaseOrderRecord, UpdatePurchaseOrderDraftPayload } from './purchase-orders.types'
+import { fetchPurchaseOrderByIdApi } from './purchase-orders.api'
+import { getApiError, getErrorMessage } from '@/lib/api-client'
 import type { PurchaseLine } from './purchase-order-entry.types'
 import type { InventoryItemResponse } from '@/features/products/products.types'
 import { lineSubtotal } from '@/lib/order-amounts'
@@ -27,6 +29,7 @@ export function usePurchaseOrderEntry({
   savedDraft,
   draftOrder,
   onUpdateDraft,
+  onLoadLatest = fetchPurchaseOrderByIdApi,
   onClose,
 }: {
   suppliers: Supplier[]
@@ -35,9 +38,12 @@ export function usePurchaseOrderEntry({
   draftOrder?: PurchaseOrderRecord
   onUpdateDraft?: (
     id: number,
-    payload: CreatePurchaseOrderPayload,
-  ) => Promise<{ id: number; orderNumber: string; status: string }>
+    payload: UpdatePurchaseOrderDraftPayload,
+  ) => Promise<PurchaseOrderRecord>
+  onLoadLatest?: (id: number) => Promise<PurchaseOrderRecord | null>
 } & OrderSubmissionProps<CreatePurchaseOrderPayload>) {
+  const [draft, setDraft] = useState(draftOrder)
+  const [conflict, setConflict] = useState<{ latest?: PurchaseOrderRecord; loading: boolean; error?: string }>()
   const [supplierId, setSupplierId] = useState(
     () => (draftOrder?.supplierId != null ? String(draftOrder.supplierId) : ''),
   )
@@ -46,9 +52,8 @@ export function usePurchaseOrderEntry({
     () => (draftOrder?.expectedAt ? draftOrder.expectedAt.slice(0, 10) : ''),
   )
   const [notes, setNotes] = useState(() => draftOrder?.notes ?? '')
-  const [lines, setLines] = useState<PurchaseLine[]>(() =>
-    draftOrder
-      ? draftOrder.items.map((item, index) => ({
+  function draftLines(order: PurchaseOrderRecord): PurchaseLine[] {
+    return order.items.map((item, index) => ({
           formId: index + 1,
           inventoryItemId: item.inventoryItemId,
           name: `Item #${item.inventoryItemId}`,
@@ -58,13 +63,44 @@ export function usePurchaseOrderEntry({
           taxRate: item.taxRate,
           notes: item.notes,
         }))
-      : [],
-  )
+  }
+  const [lines, setLines] = useState<PurchaseLine[]>(() => draftOrder ? draftLines(draftOrder) : [])
   const nextFormId = useRef(lines.length)
   const [error, setError] = useState('')
   const [errorFocusId, setErrorFocusId] = useState<string>()
   const submission = useOrderSubmission({ onConfirm, onConfirmed, savedDraft, onClose })
   const focus = useOrderItemFocus(lines)
+  const editUnavailable = draft && (draft.status !== 'DRAFT'
+    ? 'Only a Draft purchase order can be edited. Close this form and review its current status.'
+    : !Number.isInteger(draft.revision) || draft.revision < 1
+      ? 'The server did not provide a valid revision. Reload this draft before editing.' : '')
+
+  async function fetchLatestDraft() {
+    if (!draft) return
+    setConflict({ loading: true })
+    try {
+      const latest = await onLoadLatest(draft.id)
+      if (!latest || latest.id !== draft.id) throw new Error('This purchase order is no longer available.')
+      setConflict({ latest, loading: false })
+    } catch (cause) {
+      setConflict({ loading: false, error: getErrorMessage(cause) })
+    }
+  }
+
+  function reloadLatestDraft() {
+    const latest = conflict?.latest
+    if (!latest || conflict.loading) return
+    setDraft(latest)
+    setSupplierId(latest.supplierId == null ? '' : String(latest.supplierId))
+    setReference(latest.externalReference ?? '')
+    setExpectedAt(latest.expectedAt?.slice(0, 10) ?? '')
+    setNotes(latest.notes ?? '')
+    setLines(draftLines(latest))
+    nextFormId.current = latest.items.length
+    setConflict(undefined)
+    setError('')
+    submission.clearError()
+  }
   const amounts = submission.savedOrder?.items ? savedOrderTotals(submission.savedOrder.items)
     : orderLineTotals(lines.map((line) => ({ ...line, unitPrice: line.unitCost, ...discountFields(line.discount) })))
 
@@ -105,6 +141,8 @@ export function usePurchaseOrderEntry({
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (submission.busy) return
+    if (editUnavailable) return setError(editUnavailable)
+    if (conflict) return
     setErrorFocusId(undefined)
     const confirm = wantsOrderConfirmation(event)
     if (submission.savedOrder) {
@@ -141,8 +179,8 @@ export function usePurchaseOrderEntry({
     const payload: CreatePurchaseOrderPayload = {
       supplierId: supplierId ? Number(supplierId) : null,
       expectedAt: expectedAt ? new Date(expectedAt).toISOString() : null,
-      externalReference: reference.trim() || undefined,
-      notes: notes.trim() || undefined,
+      externalReference: reference.trim() || (draft ? null : undefined),
+      notes: notes.trim() || (draft ? null : undefined),
       items: lines.map((line) => ({
         inventoryItemId: line.inventoryItemId,
         quantity: line.quantity,
@@ -153,12 +191,25 @@ export function usePurchaseOrderEntry({
       })),
     }
     const updateDraft = onUpdateDraft
-    if (draftOrder && !updateDraft)
+    if (draft && !updateDraft)
       return setError('Updating saved purchase order drafts is unavailable.')
-    await submission.submit(() => {
-      if (!draftOrder) return onSubmit(payload, confirm ? 'confirm' : 'draft')
+    await submission.submit(async () => {
+      if (!draft) return onSubmit(payload, confirm ? 'confirm' : 'draft')
       if (!updateDraft) return Promise.reject(new Error('Draft update is unavailable.'))
-      return updateDraft(draftOrder.id, payload)
+      try {
+        const updated = await updateDraft(draft.id, { ...payload, expectedRevision: draft.revision })
+        if (updated.id !== draft.id || updated.status !== 'DRAFT' ||
+          !Number.isInteger(updated.revision) || updated.revision <= draft.revision) {
+          await fetchLatestDraft()
+          throw new Error('The server did not return the updated draft revision. Review the latest version before continuing.')
+        }
+        setDraft(updated)
+        return updated
+      } catch (cause) {
+        if (['STALE_REVISION', 'INVALID_ORDER_STATE'].includes(getApiError(cause)?.code ?? ''))
+          await fetchLatestDraft()
+        throw cause
+      }
     }, confirm)
   }
   return {
@@ -172,7 +223,13 @@ export function usePurchaseOrderEntry({
     setNotes,
     lines,
     amounts,
-    error: error || submission.error,
+    error: editUnavailable || error || (conflict
+      ? 'This order changed on the server. Your unsaved input is preserved. Review the latest version before saving again.'
+      : submission.error),
+    conflict,
+    fetchLatestDraft,
+    reloadLatestDraft,
+    submitDisabled: !!editUnavailable || !!conflict,
     errorFocusId,
     busy: submission.busy,
     submission,

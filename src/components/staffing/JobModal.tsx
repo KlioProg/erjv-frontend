@@ -85,9 +85,13 @@ function JobFormContent({ job, onClose }: { job: Job | null; onClose: () => void
   }
 
   const handleRestoreFoundJob = async () => {
-    if (deactivatedJobMatch) {
-      await reactivateMutation.mutateAsync(deactivatedJobMatch.id)
-      onClose()
+    try {
+      if (deactivatedJobMatch) {
+        await reactivateMutation.mutateAsync(deactivatedJobMatch.id)
+        onClose()
+      }
+    } catch (error) {
+      setErrorMsg(getErrorMessage(error))
     }
   }
 
@@ -105,7 +109,7 @@ function JobFormContent({ job, onClose }: { job: Job | null; onClose: () => void
         </DialogDescription>
       </DialogHeader>
 
-      {errorMsg && !deactivatedJobMatch && (
+      {errorMsg && (!deactivatedJobMatch || reactivateMutation.isError) && (
         <Alert variant="destructive" className="my-1">
           <AlertDescription>{errorMsg}</AlertDescription>
         </Alert>

@@ -1,5 +1,5 @@
 import { formatProductUnit } from '@/lib/product-unit'
-import { useState, type FormEvent } from 'react'
+import { useRef, useState, type FormEvent } from 'react'
 import { Package, Tag, FileText, Sparkles, RotateCcw } from 'lucide-react'
 import {
   Dialog,
@@ -25,7 +25,7 @@ import {
   fetchProductByNameApi,
 } from '@/features/products/products.hooks'
 import type { InventoryItemResponse } from '@/features/products/products.types'
-import { getErrorMessage } from '@/lib/api-client'
+import { getApiError, getErrorMessage } from '@/lib/api-client'
 import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal'
 import { parseStockCents } from '@/features/logistics/stock-display'
 
@@ -42,6 +42,8 @@ function ItemFormContent({
   item: InventoryItemResponse | null
   onClose: () => void
 }) {
+  const submitting = useRef(false)
+  const [checking, setChecking] = useState(false)
   const isEditing = !!item
   const { data: allProducts = [] } = useProducts()
   const createMutation = useCreateProduct()
@@ -52,6 +54,7 @@ function ItemFormContent({
 
   const [name, setName] = useState(item?.name || '')
   const [variety, setVariety] = useState(item?.variety || '')
+  const [unit, setUnit] = useState(item?.unit || '')
   const [unitPrice, setUnitPrice] = useState<string>(
     item?.unitPrice !== undefined ? String(item.unitPrice) : '',
   )
@@ -63,101 +66,122 @@ function ItemFormContent({
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
-    setErrorMsg('')
-    setDeactivatedProductMatch(null)
+    if (submitting.current) return
+    submitting.current = true
+    setChecking(true)
+    try {
+      setErrorMsg('')
+      setDeactivatedProductMatch(null)
 
-    const cleanName = name.trim()
-    if (!cleanName) {
-      setErrorMsg('Product name is required.')
-      return
-    }
-
-    if (!isEditing) {
-      let backendMatch: InventoryItemResponse | null
-      try {
-        backendMatch = await fetchProductByNameApi(cleanName)
-      } catch (err) {
-        setErrorMsg(getErrorMessage(err))
+      const cleanName = name.trim()
+      if (!cleanName) {
+        setErrorMsg('Product name is required.')
         return
       }
 
-      if (
-        backendMatch &&
-        typeof backendMatch === 'object' &&
-        backendMatch.id &&
-        backendMatch.isActive === false
-      ) {
-        setDeactivatedProductMatch(backendMatch)
+      if (!isEditing) {
+        let backendMatch: InventoryItemResponse | null
+        try {
+          backendMatch = await fetchProductByNameApi(cleanName)
+        } catch (err) {
+          const lookup = getApiError(err)
+          if (lookup?.status === 404 && lookup.code === 'RESOURCE_NOT_FOUND') backendMatch = null
+          else {
+            setErrorMsg(getErrorMessage(err))
+            return
+          }
+        }
+
+        if (
+          backendMatch &&
+          typeof backendMatch === 'object' &&
+          backendMatch.id &&
+          backendMatch.isActive === false
+        ) {
+          setDeactivatedProductMatch(backendMatch)
+          setErrorMsg(
+            `Product with name "${cleanName}" is currently deactivated. You can reactivate it directly.`,
+          )
+          return
+        }
+
+        // Check if active duplicate exists in current catalog or server
+        const isDuplicate = allProducts.some(
+          (p) => p.name.toLowerCase().trim() === cleanName.toLowerCase() && p.isActive !== false,
+        )
+        if (
+          isDuplicate ||
+          (backendMatch &&
+            typeof backendMatch === 'object' &&
+            backendMatch.id &&
+            backendMatch.isActive !== false)
+        ) {
+          setErrorMsg(`A product with the name "${cleanName}" is already active in the catalog.`)
+          return
+        }
+      }
+
+      if (!isEditing && !unit.trim()) {
+        setErrorMsg('Enter the stock unit, such as kg or pieces.')
+        return
+      }
+      const priceCents = parseStockCents(unitPrice)
+      if (priceCents === null || priceCents > 999_999_999_999n) {
         setErrorMsg(
-          `Product with name "${cleanName}" is currently deactivated. You can reactivate it directly.`,
+          'Enter a non-negative price with up to 2 decimals and 10 digits before the decimal point.',
         )
         return
       }
 
-      // Check if active duplicate exists in current catalog or server
-      const isDuplicate = allProducts.some(
-        (p) => p.name.toLowerCase().trim() === cleanName.toLowerCase() && p.isActive !== false,
-      )
-      if (
-        isDuplicate ||
-        (backendMatch &&
-          typeof backendMatch === 'object' &&
-          backendMatch.id &&
-          backendMatch.isActive !== false)
-      ) {
-        setErrorMsg(`A product with the name "${cleanName}" is already active in the catalog.`)
-        return
-      }
-    }
-
-    const priceCents = parseStockCents(unitPrice)
-    if (priceCents === null || priceCents > 999_999_999_999n) {
-      setErrorMsg(
-        'Enter a non-negative price with up to 2 decimals and 10 digits before the decimal point.',
-      )
-      return
-    }
-
-    try {
-      if (isEditing && item) {
-        await updateMutation.mutateAsync({
-          id: item.id,
-          payload: {
-            name: name.trim(),
-            variety: variety.trim() || null,
-            description: description.trim() || null,
-          },
-        })
-
-        if (priceCents !== parseStockCents(item.unitPrice)) {
-          await updatePriceMutation.mutateAsync({
+      try {
+        if (isEditing && item) {
+          await updateMutation.mutateAsync({
             id: item.id,
+            payload: {
+              name: name.trim(),
+              variety: variety.trim() || null,
+              description: description.trim() || null,
+            },
+          })
+
+          if (priceCents !== parseStockCents(item.unitPrice)) {
+            await updatePriceMutation.mutateAsync({
+              id: item.id,
+              unitPrice: unitPrice.trim(),
+            })
+          }
+        } else {
+          await createMutation.mutateAsync({
+            name: name.trim(),
+            unit: unit.trim(),
+            variety: variety.trim() || null,
             unitPrice: unitPrice.trim(),
+            description: description.trim() || null,
           })
         }
-      } else {
-        await createMutation.mutateAsync({
-          name: name.trim(),
-          variety: variety.trim() || null,
-          unitPrice: unitPrice.trim(),
-          description: description.trim() || null,
-        })
+        onClose()
+      } catch (err) {
+        setErrorMsg(getErrorMessage(err))
       }
-      onClose()
-    } catch (err) {
-      setErrorMsg(getErrorMessage(err))
+    } finally {
+      submitting.current = false
+      setChecking(false)
     }
   }
 
   const handleRestoreFoundProduct = async () => {
-    if (deactivatedProductMatch) {
-      await reactivateMutation.mutateAsync(deactivatedProductMatch.id)
-      onClose()
+    try {
+      if (deactivatedProductMatch) {
+        await reactivateMutation.mutateAsync(deactivatedProductMatch.id)
+        onClose()
+      }
+    } catch (error) {
+      setErrorMsg(getErrorMessage(error))
     }
   }
 
   const isPending =
-    createMutation.isPending || updateMutation.isPending || reactivateMutation.isPending
+    checking || createMutation.isPending || updateMutation.isPending || reactivateMutation.isPending
 
   return (
     <>
@@ -170,7 +194,7 @@ function ItemFormContent({
         </DialogDescription>
       </DialogHeader>
 
-      {errorMsg && !deactivatedProductMatch && (
+      {errorMsg && (!deactivatedProductMatch || reactivateMutation.isError) && (
         <Alert variant="destructive" className="my-1">
           <AlertDescription>{errorMsg}</AlertDescription>
         </Alert>
@@ -233,6 +257,19 @@ function ItemFormContent({
           </p>
         </div>
 
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="item-unit">
+            Unit {!isEditing && <span className="text-primary">*</span>}
+          </Label>
+          <Input
+            id="item-unit"
+            value={unit}
+            onChange={(event) => setUnit(event.target.value)}
+            placeholder="e.g. kg, pieces"
+            required={!isEditing}
+            readOnly={isEditing}
+          />
+        </div>
         {/* Unit Price Field - Enhanced & Large */}
         <div className="flex flex-col gap-1.5">
           <div className="flex items-center justify-between">

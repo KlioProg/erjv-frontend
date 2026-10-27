@@ -38,7 +38,7 @@ import type { StockItem } from '@/features/logistics/stock-items.types'
 import { getErrorMessage } from '@/lib/api-client'
 import { WarehouseProducts } from './WarehouseProducts'
 import { WarehouseModal } from './WarehouseModal'
-import { formatStockCents, parseStockCents, stockSortKey } from '@/features/logistics/stock-display'
+import { parseStockCents } from '@/features/logistics/stock-display'
 
 type WarehouseStockSummary = { products: number; units: bigint }
 type ArchiveCheck = WarehouseStockSummary & {
@@ -91,18 +91,14 @@ export function WarehouseList({ onOpenWarehouse }: { onOpenWarehouse: (id: numbe
     [allWarehouses],
   )
   const warehouseTotals = useMemo(() => {
-    const totals = new Map<number, { products: number; units: bigint | null }>()
+    const totals = new Map<number, { products: number }>()
     for (const stock of stockItems) {
-      const total = totals.get(stock.warehouseId) || { products: 0, units: 0n }
-      const quantity = parseStockCents(stock.quantity)
+      const total = totals.get(stock.warehouseId) || { products: 0 }
       total.products += 1
-      total.units = total.units === null || quantity === null ? null : total.units + quantity
       totals.set(stock.warehouseId, total)
     }
     return totals
   }, [stockItems])
-  const getWarehouseUnits = (id: number): bigint | null =>
-    warehouseTotals.get(id)?.units === undefined ? 0n : warehouseTotals.get(id)!.units
   const filteredWarehouses = useMemo(() => {
     const term = searchTerm.trim().toLowerCase()
     return (activeTab === 'ACTIVE' ? activeWarehouses : archivedWarehouses).filter(
@@ -185,8 +181,8 @@ export function WarehouseList({ onOpenWarehouse }: { onOpenWarehouse: (id: numbe
           </div>
           <div className="mt-1 flex min-w-0 items-center gap-2 pl-6 text-xs sm:hidden">
             <OverflowValue
-              value={formatStockCents(getWarehouseUnits(row.id))}
-              tooltipSuffix="units"
+              value={String(warehouseTotals.get(row.id)?.products ?? 0)}
+              tooltipSuffix="stock records"
               className="max-w-[55%] font-semibold tabular-nums"
             />
           </div>
@@ -240,26 +236,7 @@ export function WarehouseList({ onOpenWarehouse }: { onOpenWarehouse: (id: numbe
         )
       },
     },
-    {
-      id: 'units',
-      header: 'Total Stock',
-      width: '14%',
-      className: 'hidden sm:table-cell',
-      headerClassName: 'hidden sm:table-cell',
-      align: 'right',
-      sortable: true,
-      sortKey: (row) => stockSortKey(getWarehouseUnits(row.id)),
-      cell: ({ row }) => (
-        <div className="flex min-w-0 items-center justify-end gap-1 text-sm font-normal">
-          <OverflowValue
-            value={formatStockCents(getWarehouseUnits(row.id))}
-            tooltipSuffix="units"
-            className="text-right tabular-nums"
-          />
-          <span className="hidden shrink-0 xl:inline">units</span>
-        </div>
-      ),
-    },
+
   ]
 
   if (canManage) {
@@ -425,7 +402,7 @@ export function WarehouseList({ onOpenWarehouse }: { onOpenWarehouse: (id: numbe
               <p className="break-all font-medium">{warehouseToArchive?.name}</p>
               <p className="mt-1">
                 {archiveCheck.products} {archiveCheck.products === 1 ? 'product' : 'products'} ·{' '}
-                {formatStockCents(archiveCheck.units)} units of inventory
+                Stock remains in this warehouse.
               </p>
             </div>
           )}

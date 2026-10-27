@@ -29,9 +29,10 @@ export async function fetchProductByNameApi(name: string): Promise<InventoryItem
 export async function createProductApi(
   payload: CreateInventoryItemPayload,
 ): Promise<InventoryItemResponse> {
+  if (!payload.unit?.trim()) throw new Error('A product stock unit is required.')
   const cleanPayload = {
     name: payload.name.trim(),
-    unit: payload.unit?.trim() || 'kg',
+    unit: payload.unit.trim(),
     unitPrice:
       typeof payload.unitPrice === 'number'
         ? payload.unitPrice.toFixed(2)

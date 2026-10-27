@@ -22,8 +22,6 @@ import {
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { useQueryClient } from '@tanstack/react-query'
-import { toast } from 'sonner'
 import type { SalesOrderRecord } from '@/features/crm/sales-orders.types'
 import type { Client } from '@/features/crm/clients.types'
 import type { InventoryItemResponse } from '@/features/products/products.types'
@@ -35,12 +33,8 @@ import type { OutgoingDeliveryRecord } from '@/features/logistics/outgoing-deliv
 import {
   useConfirmSalesOrder,
   useCancelSalesOrder,
-  SALES_ORDERS_QUERY_KEY,
 } from '@/features/crm/sales-orders.hooks'
-import { completeOutgoingDeliveryApi } from '@/features/logistics/outgoing-deliveries.api'
-import { DELIVERIES_QUERY_KEY } from '@/features/logistics/outgoing-deliveries.hooks'
-import { STOCK_ITEMS_QUERY_KEY } from '@/features/logistics/stock-items.hooks'
-import { VEHICLES_QUERY_KEY } from '@/features/logistics/delivery-vehicles.hooks'
+import { CompleteDeliveryModal } from '@/components/deliveries/shared/CompleteDeliveryModal'
 import { QuickDispatchModal } from './QuickDispatchModal'
 import { useAuth } from '@/features/auth/AuthContext'
 import { getErrorMessage } from '@/lib/api-client'
@@ -80,11 +74,10 @@ export function OrderDetailDrawer({
   onEdit,
   onArrangeDelivery,
 }: OrderDetailDrawerProps) {
-  const queryClient = useQueryClient()
   const { isAdmin, isManager } = useAuth()
   const canManage = !readOnly && (isAdmin || isManager)
   const [isDispatchModalOpen, setIsDispatchModalOpen] = useState(false)
-  const [isCompletingDelivery, setIsCompletingDelivery] = useState(false)
+  const [completingDeliveryId, setCompletingDeliveryId] = useState<number | null>(null)
   const [errorMessage, setErrorMessage] = useState('')
   const [orderToCancel, setOrderToCancel] = useState<SalesOrderRecord | null>(null)
 
@@ -135,43 +128,6 @@ export function OrderDetailDrawer({
   const grossTotal = items.reduce((sum, item) => sum + parseFloat(item?.totalAmount || '0'), 0)
 
   const isCancelled = order.status === 'CANCELLED'
-
-  // Handle direct customer delivery completion
-  const handleConfirmCustomerDelivery = async () => {
-    if (
-      !canManage ||
-      !activeDelivery ||
-      activeDelivery.status !== 'DISPATCHED' ||
-      isCompletingDelivery
-    )
-      return
-    if (
-      !window.confirm(
-        'Complete this delivery? This deducts the shipment quantities from stock, updates order progress, and releases its vehicle.',
-      )
-    )
-      return
-    try {
-      setIsCompletingDelivery(true)
-      setErrorMessage('')
-      await completeOutgoingDeliveryApi(activeDelivery.id)
-
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: SALES_ORDERS_QUERY_KEY }),
-        queryClient.invalidateQueries({ queryKey: DELIVERIES_QUERY_KEY }),
-        queryClient.invalidateQueries({ queryKey: VEHICLES_QUERY_KEY }),
-        queryClient.invalidateQueries({ queryKey: STOCK_ITEMS_QUERY_KEY }),
-      ])
-
-      toast.success(
-        `Delivery ${activeDelivery.deliveryNumber} confirmed! Stock and order progress have been updated.`,
-      )
-    } catch (err) {
-      setErrorMessage(getErrorMessage(err))
-    } finally {
-      setIsCompletingDelivery(false)
-    }
-  }
 
   // Handle confirmation
   const handleConfirmOrder = async () => {
@@ -479,18 +435,14 @@ export function OrderDetailDrawer({
                   <div className="flex items-center justify-end gap-2 border-t border-border pt-3">
                     <Button
                       size="sm"
-                      onClick={handleConfirmCustomerDelivery}
-                      disabled={!canManage || isCompletingDelivery}
+                      onClick={() => activeDelivery && setCompletingDeliveryId(activeDelivery.id)}
+                      disabled={!canManage}
                       className="font-medium text-ui"
                     >
-                      {isCompletingDelivery ? (
-                        'Completing...'
-                      ) : (
-                        <span className="flex items-center gap-1.5">
-                          <CheckCircle2 className="size-3.5" />
-                          Confirm Customer Delivery / Complete
-                        </span>
-                      )}
+                      <span className="flex items-center gap-1.5">
+                        <CheckCircle2 className="size-3.5" />
+                        Confirm Customer Delivery / Complete
+                      </span>
                     </Button>
                   </div>
                 )}
@@ -669,6 +621,7 @@ export function OrderDetailDrawer({
         />
       )}
 
+      {completingDeliveryId !== null && <CompleteDeliveryModal key={completingDeliveryId} deliveryId={completingDeliveryId} onClose={() => setCompletingDeliveryId(null)} />}
       {/* Quick Dispatch Modal */}
       {isDispatchModalOpen && order && (
         <QuickDispatchModal

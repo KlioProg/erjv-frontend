@@ -15,7 +15,11 @@ import {
 } from './outgoing-deliveries.hooks'
 import { fetchOutgoingDeliveryByIdApi } from './outgoing-deliveries.api'
 import type { OutgoingDeliveryRecord } from './outgoing-deliveries.types'
-import { outgoingPlanningErrors, outgoingPlanningMaximum } from './outgoing-planning'
+import {
+  outgoingOrderRemaining,
+  outgoingPlanningErrors,
+  outgoingPlanningMaximum,
+} from './outgoing-planning'
 import { DeliveryUtils } from './delivery-utils'
 
 function draftQuantities(draft?: OutgoingDeliveryRecord | null) {
@@ -157,6 +161,26 @@ export function useOutgoingPlanning(
         )
       if (!['CONFIRMED', 'PARTIALLY_DELIVERED'].includes(freshOrder.data.status))
         return failField('sales-order', 'This Sales Order is no longer available for planning.')
+      if (!persisted) {
+        const balances = freshOrder.data.items.map((item) =>
+          parseOrderDecimal(
+            outgoingOrderRemaining(
+              freshPlanning.data.find(
+                (option) =>
+                  option.salesOrderItemId === item.id &&
+                  option.inventoryItemId === item.inventoryItemId,
+              ),
+            ) ?? '',
+          ),
+        )
+        if (!balances.some((balance) => balance !== null && balance > 0n))
+          return failField(
+            'plan',
+            balances.length && balances.every((balance) => balance === 0n)
+              ? 'All quantities for this Sales Order are already planned.'
+              : 'Current order planning quantities are unavailable. Reload availability before saving.',
+          )
+      }
       if (
         !freshWarehouses.data?.some(
           (warehouse) => warehouse.isActive && String(warehouse.id) === warehouseId,
@@ -232,12 +256,17 @@ export function useOutgoingPlanning(
             'The saved draft is incomplete. Review its warehouse, date, and planned quantities before scheduling.',
           )
         setPhase('scheduling')
-        await schedule.mutateAsync({ id: persisted.id, expectedRevision: persisted.revision })
+        persisted = await schedule.mutateAsync({
+          id: persisted.id,
+          expectedRevision: persisted.revision,
+        })
+        setSavedDraft(persisted)
         setCompleted('SCHEDULED')
       } else {
         toast.success(`Delivery draft "${persisted.deliveryNumber}" saved`)
         setCompleted('DRAFT')
       }
+      return persisted
     } catch (error) {
       const conflict = axios.isAxiosError(error) ? error.response?.data : undefined
       const messages: Record<string, string> = {
@@ -306,6 +335,7 @@ export function useOutgoingPlanning(
     savedDraft,
     latestDraft,
     reviewRequired,
+    orderOptions: planningQuery.data ?? [],
     options:
       planningQuery.isFetching || planningQuery.isError
         ? []

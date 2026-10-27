@@ -47,10 +47,12 @@ export function outgoingPlanningErrors(
   }
   // Multiple order lines for one product share the warehouse's planning capacity.
   for (const option of options) {
-    const available = parseOrderDecimal(option.availableQuantity)
-    const planned = parseOrderDecimal(option.plannedQuantity)
-    if (available === null || planned === null) continue
-    const remaining = available > planned ? available - planned : 0n
+    const remaining = parseOrderDecimal(option.warehouseRemainingQuantity)
+    if (remaining === null) {
+      if ((totals.get(option.inventoryItemId) ?? 0n) > 0n)
+        errors[`quantity-${option.salesOrderItemId}`] ??= 'Warehouse planning capacity is unavailable. Reload this warehouse.'
+      continue
+    }
     if ((totals.get(option.inventoryItemId) ?? 0n) > remaining) {
       errors[`quantity-${option.salesOrderItemId}`] ??=
         `Combined quantities for this product exceed the warehouse planning capacity of ${decimalString(remaining)}.`

@@ -147,10 +147,6 @@ export function useDeliveryCreation(kind: 'Incoming' | 'Outgoing', initialOrderI
             ...common,
             purchaseOrderId: order.id,
             supplierReference: supplierReference.trim() || null,
-            items: positive.map(({ row, quantity }) => ({
-              purchaseOrderItemId: row.id,
-              receivedQuantity: decimalString(quantity!),
-            })),
           })
         : await createOutgoing.mutateAsync({
             ...common,

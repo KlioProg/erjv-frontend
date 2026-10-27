@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useRef, useState, type FormEvent } from 'react'
 import { Building2, MapPin, Phone, RotateCcw } from 'lucide-react'
 import {
   Dialog,
@@ -20,7 +20,7 @@ import {
   fetchWarehouseByNameApi,
 } from '@/features/logistics/warehouses.hooks'
 import type { Warehouse } from '@/features/logistics/warehouses.types'
-import { getErrorMessage } from '@/lib/api-client'
+import { getApiError, getErrorMessage } from '@/lib/api-client'
 import { sanitizePhilippinePhone, validatePhilippinePhone } from '@/lib/phone-utils'
 
 type WarehouseModalProps = {
@@ -36,6 +36,8 @@ function WarehouseFormContent({
   warehouse: Warehouse | null
   onClose: () => void
 }) {
+  const submitting = useRef(false)
+  const [checking, setChecking] = useState(false)
   const isEditing = !!warehouse
   const createMutation = useCreateWarehouse()
   const updateMutation = useUpdateWarehouseDetails()
@@ -49,88 +51,104 @@ function WarehouseFormContent({
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
-    setErrorMsg('')
-    setDeactivatedWarehouseMatch(null)
-
-    const cleanName = name.trim()
-    if (!cleanName) {
-      setErrorMsg('Warehouse name is required.')
-      return
-    }
-
-    if (!address.trim()) {
-      setErrorMsg('Warehouse address / location is required.')
-      return
-    }
-
-    const phoneError = validatePhilippinePhone(contactNumber, 'Contact number')
-    if (phoneError) {
-      setErrorMsg(phoneError)
-      return
-    }
-
-    // NOTE: removed client-side constraint validation, need backend to provide constraint errors
-    // - deactivatedWarehouseMatch: set when there exists a deactivated warehouse with the specified name.
-    // recommendations:
-    // - just let the DB check the constraints and interpret it later
-
+    if (submitting.current) return
+    submitting.current = true
+    setChecking(true)
     try {
-      const cleanContactNumber = sanitizePhilippinePhone(contactNumber) || null
+      setErrorMsg('')
+      setDeactivatedWarehouseMatch(null)
 
-      if (isEditing && warehouse) {
-        await updateMutation.mutateAsync({
-          id: warehouse.id,
-          payload: {
+      const cleanName = name.trim()
+      if (!cleanName) {
+        setErrorMsg('Warehouse name is required.')
+        return
+      }
+
+      if (!address.trim()) {
+        setErrorMsg('Warehouse address / location is required.')
+        return
+      }
+
+      const phoneError = validatePhilippinePhone(contactNumber, 'Contact number')
+      if (phoneError) {
+        setErrorMsg(phoneError)
+        return
+      }
+
+      // NOTE: removed client-side constraint validation, need backend to provide constraint errors
+      // - deactivatedWarehouseMatch: set when there exists a deactivated warehouse with the specified name.
+      // recommendations:
+      // - just let the DB check the constraints and interpret it later
+
+      try {
+        const cleanContactNumber = sanitizePhilippinePhone(contactNumber) || null
+
+        if (isEditing && warehouse) {
+          await updateMutation.mutateAsync({
+            id: warehouse.id,
+            payload: {
+              name: name.trim(),
+              address: address.trim(),
+              contactNumber: cleanContactNumber,
+            },
+          })
+        } else {
+          // Pre-check if an archived warehouse with this name exists so user can restore it directly
+          const existingMatch = await fetchWarehouseByNameApi(cleanName).catch((error: unknown) => {
+            const lookup = getApiError(error)
+            if (lookup?.status === 404 && lookup.code === 'RESOURCE_NOT_FOUND') return null
+            throw error
+          })
+          if (existingMatch && existingMatch.isActive === false) {
+            setDeactivatedWarehouseMatch(existingMatch)
+            return
+          }
+
+          await createMutation.mutateAsync({
             name: name.trim(),
             address: address.trim(),
             contactNumber: cleanContactNumber,
-          },
-        })
-      } else {
-        // Pre-check if an archived warehouse with this name exists so user can restore it directly
-        const existingMatch = await fetchWarehouseByNameApi(cleanName)
-        if (existingMatch && existingMatch.isActive === false) {
-          setDeactivatedWarehouseMatch(existingMatch)
-          return
+            isActive: true,
+          })
         }
-
-        await createMutation.mutateAsync({
-          name: name.trim(),
-          address: address.trim(),
-          contactNumber: cleanContactNumber,
-          isActive: true,
-        })
-      }
-      onClose()
-    } catch (err) {
-      const msg = getErrorMessage(err)
-      if (
-        !isEditing &&
-        (msg.toLowerCase().includes('already exists') || msg.toLowerCase().includes('duplicate'))
-      ) {
-        try {
-          const match = await fetchWarehouseByNameApi(cleanName)
-          if (match && match.isActive === false) {
-            setDeactivatedWarehouseMatch(match)
-            return
+        onClose()
+      } catch (err) {
+        const msg = getErrorMessage(err)
+        if (
+          !isEditing &&
+          (msg.toLowerCase().includes('already exists') || msg.toLowerCase().includes('duplicate'))
+        ) {
+          try {
+            const match = await fetchWarehouseByNameApi(cleanName)
+            if (match && match.isActive === false) {
+              setDeactivatedWarehouseMatch(match)
+              return
+            }
+          } catch {
+            // Ignore
           }
-        } catch {
-          // Ignore
         }
+        setErrorMsg(msg)
       }
-      setErrorMsg(msg)
+    } finally {
+      submitting.current = false
+      setChecking(false)
     }
   }
 
   const handleRestoreFoundWarehouse = async () => {
-    if (deactivatedWarehouseMatch) {
-      await reactivateMutation.mutateAsync(deactivatedWarehouseMatch.id)
-      onClose()
+    try {
+      if (deactivatedWarehouseMatch) {
+        await reactivateMutation.mutateAsync(deactivatedWarehouseMatch.id)
+        onClose()
+      }
+    } catch (error) {
+      setErrorMsg(getErrorMessage(error))
     }
   }
 
   const isPending =
-    createMutation.isPending || updateMutation.isPending || reactivateMutation.isPending
+    checking || createMutation.isPending || updateMutation.isPending || reactivateMutation.isPending
 
   return (
     <>
@@ -145,7 +163,7 @@ function WarehouseFormContent({
         </DialogDescription>
       </DialogHeader>
 
-      {errorMsg && !deactivatedWarehouseMatch && (
+      {errorMsg && (!deactivatedWarehouseMatch || reactivateMutation.isError) && (
         <Alert
           variant="destructive"
           className="animate-in fade-in-0 slide-in-from-top-1 duration-200"

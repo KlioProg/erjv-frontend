@@ -127,3 +127,30 @@ it('accepts trimmed custom values, reuses case/spacing matches, and rejects blan
   await user.keyboard('{Escape}')
   expect(document.activeElement).toBe(trigger)
 })
+
+it('honors disabled and loading states without exposing selectable options', async () => {
+  const props = {
+    options: ['Warehouse'],
+    value: '',
+    onValueChange: vi.fn(),
+    getOptionValue: (x: string) => x,
+    getOptionLabel: (x: string) => x,
+    placeholder: 'Select warehouse',
+    searchPlaceholder: 'Search',
+    emptyMessage: 'Empty',
+    ariaLabel: 'Warehouse',
+  }
+  const view = render(<SearchableDropdown {...props} disabled />)
+  const user = userEvent.setup()
+  const button = screen.getByRole('button', { name: 'Warehouse' })
+  expect(button.hasAttribute('disabled')).toBe(true)
+  await user.click(button)
+  expect(screen.queryByRole('menu')).toBeNull()
+  view.rerender(<SearchableDropdown {...props} isLoading />)
+  expect(button.hasAttribute('disabled')).toBe(true)
+  view.rerender(<SearchableDropdown {...props} />)
+  await user.click(button)
+  expect(screen.getByRole('menuitem', { name: 'Warehouse' })).toBeTruthy()
+  view.rerender(<SearchableDropdown {...props} disabled />)
+  expect(screen.queryByRole('menu')).toBeNull()
+})

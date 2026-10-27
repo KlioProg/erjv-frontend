@@ -44,7 +44,7 @@ it.each([
     if (config.url?.split('?')[0] === endpoint) {
       await requestGate
     }
-    return { config, status: 200, statusText: 'OK', headers: {}, data: [] }
+    return { config, status: 200, statusText: 'OK', headers: {}, data: /^\/(sales-orders|purchase-orders|incoming-deliveries|outgoing-deliveries)$/.test(config.url ?? '') ? { items: [], nextCursor: null } : [] }
   }
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } })
   render(
@@ -74,7 +74,7 @@ it.each([
         attempts++
         if (attempts === 1) throw new AxiosError('Service unavailable', 'ERR_NETWORK', config)
       }
-      return { config, status: 200, statusText: 'OK', headers: {}, data: [] }
+      return { config, status: 200, statusText: 'OK', headers: {}, data: /^\/(sales-orders|purchase-orders|incoming-deliveries|outgoing-deliveries)$/.test(config.url ?? '') ? { items: [], nextCursor: null } : [] }
     }
     const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } })
     render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>)

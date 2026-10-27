@@ -1,11 +1,11 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { apiClient } from '@/lib/api-client'
 import { VehicleModal } from './VehicleModal'
 import type { DeliveryVehicle } from '@/features/logistics/delivery-vehicles.types'
-import { AxiosError } from 'axios'
+import { AxiosError, getAdapter } from 'axios'
 import { updateVehicleDetailsApi } from '@/features/logistics/delivery-vehicles.api'
 
 const originalAdapter = apiClient.defaults.adapter
@@ -120,3 +120,101 @@ it('submits a normalized custom type, displays it when editing, and saves a repl
   await waitFor(() => expect(edit.onClose).toHaveBeenCalledOnce())
   expect(writes[1]).toMatchObject({ method: 'patch', data: { vehicleType: 'Flatbed Truck' } })
 })
+
+function plateLookupFailure(status: number, code?: string) {
+  const base = getAdapter(apiClient.defaults.adapter)
+  apiClient.defaults.adapter = async (config) => {
+    if (config.url?.includes('/plate-number/'))
+      throw new AxiosError('Lookup failed', undefined, config, undefined, {
+        status,
+        statusText: '',
+        headers: {},
+        config,
+        data: {
+          code,
+          message: 'Delivery vehicle not found',
+          details: { resource: 'Delivery vehicle' },
+        },
+      })
+    return base(config)
+  }
+}
+
+it('creates a new vehicle when the backend explicitly reports that its plate does not exist', async () => {
+  plateLookupFailure(404, 'RESOURCE_NOT_FOUND')
+  const user = userEvent.setup()
+  const view = mount(null)
+  await user.type(screen.getByLabelText(/Plate Number/), 'new-1234')
+  await user.click(screen.getByRole('button', { name: 'Add Vehicle' }))
+  await waitFor(() => expect(view.onClose).toHaveBeenCalledOnce())
+  expect(writes).toEqual([
+    {
+      method: 'post',
+      data: {
+        plateNumber: 'NEW-1234',
+        vehicleType: 'Heavy Truck (6-Wheeler)',
+        status: 'AVAILABLE',
+        isActive: true,
+      },
+    },
+  ])
+})
+
+it.each([
+  [401, 'RESOURCE_NOT_FOUND'],
+  [403, 'RESOURCE_NOT_FOUND'],
+  [500, 'RESOURCE_NOT_FOUND'],
+  [404, undefined],
+])('blocks creation for an unexpected lookup failure (%s, %s)', async (status, code) => {
+  plateLookupFailure(status as number, code as string | undefined)
+  const user = userEvent.setup()
+  const view = mount(null)
+  await user.type(screen.getByLabelText(/Plate Number/), 'ABC-1234')
+  await user.click(screen.getByRole('button', { name: 'Add Vehicle' }))
+  await screen.findByRole('alert')
+  expect(view.onClose).not.toHaveBeenCalled()
+  expect(writes).toEqual([])
+})
+
+it.each([true, false])(
+  'preserves duplicate handling for an existing vehicle (active: %s)',
+  async (isActive) => {
+    saved = {
+      id: 9,
+      plateNumber: 'ABC-1234',
+      vehicleType: 'Delivery Van',
+      isActive,
+      status: 'AVAILABLE',
+      model: null,
+      capacity: null,
+      createdAt: '',
+      updatedAt: '',
+    }
+    const base = getAdapter(apiClient.defaults.adapter)
+    apiClient.defaults.adapter = (config) =>
+      config.url?.includes('/plate-number/')
+        ? Promise.resolve({ config, data: saved, status: 200, statusText: 'OK', headers: {} })
+        : base(config)
+    const user = userEvent.setup()
+    const view = mount(null)
+    await user.type(screen.getByLabelText(/Plate Number/), 'ABC-1234')
+    await user.click(screen.getByRole('button', { name: 'Add Vehicle' }))
+    if (isActive) expect((await screen.findByRole('alert')).textContent).toContain('already active')
+    else expect(await screen.findByRole('button', { name: 'Restore Vehicle' })).toBeTruthy()
+    expect(view.onClose).not.toHaveBeenCalled()
+    expect(writes).toEqual([])
+  },
+)
+
+it.each(['-1', '1.234', 'bad', '10000000000'])(
+  'marks invalid capacity %s immediately and never rounds it into a request',
+  async (capacity) => {
+    mount(null)
+    const input = screen.getByLabelText('Payload Capacity (kg)')
+    fireEvent.change(input, { target: { value: capacity } })
+    expect(input.getAttribute('aria-invalid')).toBe('true')
+    expect((input as HTMLInputElement).value).toBe(capacity)
+    expect(screen.getByRole('button', { name: 'Add Vehicle' }).hasAttribute('disabled')).toBe(true)
+    expect(writes).toHaveLength(0)
+  },
+)

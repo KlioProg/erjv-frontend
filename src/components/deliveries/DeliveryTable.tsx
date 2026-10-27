@@ -29,6 +29,7 @@ export function DeliveryTable({
   onView,
   onViewOrder,
   onAction,
+  hasFilters = false,
 }: {
   rows: DeliveryRow[]
   view: DeliveryView
@@ -38,6 +39,7 @@ export function DeliveryTable({
   onView: (row: DeliveryRow) => void
   onViewOrder: (row: DeliveryRow) => void
   onAction: (row: DeliveryRow, action: DeliveryAction) => void
+  hasFilters?: boolean
 }) {
   const columns: ColumnDef<DeliveryRow>[] = [
     {
@@ -173,7 +175,11 @@ export function DeliveryTable({
       emptyContent={
         <div className="py-10 text-center">
           <p className="text-sm font-semibold">
-            No {view === 'history' ? 'delivery history' : `${view} deliveries`} found
+            {view === 'outgoing'
+              ? hasFilters
+                ? 'No deliveries match the current filters.'
+                : 'No outgoing deliveries yet.'
+              : `No ${view === 'history' ? 'delivery history' : `${view} deliveries`} found`}
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
             {view === 'history'

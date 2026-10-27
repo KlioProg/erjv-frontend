@@ -7,6 +7,30 @@ export type FetchParams = {
   includeInactive?: IncludeInactive
 }
 
+export function getApiError(error: unknown) {
+  if (!axios.isAxiosError<{ code?: string; message?: string | string[]; details?: unknown }>(error))
+    return undefined
+  return { status: error.response?.status, ...error.response?.data }
+}
+
+const workflowCodes = new Set([
+  'RESOURCE_NOT_FOUND', 'INVALID_CURSOR', 'STALE_REVISION', 'INVALID_ORDER_STATE',
+  'ORDER_CONFIRMATION_BLOCKED', 'ORDER_CANCELLATION_BLOCKED', 'INVALID_DELIVERY_STATE',
+  'DELIVERY_CANCELLATION_BLOCKED', 'RECEIPT_CAPACITY_CHANGED', 'RECEIPT_ALREADY_CONFIRMED',
+  'RETURN_ALREADY_CONFIRMED', 'VEHICLE_UNAVAILABLE', 'DRIVER_INACTIVE',
+  'ORDER_CAPACITY_CHANGED', 'WAREHOUSE_CAPACITY_CHANGED', 'PLAN_LIMIT_EXCEEDED',
+])
+
+function formatErrorDetails(details: unknown): string {
+  if (Array.isArray(details)) return details.map(formatErrorDetails).filter(Boolean).join('; ')
+  if (!details || typeof details !== 'object') return ''
+  return Object.entries(details).flatMap(([key, value]) => {
+    if (typeof value !== 'string' && typeof value !== 'number' && typeof value !== 'boolean') return []
+    const label = key.replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase()
+    return [`${label.charAt(0).toUpperCase()}${label.slice(1)}: ${value}`]
+  }).join('; ')
+}
+
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
   headers: {
@@ -223,6 +247,13 @@ export function getErrorMessage(error: unknown): string {
       } else if (typeof resData.error === 'string' && resData.error.trim()) {
         serverMessage = resData.error
       }
+    }
+
+    const structured = getApiError(error)
+    if (structured?.code && workflowCodes.has(structured.code)) {
+      const message = serverMessage.trim() || 'Review the current record before continuing.'
+      const details = formatErrorDetails(structured.details)
+      return details ? `${message} (${details})` : message
     }
 
     const url = axiosErr.config?.url || ''

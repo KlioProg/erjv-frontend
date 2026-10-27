@@ -13,15 +13,16 @@ import {
 } from './delivery-quantities.ts'
 import { incomingOrderRemainingQuantity } from './incoming-order-balance.ts'
 
-test('incoming order picker balance includes all arranged shipments except cancelled ones', () => {
+test('incoming order picker balance counts completed receipts, not headers or cancelled shipments', () => {
   const order = { id: 2, items: [{ id: 20, quantity: '0.60' }] }
-  const deliveries = ['DRAFT', 'SCHEDULED', 'COMPLETED', 'CANCELLED'].map((status) => ({
+  const deliveries = ['DRAFT', 'SCHEDULED', 'COMPLETED', 'CANCELLED'].map((status, id) => ({
+    id,
     purchaseOrderId: 2,
     status,
-    items: [{ purchaseOrderItemId: 20, receivedQuantity: '0.20' }],
+    items: [{ id: id + 10, purchaseOrderItemId: 20, receivedQuantity: '0.20' }],
   }))
-  assert.equal(incomingOrderRemainingQuantity(order, deliveries), '0.00')
-  assert.equal(incomingOrderRemainingQuantity(order, deliveries.slice(1)), '0.20')
+  assert.equal(incomingOrderRemainingQuantity(order, deliveries), '0.40')
+  assert.equal(incomingOrderRemainingQuantity(order, deliveries.slice(1)), '0.40')
   assert.equal(
     incomingOrderRemainingQuantity(
       { id: 2, items: [{ id: 20, quantity: '0.25' }] },
@@ -50,7 +51,7 @@ test('incoming picker balances are per line and unknown values never become full
       },
       deliveries,
     ),
-    '1.00',
+    '2.00',
   )
   assert.equal(
     incomingOrderRemainingQuantity({ id: 3, items: [{ id: 20, quantity: '1' }] }, deliveries),
@@ -61,6 +62,7 @@ test('incoming picker balances are per line and unknown values never become full
     incomingOrderRemainingQuantity({ id: 2, items: [{ id: 20, quantity: 'bad' }] }, []),
     null,
   )
+  deliveries[0].status = 'COMPLETED'
   deliveries[0].items[0].receivedQuantity = 'bad'
   assert.equal(
     incomingOrderRemainingQuantity({ id: 2, items: [{ id: 20, quantity: '1' }] }, deliveries),
@@ -147,10 +149,7 @@ test('only inspected backend transitions are exposed for each direction', () => 
     'dispatch',
     'cancel',
   ])
-  assert.deepEqual(getDeliveryActions({ type: 'Outgoing', status: 'DISPATCHED' }), [
-    'complete',
-    'cancel',
-  ])
+  assert.deepEqual(getDeliveryActions({ type: 'Outgoing', status: 'DISPATCHED' }), ['complete'])
   for (const type of ['Incoming', 'Outgoing'])
     for (const status of ['COMPLETED', 'DELIVERED', 'CANCELLED'])
       assert.deepEqual(getDeliveryActions({ type, status }), [])

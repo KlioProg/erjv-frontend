@@ -1,6 +1,6 @@
 import type { InventoryItemResponse } from './products.types'
 import type { StockItem } from '../logistics/stock-items.types'
-import { parseStockCents } from '../logistics/stock-display.ts'
+import { availableStockCents, parseStockCents } from '../logistics/stock-display.ts'
 
 export function filterCatalogProducts(products: InventoryItemResponse[], query: string) {
   const term = query.trim().toLocaleLowerCase()
@@ -31,9 +31,7 @@ export function buildCatalogStockMap<T extends StockItem>(stocks: T[]) {
       allocations: [],
     }
     const physical = parseStockCents(stock.quantity)
-    const reserved = parseStockCents(stock.reservedQuantity ?? '0')
-    const available =
-      physical === null || reserved === null ? null : physical > reserved ? physical - reserved : 0n
+    const available = availableStockCents(stock)
     current.totalCents =
       current.totalCents === null || physical === null ? null : current.totalCents + physical
     current.availableCents =

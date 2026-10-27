@@ -1,15 +1,17 @@
-import { apiClient, extractArray } from '@/lib/api-client'
+import { fetchCursorList } from '@/lib/cursor-pagination'
+import { apiClient } from '@/lib/api-client'
 import type {
   CreateIncomingDeliveryPayload,
+  CompleteIncomingDeliveryPayload,
   IncomingDeliveryFilter,
   IncomingDeliveryRecord,
 } from './incoming-deliveries.types'
 
 export async function fetchIncomingDeliveriesApi(
   filter?: IncomingDeliveryFilter,
+  signal?: AbortSignal,
 ): Promise<IncomingDeliveryRecord[]> {
-  const response = await apiClient.get('/incoming-deliveries', { params: filter })
-  return extractArray<IncomingDeliveryRecord>(response.data)
+  return fetchCursorList<IncomingDeliveryRecord>('/incoming-deliveries', filter, signal)
 }
 
 export async function fetchIncomingDeliveryByIdApi(
@@ -39,10 +41,6 @@ export async function createIncomingDeliveryApi(
       ? { supplierReference: payload.supplierReference.trim() }
       : {}),
     ...(payload.notes?.trim() ? { notes: payload.notes.trim() } : {}),
-    items: payload.items.map((item) => ({
-      purchaseOrderItemId: item.purchaseOrderItemId,
-      receivedQuantity: String(item.receivedQuantity),
-    })),
   }
 
   const { data } = await apiClient.post<IncomingDeliveryRecord>(
@@ -59,9 +57,15 @@ export async function scheduleIncomingDeliveryApi(id: number): Promise<IncomingD
   return data
 }
 
-export async function completeIncomingDeliveryApi(id: number): Promise<IncomingDeliveryRecord> {
+export async function completeIncomingDeliveryApi(
+  id: number,
+  payload: CompleteIncomingDeliveryPayload,
+): Promise<IncomingDeliveryRecord> {
+  if (!Array.isArray(payload?.items) || (!payload.items.length && !payload.noReceiptReason?.trim()))
+    throw new Error('Receipt items or an explicit no-receipt reason are required.')
   const { data } = await apiClient.patch<IncomingDeliveryRecord>(
     `/incoming-deliveries/${id}/complete`,
+    payload,
   )
   return data
 }

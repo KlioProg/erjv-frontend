@@ -1,5 +1,7 @@
 // The API accepts decimal strings with at most two places. Keep money and
 // quantities scaled as integers, using the same rounding as the backend.
+import { availableStockCents } from '../features/logistics/stock-display.ts'
+
 export function parseOrderDecimal(value: string): bigint | null {
   if (!/^\d+(?:\.\d{1,2})?$/.test(value)) return null
   const [whole, fraction = ''] = value.split('.')
@@ -29,11 +31,8 @@ export function lineSubtotal(quantity: string, price: string): string | null {
   return decimalString(roundedDivide(qty * cost, 100n))
 }
 
-export function availableStock(stock?: { quantity: string; reservedQuantity?: string }): bigint {
-  if (!stock) return 0n
-  const physical = parseOrderDecimal(stock.quantity) ?? 0n
-  const reserved = parseOrderDecimal(stock.reservedQuantity ?? '0') ?? 0n
-  return physical > reserved ? physical - reserved : 0n
+export function availableStock(stock?: Parameters<typeof availableStockCents>[0]): bigint {
+  return stock ? availableStockCents(stock) ?? 0n : 0n
 }
 
 export function orderAmounts(

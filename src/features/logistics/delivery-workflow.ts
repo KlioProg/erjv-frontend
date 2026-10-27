@@ -159,7 +159,7 @@ export function getDeliveryActions(row: Pick<DeliveryRow, 'type' | 'status'>): D
   } else {
     if (row.status === 'DRAFT') return ['schedule', 'cancel']
     if (row.status === 'SCHEDULED') return ['dispatch', 'cancel']
-    if (row.status === 'DISPATCHED') return ['complete', 'cancel']
+    if (row.status === 'DISPATCHED') return ['complete']
   }
   return []
 }

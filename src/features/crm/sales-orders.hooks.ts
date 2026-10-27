@@ -23,8 +23,8 @@ export const SALES_ORDERS_QUERY_KEY = ['sales-orders'] as const
 
 export function useSalesOrders(filter?: SalesOrderFilter) {
   return useQuery({
-    queryKey: [...SALES_ORDERS_QUERY_KEY, filter?.status ?? 'ALL', filter?.clientId ?? 'ALL'],
-    queryFn: () => fetchSalesOrdersApi(filter),
+    queryKey: [...SALES_ORDERS_QUERY_KEY, filter?.status ?? 'ALL', filter?.clientId ?? 'ALL', filter?.limit ?? 50, filter?.cursor ?? null],
+    queryFn: ({ signal }) => fetchSalesOrdersApi(filter, signal),
   })
 }
 
@@ -48,17 +48,21 @@ export function useSalesOrderByNumber(orderNumber?: string) {
 export function useCreateSalesOrder({ notifySuccess = true }: { notifySuccess?: boolean } = {}) {
   const queryClient = useQueryClient()
   return useMutation({
+    retry: false,
     mutationFn: (payload: CreateSalesOrderPayload) => createSalesOrderApi(payload),
     onSuccess: (order) => {
       // Publish only the backend response, then reconcile with the canonical list.
       queryClient.setQueryData<SalesOrderRecord[]>(
-        [...SALES_ORDERS_QUERY_KEY, 'ALL', 'ALL'],
+        [...SALES_ORDERS_QUERY_KEY, 'ALL', 'ALL', 50, null],
         (orders = []) => [order, ...orders.filter((existing) => existing.id !== order.id)],
       )
       void queryClient.invalidateQueries({ queryKey: SALES_ORDERS_QUERY_KEY })
       if (notifySuccess) toast.success(`Sales Order "${order.orderNumber}" created successfully`)
     },
     onError: (err) => {
+      void queryClient.invalidateQueries({ queryKey: ['sales-orders'] })
+      void queryClient.invalidateQueries({ queryKey: ['stock-items'] })
+      void queryClient.invalidateQueries({ queryKey: ['outgoing-deliveries'] })
       toast.error(getErrorMessage(err))
     },
   })
@@ -67,6 +71,7 @@ export function useCreateSalesOrder({ notifySuccess = true }: { notifySuccess?: 
 export function useConfirmSalesOrder() {
   const queryClient = useQueryClient()
   return useMutation({
+    retry: false,
     mutationFn: (id: number) => confirmSalesOrderApi(id),
     onSuccess: (order, id) => {
       void queryClient.invalidateQueries({ queryKey: SALES_ORDERS_QUERY_KEY })
@@ -77,6 +82,9 @@ export function useConfirmSalesOrder() {
         })
     },
     onError: (err) => {
+      void queryClient.invalidateQueries({ queryKey: ['sales-orders'] })
+      void queryClient.invalidateQueries({ queryKey: ['stock-items'] })
+      void queryClient.invalidateQueries({ queryKey: ['outgoing-deliveries'] })
       toast.error(getErrorMessage(err))
     },
   })
@@ -95,6 +103,9 @@ export function useUpdateSalesOrderDraft() {
       toast.success(`Draft ${order.orderNumber} updated`)
     },
     onError: (error) => {
+      void queryClient.invalidateQueries({ queryKey: ['sales-orders'] })
+      void queryClient.invalidateQueries({ queryKey: ['stock-items'] })
+      void queryClient.invalidateQueries({ queryKey: ['outgoing-deliveries'] })
       if (!isStaleSalesOrderRevision(error)) toast.error(getErrorMessage(error))
     },
   })
@@ -103,6 +114,7 @@ export function useUpdateSalesOrderDraft() {
 export function useCancelSalesOrder() {
   const queryClient = useQueryClient()
   return useMutation({
+    retry: false,
     mutationFn: (id: number) => cancelSalesOrderApi(id),
     onSuccess: (order) => {
       void queryClient.invalidateQueries({ queryKey: SALES_ORDERS_QUERY_KEY })
@@ -110,6 +122,9 @@ export function useCancelSalesOrder() {
       toast.info(`Sales Order "${order.orderNumber}" cancelled`)
     },
     onError: (err) => {
+      void queryClient.invalidateQueries({ queryKey: ['sales-orders'] })
+      void queryClient.invalidateQueries({ queryKey: ['stock-items'] })
+      void queryClient.invalidateQueries({ queryKey: ['outgoing-deliveries'] })
       toast.error(getErrorMessage(err))
     },
   })

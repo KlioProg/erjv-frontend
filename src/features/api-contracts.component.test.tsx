@@ -11,6 +11,7 @@ import {
 import {
   createIncomingDeliveryApi,
   fetchIncomingDeliveryByNumberApi,
+  scheduleIncomingDeliveryApi,
 } from './logistics/incoming-deliveries.api'
 import {
   createOutgoingDeliveryApi,
@@ -151,13 +152,11 @@ const creations = [
         purchaseOrderId: 2,
         warehouseId: 4,
         supplierReference: ' REF ',
-        items: [{ purchaseOrderItemId: 6, receivedQuantity: '0.50' }],
       }),
     body: {
       purchaseOrderId: 2,
       warehouseId: 4,
       supplierReference: 'REF',
-      items: [{ purchaseOrderItemId: 6, receivedQuantity: '0.50' }],
     },
   },
   {
@@ -176,6 +175,46 @@ const creations = [
     },
   },
 ]
+
+it('allows only header fields for incoming creation even when a legacy caller supplies receipt fields', async () => {
+  const requests: { url?: string; body: unknown }[] = []
+  apiClient.defaults.adapter = async (config) => {
+    requests.push({ url: config.url, body: config.data ? JSON.parse(config.data) : undefined })
+    return {
+      config,
+      data: { id: 91, status: 'DRAFT', items: [] },
+      status: 201,
+      statusText: '',
+      headers: {},
+    }
+  }
+  const legacy = {
+    purchaseOrderId: 2,
+    warehouseId: 4,
+    scheduledAt: '2026-10-28T02:00:00.000Z',
+    supplierReference: ' WAYBILL-9 ',
+    notes: ' Dock 2 ',
+    items: [{ purchaseOrderItemId: 6, receivedQuantity: '1.00', damagedQuantity: '0.00' }],
+    plannedItems: [],
+    receivedQuantity: '1.00',
+    damagedQuantity: '0.00',
+  }
+  await createIncomingDeliveryApi(legacy)
+  await scheduleIncomingDeliveryApi(91)
+  expect(requests).toEqual([
+    {
+      url: '/incoming-deliveries',
+      body: {
+        purchaseOrderId: 2,
+        warehouseId: 4,
+        scheduledAt: '2026-10-28T02:00:00.000Z',
+        supplierReference: 'WAYBILL-9',
+        notes: 'Dock 2',
+      },
+    },
+    { url: '/incoming-deliveries/91/schedule', body: undefined },
+  ])
+})
 
 it.each(creations)(
   'sends the current $name DTO and returns authoritative server values',

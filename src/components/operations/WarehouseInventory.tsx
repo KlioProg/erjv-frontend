@@ -8,6 +8,7 @@ import {
   Package,
   Phone,
   Search,
+  Settings2,
   Warehouse as WarehouseIcon,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -23,10 +24,15 @@ import { getErrorMessage } from '@/lib/api-client'
 import { stockConditionForItem, stockConditionRank } from '@/features/logistics/stock-warnings'
 import { StockIndicator } from '@/components/inventory/StockIndicator'
 import { cn } from '@/lib/utils'
+import { StockConditionReportModal } from '@/components/inventory/StockConditionReportModal'
+import { useAuth } from '@/features/auth/AuthContext'
+import { ReorderThresholdModal } from './ReorderThresholdModal'
 
 type StockRow = {
   stock: StockItemWithInventoryItem
   quantityCents: bigint | null
+  availableCents: bigint | null
+  quarantinedCents: bigint | null
 }
 
 export function WarehouseInventory({
@@ -37,11 +43,19 @@ export function WarehouseInventory({
   onBack: () => void
 }) {
   const stockQuery = useWarehouseStock(warehouse.id)
+  const { isAdmin, isManager, isStaff } = useAuth()
+  const [reportOpen, setReportOpen] = useState(false)
+  const [thresholdStock, setThresholdStock] = useState<StockItemWithInventoryItem | null>(null)
   const [search, setSearch] = useState('')
   const rows = useMemo<StockRow[]>(
     () =>
       (stockQuery.data ?? [])
-        .map((stock) => ({ stock, quantityCents: parseStockCents(stock.quantity) }))
+        .map((stock) => ({
+          stock,
+          quantityCents: parseStockCents(stock.quantity),
+          availableCents: parseStockCents(stock.availableQuantity),
+          quarantinedCents: parseStockCents(stock.quarantinedQuantity),
+        }))
         .sort(
           (a, b) =>
             stockConditionRank[stockConditionForItem(a.stock)] -
@@ -61,12 +75,14 @@ export function WarehouseInventory({
         )
       : rows
   }, [rows, search])
-  const totalStockCents = rows.some((row) => row.quantityCents === null)
-    ? null
-    : rows.reduce((sum, row) => sum + (row.quantityCents ?? 0n), 0n)
   const summaryMetrics = [
-    { label: 'Total stock', value: formatStockCents(totalStockCents), unit: 'units', icon: Boxes },
-    { label: 'Products', value: rows.length.toLocaleString(), unit: 'products', icon: Package },
+    { label: 'Stock records', value: rows.length.toLocaleString(), unit: 'records', icon: Boxes },
+    {
+      label: 'Products',
+      value: new Set(rows.map((row) => row.stock.inventoryItemId)).size.toLocaleString(),
+      unit: 'products',
+      icon: Package,
+    },
   ]
 
   const columns = useMemo<ColumnDef<StockRow>[]>(
@@ -74,40 +90,61 @@ export function WarehouseInventory({
       {
         id: 'product',
         header: 'Product',
-        width: '55%',
+        width: '36%',
         sortable: true,
         sortKey: (row) => row.stock.inventoryItem?.name ?? '',
         cell: ({ row }) => (
-          <OverflowValue value={row.stock.inventoryItem?.name} className="text-sm font-medium" />
-        ),
-      },
-      {
-        id: 'unit',
-        header: 'Unit',
-        width: '20%',
-        className: 'hidden sm:table-cell',
-        headerClassName: 'hidden sm:table-cell',
-        sortable: true,
-        sortKey: (row) => row.stock.inventoryItem?.unit ?? '',
-        cell: ({ row }) => (
-          <OverflowValue
-            value={formatProductUnit(row.stock.inventoryItem?.unit)}
-            className="text-sm text-muted-foreground"
-          />
+          <div
+            className={cn(
+              'relative flex min-w-0 flex-col gap-0.5',
+              (isAdmin || isManager) && 'pr-8',
+            )}
+          >
+            <OverflowValue
+              value={row.stock.inventoryItem?.name || 'Product unavailable'}
+              className="whitespace-normal text-sm font-medium leading-5 [overflow-wrap:anywhere]"
+            />
+            <span className="text-xs text-muted-foreground">
+              {formatProductUnit(row.stock.inventoryItem?.unit) || 'Unit unavailable'}
+            </span>
+            {(isAdmin || isManager) && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="absolute right-0 top-0 size-8"
+                title="Stock Alert Settings"
+                onClick={() => setThresholdStock(row.stock)}
+                aria-label={`Stock Alert Settings for ${row.stock.inventoryItem?.name ?? 'product'}`}
+              >
+                <Settings2 className="size-3.5" />
+              </Button>
+            )}
+          </div>
         ),
       },
       {
         id: 'quantity',
-        header: (
-          <>
-            <span className="sm:hidden">Qty</span>
-            <span className="hidden sm:inline">Quantity</span>
-          </>
-        ),
-        width: '25%',
+        header: 'Physical',
+        width: '18%',
         align: 'right',
         sortable: true,
         sortKey: (row) => stockSortKey(row.quantityCents),
+        cell: ({ row }) => (
+          <OverflowValue
+            value={formatStockCents(row.quantityCents)}
+            fullValue={row.quantityCents === null ? 'Unavailable' : undefined}
+            tooltipSuffix={formatProductUnit(row.stock.inventoryItem?.unit)}
+            className="text-right text-sm tabular-nums"
+          />
+        ),
+      },
+      {
+        id: 'available',
+        header: 'Available',
+        width: '22%',
+        align: 'right',
+        sortable: true,
+        sortKey: (row) => stockSortKey(row.availableCents),
         cell: ({ row }) => {
           const condition = stockConditionForItem(row.stock)
           const warning =
@@ -115,33 +152,51 @@ export function WarehouseInventory({
           return (
             <div
               className={cn(
-                'flex min-w-0 flex-col items-end gap-0.5',
+                'flex min-w-0 items-center justify-end gap-1.5',
                 condition === 'OUT' && 'text-destructive',
                 condition === 'LOW' && 'text-status-warning-foreground',
               )}
             >
-              <div className="flex max-w-full items-center justify-end gap-1.5">
-                <StockIndicator
-                  condition={condition}
-                  label={`${warning}: ${row.stock.inventoryItem?.name ?? 'Product'} in ${warehouse.name}`}
-                />
-                <OverflowValue
-                  value={formatStockCents(row.quantityCents)}
-                  fullValue={row.quantityCents === null ? row.stock.quantity : undefined}
-                  tooltipSuffix={formatProductUnit(row.stock.inventoryItem?.unit, 'units')}
-                  className="text-right text-sm font-normal tabular-nums"
-                />
-              </div>
-              {warning && <span className="text-xs font-medium">{warning}</span>}
-              {condition === 'NORMAL' && row.stock.reorderThreshold == null && (
-                <span className="text-xs text-muted-foreground">Threshold not set</span>
-              )}
+              <StockIndicator
+                condition={condition}
+                label={`${warning}: ${row.stock.inventoryItem?.name ?? 'Product'} in ${warehouse.name}`}
+              />
+              <OverflowValue
+                value={formatStockCents(row.availableCents)}
+                fullValue={row.availableCents === null ? 'Unavailable' : undefined}
+                tooltipSuffix={formatProductUnit(row.stock.inventoryItem?.unit)}
+                className="text-right text-sm font-medium tabular-nums"
+              />
             </div>
           )
         },
       },
+      {
+        id: 'quarantined',
+        header: 'Quarantined',
+        width: '24%',
+        align: 'right',
+        sortable: true,
+        sortKey: (row) => stockSortKey(row.quarantinedCents),
+        cell: ({ row }) =>
+          row.quarantinedCents !== null && row.quarantinedCents > 0n ? (
+            <Badge
+              variant="outline"
+              className="max-w-full border-status-warning-foreground/20 bg-status-warning text-status-warning-foreground tabular-nums [overflow-wrap:anywhere]"
+            >
+              {formatStockCents(row.quarantinedCents)}{' '}
+              {formatProductUnit(row.stock.inventoryItem?.unit)}
+            </Badge>
+          ) : (
+            <OverflowValue
+              value={formatStockCents(row.quarantinedCents)}
+              fullValue={row.quarantinedCents === null ? 'Unavailable' : undefined}
+              className="text-right text-sm text-muted-foreground tabular-nums"
+            />
+          ),
+      },
     ],
-    [warehouse.name],
+    [warehouse.name, isAdmin, isManager],
   )
 
   return (
@@ -221,6 +276,16 @@ export function WarehouseInventory({
         aria-label={`Inventory in ${warehouse.name}`}
         className="overflow-hidden rounded-lg border border-border bg-card"
       >
+        {(isAdmin || isManager || isStaff) && (
+          <div className="flex justify-end border-b border-border px-4 py-3">
+            <Button
+              onClick={() => setReportOpen(true)}
+              disabled={stockQuery.isLoading || stockQuery.isError}
+            >
+              Report Stock Condition
+            </Button>
+          </div>
+        )}
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3">
           <h3 className="flex min-w-0 max-w-full items-center gap-1 text-base font-semibold">
             <span className="shrink-0">Inventory in</span>
@@ -268,10 +333,28 @@ export function WarehouseInventory({
             }
             pageSizeOptions={[10, 25, 50, 100]}
             className="rounded-none border-0 shadow-none"
-            tableClassName="table-fixed w-full"
+            tableClassName="min-w-[480px] table-fixed w-full [&_tbody_tr]:h-14 [&_tbody_td]:py-2"
           />
         )}
       </section>
+      {reportOpen && (
+        <StockConditionReportModal
+          open
+          onClose={() => setReportOpen(false)}
+          stocks={(stockQuery.data ?? []).map((stock) => ({ ...stock, warehouse }))}
+          stocksLoading={stockQuery.isLoading}
+          stocksError={stockQuery.isError}
+        />
+      )}
+      {thresholdStock && (
+        <ReorderThresholdModal
+          open
+          stock={thresholdStock}
+          productName={thresholdStock.inventoryItem.name}
+          warehouseName={warehouse.name}
+          onClose={() => setThresholdStock(null)}
+        />
+      )}
     </div>
   )
 }

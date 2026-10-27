@@ -1,3 +1,4 @@
+import { fetchCursorList } from '@/lib/cursor-pagination'
 import { apiClient, extractArray } from '@/lib/api-client'
 import type {
   CreateOutgoingDeliveryPayload,
@@ -5,17 +6,13 @@ import type {
   UpdateOutgoingDeliveryDraftPayload,
   OutgoingPlanningOption,
   DispatchOutgoingDeliveryPayload,
+  CompleteOutgoingDeliveryPayload,
   OutgoingDeliveryFilter,
   OutgoingDeliveryRecord,
 } from './outgoing-deliveries.types'
 
-export async function fetchOutgoingDeliveriesApi(
-  filter?: OutgoingDeliveryFilter,
-): Promise<OutgoingDeliveryRecord[]> {
-  const response = await apiClient.get('/outgoing-deliveries', {
-    params: filter,
-  })
-  return extractArray<OutgoingDeliveryRecord>(response.data)
+export async function fetchOutgoingDeliveriesApi(filter?: OutgoingDeliveryFilter, signal?: AbortSignal): Promise<OutgoingDeliveryRecord[]> {
+  return fetchCursorList<OutgoingDeliveryRecord>('/outgoing-deliveries', filter, signal)
 }
 
 export async function fetchOutgoingDeliveryByIdApi(
@@ -104,19 +101,25 @@ export async function dispatchOutgoingDeliveryApi(
   id: number,
   payload: DispatchOutgoingDeliveryPayload,
 ): Promise<OutgoingDeliveryRecord> {
+  if (!Array.isArray(payload?.items) || !payload.items.length)
+    throw new Error('At least one loaded item is required.')
   const { data } = await apiClient.patch<OutgoingDeliveryRecord>(
     `/outgoing-deliveries/${id}/dispatch`,
     {
       deliveryVehicleId: payload.deliveryVehicleId,
       driverEmployeeId: payload.driverEmployeeId,
+      items: payload.items,
     },
   )
   return data
 }
 
-export async function completeOutgoingDeliveryApi(id: number): Promise<OutgoingDeliveryRecord> {
+export async function completeOutgoingDeliveryApi(id: number, payload: CompleteOutgoingDeliveryPayload): Promise<OutgoingDeliveryRecord> {
+  if (!Array.isArray(payload?.items) || !payload.items.length)
+    throw new Error('Reconciliation items are required.')
   const { data } = await apiClient.patch<OutgoingDeliveryRecord>(
     `/outgoing-deliveries/${id}/complete`,
+    payload,
   )
   return data
 }

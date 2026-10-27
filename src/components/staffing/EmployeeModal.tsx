@@ -140,9 +140,13 @@ function EmployeeFormContent({
   }
 
   const handleRestoreFoundEmployee = async () => {
-    if (deactivatedEmployeeMatch) {
-      await reactivateMutation.mutateAsync(deactivatedEmployeeMatch)
-      onClose()
+    try {
+      if (deactivatedEmployeeMatch) {
+        await reactivateMutation.mutateAsync(deactivatedEmployeeMatch)
+        onClose()
+      }
+    } catch (error) {
+      setErrorMsg(getErrorMessage(error))
     }
   }
 
@@ -164,7 +168,7 @@ function EmployeeFormContent({
         </DialogDescription>
       </DialogHeader>
 
-      {errorMsg && !deactivatedEmployeeMatch && (
+      {errorMsg && (!deactivatedEmployeeMatch || reactivateMutation.isError) && (
         <Alert variant="destructive" className="my-1">
           <AlertDescription>{errorMsg}</AlertDescription>
         </Alert>
