@@ -1,10 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { getErrorMessage, type FetchParams } from '@/lib/api-client'
+import { useCursorLookup } from '@/lib/use-cursor-lookup'
 import { USER_ROLES, type UserRole } from '../auth/roles'
 import { registerApi } from '../auth/auth.api'
 import {
   assignEmployeeJobApi,
+  updateEmployeeDrivingEligibilityApi,
   createEmployeeApi,
   createJobApi,
   deactivateEmployeeApi,
@@ -62,6 +64,25 @@ export function useEmployees(params?: FetchParams) {
 
 export function useAllEmployees() {
   return useEmployees({ includeInactive: 'true' })
+}
+
+export function useAvailableDrivers(q = '') {
+  return useCursorLookup<Employee>('/employees', { canDrive: 'true', available: 'true', includeInactive: 'false', ...(q.trim() ? { q: q.trim() } : {}) })
+}
+
+export function useUpdateEmployeeDrivingEligibility() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    retry: false,
+    mutationFn: ({ id, canDrive }: { id: number; canDrive: boolean }) => updateEmployeeDrivingEligibilityApi(id, canDrive),
+    onSuccess: (employee) => {
+      queryClient.setQueryData(staffingKeys.employeeDetail(employee.id), employee)
+    },
+    onSettled: () => Promise.all([
+      staffingKeys.all, ['delivery-runs'],
+    ].map((queryKey) => queryClient.invalidateQueries({ queryKey }))),
+    onError: (error) => toast.error(getErrorMessage(error)),
+  })
 }
 
 export function useCreateEmployee() {

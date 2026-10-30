@@ -38,24 +38,24 @@ const lists = [
   {
     name: 'sales',
     fetch: () => fetchSalesOrdersApi({ status: 'DRAFT', clientId: 7, limit: 1 }),
-    filter: { status: 'DRAFT', clientId: 7 },
+    filter: { statuses: ['DRAFT'], clientId: 7 },
   },
   {
     name: 'purchases',
     fetch: () => fetchPurchaseOrdersApi({ status: 'DRAFT', supplierId: 7, limit: 1 }),
-    filter: { status: 'DRAFT', supplierId: 7 },
+    filter: { statuses: ['DRAFT'], supplierId: 7 },
   },
   {
     name: 'incoming',
     fetch: () =>
       fetchIncomingDeliveriesApi({ status: 'DRAFT', purchaseOrderId: 7, warehouseId: 8, limit: 1 }),
-    filter: { status: 'DRAFT', purchaseOrderId: 7, warehouseId: 8 },
+    filter: { statuses: ['DRAFT'], purchaseOrderId: 7, warehouseId: 8 },
   },
   {
     name: 'outgoing',
     fetch: () =>
       fetchOutgoingDeliveriesApi({ status: 'DRAFT', salesOrderId: 7, warehouseId: 8, limit: 1 }),
-    filter: { status: 'DRAFT', salesOrderId: 7, warehouseId: 8 },
+    filter: { statuses: ['DRAFT'], salesOrderId: 7, warehouseId: 8 },
   },
 ]
 
@@ -192,17 +192,16 @@ it('sends the PO expected revision and only current draft fields, replacing comp
   expect(saved.revision).toBe(5)
 })
 
-it('rejects missing revisions and empty replacement lines before a PO write', async () => {
+it('rejects missing revisions but permits empty replacement lines for a PO draft', async () => {
   let calls = 0
   apiClient.defaults.adapter = async (config) => {
     calls++
     return response(config, {})
   }
   await expect(updatePurchaseOrderDraftApi(7, {} as never)).rejects.toThrow(/revision/i)
-  await expect(updatePurchaseOrderDraftApi(7, { expectedRevision: 1, items: [] })).rejects.toThrow(
-    /product/i,
-  )
   expect(calls).toBe(0)
+  await expect(updatePurchaseOrderDraftApi(7, { expectedRevision: 1, items: [] })).resolves.toEqual({})
+  expect(calls).toBe(1)
 })
 
 it.each([
@@ -228,17 +227,18 @@ it.each([
   expect(message).toContain('4')
 })
 
-it('uses shared warehouseRemainingQuantity rather than adding independent line maxima', () => {
+it('allows repeated product lines and stock shortfalls within each order line remaining demand', () => {
   const options = [1, 2].map((id) => ({
     salesOrderItemId: id,
     inventoryItemId: 3,
     orderedQuantity: '100.00',
     committedQuantity: '0.00',
-    scheduledQuantity: '0.00',
-    availableQuantity: '100.00',
-    plannedQuantity: '0.00',
+    readyQuantity: '0.00',
+    availableQuantity: '1.00',
+    plannedQuantity: '8.00',
     maximumPlannableQuantity: '5.00',
-    warehouseRemainingQuantity: '5.00',
+    remainingToPlanQuantity: '5.00',
+    shortfallQuantity: '7.00',
   }))
   const errors = outgoingPlanningErrors(
     {
@@ -247,16 +247,17 @@ it('uses shared warehouseRemainingQuantity rather than adding independent line m
     options,
     { 1: '3.00', 2: '3.00' },
   )
-  expect(Object.keys(errors)).toEqual(['quantity-1', 'quantity-2'])
+  expect(errors).toEqual({})
+  expect(outgoingPlanningErrors(
+    { items: options.map((option) => ({ id: option.salesOrderItemId, inventoryItemId: 3 })) } as never,
+    options,
+    { 1: '5.01', 2: '3.00' },
+  )).toEqual({ 'quantity-1': 'Maximum plannable quantity is 5.00. Review this quantity.' })
 })
 
 it('uses authoritative availability in legacy order source calculations too', () => {
   expect(
     availableStock({
-      quantity: '20.00',
-      reservedQuantity: '5.00',
-      damagedQuantity: '3.00',
-      quarantinedQuantity: '3.00',
       availableQuantity: '12.00',
     }),
   ).toBe(1200n)

@@ -17,60 +17,60 @@ test('catalog searches existing name, variety and description without mutating p
   assert.equal(products.length, 2)
 })
 
-test('catalog totals physical stock independently from unreserved availability with exact decimal arithmetic', () => {
+test('catalog totals physical stock independently from backend availability with exact decimal arithmetic', () => {
   const stocks = [
     {
       id: 1,
       warehouseId: 1,
       inventoryItemId: 1,
-      quantity: '12.25',
-      reservedQuantity: '2.10',
-      damagedQuantity: '1.25',
+      onHandQuantity: '12.25',
+      inTransitQuantity: '2.10',
+      quarantinedQuantity: '1.25',
       availableQuantity: '8.90',
     },
     {
       id: 2,
       warehouseId: 2,
       inventoryItemId: 1,
-      quantity: '0.10',
-      reservedQuantity: '0',
-      damagedQuantity: '0',
+      onHandQuantity: '0.10',
+      inTransitQuantity: '0',
+      quarantinedQuantity: '0',
       availableQuantity: '0.10',
     },
   ]
   const entry = buildCatalogStockMap(stocks).get(1)
   assert.equal(entry.totalCents, 1235n)
   assert.equal(entry.availableCents, 900n)
-  assert.equal(entry.reservedCents, 210n)
-  assert.equal(entry.damagedCents, 125n)
+  assert.equal(entry.inTransitCents, 210n)
+  assert.equal(entry.quarantinedCents, 125n)
   assert.equal(entry.warehouseCount, 2)
   assert.deepEqual(entry.allocations, stocks)
 })
 
 test('missing stock fields remain unknown without recalculating backend availability', () => {
   const entry = buildCatalogStockMap([
-    { id: 1, inventoryItemId: 1, warehouseId: 1, quantity: '10' },
+    { id: 1, inventoryItemId: 1, warehouseId: 1, onHandQuantity: '10' },
   ]).get(1)
   assert.equal(entry.totalCents, 1000n)
   assert.equal(entry.availableCents, null)
-  assert.equal(entry.reservedCents, null)
-  assert.equal(entry.damagedCents, null)
+  assert.equal(entry.inTransitCents, null)
+  assert.equal(entry.quarantinedCents, null)
 })
 
 test('unknown balances stay unknown and large supported values never lose precision', () => {
   assert.equal(
-    buildCatalogStockMap([{ inventoryItemId: 1, quantity: 'unknown' }]).get(1).totalCents,
+    buildCatalogStockMap([{ inventoryItemId: 1, onHandQuantity: 'unknown' }]).get(1).totalCents,
     null,
   )
   const malformedReservation = buildCatalogStockMap([
-    { inventoryItemId: 1, quantity: '10', reservedQuantity: 'invalid' },
+    { inventoryItemId: 1, onHandQuantity: '10', inTransitQuantity: 'invalid' },
   ]).get(1)
   assert.equal(malformedReservation.totalCents, 1000n)
   assert.equal(malformedReservation.availableCents, null)
   assert.equal(
     buildCatalogStockMap([
-      { inventoryItemId: 1, quantity: '9999999999.99' },
-      { inventoryItemId: 1, quantity: '0.01' },
+      { inventoryItemId: 1, onHandQuantity: '9999999999.99' },
+      { inventoryItemId: 1, onHandQuantity: '0.01' },
     ]).get(1).totalCents,
     1000000000000n,
   )

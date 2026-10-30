@@ -19,7 +19,7 @@ test('incoming order picker balance counts completed receipts, not headers or ca
     id,
     purchaseOrderId: 2,
     status,
-    items: [{ id: id + 10, purchaseOrderItemId: 20, receivedQuantity: '0.20' }],
+    items: [{ id: id + 10, purchaseOrderItemId: 20, receivedQuantity: '0.20', acceptedQuantity: '0.20' }],
   }))
   assert.equal(incomingOrderRemainingQuantity(order, deliveries), '0.40')
   assert.equal(incomingOrderRemainingQuantity(order, deliveries.slice(1)), '0.40')
@@ -72,7 +72,7 @@ test('incoming picker balances are per line and unknown values never become full
 
 test('delivery views separate active directions from all terminal records', () => {
   for (const type of ['Incoming', 'Outgoing']) {
-    for (const status of ['DRAFT', 'SCHEDULED', 'DISPATCHED']) {
+    for (const status of (type === 'Incoming' ? ['DRAFT', 'SCHEDULED'] : ['DRAFT', 'READY', 'DISPATCHED'])) {
       assert.equal(deliveryBelongsToView({ type, status }, 'history'), false)
       assert.equal(deliveryBelongsToView({ type, status }, type.toLowerCase()), true)
       assert.equal(
@@ -80,7 +80,7 @@ test('delivery views separate active directions from all terminal records', () =
         false,
       )
     }
-    for (const status of ['COMPLETED', 'DELIVERED', 'CANCELLED']) {
+    for (const status of ['COMPLETED', 'RECONCILED', 'CANCELLED']) {
       assert.equal(deliveryBelongsToView({ type, status }, 'history'), true)
       assert.equal(deliveryBelongsToView({ type, status }, type.toLowerCase()), false)
     }
@@ -145,13 +145,16 @@ test('only inspected backend transitions are exposed for each direction', () => 
     'cancel',
   ])
   assert.deepEqual(getDeliveryActions({ type: 'Incoming', status: 'DISPATCHED' }), [])
-  assert.deepEqual(getDeliveryActions({ type: 'Outgoing', status: 'SCHEDULED' }), [
-    'dispatch',
+  assert.deepEqual(getDeliveryActions({ type: 'Outgoing', status: 'READY' }), [
+    'reopen',
+    'run',
     'cancel',
   ])
-  assert.deepEqual(getDeliveryActions({ type: 'Outgoing', status: 'DISPATCHED' }), ['complete'])
+  assert.deepEqual(getDeliveryActions({ type: 'Outgoing', status: 'DISPATCHED' }), ['reconcile'])
+  assert.deepEqual(getDeliveryActions({ type: 'Outgoing', status: 'DRAFT' }), ['ready', 'cancel'])
+  assert.deepEqual(getDeliveryActions({ type: 'Outgoing', status: 'READY', runId: 1 }), ['run'])
   for (const type of ['Incoming', 'Outgoing'])
-    for (const status of ['COMPLETED', 'DELIVERED', 'CANCELLED'])
+    for (const status of ['COMPLETED', 'RECONCILED', 'CANCELLED'])
       assert.deepEqual(getDeliveryActions({ type, status }), [])
 })
 

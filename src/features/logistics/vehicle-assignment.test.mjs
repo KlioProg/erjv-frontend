@@ -6,25 +6,25 @@ import {
   getVehicleCondition,
   getVehicleAvailabilityStatus,
 } from './vehicle-assignment.ts'
-const vehicle = { id: 1, status: 'AVAILABLE', isActive: true }
+const vehicle = { id: 1, operationalStatus: 'SERVICEABLE', isAvailable: true, isActive: true }
 const delivery = {
   id: 10,
-  deliveryNumber: 'OUT-10',
+  runNumber: 'RUN-10',
   deliveryVehicleId: 1,
   driverEmployeeId: 2,
-  status: 'SCHEDULED',
+  status: 'DISPATCHED',
 }
 
-test('vehicle availability follows active assignment references, including draft reservations', () => {
-  for (const status of ['DRAFT', 'SCHEDULED', 'DISPATCHED']) {
+test('vehicle availability follows active assignment references, from dispatched runs', () => {
+  for (const status of ['DISPATCHED']) {
     const records = [{ ...delivery, status }]
     assert.equal(getVehicleAvailabilityStatus(vehicle, records), 'IN_DELIVERY')
     assert.equal(DeliveryUtils.getVehicleAvailability(vehicle, records).isAvailable, false)
   }
-  assert.equal(getVehicleAvailabilityStatus({ ...vehicle, status: 'IN_DELIVERY' }, []), 'AVAILABLE')
+  assert.equal(getVehicleAvailabilityStatus({ ...vehicle, isAvailable: true }, []), 'AVAILABLE')
 })
 test('completion and cancellation remove assignments without changing inventory locally', () => {
-  for (const status of ['DELIVERED', 'CANCELLED']) {
+  for (const status of ['DRAFT', 'COMPLETED', 'CANCELLED']) {
     const records = [{ ...delivery, status }]
     assert.deepEqual(getVehicleAssignments(1, records), [])
     assert.equal(getVehicleAvailabilityStatus(vehicle, records), 'AVAILABLE')
@@ -33,10 +33,10 @@ test('completion and cancellation remove assignments without changing inventory 
 })
 test('maintenance, out of service, and archive always prevent vehicle selection', () => {
   for (const status of ['MAINTENANCE', 'OUT_OF_SERVICE']) {
-    assert.equal(getVehicleCondition({ ...vehicle, status }), status)
-    assert.equal(getVehicleAvailabilityStatus({ ...vehicle, status }, [delivery]), status)
+    assert.equal(getVehicleCondition({ ...vehicle, operationalStatus: status }), status)
+    assert.equal(getVehicleAvailabilityStatus({ ...vehicle, operationalStatus: status }, [delivery]), status)
     assert.equal(
-      DeliveryUtils.getVehicleAvailability({ ...vehicle, status }, []).isAvailable,
+      DeliveryUtils.getVehicleAvailability({ ...vehicle, operationalStatus: status }, []).isAvailable,
       false,
     )
   }
@@ -45,7 +45,7 @@ test('maintenance, out of service, and archive always prevent vehicle selection'
   assert.equal(getVehicleAvailabilityStatus(archived, [delivery]), 'ARCHIVED')
   assert.equal(DeliveryUtils.getVehicleAvailability(archived, []).isAvailable, false)
 })
-test('dispatch may use its own reservation but cannot take another delivery’s vehicle', () => {
+test('dispatch may use its own run but cannot take another run’s vehicle', () => {
   assert.equal(DeliveryUtils.getVehicleAvailability(vehicle, [delivery], 10).isAvailable, true)
   assert.equal(DeliveryUtils.getVehicleAvailability(vehicle, [delivery], 11).isAvailable, false)
   assert.equal(
@@ -54,9 +54,9 @@ test('dispatch may use its own reservation but cannot take another delivery’s 
     false,
   )
 })
-test('driver reservations also block draft, scheduled, and dispatched double booking', () => {
+test('drivers on dispatched runs cannot be double booked', () => {
   const driver = { id: 2, isActive: true }
-  for (const status of ['DRAFT', 'SCHEDULED', 'DISPATCHED']) {
+  for (const status of ['DISPATCHED']) {
     assert.equal(
       DeliveryUtils.getDriverAvailability(driver, [{ ...delivery, status }]).isAvailable,
       false,
@@ -68,9 +68,13 @@ test('driver reservations also block draft, scheduled, and dispatched double boo
     false,
   )
 })
-test('unresolved legacy In Delivery state fails closed during selection', () => {
+test('authoritative unavailable vehicle fails closed without run references', () => {
   assert.equal(
-    DeliveryUtils.getVehicleAvailability({ ...vehicle, status: 'IN_DELIVERY' }, []).isAvailable,
+    DeliveryUtils.getVehicleAvailability({ ...vehicle, isAvailable: false, activeRunId: 99 }, []).isAvailable,
     false,
   )
+})
+
+test('draft run assignments do not reserve a driver before departure', () => {
+  assert.equal(DeliveryUtils.getDriverAvailability({ id: 2, isActive: true }, [{ ...delivery, status: 'DRAFT' }]).isAvailable, true)
 })

@@ -6,6 +6,7 @@ export const NAV_ITEM_KEYS = [
   'incoming-deliveries',
   'outgoing-deliveries',
   'delivery-history',
+  'delivery-runs',
   'purchases',
   'suppliers',
   'clients',
@@ -36,6 +37,7 @@ export const ROUTES = {
   incomingDeliveries: '/deliveries/incoming',
   outgoingDeliveries: '/deliveries/outgoing',
   deliveryHistory: '/deliveries/history',
+  deliveryRuns: '/deliveries/runs',
 } as const
 
 const SCREEN_ROUTES: Record<Exclude<NavItemKey, 'deliveries'>, string> = {
@@ -52,6 +54,7 @@ const SCREEN_ROUTES: Record<Exclude<NavItemKey, 'deliveries'>, string> = {
   'incoming-deliveries': ROUTES.incomingDeliveries,
   'outgoing-deliveries': ROUTES.outgoingDeliveries,
   'delivery-history': ROUTES.deliveryHistory,
+  'delivery-runs': ROUTES.deliveryRuns,
 }
 
 export function warehouseDetailsPath(id: number): string {

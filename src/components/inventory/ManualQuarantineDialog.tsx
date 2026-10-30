@@ -53,23 +53,61 @@ export function ManualQuarantineDialog({
             {!form.canTag && <p role="alert">You are not authorized to quarantine stock.</p>}
             {form.error && (
               <Alert variant="destructive">
-                <AlertDescription role="alert">{form.error}</AlertDescription>
+                <AlertDescription>{form.error}</AlertDescription>
               </Alert>
             )}
             {form.loading && <p role="status">Loading current stock…</p>}
+            {form.selectionIssue && (
+              <p role="alert" className="text-sm text-destructive">
+                {form.selectionIssue}
+              </p>
+            )}
             <fieldset disabled={!form.canEdit} className="space-y-4">
               <div className="space-y-2">
                 <Label>Warehouse</Label>
                 <SearchableDropdown
                   options={form.warehouses}
                   value={form.warehouseId}
+                  selectedLabel={
+                    form.warehouseLabel ??
+                    (form.warehouseId ? `Warehouse #${form.warehouseId}` : undefined)
+                  }
+                  onSearchChange={form.setWarehouseSearch}
+                  footer={
+                    <div className="space-y-2 border-t pt-2">
+                      {form.warehousesError && (
+                        <p role="alert">
+                          Warehouses could not be loaded.{' '}
+                          <Button
+                            type="button"
+                            variant="link"
+                            onClick={() => void form.reloadWarehouses()}
+                          >
+                            Reload warehouses
+                          </Button>
+                        </p>
+                      )}
+                      {form.warehousesHaveMore && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          disabled={form.warehousesFetching}
+                          onClick={() => void form.loadMoreWarehouses()}
+                        >
+                          Load more warehouses
+                        </Button>
+                      )}
+                    </div>
+                  }
                   onValueChange={form.setWarehouseId}
                   disabled={!form.canEdit}
                   getOptionValue={(item) => String(item.id)}
                   getOptionLabel={(item) => item.name}
                   placeholder="Select warehouse"
                   searchPlaceholder="Search warehouses"
-                  emptyMessage="No active warehouses"
+                  emptyMessage={
+                    form.warehousesLoading ? 'Loading warehouses...' : 'No active warehouses'
+                  }
                   ariaLabel="Quarantine warehouse"
                 />
               </div>
@@ -77,14 +115,50 @@ export function ManualQuarantineDialog({
                 <Label>Product stock</Label>
                 <SearchableDropdown
                   options={form.stocks}
+                  onSearchChange={form.setStockSearch}
+                  footer={
+                    <div className="space-y-2 border-t pt-2">
+                      {form.stocksError && (
+                        <p role="alert">
+                          Stock records could not be loaded.{' '}
+                          <Button
+                            type="button"
+                            variant="link"
+                            onClick={() => void form.reloadStocks()}
+                          >
+                            Reload stock records
+                          </Button>
+                        </p>
+                      )}
+                      {form.stocksHaveMore && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          disabled={form.stocksFetching}
+                          onClick={() => void form.loadMoreStocks()}
+                        >
+                          Load more stock records
+                        </Button>
+                      )}
+                    </div>
+                  }
                   value={form.stockId}
+                  selectedLabel={
+                    form.selected
+                      ? `${form.selected.inventoryItem.name} · stock #${form.selected.id}`
+                      : form.stockId
+                        ? `Stock #${form.stockId}`
+                        : undefined
+                  }
                   onValueChange={form.setStockId}
-                  disabled={!form.canEdit}
+                  disabled={!form.canEdit || !form.warehouseId}
                   getOptionValue={(item) => String(item.id)}
                   getOptionLabel={(item) => `${item.inventoryItem.name} · stock #${item.id}`}
                   placeholder="Select stock record"
                   searchPlaceholder="Search products"
-                  emptyMessage="No eligible stock records"
+                  emptyMessage={
+                    form.stocksLoading ? 'Loading stock records...' : 'No eligible stock records'
+                  }
                   ariaLabel="Quarantine product stock"
                 />
               </div>
@@ -96,7 +170,7 @@ export function ManualQuarantineDialog({
                 <Label htmlFor="tag-condition">Condition</Label>
                 <select
                   id="tag-condition"
-                  className="h-9 w-full rounded-md border bg-background px-3 text-sm"
+                  className="h-10 w-full rounded-md border bg-background px-3 text-sm"
                   value={form.condition}
                   onChange={(event) =>
                     form.setCondition(event.target.value as 'DAMAGED' | 'SPOILED')

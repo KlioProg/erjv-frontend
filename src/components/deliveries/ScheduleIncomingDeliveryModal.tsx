@@ -1,19 +1,20 @@
 import { useState, useMemo, useRef, type FormEvent } from 'react'
-import { Calendar, Warehouse as WarehouseIcon } from 'lucide-react'
+import { Calendar } from 'lucide-react'
 import { DeliveryFormDialog, DeliveryFormFooter } from './shared/DeliveryFormDialog'
 import { deliveryFormStyles } from './shared/delivery-form.styles'
 import { Spinner } from '@/components/ui/spinner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { SearchableDropdown } from '@/components/ui/SearchableDropdown'
+import { CursorLookup } from '@/components/ui/CursorLookup'
+import { useCursorLookup } from '@/lib/use-cursor-lookup'
+import { usePurchaseOrderById } from '@/features/logistics/purchase-orders.hooks'
+import { useWarehouse } from '@/features/logistics/warehouses.hooks'
+import { useSupplierById } from '@/features/logistics/suppliers.hooks'
+import { useQueries } from '@tanstack/react-query'
+import { fetchProductByIdApi } from '@/features/products/products.api'
+import { productKeys } from '@/features/products/products.hooks'
 import { useIncomingDeliveries } from '@/features/logistics/incoming-deliveries.hooks'
 import { DeliveryUtils } from '@/features/logistics/delivery-utils'
 import type { PurchaseOrderRecord } from '@/features/logistics/purchase-orders.types'
@@ -50,46 +51,27 @@ export function ScheduleIncomingDeliveryModal({
   products,
   preselectedOrderId,
 }: ScheduleIncomingDeliveryModalProps) {
-  const incomingQuery = useIncomingDeliveries()
+  const [selectedPOId, setSelectedPOId] = useState(preselectedOrderId ? String(preselectedOrderId) : '')
+  const [selectedWarehouseId, setSelectedWarehouseId] = useState(String(warehouses.find((warehouse) => warehouse.isActive)?.id ?? ''))
+  const [search, setSearch] = useState('')
+  const purchaseLookup = useCursorLookup<PurchaseOrderRecord>('/purchase-orders', {
+    statuses: ['CONFIRMED', 'PARTIALLY_RECEIVED'], ...(search.trim() ? { q: search.trim() } : {}),
+  })
+  const selectedQuery = usePurchaseOrderById(Number(selectedPOId) || undefined)
+  const warehouseQuery = useWarehouse(Number(selectedWarehouseId) || undefined)
+  const incomingQuery = useIncomingDeliveries({ purchaseOrderId: Number(selectedPOId) || undefined, status: 'COMPLETED' }, !!selectedPOId)
   const { data: allIncomingDeliveries = [] } = incomingQuery
-  const unavailable = incomingQuery.isLoading || incomingQuery.isError
-
-  // Hide fully arranged orders; unknown balances remain visible for recovery, never as zero.
-  const eligiblePOs = useMemo(() => {
-    if (unavailable) return []
-    return purchaseOrders
-      .filter((po) => ['CONFIRMED', 'PARTIALLY_RECEIVED'].includes(po.status))
-      .map((po) => ({ po, remaining: incomingOrderRemainingQuantity(po, allIncomingDeliveries) }))
-      .filter(({ remaining }) => remaining !== '0.00')
-  }, [purchaseOrders, allIncomingDeliveries, unavailable])
-
-  const [selectedPOId, setSelectedPOId] = useState<string>(
-    preselectedOrderId ? String(preselectedOrderId) : '',
-  )
-  const [selectedWarehouseId, setSelectedWarehouseId] = useState<string>(
-    (() => {
-      const linked = allIncomingDeliveries.filter(
-        (delivery) =>
-          delivery.purchaseOrderId === preselectedOrderId && delivery.status !== 'CANCELLED',
-      )
-      const knownWarehouseIds = [...new Set(linked.map((delivery) => delivery.warehouseId))]
-      const knownWarehouse =
-        knownWarehouseIds.length === 1
-          ? warehouses.find(
-              (warehouse) => warehouse.id === knownWarehouseIds[0] && warehouse.isActive,
-            )
-          : null
-      return String(
-        knownWarehouse?.id || warehouses.find((warehouse) => warehouse.isActive)?.id || '',
-      )
-    })(),
-  )
-  const [scheduledAt, setScheduledAt] = useState<string>(() =>
-    DeliveryUtils.toDateTimeInput(
-      purchaseOrders.find((order) => order.id === preselectedOrderId)?.expectedAt ||
-        new Date(Date.now() + 24 * 60 * 60 * 1000),
-    ),
-  )
+  const selectedRecord = selectedQuery.data?.id === Number(selectedPOId) ? selectedQuery.data : undefined
+  const selectedRemaining = selectedRecord ? incomingOrderRemainingQuantity(selectedRecord, allIncomingDeliveries) : null
+  const selectedPO = selectedRecord && ['CONFIRMED', 'PARTIALLY_RECEIVED'].includes(selectedRecord.status) && selectedRemaining !== '0.00' ? selectedRecord : undefined
+  const unavailable = !!selectedPOId && (selectedQuery.isFetching || selectedQuery.isError || incomingQuery.isFetching || incomingQuery.isError)
+  const selectionFailed = !!selectedPOId && (selectedQuery.isError || (!selectedRecord && !selectedQuery.isPending))
+  const balanceFailed = selectionFailed || incomingQuery.isError
+  const eligiblePOs = purchaseLookup.items.filter((po) => ['CONFIRMED', 'PARTIALLY_RECEIVED'].includes(po.status) && !(po.id === selectedRecord?.id && !unavailable && selectedRemaining === '0.00'))
+  const [defaultArrival] = useState(() => DeliveryUtils.toDateTimeInput(new Date(Date.now() + 24 * 60 * 60 * 1000)))
+  const [arrival, setArrival] = useState<{ orderId: string; value: string } | null>(null)
+  const expectedArrival = selectedRecord?.expectedAt ?? purchaseOrders.find((order) => String(order.id) === selectedPOId)?.expectedAt
+  const scheduledAt = arrival?.orderId === selectedPOId ? arrival.value : expectedArrival ? DeliveryUtils.toDateTimeInput(expectedArrival) : defaultArrival
   const [supplierRef, setSupplierRef] = useState('')
   const [notes, setNotes] = useState('')
   const [errorMessage, setErrorMessage] = useState('')
@@ -97,13 +79,12 @@ export function ScheduleIncomingDeliveryModal({
   const [needsReview, setNeedsReview] = useState(false)
   const lock = useRef(false)
 
-  const supplierMap = useMemo(() => new Map(suppliers.map((s) => [s.id, s])), [suppliers])
-  const productMap = useMemo(() => new Map(products.map((p) => [p.id, p])), [products])
-
-  const selectedPO = useMemo(() => {
-    return eligiblePOs.find(({ po }) => String(po.id) === selectedPOId)?.po
-  }, [eligiblePOs, selectedPOId])
-
+  const supplierQuery = useSupplierById(selectedPO?.supplierId ?? undefined)
+  const supplierMap = useMemo(() => new Map([...suppliers, ...(supplierQuery.data ? [supplierQuery.data] : [])].map((supplier) => [supplier.id, supplier])), [suppliers, supplierQuery.data])
+  const productQueries = useQueries({ queries: [...new Set((selectedPO?.items ?? []).map((item) => item.inventoryItemId))].map((id) => ({
+    queryKey: productKeys.detail(id), queryFn: () => fetchProductByIdApi(id),
+  })) })
+  const productMap = new Map([...products, ...productQueries.flatMap((query) => query.data ? [query.data] : [])].map((product) => [product.id, product]))
   const lines = useMemo(
     () => (selectedPO ? purchaseReceivingProgress(selectedPO, allIncomingDeliveries) : []),
     [selectedPO, allIncomingDeliveries],
@@ -146,19 +127,10 @@ export function ScheduleIncomingDeliveryModal({
   const handlePOChange = (newPOId: string) => {
     // Radix's form select can emit an empty value when async options change.
     if (!newPOId) return
+    if (newPOId === selectedPOId) return
     setSelectedPOId(newPOId)
-    const linked = allIncomingDeliveries.filter(
-      (delivery) => delivery.purchaseOrderId === Number(newPOId) && delivery.status !== 'CANCELLED',
-    )
-    const knownWarehouseIds = [...new Set(linked.map((delivery) => delivery.warehouseId))]
-    if (
-      knownWarehouseIds.length === 1 &&
-      warehouses.some((warehouse) => warehouse.id === knownWarehouseIds[0] && warehouse.isActive)
-    ) {
-      setSelectedWarehouseId(String(knownWarehouseIds[0]))
-    }
-    const expectedAt = purchaseOrders.find((order) => order.id === Number(newPOId))?.expectedAt
-    if (expectedAt) setScheduledAt(DeliveryUtils.toDateTimeInput(expectedAt))
+    setArrival(null)
+    setSupplierRef('')
     setErrorMessage('')
   }
 
@@ -172,7 +144,7 @@ export function ScheduleIncomingDeliveryModal({
       setErrorMessage('Please select a purchase order.')
       return
     }
-    if (!wId || !warehouses.some((warehouse) => warehouse.id === wId && warehouse.isActive)) {
+    if (!wId || warehouseQuery.data?.id !== wId || !warehouseQuery.data.isActive) {
       setErrorMessage('Please select a target intake warehouse.')
       return
     }
@@ -181,6 +153,11 @@ export function ScheduleIncomingDeliveryModal({
     try {
       setIsSubmitting(true)
       setErrorMessage('')
+      const [freshOrder, freshWarehouse, freshReceipts] = await Promise.all([selectedQuery.refetch(), warehouseQuery.refetch(), incomingQuery.refetch()])
+      if (freshOrder.isError || freshWarehouse.isError || freshReceipts.isError || !freshOrder.data || !freshWarehouse.data || !freshReceipts.data) throw Error('Current purchase order, warehouse or receiving balance could not be checked. Retry before scheduling.')
+      const remaining = incomingOrderRemainingQuantity(freshOrder.data, freshReceipts.data)
+      if (freshOrder.data.id !== pId || !['CONFIRMED', 'PARTIALLY_RECEIVED'].includes(freshOrder.data.status) || remaining === null || remaining === '0.00') throw Error('This purchase order is no longer available to arrange. Choose another purchase order.')
+      if (freshWarehouse.data.id !== wId || !freshWarehouse.data.isActive) throw Error('Please select an active target intake warehouse.')
       await onSubmit({
         purchaseOrderId: pId,
         warehouseId: wId,
@@ -220,25 +197,25 @@ export function ScheduleIncomingDeliveryModal({
     >
       <form onSubmit={handleSubmit} className={deliveryFormStyles.form}>
         <div className={deliveryFormStyles.body}>
-          {unavailable && (
+          {(unavailable || selectionFailed) && (
             <div
-              role={incomingQuery.isError ? 'alert' : 'status'}
-              className={`${deliveryFormStyles.message} ${incomingQuery.isError ? 'text-destructive' : 'text-muted-foreground'}`}
+              role={balanceFailed ? 'alert' : 'status'}
+              className={`${deliveryFormStyles.message} ${balanceFailed ? 'text-destructive' : 'text-muted-foreground'}`}
             >
-              {!incomingQuery.isError && (
+              {!balanceFailed && (
                 <Spinner aria-hidden="true" className="mr-2 inline-block size-4" />
               )}
 
-              {incomingQuery.isError
-                ? 'Incoming delivery balances could not be loaded.'
+              {balanceFailed
+                ? 'The selected purchase order or incoming delivery balances could not be loaded.'
                 : 'Loading incoming delivery balances...'}
-              {incomingQuery.isError && (
+              {balanceFailed && (
                 <Button
                   type="button"
                   variant="link"
                   size="sm"
                   className={deliveryFormStyles.retry}
-                  onClick={() => void incomingQuery.refetch()}
+                  onClick={() => { void selectedQuery.refetch(); void incomingQuery.refetch() }}
                 >
                   Retry
                 </Button>
@@ -252,7 +229,7 @@ export function ScheduleIncomingDeliveryModal({
           )}
 
           <fieldset
-            disabled={isSubmitting || unavailable || needsReview}
+            disabled={isSubmitting || needsReview}
             className={deliveryFormStyles.fields}
           >
             <div className={deliveryFormStyles.grid}>
@@ -260,72 +237,38 @@ export function ScheduleIncomingDeliveryModal({
                 <Label htmlFor="incoming-purchase-order" className={deliveryFormStyles.label}>
                   Purchase Order <span className="text-primary">*</span>
                 </Label>
-                <Select
-                  value={selectedPO ? String(selectedPO.id) : ''}
-                  onValueChange={handlePOChange}
-                  disabled={isSubmitting || unavailable || eligiblePOs.length === 0}
-                >
-                  <SelectTrigger
-                    id="incoming-purchase-order"
-                    className={deliveryFormStyles.control}
-                  >
-                    <SelectValue placeholder="Select purchase order..." />
-                  </SelectTrigger>
-                  <SelectContent className={deliveryFormStyles.popover}>
-                    <SelectGroup>
-                      {eligiblePOs.map(({ po, remaining }) => {
-                        const sup =
-                          po.supplierId == null ? undefined : supplierMap.get(po.supplierId)
-
-                        return (
-                          <SelectItem
-                            key={po.id}
-                            value={String(po.id)}
-                            className={deliveryFormStyles.option}
-                          >
-                            <span className="flex min-w-0 items-center justify-between gap-3">
-                              <span className="min-w-0 whitespace-normal [overflow-wrap:anywhere]">
-                                {po.orderNumber} — {sup ? sup.name : `Supplier #${po.supplierId}`}
-                              </span>
-                              <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
-                                {remaining === null
-                                  ? 'Balance unavailable'
-                                  : `${remaining} remaining`}
-                              </span>
-                            </span>
-                          </SelectItem>
-                        )
-                      })}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
+                <SearchableDropdown<PurchaseOrderRecord>
+                  id="incoming-purchase-order" ariaLabel="Purchase Order"
+                  options={eligiblePOs} value={selectedPOId} onValueChange={handlePOChange}
+                  getOptionValue={(order) => String(order.id)}
+                  getOptionLabel={(order) => `${order.orderNumber} / ${order.supplierId ? `Supplier #${order.supplierId}` : 'No supplier'}`}
+                  selectedLabel={selectedRecord?.orderNumber ?? (selectedPOId ? `Purchase Order #${selectedPOId}` : undefined)}
+                  placeholder="Select purchase order..." searchPlaceholder="Search purchase orders"
+                  emptyMessage={purchaseLookup.isPending ? 'Loading purchase orders...' : 'No eligible purchase orders found.'}
+                  onSearchChange={setSearch} disabled={isSubmitting || needsReview}
+                  className={deliveryFormStyles.control}
+                  footer={<div className="flex flex-wrap gap-2 border-t pt-2">
+                    {purchaseLookup.isError && <p role="alert" className="text-xs text-destructive">{getErrorMessage(purchaseLookup.error)}</p>}
+                    {purchaseLookup.isError && <Button type="button" variant="outline" size="sm" onClick={() => void purchaseLookup.reload()}>Reload purchase orders</Button>}
+                    {purchaseLookup.hasNextPage && <Button type="button" variant="outline" size="sm" disabled={purchaseLookup.isFetching} onClick={() => void purchaseLookup.fetchNextPage()}>Load more purchase orders</Button>}
+                  </div>}
+                />
               </div>
 
               <div className={deliveryFormStyles.field}>
                 <Label htmlFor="incoming-warehouse" className={deliveryFormStyles.label}>
                   Destination Warehouse <span className="text-primary">*</span>
                 </Label>
-                <Select value={selectedWarehouseId} onValueChange={setSelectedWarehouseId}>
-                  <SelectTrigger id="incoming-warehouse" className={deliveryFormStyles.control}>
-                    <SelectValue placeholder="Select intake warehouse..." />
-                  </SelectTrigger>
-                  <SelectContent className={deliveryFormStyles.popover}>
-                    {warehouses
-                      .filter((w) => w.isActive)
-                      .map((w) => (
-                        <SelectItem
-                          key={w.id}
-                          value={String(w.id)}
-                          className={deliveryFormStyles.option}
-                        >
-                          <span className="flex items-center gap-1.5">
-                            <WarehouseIcon className="size-3.5 text-muted-foreground" />
-                            {w.name}
-                          </span>
-                        </SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
+                <CursorLookup<Warehouse>
+                  id="incoming-warehouse" path="/warehouses" filter={{ includeInactive: 'false' }}
+                  label="warehouse" ariaLabel="Destination Warehouse" value={selectedWarehouseId}
+                  onChange={setSelectedWarehouseId} getLabel={(warehouse) => warehouse.name}
+                  selectedLabel={warehouseQuery.data?.name} accept={(warehouse) => warehouse.isActive}
+                  disabled={isSubmitting || needsReview} className={deliveryFormStyles.control}
+                />
+                {selectedWarehouseId && !warehouseQuery.isFetching && (warehouseQuery.isError || warehouseQuery.data?.id !== Number(selectedWarehouseId) || !warehouseQuery.data?.isActive) && <p role="alert" className="text-xs text-destructive">
+                  The selected warehouse is unavailable or inactive. Choose another warehouse or <Button type="button" variant="link" size="sm" onClick={() => void warehouseQuery.refetch()}>Reload selected warehouse</Button>.
+                </p>}
               </div>
             </div>
 
@@ -340,7 +283,7 @@ export function ScheduleIncomingDeliveryModal({
                     id="sched-date"
                     type="datetime-local"
                     value={scheduledAt}
-                    onChange={(e) => setScheduledAt(e.target.value)}
+                    onChange={(e) => setArrival({ orderId: selectedPOId, value: e.target.value })}
                     className={`${deliveryFormStyles.control} pl-9`}
                   />
                 </div>
@@ -374,7 +317,7 @@ export function ScheduleIncomingDeliveryModal({
                 <div role="status" className={deliveryFormStyles.empty}>
                   {unavailable
                     ? 'Incoming delivery balances are unavailable.'
-                    : eligiblePOs.length === 0
+                    : eligiblePOs.length === 0 && !purchaseLookup.hasNextPage
                       ? 'No purchase orders have remaining quantities to arrange. Review existing Incoming Deliveries.'
                       : selectedPOId
                         ? 'This purchase order is no longer available to arrange. Choose another purchase order.'
@@ -423,6 +366,8 @@ export function ScheduleIncomingDeliveryModal({
               isSubmitting ||
               unavailable ||
               !selectedPO ||
+              warehouseQuery.data?.id !== Number(selectedWarehouseId) ||
+              warehouseQuery.isFetching || warehouseQuery.isError || !warehouseQuery.data?.isActive ||
               needsReview ||
               lines.some((line) => line.remaining === null)
             }

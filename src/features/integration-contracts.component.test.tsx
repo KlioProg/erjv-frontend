@@ -4,9 +4,11 @@ import { act, renderHook, waitFor } from '@testing-library/react'
 import { apiClient, extractArray } from '@/lib/api-client'
 import {
   createOutgoingDeliveryApi,
-  scheduleOutgoingDeliveryApi,
-  completeOutgoingDeliveryApi,
+  readyOutgoingDeliveryApi,
+  reopenOutgoingDeliveryApi,
+  cancelOutgoingDeliveryApi,
 } from './logistics/outgoing-deliveries.api'
+import { reconcileRunMemberApi } from './logistics/delivery-runs.api'
 import { updateSalesOrderDraftApi } from './crm/sales-orders.api'
 import { createVehicleApi, updateVehicleDetailsApi } from './logistics/delivery-vehicles.api'
 import { replaceEmployeeJobsApi } from './staffing/staffing.api'
@@ -18,7 +20,7 @@ import { createProductApi, updateProductPriceApi } from './products/products.api
 it.each([1.001, -1, NaN, Infinity, '1e2', '10000000000'])(
   'rejects catalog prices %s instead of silently rounding',
   async (unitPrice) => {
-    await expect(createProductApi({ name: 'Rice', unitPrice })).rejects.toThrow(/price/)
+    await expect(createProductApi({ name: 'Rice', unit: 'bag', unitPrice })).rejects.toThrow(/price/)
     await expect(updateProductPriceApi(1, unitPrice)).rejects.toThrow(/price/)
     expect(calls).toHaveLength(0)
   },
@@ -46,6 +48,7 @@ it('strips obsolete stock/vehicle assignments from outgoing header creation', as
   const stale = {
     salesOrderId: 7,
     notes: ' Plan ',
+    scheduledAt: '2026-10-30T09:00:00Z',
     deliveryVehicleId: 1,
     driverEmployeeId: 2,
     items: [{ salesOrderItemId: 10, stockItemId: 30, quantity: '100' }],
@@ -53,29 +56,36 @@ it('strips obsolete stock/vehicle assignments from outgoing header creation', as
   await createOutgoingDeliveryApi(stale)
   expect(calls[0].body).toEqual({ salesOrderId: 7, notes: 'Plan' })
 })
-it('requires a saved positive revision for scheduling and SO draft updates', async () => {
-  for (const value of [0, -1, NaN, undefined])
-    await expect(scheduleOutgoingDeliveryApi(90, value as number)).rejects.toThrow(/draft|Refresh/)
+it('requires saved positive revisions for readiness, reopening, cancellation and SO draft updates', async () => {
+  for (const operation of [readyOutgoingDeliveryApi, reopenOutgoingDeliveryApi, cancelOutgoingDeliveryApi])
+    for (const value of [0, -1, NaN, undefined, 1.5])
+      await expect(operation(90, value as number)).rejects.toThrow(/Refresh/)
   await expect(updateSalesOrderDraftApi(7, { expectedRevision: 0 })).rejects.toThrow(/revision/)
   expect(calls).toHaveLength(0)
-  await scheduleOutgoingDeliveryApi(90, 4)
-  expect(calls[0].body).toEqual({ expectedRevision: 4 })
+  await readyOutgoingDeliveryApi(90, 4)
+  await reopenOutgoingDeliveryApi(90, 5)
+  await cancelOutgoingDeliveryApi(90, 6)
+  expect(calls).toEqual([
+    { method: 'patch', url: '/outgoing-deliveries/90/ready', body: { expectedRevision: 4 } },
+    { method: 'patch', url: '/outgoing-deliveries/90/reopen', body: { expectedRevision: 5 } },
+    { method: 'patch', url: '/outgoing-deliveries/90/cancel', body: { expectedRevision: 6 } },
+  ])
 })
 it.each(['1.001', '1e2', '-1', '10000000000', 'garbage'])(
   'rejects invalid vehicle capacity %s without rounding or dropping it',
   async (capacity) => {
     await expect(
-      createVehicleApi({ plateNumber: 'TEST', vehicleType: 'Truck', capacity }),
-    ).rejects.toThrow(/capacity/)
-    await expect(updateVehicleDetailsApi(1, { capacity })).rejects.toThrow(/capacity/)
+      createVehicleApi({ plateNumber: 'TEST', vehicleType: 'Truck', capacityKg: capacity }),
+    ).rejects.toThrow(/capacity/i)
+    await expect(updateVehicleDetailsApi(1, { capacityKg: capacity })).rejects.toThrow(/capacity/i)
     expect(calls).toHaveLength(0)
   },
 )
 it('keeps large vehicle capacities exact and preserves null clearing', async () => {
-  await updateVehicleDetailsApi(1, { capacity: '9999999999.99' })
-  expect(calls[0].body).toEqual({ capacity: '9999999999.99' })
-  await updateVehicleDetailsApi(1, { capacity: null })
-  expect(calls[1].body).toEqual({ capacity: null })
+  await updateVehicleDetailsApi(1, { capacityKg: '9999999999.99' })
+  expect(calls[0].body).toEqual({ capacityKg: '9999999999.99' })
+  await updateVehicleDetailsApi(1, { capacityKg: null })
+  expect(calls[1].body).toEqual({ capacityKg: null })
 })
 it('removes final employee positions through supported DELETE routes rather than an empty replacement', async () => {
   apiClient.defaults.adapter = async (config) => {
@@ -158,9 +168,10 @@ it('serializes all reconciliation categories and requires a discrepancy reason',
     missingQuantity: '0.00',
     discrepancyReason: ' Damaged bag ',
   }
-  await completeOutgoingDeliveryApi(90, { items: [line] })
-  expect(calls[0].body).toEqual({ items: [{ ...line, discrepancyReason: 'Damaged bag' }] })
+  await reconcileRunMemberApi(9, 90, { expectedRevision: 4, items: [line] })
+  expect(calls[0].url).toBe('/delivery-runs/9/deliveries/90/reconcile')
+  expect(calls[0].body).toEqual({ expectedRevision: 4, items: [{ ...line, discrepancyReason: 'Damaged bag' }] })
   await expect(
-    completeOutgoingDeliveryApi(90, { items: [{ ...line, discrepancyReason: '' }] }),
+    reconcileRunMemberApi(9, 90, { expectedRevision: 4, items: [{ ...line, discrepancyReason: '' }] }),
   ).rejects.toThrow(/Explain/)
 })

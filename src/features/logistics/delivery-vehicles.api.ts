@@ -5,7 +5,7 @@ import type {
   CreateDeliveryVehiclePayload,
   DeliveryVehicle,
   UpdateDeliveryVehicleDetailsPayload,
-  VehicleStatus,
+  VehicleOperationalStatus,
 } from './delivery-vehicles.types'
 
 export async function fetchDeliveryVehiclesApi(params?: FetchParams): Promise<DeliveryVehicle[]> {
@@ -43,13 +43,13 @@ function vehicleCapacity(value: string | number | null | undefined): string | nu
 export async function createVehicleApi(
   payload: CreateDeliveryVehiclePayload,
 ): Promise<DeliveryVehicle> {
-  const parsedCap = vehicleCapacity(payload.capacity)
+  const parsedCap = vehicleCapacity(payload.capacityKg)
   const cleanPayload: Record<string, unknown> = {
     plateNumber: payload.plateNumber.trim().toUpperCase(),
     vehicleType: payload.vehicleType.trim(),
     ...(payload.model?.trim() ? { model: payload.model.trim() } : {}),
-    ...(parsedCap !== null ? { capacity: parsedCap } : {}),
-    ...(payload.status ? { status: payload.status } : {}),
+    ...(parsedCap !== null ? { capacityKg: parsedCap } : {}),
+    ...(payload.operationalStatus ? { operationalStatus: payload.operationalStatus } : {}),
     isActive: true,
   }
 
@@ -61,13 +61,13 @@ export async function updateVehicleDetailsApi(
   id: number,
   payload: UpdateDeliveryVehicleDetailsPayload,
 ): Promise<DeliveryVehicle> {
-  const parsedCap = vehicleCapacity(payload.capacity)
+  const parsedCap = vehicleCapacity(payload.capacityKg)
   const cleanPayload: Record<string, unknown> = {
     ...(payload.plateNumber ? { plateNumber: payload.plateNumber.trim().toUpperCase() } : {}),
     ...(payload.vehicleType ? { vehicleType: payload.vehicleType.trim() } : {}),
     ...(payload.model !== undefined ? { model: payload.model?.trim() || null } : {}),
-    ...(payload.capacity === null ? { capacity: null } : {}),
-    ...(parsedCap !== null ? { capacity: parsedCap } : {}),
+    ...(payload.capacityKg === null ? { capacityKg: null } : {}),
+    ...(parsedCap !== null ? { capacityKg: parsedCap } : {}),
   }
 
   const { data } = await apiClient.patch<DeliveryVehicle>(
@@ -79,10 +79,12 @@ export async function updateVehicleDetailsApi(
 
 export async function updateVehicleStatusApi(
   id: number,
-  status: VehicleStatus,
+  operationalStatus: VehicleOperationalStatus,
 ): Promise<DeliveryVehicle> {
+  if (!['SERVICEABLE', 'MAINTENANCE', 'OUT_OF_SERVICE'].includes(operationalStatus))
+    throw new Error('Choose a supported vehicle operational status.')
   const { data } = await apiClient.patch<DeliveryVehicle>(`/delivery-vehicles/${id}/status`, {
-    status,
+    operationalStatus,
   })
   return data
 }

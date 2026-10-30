@@ -1,3 +1,5 @@
+import { useState } from 'react'
+import { CursorLookup } from '@/components/ui/CursorLookup'
 import type { OrderSubmissionProps } from '@/hooks/use-order-submission'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -13,6 +15,7 @@ import { OrderLineAmounts, OrderLineDiscount } from '@/components/order-entry/Or
 import { discountFields } from '@/lib/order-line-pricing'
 import {
   OrderProductCatalog,
+  PagedOrderProductCatalog,
   type OrderCatalogState,
 } from '@/components/order-entry/OrderProductCatalog'
 import { useSalesOrderEntry } from '@/features/crm/sales-order-entry.hooks'
@@ -39,6 +42,7 @@ export type {
 
 type OrderModalProps = OrderSubmissionProps<OrderFormValues> &
   SalesOrderDraftProps & {
+    remoteSelectors?: boolean
     open: boolean
     onClose: () => void
     clients: Client[]
@@ -60,8 +64,9 @@ export function OrderModal({
   onConfirm,
   onConfirmed,
   savedDraft,
-  clients,
-  products,
+  clients: initialClients,
+  products: initialProducts,
+  remoteSelectors = false,
   stockItems = [],
   catalogState,
   cashier,
@@ -70,6 +75,19 @@ export function OrderModal({
   onUpdateDraft,
   onLoadLatest,
 }: OrderModalProps) {
+  const [selectedClients, setSelectedClients] = useState<Client[]>([])
+  const [selectedProducts, setSelectedProducts] = useState<InventoryItemResponse[]>([])
+  const clients = [
+    ...new Map(
+      [...initialClients, ...selectedClients].map((record) => [record.id, record]),
+    ).values(),
+  ]
+  const products = [
+    ...new Map(
+      [...initialProducts, ...selectedProducts].map((record) => [record.id, record]),
+    ).values(),
+  ]
+  const Catalog = remoteSelectors ? PagedOrderProductCatalog : OrderProductCatalog
   const form = useSalesOrderEntry({
     clients,
     products,
@@ -102,6 +120,7 @@ export function OrderModal({
             mobileLabel="Quantity"
             id={`order-quantity-${row.formId}`}
             aria-label={`Quantity for ${row.name}`}
+            error={form.lineFieldError(row.formId, 'quantity')}
             value={row.quantity}
             placeholder="0"
             aria-describedby={
@@ -131,6 +150,7 @@ export function OrderModal({
             mobileLabel="Unit Price"
             aria-label={`Unit price for ${row.name}`}
             id={`order-price-${row.formId}`}
+            error={form.lineFieldError(row.formId, 'unitPrice')}
             value={row.unitPrice}
             aria-invalid={!!priceError(row.unitPrice)}
             aria-describedby={
@@ -212,13 +232,17 @@ export function OrderModal({
       submitDisabled={form.submitDisabled}
       readOnly={form.submitDisabled && !form.conflict}
       catalog={(returnToEditor) => (
-        <OrderProductCatalog
+        <Catalog
           products={products}
           stockItems={stockItems}
           state={catalogState}
           busy={form.submission.locked || (form.submitDisabled && !form.conflict)}
           sales
           onAdd={(product) => {
+            setSelectedProducts((current) => [
+              ...current.filter((record) => record.id !== product.id),
+              product,
+            ])
             form.addProduct(product)
             returnToEditor()
           }}
@@ -307,7 +331,39 @@ export function OrderModal({
               </AlertDescription>
             </Alert>
           )}
-          <SalesOrderCustomerInformation clients={clients} cashier={cashier} form={form} />
+          <SalesOrderCustomerInformation
+            clients={clients}
+            cashier={cashier}
+            form={form}
+            customerSelector={
+              remoteSelectors ? (
+                <CursorLookup<Client>
+                  id="order-customer"
+                  path="/clients"
+                  filter={{ includeInactive: 'false' }}
+                  value={form.clientId}
+                  label="customer"
+                  ariaLabel="Search and choose a customer"
+                  searchPlaceholder="Search customer names..."
+                  className="h-9 text-sm"
+                  error={form.fieldErrors.clientId}
+                  selectedLabel={
+                    clients.find((record) => String(record.id) === form.clientId)?.name
+                  }
+                  getLabel={(record) => record.name}
+                  accept={(record) => record.isActive}
+                  disabled={form.submission.locked}
+                  onChange={(id, record) => {
+                    setSelectedClients((current) => [
+                      ...current.filter((value) => value.id !== record.id),
+                      record,
+                    ])
+                    form.changeClient(id, record)
+                  }}
+                />
+              ) : undefined
+            }
+          />
           <section aria-label="Sales order items" className="flex min-w-0 flex-col gap-2">
             <div className="flex items-center justify-between gap-2">
               <h2 className="text-base font-semibold">Selected Order Items</h2>

@@ -24,8 +24,8 @@ it('blocks vehicle creation when the plate lookup fails', async () => {
 })
 
 it('preserves explicit null when clearing vehicle capacity', async () => {
-  await updateVehicleDetailsApi(1, { capacity: null })
-  expect(writes[0].data).toEqual({ capacity: null })
+  await updateVehicleDetailsApi(1, { capacityKg: null })
+  expect(writes[0].data).toEqual({ capacityKg: null })
 })
 let saved: DeliveryVehicle | null
 let writes: { method: string; data: Record<string, unknown> }[]
@@ -42,12 +42,12 @@ beforeEach(() => {
       writes.push({ method: config.method, data: payload })
       saved = {
         id: 1,
-        status: 'AVAILABLE',
+        operationalStatus: 'SERVICEABLE',
         isActive: true,
         createdAt: '',
         updatedAt: '',
         model: null,
-        capacity: null,
+        capacityKg: null,
         ...saved,
         ...payload,
       }
@@ -153,7 +153,7 @@ it('creates a new vehicle when the backend explicitly reports that its plate doe
       data: {
         plateNumber: 'NEW-1234',
         vehicleType: 'Heavy Truck (6-Wheeler)',
-        status: 'AVAILABLE',
+        operationalStatus: 'SERVICEABLE',
         isActive: true,
       },
     },
@@ -184,9 +184,10 @@ it.each([true, false])(
       plateNumber: 'ABC-1234',
       vehicleType: 'Delivery Van',
       isActive,
-      status: 'AVAILABLE',
+      isAvailable: true,
+      operationalStatus: 'SERVICEABLE',
       model: null,
-      capacity: null,
+      capacityKg: null,
       createdAt: '',
       updatedAt: '',
     }

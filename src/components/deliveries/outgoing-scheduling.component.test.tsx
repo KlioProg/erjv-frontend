@@ -3,7 +3,9 @@ import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
 import { toast } from 'sonner'
+import { MemoryRouter } from 'react-router'
 import { apiClient } from '@/lib/api-client'
+import { getAdapter } from 'axios'
 import { DeliveriesHub } from './DeliveriesHub'
 import { ScheduleDeliveryModal } from './ScheduleDeliveryModal'
 import { outgoingPlanningErrors } from '@/features/logistics/outgoing-planning'
@@ -38,11 +40,12 @@ function shipment(id = 90): OutgoingDeliveryRecord {
     warehouseId: null,
     status: 'DRAFT',
     deliveryNumber: `OD-${id}`,
-    deliveryVehicleId: null,
-    driverEmployeeId: null,
-    scheduledAt: null,
-    dispatchedAt: null,
-    deliveredAt: null,
+    runId: null,
+    reconciledAt: null,
+    reconciledByUserId: null,
+    fulfillmentOutcome: null,
+    hasDamage: false,
+    hasMissing: false,
     cancelledAt: null,
     notes: null,
     ...dates,
@@ -56,11 +59,12 @@ function option(id = 10, available = '60'): OutgoingPlanningOption {
     inventoryItemId: 1,
     orderedQuantity: '100',
     committedQuantity: '10',
-    scheduledQuantity: '20',
+    readyQuantity: '20',
     availableQuantity: available,
-    warehouseRemainingQuantity: String(Number(available) - 5),
+    remainingToPlanQuantity: available === '60' ? '70' : '2',
+    shortfallQuantity: '0',
     plannedQuantity: '5',
-    maximumPlannableQuantity: available === '60' ? '55' : '2',
+    maximumPlannableQuantity: available === '60' ? '70' : '2',
   }
 }
 let orders: SalesOrderRecord[]
@@ -109,7 +113,7 @@ beforeEach(() => {
     }
     let data: unknown = []
     if (method === 'get') {
-      if (url === '/outgoing-deliveries' && deliveries.some((d) => d.status === 'SCHEDULED'))
+      if (url === '/outgoing-deliveries' && deliveries.some((d) => d.status === 'READY'))
         await refreshGate
       if (url === '/outgoing-deliveries' && failOutgoingList)
         throw {
@@ -125,6 +129,12 @@ beforeEach(() => {
         data = options[Number(config.params.warehouseId)] ?? []
       } else {
         const collections: Record<string, unknown> = {
+          '/incoming-deliveries': [],
+          '/purchase-orders': [],
+          '/suppliers': [],
+          '/delivery-vehicles': [],
+          '/employees': [],
+          '/stock-items': [],
           '/sales-orders': orders,
           '/sales-orders/1': currentOrder,
           '/sales-orders/2': orders[1],
@@ -134,6 +144,10 @@ beforeEach(() => {
             { id: 2, name: 'Banana', unit: 'kg', isActive: true, ...dates },
           ],
           '/clients': [{ id: 1, name: 'Harbor Hotel', isActive: true, ...dates }],
+          '/warehouses/1': { id: 1, name: 'Store', isActive: true, ...dates },
+          '/warehouses/2': { id: 2, name: 'Main Warehouse', isActive: true, ...dates },
+          '/inventory-items/1': { id: 1, name: 'Rice', variety: 'Premium', unit: 'sacks', isActive: true, ...dates },
+          '/inventory-items/2': { id: 2, name: 'Banana', unit: 'kg', isActive: true, ...dates },
           '/warehouses': [
             { id: 1, name: 'Store', isActive: true, ...dates },
             { id: 2, name: 'Main Warehouse', isActive: true, ...dates },
@@ -168,19 +182,20 @@ beforeEach(() => {
       deliveries = deliveries.map((delivery) =>
         delivery.id === id ? (data as OutgoingDeliveryRecord) : delivery,
       )
-    } else if (url.endsWith('/schedule')) {
+    } else if (url.endsWith('/ready')) {
       const id = Number(url.split('/')[2])
       const saved = deliveries.find((delivery) => delivery.id === id)!
       expect(body).toEqual({ expectedRevision: saved.revision })
-      data = { ...saved, status: 'SCHEDULED', revision: saved.revision + 1 }
+      data = { ...saved, status: 'READY', revision: saved.revision + 1 }
       if (failListAfterSchedule) failOutgoingList = true
       deliveries = deliveries.map((delivery) =>
         delivery.id === id ? (data as OutgoingDeliveryRecord) : delivery,
       )
     }
+    if (method === 'get' && url === '/outgoing-deliveries' && config.params?.q === 'unmatched query') data = []
     if (
       method === 'get' &&
-      /^\/(sales-orders|purchase-orders|incoming-deliveries|outgoing-deliveries)$/.test(url)
+      Array.isArray(data)
     )
       data = { items: data, nextCursor: null }
     return { data: structuredClone(data), config, status: 200, statusText: 'OK', headers: {} }
@@ -214,8 +229,8 @@ function mount(
   return { ...view, queryClient, close }
 }
 async function selectWarehouse(user: ReturnType<typeof userEvent.setup>, name = 'Store') {
-  await user.click(await screen.findByRole('combobox', { name: /Stock Source \/ Warehouse/ }))
-  await user.click(await screen.findByRole('option', { name }))
+  await user.click(await screen.findByRole('button', { name: /Stock Source \/ Warehouse/ }))
+  await user.click(await screen.findByRole('menuitem', { name }))
   await waitFor(() =>
     expect(
       (screen.getByRole('textbox', { name: 'Quantity to ship for Rice' }) as HTMLInputElement)
@@ -229,7 +244,7 @@ const creates = () => requests.filter((request) => request.method === 'post')
 const updates = () =>
   requests.filter((request) => request.method === 'patch' && request.url.endsWith('/draft'))
 const schedules = () =>
-  requests.filter((request) => request.method === 'patch' && request.url.endsWith('/schedule'))
+  requests.filter((request) => request.method === 'patch' && request.url.endsWith('/ready'))
 
 it('continues to explicit dispatch only after the user finishes scheduling', async () => {
   const onScheduled = vi.fn()
@@ -249,10 +264,10 @@ it('continues to explicit dispatch only after the user finishes scheduling', asy
   const user = userEvent.setup()
   await selectWarehouse(user)
   await user.type(quantity(), '1')
-  await user.click(screen.getByRole('button', { name: 'Schedule Delivery' }))
-  await screen.findByText('Delivery scheduled')
+  await user.click(screen.getByRole('button', { name: 'Mark Ready' }))
+  await screen.findByText('Delivery ready for a run')
   expect(onScheduled).not.toHaveBeenCalled()
-  await user.click(screen.getByRole('button', { name: 'Continue to Dispatch' }))
+  await user.click(screen.getByRole('button', { name: 'Continue to Delivery Runs' }))
   expect(onScheduled).toHaveBeenCalledWith(expect.objectContaining({ id: 90 }))
   expect(close).not.toHaveBeenCalled()
   expect(requests.some((request) => request.url.endsWith('/dispatch'))).toBe(false)
@@ -281,32 +296,21 @@ describe('outgoing delivery warehouse planning', () => {
     expect(screen.getByText(/Revision 7/)).toBeTruthy()
   })
 
-  it('saves only positive lines in a mixed plan and permits an unset draft date', async () => {
-    currentOrder.items.push(
-      { ...currentOrder.items[0], id: 11 },
-      { ...currentOrder.items[0], id: 12 },
-    )
+  it('saves only positive lines in a mixed draft without a departure date', async () => {
+    currentOrder.items.push({ ...currentOrder.items[0], id: 11 }, { ...currentOrder.items[0], id: 12 })
     options[1].push(option(11), option(12))
     const user = userEvent.setup()
     mount()
-    await user.click(await screen.findByRole('combobox', { name: /Stock Source/ }))
-    await user.click(screen.getByRole('option', { name: 'Store' }))
+    await user.click(await screen.findByRole('button', { name: /Stock Source/ }))
+    await user.click(screen.getByRole('menuitem', { name: 'Store' }))
     const inputs = await screen.findAllByRole('textbox')
     await waitFor(() => expect((inputs[0] as HTMLInputElement).disabled).toBe(false))
     await user.type(inputs[0], '1.25')
     await user.type(inputs[1], '0')
-    fireEvent.change(screen.getByLabelText('Scheduled Date & Time'), { target: { value: '' } })
-    await user.click(screen.getByRole('button', { name: 'Schedule Delivery' }))
-    expect(await screen.findByText('Enter a valid scheduled date and time.')).toBeTruthy()
-    expect(creates()).toHaveLength(0)
+    expect(screen.queryByLabelText('Scheduled Date & Time')).toBeNull()
     await user.click(screen.getByRole('button', { name: 'Save Draft' }))
     expect(await screen.findByText('Delivery draft saved')).toBeTruthy()
-    expect(updates()[0].body).toEqual(
-      expect.objectContaining({
-        scheduledAt: null,
-        plannedItems: [{ salesOrderItemId: 10, plannedQuantity: '1.25' }],
-      }),
-    )
+    expect(updates()[0].body).toEqual({ expectedRevision: 1, warehouseId: 1, notes: null, plannedItems: [{ salesOrderItemId: 10, plannedQuantity: '1.25' }] })
     expect(schedules()).toHaveLength(0)
   })
   it('uses balanced responsive selectors, one warehouse, current persisted lines, and blank quantity inputs', async () => {
@@ -316,7 +320,7 @@ describe('outgoing delivery warehouse planning', () => {
     mount()
     await selectWarehouse(user)
     const sales = screen.getByRole('button', { name: 'Sales Order to Fulfill' })
-    const warehouse = screen.getByRole('combobox', { name: /Stock Source \/ Warehouse/ })
+    const warehouse = screen.getByRole('button', { name: /Stock Source \/ Warehouse/ })
     expect(sales.parentElement?.parentElement).toBe(warehouse.parentElement?.parentElement)
     expect(sales.parentElement?.parentElement?.className).toContain('grid-cols-1')
     expect(sales.parentElement?.parentElement?.className).toContain('sm:grid-cols-2')
@@ -324,14 +328,15 @@ describe('outgoing delivery warehouse planning', () => {
     expect(quantity().placeholder).toBe('0')
     expect(quantity().id).toBe('delivery-quantity-11')
     expect(screen.getByText('Customer address')).toBeTruthy()
-    expect(screen.getByRole('columnheader', { name: 'Warehouse Remaining' })).toBeTruthy()
+    expect(screen.getByRole('columnheader', { name: 'Warehouse Available' })).toBeTruthy()
     expect(screen.getByText('70.00')).toBeTruthy()
     expect(screen.queryByText('Add stock source')).toBeNull()
-    expect(screen.getAllByRole('combobox')).toHaveLength(1)
+    expect(screen.queryByRole('combobox')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Stock Source / Warehouse' })).toBeTruthy()
     await user.type(quantity(), '21')
     expect(quantity().value).toBe('21')
-    await user.click(screen.getByRole('button', { name: 'Schedule Delivery' }))
-    expect(await screen.findByText('Delivery scheduled')).toBeTruthy()
+    await user.click(screen.getByRole('button', { name: 'Mark Ready' }))
+    expect(await screen.findByText('Delivery ready for a run')).toBeTruthy()
     expect(creates()[0].body).toEqual({ salesOrderId: 1 })
     expect(updates()[0].body).toEqual(
       expect.objectContaining({
@@ -360,12 +365,12 @@ describe('outgoing delivery warehouse planning', () => {
     expect(await screen.findByText('Max 2 sacks')).toBeTruthy()
     expect(screen.getByText('2.00')).toBeTruthy()
     expect(quantity().getAttribute('aria-invalid')).toBe('true')
-    await user.click(screen.getByRole('button', { name: 'Schedule Delivery' }))
+    await user.click(screen.getByRole('button', { name: 'Mark Ready' }))
     expect(creates()).toHaveLength(0)
     await user.clear(quantity())
     await user.type(quantity(), '1.25')
-    await user.click(screen.getByRole('button', { name: 'Schedule Delivery' }))
-    expect(await screen.findByText('Delivery scheduled')).toBeTruthy()
+    await user.click(screen.getByRole('button', { name: 'Mark Ready' }))
+    expect(await screen.findByText('Delivery ready for a run')).toBeTruthy()
     expect(updates()[0].body.warehouseId).toBe(2)
   })
 
@@ -381,8 +386,8 @@ describe('outgoing delivery warehouse planning', () => {
         release = resolve
       }),
     }
-    await user.click(screen.getByRole('combobox', { name: /Stock Source/ }))
-    await user.click(screen.getByRole('option', { name: 'Main Warehouse' }))
+    await user.click(screen.getByRole('button', { name: /Stock Source/ }))
+    await user.click(screen.getByRole('menuitem', { name: 'Main Warehouse' }))
     expect(screen.queryByRole('textbox', { name: 'Quantity to ship for Rice' })).toBeNull()
     expect(screen.queryByText('60.00')).toBeNull()
     await act(async () => {
@@ -400,7 +405,6 @@ describe('outgoing delivery warehouse planning', () => {
         revision: 7,
         warehouseId: 1,
         notes: 'Saved instructions',
-        scheduledAt: '2026-11-01T01:00:00Z',
         plannedItems: [
           {
             id: 1,
@@ -417,8 +421,8 @@ describe('outgoing delivery warehouse planning', () => {
     await waitFor(() => expect(quantity().value).toBe('1.25'))
     await waitFor(() => expect(quantity().disabled).toBe(false))
     expect(screen.getByText('Saved instructions')).toBeTruthy()
-    await user.click(screen.getByRole('button', { name: 'Schedule Delivery' }))
-    expect(await screen.findByText('Delivery scheduled')).toBeTruthy()
+    await user.click(screen.getByRole('button', { name: 'Mark Ready' }))
+    expect(await screen.findByText('Delivery ready for a run')).toBeTruthy()
     expect(creates()).toHaveLength(0)
     expect(updates()[0].body.expectedRevision).toBe(7)
     expect(schedules()[0].body.expectedRevision).toBe(8)
@@ -430,10 +434,10 @@ describe('outgoing delivery warehouse planning', () => {
     const user = userEvent.setup()
     mount()
     await selectWarehouse(user)
-    await user.click(screen.getByRole('button', { name: 'Schedule Delivery' }))
+    await user.click(screen.getByRole('button', { name: 'Mark Ready' }))
     expect(
       await screen.findByText(
-        'Enter a positive planned quantity for at least one product before scheduling.',
+        'Enter a positive planned quantity for at least one product before marking ready.',
       ),
     ).toBeTruthy()
     expect(creates()).toHaveLength(0)
@@ -444,14 +448,14 @@ describe('outgoing delivery warehouse planning', () => {
     expect(schedules()).toHaveLength(0)
   })
 
-  it.each(['-1', '1.234', 'abc', '56'])(
+  it.each(['-1', '1.234', 'abc', '71'])(
     'rejects an invalid planning quantity %s',
     async (value) => {
       const user = userEvent.setup()
       mount()
       await selectWarehouse(user)
       fireEvent.change(quantity(), { target: { value } })
-      await user.click(screen.getByRole('button', { name: 'Schedule Delivery' }))
+      await user.click(screen.getByRole('button', { name: 'Mark Ready' }))
       await waitFor(() => expect(quantity().getAttribute('aria-invalid')).toBe('true'))
       expect(quantity().value).toBe(value)
       expect(creates()).toHaveLength(0)
@@ -481,28 +485,28 @@ describe('outgoing delivery warehouse planning', () => {
     options[1][0].maximumPlannableQuantity = '0.00'
     const user = userEvent.setup()
     mount()
-    await user.click(await screen.findByRole('combobox', { name: /Stock Source/ }))
-    await user.click(await screen.findByRole('option', { name: 'Store' }))
+    await user.click(await screen.findByRole('button', { name: /Stock Source/ }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Store' }))
     await waitFor(() => expect(quantity().title).toBe('No planning capacity in this warehouse.'))
     expect(quantity().disabled).toBe(true)
     expect(quantity().title).toBe('No planning capacity in this warehouse.')
-    expect(screen.getByRole('button', { name: 'Schedule Delivery' }).hasAttribute('disabled')).toBe(
+    expect(screen.getByRole('button', { name: 'Mark Ready' }).hasAttribute('disabled')).toBe(
       true,
     )
     expect(creates()).toHaveLength(0)
   })
 
   it('preserves input when scheduling fails and retries the same saved draft without another create', async () => {
-    conflict = { url: '/outgoing-deliveries/90/schedule', message: 'Schedule unavailable' }
+    conflict = { url: '/outgoing-deliveries/90/ready', message: 'Schedule unavailable' }
     const user = userEvent.setup()
     mount()
     await selectWarehouse(user)
     await user.type(quantity(), '1.25')
-    await user.click(screen.getByRole('button', { name: 'Schedule Delivery' }))
+    await user.click(screen.getByRole('button', { name: 'Mark Ready' }))
     expect(await screen.findByText('Schedule unavailable.')).toBeTruthy()
     expect(quantity().value).toBe('1.25')
-    await user.click(screen.getByRole('button', { name: 'Schedule Delivery' }))
-    expect(await screen.findByText('Delivery scheduled')).toBeTruthy()
+    await user.click(screen.getByRole('button', { name: 'Mark Ready' }))
+    expect(await screen.findByText('Delivery ready for a run')).toBeTruthy()
     expect(creates()).toHaveLength(1)
     expect(updates().map((request) => request.body.expectedRevision)).toEqual([1, 2])
     expect(schedules().map((request) => request.body.expectedRevision)).toEqual([2, 3])
@@ -514,7 +518,7 @@ describe('outgoing delivery warehouse planning', () => {
     mount()
     await selectWarehouse(user)
     await user.type(quantity(), '3')
-    await user.click(screen.getByRole('button', { name: 'Schedule Delivery' }))
+    await user.click(screen.getByRole('button', { name: 'Mark Ready' }))
     expect(await screen.findByText('Draft save unavailable.')).toBeTruthy()
     expect(quantity().value).toBe('3')
     await user.click(screen.getByRole('button', { name: 'Save Draft' }))
@@ -553,11 +557,11 @@ describe('outgoing delivery warehouse planning', () => {
     expect(updates()[1].body.expectedRevision).toBe(8)
   })
 
-  it.each(['ORDER_CAPACITY_CHANGED', 'WAREHOUSE_CAPACITY_CHANGED', 'PLAN_LIMIT_EXCEEDED'])(
+  it.each(['ORDER_CAPACITY_CHANGED', 'PLAN_LIMIT_EXCEEDED'])(
     'uses the current maximum from %s and keeps unsaved input',
     async (code) => {
       conflict = {
-        url: '/outgoing-deliveries/90/schedule',
+        url: '/outgoing-deliveries/90/ready',
         code,
         message: 'Capacity changed',
         details: [{ salesOrderItemId: 10, currentMaximumQuantity: '1.00' }],
@@ -566,13 +570,13 @@ describe('outgoing delivery warehouse planning', () => {
       mount()
       await selectWarehouse(user)
       await user.type(quantity(), '3')
-      await user.click(screen.getByRole('button', { name: 'Schedule Delivery' }))
+      await user.click(screen.getByRole('button', { name: 'Mark Ready' }))
       expect(await screen.findByText('Max 1 sacks')).toBeTruthy()
       expect(quantity().value).toBe('3')
       await user.clear(quantity())
       await user.type(quantity(), '1')
-      await user.click(screen.getByRole('button', { name: 'Schedule Delivery' }))
-      expect(await screen.findByText('Delivery scheduled')).toBeTruthy()
+      await user.click(screen.getByRole('button', { name: 'Mark Ready' }))
+      expect(await screen.findByText('Delivery ready for a run')).toBeTruthy()
       expect(creates()).toHaveLength(1)
     },
   )
@@ -582,7 +586,7 @@ describe('outgoing delivery warehouse planning', () => {
     const user = userEvent.setup()
     mount(undefined, 90)
     await waitFor(() => expect(quantity().disabled).toBe(false))
-    deliveries[0].status = 'SCHEDULED'
+    deliveries[0].status = 'READY'
     conflict = {
       url: '/outgoing-deliveries/90/draft',
       code: 'INVALID_DELIVERY_STATE',
@@ -591,10 +595,10 @@ describe('outgoing delivery warehouse planning', () => {
     await user.click(screen.getByRole('button', { name: 'Save Draft' }))
     await user.click(await screen.findByRole('button', { name: 'Load latest draft' }))
     expect(
-      await screen.findByText('This delivery is scheduled and cannot be edited here.'),
+      await screen.findByText('This delivery is ready and cannot be edited here.'),
     ).toBeTruthy()
     expect(
-      (screen.getByRole('button', { name: 'Schedule Delivery' }) as HTMLButtonElement).disabled,
+      (screen.getByRole('button', { name: 'Mark Ready' }) as HTMLButtonElement).disabled,
     ).toBe(true)
     expect(schedules()).toHaveLength(0)
   })
@@ -620,8 +624,8 @@ describe('outgoing delivery warehouse planning', () => {
     planningFailure = true
     const user = userEvent.setup()
     mount()
-    await user.click(await screen.findByRole('combobox', { name: /Stock Source/ }))
-    await user.click(screen.getByRole('option', { name: 'Store' }))
+    await user.click(await screen.findByRole('button', { name: /Stock Source/ }))
+    await user.click(screen.getByRole('menuitem', { name: 'Store' }))
     expect(
       await screen.findByText('Order or warehouse planning availability could not be loaded.'),
     ).toBeTruthy()
@@ -640,8 +644,8 @@ describe('outgoing delivery warehouse planning', () => {
     await user.type(screen.getByRole('searchbox', { name: 'Search order or customer...' }), '0002')
     await user.click(screen.getByRole('menuitem', { name: /SO-0002/ }))
     expect(screen.queryByRole('textbox')).toBeNull()
-    await user.click(screen.getByRole('combobox', { name: /Stock Source/ }))
-    expect(screen.queryByRole('option', { name: 'Inactive' })).toBeNull()
+    await user.click(screen.getByRole('button', { name: /Stock Source/ }))
+    expect(screen.queryByRole('menuitem', { name: 'Inactive' })).toBeNull()
   })
 
   it('guards duplicate submissions and dismissal while saving a header', async () => {
@@ -656,7 +660,7 @@ describe('outgoing delivery warehouse planning', () => {
         release = resolve
       }),
     }
-    const submit = screen.getByRole('button', { name: 'Schedule Delivery' })
+    const submit = screen.getByRole('button', { name: 'Mark Ready' })
     fireEvent.click(submit)
     fireEvent.click(submit)
     await waitFor(() => expect(creates()).toHaveLength(1))
@@ -666,7 +670,7 @@ describe('outgoing delivery warehouse planning', () => {
       gate = undefined
       release()
     })
-    expect(await screen.findByText('Delivery scheduled')).toBeTruthy()
+    expect(await screen.findByText('Delivery ready for a run')).toBeTruthy()
     expect(creates()).toHaveLength(1)
   })
 
@@ -674,8 +678,8 @@ describe('outgoing delivery warehouse planning', () => {
     options[1] = []
     const user = userEvent.setup()
     mount()
-    await user.click(await screen.findByRole('combobox', { name: /Stock Source/ }))
-    await user.click(screen.getByRole('option', { name: 'Store' }))
+    await user.click(await screen.findByRole('button', { name: /Stock Source/ }))
+    await user.click(screen.getByRole('menuitem', { name: 'Store' }))
     expect(
       await screen.findByText(
         'Some planning quantities are unavailable. Reload availability before planning those products.',
@@ -687,21 +691,11 @@ describe('outgoing delivery warehouse planning', () => {
     ).toBeNull()
   })
 
-  it('validates combined product capacity using backend availability and scheduled plans', () => {
+  it('allows READY stock shortfalls while still enforcing each backend order maximum', () => {
     currentOrder.items.push({ ...currentOrder.items[0], id: 11 })
-    const errors = outgoingPlanningErrors(currentOrder, [option(10), option(11)], {
-      10: '30',
-      11: '30',
-    })
-    expect(Object.keys(errors)).toEqual(['quantity-10', 'quantity-11'])
-    expect(
-      outgoingPlanningErrors(
-        currentOrder,
-        [{ ...option(), maximumPlannableQuantity: '0' }],
-        { 10: '1' },
-        { 10: '2' },
-      )['quantity-10'],
-    ).toContain('Maximum plannable quantity is 0.00')
+    const errors = outgoingPlanningErrors(currentOrder, [option(10), option(11)], { 10: '60', 11: '60' })
+    expect(errors).toEqual({})
+    expect(outgoingPlanningErrors(currentOrder, [{ ...option(), maximumPlannableQuantity: '0' }], { 10: '1' }, { 10: '2' })['quantity-10']).toContain('Maximum plannable quantity is 0.00')
   })
 })
 
@@ -711,26 +705,28 @@ it('hides only known exhausted lines in a new plan while preserving positive qua
     {
       ...option(),
       committedQuantity: '80',
-      scheduledQuantity: '20',
+      readyQuantity: '20',
       maximumPlannableQuantity: '0',
+      remainingToPlanQuantity: '0',
     },
     {
       ...option(12),
       inventoryItemId: 2,
       committedQuantity: '99.99',
-      scheduledQuantity: '0',
+      readyQuantity: '0',
       maximumPlannableQuantity: '0.01',
+      remainingToPlanQuantity: '0.01',
     },
   ]
   mount()
   const user = userEvent.setup()
-  await user.click(await screen.findByRole('combobox', { name: /Stock Source/ }))
-  await user.click(screen.getByRole('option', { name: 'Store' }))
+  await user.click(await screen.findByRole('button', { name: /Stock Source/ }))
+  await user.click(screen.getByRole('menuitem', { name: 'Store' }))
   const input = await screen.findByRole('textbox', { name: 'Quantity to ship for Banana' })
   expect(screen.queryByRole('textbox', { name: 'Quantity to ship for Rice' })).toBeNull()
   await user.type(input, '0.01')
-  await user.click(screen.getByRole('button', { name: 'Schedule Delivery' }))
-  await screen.findByText('Delivery scheduled')
+  await user.click(screen.getByRole('button', { name: 'Mark Ready' }))
+  await screen.findByText('Delivery ready for a run')
   expect(updates()[0].body.plannedItems).toEqual([
     { salesOrderItemId: 12, plannedQuantity: '0.01' },
   ])
@@ -741,24 +737,25 @@ it('explains a fully planned order, retains its selection, and creates no empty 
     {
       ...option(),
       committedQuantity: '80',
-      scheduledQuantity: '20',
+      readyQuantity: '20',
       maximumPlannableQuantity: '0',
+      remainingToPlanQuantity: '0',
     },
   ]
   mount()
   const user = userEvent.setup()
-  await user.click(await screen.findByRole('combobox', { name: /Stock Source/ }))
-  await user.click(screen.getByRole('option', { name: 'Store' }))
+  await user.click(await screen.findByRole('button', { name: /Stock Source/ }))
+  await user.click(screen.getByRole('menuitem', { name: 'Store' }))
   await screen.findByText('All quantities for this Sales Order are already planned.')
   expect(screen.getByRole('button', { name: 'Sales Order to Fulfill' }).textContent).toContain(
     'SO-0001',
   )
   expect(screen.queryByRole('textbox')).toBeNull()
   expect(screen.getByRole('button', { name: 'Save Draft' }).hasAttribute('disabled')).toBe(true)
-  expect(screen.getByRole('button', { name: 'Schedule Delivery' }).hasAttribute('disabled')).toBe(
+  expect(screen.getByRole('button', { name: 'Mark Ready' }).hasAttribute('disabled')).toBe(
     true,
   )
-  fireEvent.submit(screen.getByRole('button', { name: 'Schedule Delivery' }).closest('form')!)
+  fireEvent.submit(screen.getByRole('button', { name: 'Mark Ready' }).closest('form')!)
   await waitFor(() =>
     expect(requests.filter((r) => r.url.endsWith('planning-options')).length).toBeGreaterThan(1),
   )
@@ -770,8 +767,9 @@ it('retains saved draft lines and values even when additional order planning cap
     {
       ...option(),
       committedQuantity: '80',
-      scheduledQuantity: '20',
+      readyQuantity: '20',
       maximumPlannableQuantity: '0',
+      remainingToPlanQuantity: '0',
     },
   ]
   deliveries = [
@@ -797,13 +795,13 @@ function mountHub(salesOrderId?: number) {
   })
   render(
     <QueryClientProvider client={client}>
-      <DeliveriesHub initialTab="outgoing" salesOrderId={salesOrderId} />
+      <MemoryRouter><DeliveriesHub initialTab="outgoing" salesOrderId={salesOrderId} /></MemoryRouter>
     </QueryClientProvider>,
   )
   return client
 }
 async function scheduleFromHub(user: ReturnType<typeof userEvent.setup>) {
-  const open = await screen.findByRole('button', { name: 'Schedule Outgoing' })
+  const open = await screen.findByRole('button', { name: 'Plan Outgoing' })
   await waitFor(() => expect(open.hasAttribute('disabled')).toBe(false))
   await user.click(open)
   return screen.findByRole('button', { name: 'Sales Order to Fulfill' })
@@ -811,8 +809,8 @@ async function scheduleFromHub(user: ReturnType<typeof userEvent.setup>) {
 async function finishHubSchedule(user: ReturnType<typeof userEvent.setup>) {
   await selectWarehouse(user)
   await user.type(quantity(), '1.25')
-  await user.click(screen.getByRole('button', { name: 'Schedule Delivery' }))
-  await screen.findByText('Delivery scheduled')
+  await user.click(screen.getByRole('button', { name: 'Mark Ready' }))
+  await screen.findByText('Delivery ready for a run')
   await user.click(screen.getByRole('button', { name: 'Done' }))
 }
 
@@ -829,7 +827,7 @@ it('refreshes the active list, seeds the scheduled detail, and changes a conflic
   expect(client.getQueryData(['outgoing-deliveries', 'id', 90])).toMatchObject({
     id: 90,
     salesOrderId: 2,
-    status: 'SCHEDULED',
+    status: 'READY',
   })
   expect(schedules()).toHaveLength(1)
   expect(screen.getAllByRole('button', { name: 'View delivery OD-90' })).toHaveLength(1)
@@ -873,7 +871,7 @@ it.each(['status', 'warehouse', 'date'])(
   async (filter) => {
     mountHub(1)
     const user = userEvent.setup()
-    await screen.findByRole('button', { name: 'Schedule Outgoing' })
+    await screen.findByRole('button', { name: 'Plan Outgoing' })
     if (filter === 'status') {
       await user.click(screen.getByRole('combobox', { name: 'Status' }))
       await user.click(screen.getByRole('option', { name: 'Draft' }))
@@ -900,17 +898,17 @@ it('waits for the active outgoing list refresh while preventing another schedule
   refreshGate = new Promise<void>((resolve) => {
     release = resolve
   })
-  await user.click(screen.getByRole('button', { name: 'Schedule Delivery' }))
+  await user.click(screen.getByRole('button', { name: 'Mark Ready' }))
   await waitFor(() => expect(schedules()).toHaveLength(1))
-  expect(screen.queryByText('Delivery scheduled')).toBeNull()
-  const busy = screen.getByRole('button', { name: 'Scheduling...' })
+  expect(screen.queryByText('Delivery ready for a run')).toBeNull()
+  const busy = screen.getByRole('button', { name: 'Marking ready...' })
   expect(busy.hasAttribute('disabled')).toBe(true)
   fireEvent.submit(busy.closest('form')!)
   await act(async () => {
     refreshGate = undefined
     release()
   })
-  await screen.findByText('Delivery scheduled')
+  await screen.findByText('Delivery ready for a run')
   await user.click(screen.getByRole('button', { name: 'Done' }))
   expect(await screen.findByRole('button', { name: 'View delivery OD-90' })).toBeTruthy()
   expect(schedules()).toHaveLength(1)
@@ -927,8 +925,9 @@ it('retains unsaved counts until explicitly clearing a line that became fully pl
   options[1][0] = {
     ...option(),
     committedQuantity: '80',
-    scheduledQuantity: '20',
+    readyQuantity: '20',
     maximumPlannableQuantity: '0',
+      remainingToPlanQuantity: '0',
   }
   await act(async () => {
     await queryClient.invalidateQueries({ queryKey: ['outgoing-deliveries', 'planning-options'] })
@@ -938,9 +937,50 @@ it('retains unsaved counts until explicitly clearing a line that became fully pl
   )
   expect(screen.getByText(/Some entered quantities are no longer available/)).toBeTruthy()
   await user.click(screen.getByRole('button', { name: 'Clear quantities no longer available' }))
-  await user.click(screen.getByRole('button', { name: 'Schedule Delivery' }))
-  await screen.findByText('Delivery scheduled')
+  await user.click(screen.getByRole('button', { name: 'Mark Ready' }))
+  await screen.findByText('Delivery ready for a run')
   expect(updates()[0].body.plannedItems).toEqual([
     { salesOrderItemId: 12, plannedQuantity: '1.25' },
   ])
+})
+
+it('loads later order and warehouse pages, searches on the server, and validates the saved selection by ID', async () => {
+  const adapter = getAdapter(apiClient.defaults.adapter)
+  const lookupReads: { url: string; params: Record<string, unknown> }[] = []
+  apiClient.defaults.adapter = async (config) => {
+    if (config.method === 'get' && ['/sales-orders', '/warehouses'].includes(config.url ?? '')) {
+      const url = config.url!
+      const params = config.params ?? {}
+      lookupReads.push({ url, params })
+      const data = url === '/sales-orders'
+        ? params.q ? { items: [order(2)], nextCursor: null }
+          : params.cursor ? { items: [order(1)], nextCursor: null } : { items: [order(2)], nextCursor: 'orders-next' }
+        : params.cursor ? { items: [{ id: 1, name: 'Store', isActive: true }], nextCursor: null }
+          : { items: [{ id: 2, name: 'Main Warehouse', isActive: true }], nextCursor: 'warehouses-next' }
+      return { config, data, status: 200, statusText: 'OK', headers: {} }
+    }
+    return adapter(config)
+  }
+  const user = userEvent.setup()
+  mount(0)
+  await user.click(screen.getByRole('button', { name: 'Sales Order to Fulfill' }))
+  await user.click(await screen.findByRole('button', { name: 'Load more results' }))
+  await user.click(await screen.findByRole('menuitem', { name: /SO-0001/ }))
+  await user.click(screen.getByRole('button', { name: 'Sales Order to Fulfill' }))
+  await user.type(screen.getByRole('searchbox', { name: 'Search order or customer...' }), '0002')
+  await screen.findByRole('menuitem', { name: /SO-0002/ })
+  await user.keyboard('{Escape}')
+  expect(screen.getByRole('button', { name: 'Sales Order to Fulfill' }).textContent).toContain('SO-0001')
+  await user.click(screen.getByRole('button', { name: 'Stock Source / Warehouse' }))
+  await user.click(await screen.findByRole('button', { name: 'Load more results' }))
+  await user.click(await screen.findByRole('menuitem', { name: 'Store' }))
+  await waitFor(() => expect(quantity().disabled).toBe(false))
+  await user.type(quantity(), '1.25')
+  await user.click(screen.getByRole('button', { name: 'Save Draft' }))
+  await screen.findByText('Delivery draft saved')
+  expect(updates()[0].body.warehouseId).toBe(1)
+  expect(lookupReads.some(({ url, params }) => url === '/sales-orders' && params.cursor === 'orders-next')).toBe(true)
+  expect(lookupReads.some(({ url, params }) => url === '/sales-orders' && params.q === '0002')).toBe(true)
+  expect(lookupReads.filter(({ url }) => url === '/sales-orders').every(({ params }) => JSON.stringify(params.statuses) === JSON.stringify(['CONFIRMED', 'PARTIALLY_DELIVERED']))).toBe(true)
+  expect(lookupReads.filter(({ url }) => url === '/warehouses').every(({ params }) => params.isActive === true)).toBe(true)
 })

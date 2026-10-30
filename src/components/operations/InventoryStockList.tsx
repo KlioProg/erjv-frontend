@@ -1,3 +1,6 @@
+import { StockPagingControls } from '@/components/inventory/StockPagingControls'
+import { formatStockCents, parseStockCents, stockSortKey } from '@/features/logistics/stock-display'
+import { buildCatalogStockMap } from '@/features/products/products.catalog.utils'
 import { formatProductUnit } from '@/lib/product-unit'
 import { useState, useMemo } from 'react'
 import {
@@ -65,11 +68,11 @@ interface FlatWarehouseStockItem {
   stock: StockItemWithRelations
   product?: InventoryItemResponse
   warehouse?: WarehouseSummary
-  availableUnits: number
-  allocatedUnits: number
-  totalUnits: number
+  availableUnits: bigint | null
+  inTransitUnits: bigint | null
+  totalUnits: bigint | null
   reorderLevel: number | null
-  status: 'IN_STOCK' | 'LOW_STOCK' | 'OUT_OF_STOCK' | 'UNCONFIGURED'
+  status: 'IN_STOCK' | 'LOW_STOCK' | 'OUT_OF_STOCK' | 'UNCONFIGURED' | 'UNKNOWN'
   updatedAt: string
 }
 
@@ -106,27 +109,21 @@ export function InventoryStockList({
   const lowStockAllocations = useMemo(() => {
     return stockItems
       .map((stock) => {
-        const qty = parseFloat(stock.quantity || '0')
+        const qty = parseStockCents(stock.availableQuantity)
         const prod = allProducts.find((p) => p.id === stock.inventoryItemId)
         const wh = warehouses.find((w) => w.id === stock.warehouseId)
         return {
           id: stock.id,
           stock,
           qty,
-          status:
-            stock.stockStatus ??
-            (qty <= 0
-              ? 'OUT'
-              : stock.reorderThreshold != null && qty <= Number(stock.reorderThreshold)
-                ? 'LOW'
-                : 'NORMAL'),
+          status: stock.stockStatus,
           prodName: prod?.name || `Item #${stock.inventoryItemId}`,
           prodVariety: prod?.variety,
           whName: wh?.name ? wh.name.split(' ')[0] : `WH #${stock.warehouseId}`,
         }
       })
       .filter((item) => item.status === 'LOW' || item.status === 'OUT')
-      .sort((a, b) => a.qty - b.qty)
+      .sort((a, b) => (stockSortKey(a.qty) ?? '').localeCompare(stockSortKey(b.qty) ?? ''))
   }, [stockItems, allProducts, warehouses])
 
   // Contextual low stock for the currently selected warehouse filter
@@ -154,14 +151,11 @@ export function InventoryStockList({
     whName: string
   } | null>(null)
 
+  const stockComplete = !stockQuery.hasNextPage && !stockQuery.isPending && !stockQuery.isError
+
   // Map total units per product across all warehouses
   const productStockMap = useMemo(() => {
-    const map = new Map<number, number>()
-    stockItems.forEach((s) => {
-      const current = map.get(s.inventoryItemId) || 0
-      map.set(s.inventoryItemId, current + parseFloat(s.quantity))
-    })
-    return map
+    return buildCatalogStockMap(stockItems)
   }, [stockItems])
 
   const activeProducts = useMemo(
@@ -192,7 +186,7 @@ export function InventoryStockList({
 
       const whId = parseInt(selectedWarehouseFilter, 10)
       const hasStockInWh = stockItems.some(
-        (s) => s.inventoryItemId === p.id && s.warehouseId === whId && parseFloat(s.quantity) > 0,
+        (s) => s.inventoryItemId === p.id && s.warehouseId === whId && (parseStockCents(s.onHandQuantity) ?? 0n) > 0n,
       )
       return matchesSearch && hasStockInWh
     })
@@ -211,22 +205,18 @@ export function InventoryStockList({
       .map((s) => {
         const product = allProducts.find((p) => p.id === s.inventoryItemId)
         const warehouse = warehouses.find((w) => w.id === s.warehouseId) || s.warehouse
-        const total = parseFloat(s.quantity || '0')
-        const allocated = parseFloat(s.reservedQuantity || '0')
-        const available = Number(s.availableQuantity ?? Math.max(0, total - allocated))
+        const total = parseStockCents(s.onHandQuantity)
+        const inTransit = parseStockCents(s.inTransitQuantity)
+        const available = parseStockCents(s.availableQuantity)
         const reorderLevel =
           s.reorderThreshold == null || !Number.isFinite(Number(s.reorderThreshold))
             ? null
             : Number(s.reorderThreshold)
         const status: FlatWarehouseStockItem['status'] =
-          s.stockStatus === 'OUT' || total <= 0
-            ? 'OUT_OF_STOCK'
-            : s.stockStatus === 'LOW' ||
-                (s.stockStatus === undefined && reorderLevel !== null && total <= reorderLevel)
-              ? 'LOW_STOCK'
-              : s.stockStatus === 'UNCONFIGURED' || reorderLevel === null
-                ? 'UNCONFIGURED'
-                : 'IN_STOCK'
+          s.stockStatus === 'OUT' ? 'OUT_OF_STOCK'
+            : s.stockStatus === 'LOW' ? 'LOW_STOCK'
+              : s.stockStatus === 'UNCONFIGURED' ? 'UNCONFIGURED'
+                : s.stockStatus === 'NORMAL' ? 'IN_STOCK' : 'UNKNOWN'
 
         return {
           id: s.id,
@@ -234,7 +224,7 @@ export function InventoryStockList({
           product,
           warehouse,
           availableUnits: available,
-          allocatedUnits: allocated,
+          inTransitUnits: inTransit,
           totalUnits: total,
           reorderLevel,
           status,
@@ -317,7 +307,7 @@ export function InventoryStockList({
   const isFetching = productsQuery.isFetching || stockQuery.isFetching || warehousesQuery.isFetching
   const retryFailedQueries = () => {
     if (productsQuery.isError) void productsQuery.refetch()
-    if (stockQuery.isError) void stockQuery.refetch()
+    if (stockQuery.isError) void stockQuery.reload()
     if (warehousesQuery.isError) void warehousesQuery.refetch()
   }
 
@@ -383,15 +373,15 @@ export function InventoryStockList({
         header: 'Available Units',
         align: 'right',
         sortable: true,
-        sortKey: 'availableUnits',
+        sortKey: (row) => stockSortKey(row.availableUnits),
         cell: ({ row }) => (
           <div className="text-right">
             <span
               className={`text-sm font-normal tabular-nums ${
-                row.availableUnits === 0 ? 'text-destructive' : 'text-foreground'
+                row.availableUnits === 0n ? 'text-destructive' : 'text-foreground'
               }`}
             >
-              {row.availableUnits.toLocaleString()}
+              {formatStockCents(row.availableUnits)}
             </span>
             <span className="text-xs text-muted-foreground block">
               {formatProductUnit(row.product?.unit, 'units')}
@@ -400,15 +390,15 @@ export function InventoryStockList({
         ),
       },
       {
-        id: 'allocatedUnits',
-        header: 'Allocated Units',
+        id: 'inTransitUnits',
+        header: 'In transit',
         align: 'right',
         sortable: true,
-        sortKey: 'allocatedUnits',
+        sortKey: (row) => stockSortKey(row.inTransitUnits),
         cell: ({ row }) => (
           <div className="text-right">
             <span className="text-sm font-normal text-muted-foreground">
-              {row.allocatedUnits.toLocaleString()}
+              {formatStockCents(row.inTransitUnits)}
             </span>
             <span className="text-xs text-muted-foreground block">
               {formatProductUnit(row.product?.unit, 'units')}
@@ -421,7 +411,7 @@ export function InventoryStockList({
         header: 'Total Units',
         align: 'right',
         sortable: true,
-        sortKey: 'totalUnits',
+        sortKey: (row) => stockSortKey(row.totalUnits),
         cell: ({ row }) => (
           <div className="text-right">
             <div className="inline-flex items-center gap-1 font-normal text-sm tabular-nums">
@@ -435,7 +425,7 @@ export function InventoryStockList({
                       : 'text-foreground'
                 }
               >
-                {row.totalUnits.toLocaleString()}
+                {formatStockCents(row.totalUnits)}
               </span>
             </div>
             <span className="text-xs text-muted-foreground block">
@@ -479,6 +469,7 @@ export function InventoryStockList({
               </span>
             )
           }
+          if (row.status === 'UNKNOWN') return <span>Stock status unavailable</span>
           if (row.status === 'UNCONFIGURED') {
             return (
               <Badge variant="outline" className="text-xs">
@@ -755,7 +746,7 @@ export function InventoryStockList({
             filteredProducts.map((prod) => {
               const isArchived = prod.isActive === false
               const stockInHubs = stockItems.filter((s) => s.inventoryItemId === prod.id)
-              const totalStockUnits = productStockMap.get(prod.id) || 0
+              const totalStockUnits = stockComplete ? productStockMap.get(prod.id)?.totalCents ?? (productStockMap.has(prod.id) ? null : 0n) : null
 
               return (
                 <Card
@@ -801,19 +792,19 @@ export function InventoryStockList({
                           <div className="flex items-center justify-end gap-1.5 font-medium text-foreground text-sm tabular-nums">
                             <Boxes
                               className={`size-3.5 ${
-                                totalStockUnits === 0
+                                totalStockUnits === 0n
                                   ? 'text-destructive'
                                   : 'text-primary-text'
                               }`}
                             />
                             <span
                               className={
-                                totalStockUnits === 0
+                                totalStockUnits === 0n
                                   ? 'text-destructive'
                                   : 'text-foreground'
                               }
                             >
-                              {totalStockUnits.toLocaleString()}{' '}
+                              {formatStockCents(totalStockUnits)}{' '}
                               <span className="text-xs font-normal text-muted-foreground">
                                 {formatProductUnit(prod.unit, 'units')}
                               </span>
@@ -914,7 +905,7 @@ export function InventoryStockList({
                     {stockInHubs.length === 0 ? (
                       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3.5 rounded-md bg-card border border-dashed border-border text-xs">
                         <span className="text-muted-foreground font-medium">
-                          No stock units allocated to any warehouse facility yet.
+                          {stockComplete ? 'No stock units allocated to any warehouse facility yet.' : 'No stock records loaded for this product. Load more stock records to check other warehouses.'}
                         </span>
                         {(isAdmin || isManager) && (
                           <Button
@@ -934,14 +925,10 @@ export function InventoryStockList({
                           const wh =
                             stock.warehouse || warehouses.find((w) => w.id === stock.warehouseId)
                           const whDisplayName = wh?.name || `Warehouse #${stock.warehouseId}`
-                          const qtyNum = parseFloat(stock.quantity || '0')
-                          const isOut = stock.stockStatus === 'OUT' || qtyNum <= 0
-                          const isLow =
-                            stock.stockStatus === 'LOW' ||
-                            (stock.stockStatus === undefined &&
-                              stock.reorderThreshold != null &&
-                              qtyNum > 0 &&
-                              qtyNum <= Number(stock.reorderThreshold))
+                          const qtyNum = parseStockCents(stock.availableQuantity)
+                          const isOut = stock.stockStatus === 'OUT'
+                          const isLow = stock.stockStatus === 'LOW'
+
 
                           return (
                             <div
@@ -984,7 +971,7 @@ export function InventoryStockList({
                                           : 'text-foreground'
                                     }`}
                                   >
-                                    {qtyNum.toLocaleString()}
+                                    {formatStockCents(qtyNum)}
                                   </span>
                                   <span className="text-xs font-medium text-muted-foreground">
                                     {formatProductUnit(prod.unit, 'units')}
@@ -1074,6 +1061,7 @@ export function InventoryStockList({
       )}
 
       {/* Product Archive Confirmation Modal */}
+      <StockPagingControls {...stockQuery} />
       <ConfirmDeleteModal
         open={!!productToDelete}
         onClose={() => setProductToDelete(null)}
@@ -1100,7 +1088,7 @@ export function InventoryStockList({
         itemName={stockToDelete?.prodName}
         itemDetails={
           stockToDelete
-            ? `Facility: ${stockToDelete.whName} • Current: ${parseFloat(stockToDelete.stock.quantity).toLocaleString()} units`
+            ? `Facility: ${stockToDelete.whName} • Current: ${formatStockCents(parseStockCents(stockToDelete.stock.onHandQuantity))} units`
             : undefined
         }
         confirmText="Remove Allocation"

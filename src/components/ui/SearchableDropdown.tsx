@@ -27,6 +27,7 @@ type SearchableDropdownProps<T> = {
   searchPlaceholder: string
   emptyMessage: string
   ariaLabel: string
+  error?: string
   className?: string
   contentClassName?: string
   align?: 'start' | 'center' | 'end'
@@ -34,6 +35,9 @@ type SearchableDropdownProps<T> = {
   avoidCollisions?: boolean
   disabled?: boolean
   isLoading?: boolean
+  onSearchChange?: (query: string) => void
+  selectedLabel?: string
+  footer?: ReactNode
 }
 
 export function SearchableDropdown<T>({
@@ -51,6 +55,7 @@ export function SearchableDropdown<T>({
   searchPlaceholder,
   emptyMessage,
   ariaLabel,
+  error,
   className,
   contentClassName,
   align = 'start',
@@ -58,11 +63,15 @@ export function SearchableDropdown<T>({
   avoidCollisions,
   disabled = false,
   isLoading = false,
+  onSearchChange,
+  selectedLabel: fallbackLabel,
+  footer,
 }: SearchableDropdownProps<T>) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const searchInputRef = useRef<HTMLInputElement>(null)
 
+  const fieldErrorId = useId()
   const validationId = useId()
   const customValue = query.trim().replace(/\s+/g, ' ')
   const exactMatch = options.find(
@@ -83,24 +92,25 @@ export function SearchableDropdown<T>({
     ? getOptionLabel(selectedOption)
     : onCreateValue && value
       ? value
-      : placeholder
+      : fallbackLabel ?? placeholder
   const filteredOptions = useMemo(() => {
     const normalizedQuery = query.trim().replace(/\s+/g, ' ').toLocaleLowerCase()
-    if (!normalizedQuery) return options
+    if (!normalizedQuery || onSearchChange) return options
     return options.filter((option) =>
       String(getOptionSearchText(option) ?? '')
         .replace(/\s+/g, ' ')
         .toLocaleLowerCase()
         .includes(normalizedQuery),
     )
-  }, [getOptionSearchText, options, query])
+  }, [getOptionSearchText, options, query, onSearchChange])
 
   return (
+    <>
     <DropdownMenu
       open={open && !disabled && !isLoading}
       onOpenChange={(nextOpen) => {
         setOpen(nextOpen && !disabled && !isLoading)
-        if (nextOpen) setQuery('')
+        if (nextOpen) { setQuery(''); onSearchChange?.('') }
       }}
     >
       <OverflowValue asChild value={selectedLabel}>
@@ -115,6 +125,8 @@ export function SearchableDropdown<T>({
               className,
             )}
             aria-label={ariaLabel}
+          aria-invalid={!!error || undefined}
+          aria-describedby={error ? fieldErrorId : undefined}
           >
             <span data-overflow-text className="min-w-0 flex-1 truncate text-left">
               {selectedLabel}
@@ -159,7 +171,7 @@ export function SearchableDropdown<T>({
             ref={searchInputRef}
             type="search"
             value={query}
-            onChange={(event) => setQuery(event.target.value)}
+            onChange={(event) => { setQuery(event.target.value); onSearchChange?.(event.target.value) }}
             aria-invalid={tooLong || undefined}
             aria-describedby={tooLong ? validationId : undefined}
             onKeyDown={(event) => {
@@ -227,7 +239,10 @@ export function SearchableDropdown<T>({
             </DropdownMenuGroup>
           )}
         </div>
+        {footer}
       </DropdownMenuContent>
     </DropdownMenu>
+    {error && <p id={fieldErrorId} role="alert" className="text-xs text-destructive">{error}</p>}
+    </>
   )
 }

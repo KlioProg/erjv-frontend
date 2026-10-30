@@ -75,7 +75,7 @@ it.each(lookups)(
   },
 )
 
-it.each(lookups)('preserves the backend empty response for %s', async (name, lookup) => {
+it.each(lookups)('handles an empty lookup response safely for %s', async (name, lookup) => {
   const data = name === 'customer search' ? [] : null
   apiClient.defaults.adapter = async (config) => ({
     config,
@@ -84,7 +84,9 @@ it.each(lookups)('preserves the backend empty response for %s', async (name, loo
     headers: {},
     data,
   })
-  await expect(lookup()).resolves.toEqual(data)
+  if (name === 'stock item' || name === 'stock pair')
+    await expect(lookup()).rejects.toThrow(/balance could not be verified/)
+  else await expect(lookup()).resolves.toEqual(data)
 })
 
 const creations = [
@@ -198,7 +200,7 @@ it('allows only header fields for incoming creation even when a legacy caller su
     damagedQuantity: '0.00',
   }
   await createIncomingDeliveryApi(legacy)
-  await scheduleIncomingDeliveryApi(91)
+  await scheduleIncomingDeliveryApi(91, 1)
   expect(requests).toEqual([
     {
       url: '/incoming-deliveries',
@@ -210,7 +212,7 @@ it('allows only header fields for incoming creation even when a legacy caller su
         notes: 'Dock 2',
       },
     },
-    { url: '/incoming-deliveries/91/schedule', body: undefined },
+    { url: '/incoming-deliveries/91/schedule', body: { expectedRevision: 1 } },
   ])
 })
 

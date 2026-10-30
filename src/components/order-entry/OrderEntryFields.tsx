@@ -1,5 +1,5 @@
 import { formatProductUnit } from '@/lib/product-unit'
-import { forwardRef, type ComponentProps, type ReactNode } from 'react'
+import { forwardRef, useId, type ComponentProps, type ReactNode } from 'react'
 import { Trash2 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -32,8 +32,10 @@ export function OrderField({
 
 export const OrderDecimalInput = forwardRef<
   HTMLInputElement,
-  ComponentProps<typeof Input> & { currency?: boolean; mobileLabel: string }
->(({ currency, mobileLabel, className = '', ...props }, ref) => (
+  ComponentProps<typeof Input> & { currency?: boolean; mobileLabel: string; error?: string }
+>(({ currency, mobileLabel, error, className = '', ...props }, ref) => {
+  const errorId = useId()
+  return (
   <div className="flex min-w-0 flex-col gap-1">
     {mobileLabel && (
       <span aria-hidden="true" className="order-entry-mobile-label text-xs text-muted-foreground">
@@ -52,14 +54,18 @@ export const OrderDecimalInput = forwardRef<
       <Input
         {...props}
         ref={ref}
+        aria-invalid={!!error || props['aria-invalid']}
+        aria-describedby={[props['aria-describedby'], error ? errorId : undefined].filter(Boolean).join(' ') || undefined}
         type="text"
         inputMode="decimal"
         autoComplete="off"
         className={`order-entry-input h-9 px-2 text-right text-sm tabular-nums ${currency ? 'pl-6' : ''} ${className}`}
       />
     </div>
+    {error && <p id={errorId} role="alert" className="text-xs text-destructive">{error}</p>}
   </div>
-))
+  )
+})
 OrderDecimalInput.displayName = 'OrderDecimalInput'
 
 export function RemoveOrderItem({ name, onRemove }: { name: string; onRemove: () => void }) {

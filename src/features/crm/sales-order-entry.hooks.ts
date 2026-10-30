@@ -101,6 +101,9 @@ export function useSalesOrderEntry({
   const [error, setError] = useState('')
   const [errorFocusId, setErrorFocusId] = useState<string | undefined>()
   const submission = useOrderSubmission({ onConfirm, onConfirmed, savedDraft, onClose })
+  const submittedLineIds = useRef<number[]>([])
+  const lineFieldError = (formId: number, field: 'quantity' | 'unitPrice') =>
+    submission.fieldErrors[`items.${submittedLineIds.current.indexOf(formId)}.${field}`]
   const focus = useOrderItemFocus(lines)
   const amounts = submission.savedOrder?.items ? savedOrderTotals(submission.savedOrder.items)
     : orderLineTotals(lines.map((line) => ({ ...line, ...discountFields(line.discount) })))
@@ -130,7 +133,7 @@ export function useSalesOrderEntry({
     if (!latest || conflict.loading) return
     setDraft(latest)
     setClientId(String(latest.clientId))
-    setDeliveryAddress(latest.deliveryAddress)
+    setDeliveryAddress(latest.deliveryAddress ?? '')
     setExpectedAt(latest.expectedAt?.slice(0, 10) ?? '')
     setReference(latest.externalReference ?? '')
     setNotes(latest.notes ?? '')
@@ -142,14 +145,18 @@ export function useSalesOrderEntry({
     submission.clearError()
   }
 
-  function changeClient(id: string) {
-    const client = clients.find((client) => String(client.id) === id && client.isActive)
+  function changeClient(id: string, chosen?: Client) {
+    submission.clearError()
+    const client = chosen?.id === Number(id) && chosen.isActive ? chosen : clients.find((client) => String(client.id) === id && client.isActive)
     setClientId(id)
-    if (!draft) setDeliveryAddress(client?.address ?? '')
+    const previousClient = clients.find((client) => String(client.id) === clientId)
+    if (!draft || deliveryAddress === (previousClient?.address ?? ''))
+      setDeliveryAddress(client?.address ?? '')
     setError('')
   }
 
   function addProduct(product: InventoryItemResponse) {
+    submission.clearError()
     if (!product.isActive || submission.locked) return
     const existing = lines.find((line) => line.productId === product.id)
     const formId = existing?.formId ?? ++nextFormId.current
@@ -182,6 +189,7 @@ export function useSalesOrderEntry({
   }
 
   function updateLine(id: number, field: 'quantity' | 'unitPrice', value: string) {
+    submission.clearError()
     setLines((current) =>
       current.map((line) => (line.formId === id ? { ...line, [field]: value } : line)),
     )
@@ -189,6 +197,7 @@ export function useSalesOrderEntry({
   }
 
   function updateDiscount(id: number, discount: LineDiscount) {
+    submission.clearError()
     setLines((current) => current.map((line) => line.formId === id ? { ...line, discount } : line))
     setError('')
   }
@@ -209,11 +218,11 @@ export function useSalesOrderEntry({
       setErrorFocusId('order-customer')
       return setError('Select an active customer.')
     }
-    if (!deliveryAddress.trim()) {
+    if (confirm && !deliveryAddress.trim()) {
       setErrorFocusId('order-address')
       return setError('Enter the delivery address.')
     }
-    if (!lines.length) return setError('Add at least one product to the sales order.')
+    if (confirm && !lines.length) return setError('Add at least one product to confirm the sales order.')
     const metadataError = expectedDateError(expectedAt)
     if (metadataError) return setError(metadataError)
     for (const line of lines) {
@@ -244,6 +253,7 @@ export function useSalesOrderEntry({
         return setError(`${line.name}: Total with VAT exceeds the supported limit.`)
     }
     setError('')
+    submittedLineIds.current = lines.map((line) => line.formId)
     await submission.submit(async () => {
       const values: OrderFormValues = {
         clientId: Number(clientId),
@@ -292,9 +302,9 @@ export function useSalesOrderEntry({
     clientId,
     changeClient,
     deliveryAddress,
-    setDeliveryAddress,
+    setDeliveryAddress: (value: string) => { submission.clearError(); setDeliveryAddress(value) },
     expectedAt,
-    setExpectedAt,
+    setExpectedAt: (value: string) => { submission.clearError(); setExpectedAt(value) },
     reference,
     setReference,
     notes,
@@ -308,6 +318,8 @@ export function useSalesOrderEntry({
       (conflict
         ? 'Another user or process updated this order. Your unsaved input is preserved. Review the latest version before saving again.'
         : submission.error),
+    lineFieldError,
+    fieldErrors: submission.fieldErrors,
     errorFocusId,
     busy: submission.busy,
     submission,
@@ -324,6 +336,7 @@ export function useSalesOrderEntry({
     updateDiscount,
     submit,
     removeLine: (id: number) => {
+      submission.clearError()
       setLines((current) => current.filter((line) => line.formId !== id))
       setError('')
     },

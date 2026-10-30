@@ -19,6 +19,7 @@ export interface IncomingDeliveryItemRecord {
 
 export interface IncomingDeliveryRecord {
   id: number
+  revision: number
   deliveryNumber: string
   purchaseOrderId: number
   warehouseId: number
@@ -43,6 +44,7 @@ export interface IncomingDeliveryLineCommand {
 }
 
 export interface CompleteIncomingDeliveryPayload {
+  expectedRevision: number
   items: IncomingDeliveryLineCommand[]
   noReceiptReason?: string
 }
@@ -57,6 +59,10 @@ export interface CreateIncomingDeliveryPayload {
 
 export interface IncomingDeliveryFilter extends CursorParams {
   status?: IncomingDeliveryStatus
+  statuses?: IncomingDeliveryStatus[]
+  q?: string
+  scheduledFrom?: string
+  scheduledBefore?: string
   purchaseOrderId?: number
   warehouseId?: number
 }

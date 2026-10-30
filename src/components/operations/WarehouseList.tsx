@@ -1,3 +1,5 @@
+import { useCursorLookup } from '@/lib/use-cursor-lookup'
+import { StockPagingControls } from '@/components/inventory/StockPagingControls'
 import { DataTableExpandToggle } from '@/components/ui/DataTableExpandedSection'
 import { PageHeader, PageOverview, PageToolbar } from '@/components/ui/ManagementPage'
 import { useMemo, useRef, useState } from 'react'
@@ -26,7 +28,6 @@ import {
 } from '@/components/ui/dialog'
 import { Spinner } from '@/components/ui/spinner'
 import {
-  useAllWarehouses,
   useDeactivateWarehouse,
   useReactivateWarehouse,
 } from '@/features/logistics/warehouses.hooks'
@@ -40,7 +41,7 @@ import { WarehouseProducts } from './WarehouseProducts'
 import { WarehouseModal } from './WarehouseModal'
 import { parseStockCents } from '@/features/logistics/stock-display'
 
-type WarehouseStockSummary = { products: number; units: bigint }
+type WarehouseStockSummary = { products: number }
 type ArchiveCheck = WarehouseStockSummary & {
   status: 'checking' | 'empty' | 'blocked' | 'error'
   error?: string
@@ -48,30 +49,32 @@ type ArchiveCheck = WarehouseStockSummary & {
 
 function summarizeWarehouseStock(items: StockItem[]): WarehouseStockSummary {
   let products = 0
-  let units = 0n
   for (const item of items) {
-    const quantity = parseStockCents(item.quantity)
-    if (quantity === null) {
+    const onHand = parseStockCents(item.onHandQuantity)
+    const inTransit = parseStockCents(item.inTransitQuantity)
+    if (onHand === null || inTransit === null) {
       throw new Error('The warehouse stock count could not be verified. Please try again.')
     }
-    if (quantity > 0n) {
+    if (onHand > 0n || inTransit > 0n) {
       products += 1
-      units += quantity
     }
   }
-  return { products, units }
+  return { products }
 }
 
 export function WarehouseList({ onOpenWarehouse }: { onOpenWarehouse: (id: number) => void }) {
   const [activeTab, setActiveTab] = useState<'ACTIVE' | 'ARCHIVED'>('ACTIVE')
-  const warehousesQuery = useAllWarehouses()
+  const [searchTerm, setSearchTerm] = useState('')
+  const warehousesQuery = useCursorLookup<Warehouse>('/warehouses', {
+    includeInactive: activeTab === 'ARCHIVED' ? 'only' : 'false',
+    ...(searchTerm.trim() ? { q: searchTerm.trim() } : {}),
+  })
   const stockQuery = useStockItems()
-  const allWarehouses = useMemo(() => warehousesQuery.data ?? [], [warehousesQuery.data])
+  const allWarehouses = warehousesQuery.items
   const stockItems = useMemo(() => stockQuery.data ?? [], [stockQuery.data])
   const { isAdmin, isManager } = useAuth()
   const canManage = isAdmin || isManager
   const [expandedWarehouseIds, setExpandedWarehouseIds] = useState<Set<number>>(new Set())
-  const [searchTerm, setSearchTerm] = useState('')
   const [editingWarehouse, setEditingWarehouse] = useState<Warehouse | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [warehouseToArchive, setWarehouseToArchive] = useState<Warehouse | null>(null)
@@ -126,14 +129,14 @@ export function WarehouseList({ onOpenWarehouse }: { onOpenWarehouse: (id: numbe
   const checkWarehouseBeforeArchive = async (warehouse: Warehouse) => {
     const requestId = ++archiveRequestId.current
     setWarehouseToArchive(warehouse)
-    setArchiveCheck({ status: 'checking', products: 0, units: 0n })
+    setArchiveCheck({ status: 'checking', products: 0 })
     try {
       const summary = summarizeWarehouseStock(await fetchStockByWarehouseApi(warehouse.id))
       if (archiveRequestId.current !== requestId) return
-      setArchiveCheck({ ...summary, status: summary.units > 0n ? 'blocked' : 'empty' })
+      setArchiveCheck({ ...summary, status: summary.products > 0 ? 'blocked' : 'empty' })
     } catch (error) {
       if (archiveRequestId.current !== requestId) return
-      setArchiveCheck({ status: 'error', products: 0, units: 0n, error: getErrorMessage(error) })
+      setArchiveCheck({ status: 'error', products: 0, error: getErrorMessage(error) })
     }
   }
 
@@ -141,12 +144,12 @@ export function WarehouseList({ onOpenWarehouse }: { onOpenWarehouse: (id: numbe
     const warehouse = warehouseToArchive
     if (!warehouse || archiveCheck?.status !== 'empty') return
     const requestId = ++archiveRequestId.current
-    setArchiveCheck({ status: 'checking', products: 0, units: 0n })
+    setArchiveCheck({ status: 'checking', products: 0 })
     try {
       // Recheck immediately before the write so the confirmation cannot use stale list totals.
       const summary = summarizeWarehouseStock(await fetchStockByWarehouseApi(warehouse.id))
       if (archiveRequestId.current !== requestId) return
-      if (summary.units > 0n) {
+      if (summary.products > 0) {
         setArchiveCheck({ ...summary, status: 'blocked' })
         return
       }
@@ -158,7 +161,7 @@ export function WarehouseList({ onOpenWarehouse }: { onOpenWarehouse: (id: numbe
       }
     } catch (error) {
       if (archiveRequestId.current !== requestId) return
-      setArchiveCheck({ status: 'error', products: 0, units: 0n, error: getErrorMessage(error) })
+      setArchiveCheck({ status: 'error', products: 0, error: getErrorMessage(error) })
     }
   }
 
@@ -181,7 +184,7 @@ export function WarehouseList({ onOpenWarehouse }: { onOpenWarehouse: (id: numbe
           </div>
           <div className="mt-1 flex min-w-0 items-center gap-2 pl-6 text-xs sm:hidden">
             <OverflowValue
-              value={String(warehouseTotals.get(row.id)?.products ?? 0)}
+              value={`${warehouseTotals.get(row.id)?.products ?? 0}${stockQuery.hasNextPage ? '+' : ''}`}
               tooltipSuffix="stock records"
               className="max-w-[55%] font-semibold tabular-nums"
             />
@@ -206,7 +209,7 @@ export function WarehouseList({ onOpenWarehouse }: { onOpenWarehouse: (id: numbe
     },
     {
       id: 'products',
-      header: 'Products',
+      header: stockQuery.hasNextPage ? 'Loaded products' : 'Products',
       width: '12%',
       className: 'hidden sm:table-cell',
       headerClassName: 'hidden sm:table-cell',
@@ -230,13 +233,15 @@ export function WarehouseList({ onOpenWarehouse }: { onOpenWarehouse: (id: numbe
               })
             }}
           >
-            <span className="tabular-nums">{count.toLocaleString()}</span>
+            <span className="tabular-nums">
+              {count.toLocaleString()}
+              {stockQuery.hasNextPage ? '+' : ''}
+            </span>
             <span className="hidden xl:inline">{count === 1 ? 'product' : 'products'}</span>
           </DataTableExpandToggle>
         )
       },
     },
-
   ]
 
   if (canManage) {
@@ -284,8 +289,8 @@ export function WarehouseList({ onOpenWarehouse }: { onOpenWarehouse: (id: numbe
           variant="link"
           size="sm"
           onClick={() => {
-            if (warehousesQuery.isError) void warehousesQuery.refetch()
-            if (stockQuery.isError) void stockQuery.refetch()
+            if (warehousesQuery.isError) void warehousesQuery.reload()
+            if (stockQuery.isError) void stockQuery.reload()
           }}
         >
           Retry
@@ -316,7 +321,7 @@ export function WarehouseList({ onOpenWarehouse }: { onOpenWarehouse: (id: numbe
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
           <Input
             aria-label="Search warehouses"
-            placeholder="Search warehouses or locations..."
+            placeholder="Search warehouse names..."
             value={searchTerm}
             onChange={(event) => setSearchTerm(event.target.value)}
             className="pl-9 h-9 text-[13px]"
@@ -336,6 +341,22 @@ export function WarehouseList({ onOpenWarehouse }: { onOpenWarehouse: (id: numbe
           </Button>
         )}
       </PageToolbar>
+      <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground">
+        <p>
+          {allWarehouses.length} loaded {activeTab === 'ARCHIVED' ? 'archived' : 'active'}{' '}
+          warehouses. Tab counts describe loaded records.
+        </p>
+        {warehousesQuery.hasNextPage && (
+          <Button
+            variant="outline"
+            disabled={warehousesQuery.isFetching}
+            onClick={() => void warehousesQuery.fetchNextPage()}
+          >
+            Load more warehouses
+          </Button>
+        )}
+      </div>
+      <StockPagingControls {...stockQuery} />
       <DataTable
         appearance="management"
         data={filteredWarehouses}

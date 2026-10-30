@@ -1,6 +1,6 @@
 import type { OutgoingDeliveryStatus } from './outgoing-deliveries.types'
-import type { VehicleStatus } from './delivery-vehicles.types'
-import { isActiveDeliveryStatus } from './vehicle-assignment.ts'
+import type { DeliveryRunRecord } from './delivery-runs.types'
+import type { DeliveryVehicle, VehicleStatus } from './delivery-vehicles.types'
 
 export interface DeliveryStatusConfig {
   label: string
@@ -22,13 +22,13 @@ export class DeliveryUtils {
       label: 'Draft',
       badgeClass: 'bg-muted/70 text-muted-foreground border-border',
       dotClass: 'bg-muted-foreground',
-      description: 'Shipment created, waiting to be scheduled',
+      description: 'Delivery draft awaiting readiness confirmation',
     },
-    SCHEDULED: {
-      label: 'Scheduled',
+    READY: {
+      label: 'Ready',
       badgeClass: 'bg-status-info text-status-info-foreground border-status-info-foreground/20',
       dotClass: 'bg-status-info-foreground',
-      description: 'Scheduled and awaiting actual loading confirmation',
+      description: 'Ready for assignment to a delivery run',
     },
     DISPATCHED: {
       label: 'In Transit',
@@ -37,12 +37,12 @@ export class DeliveryUtils {
       dotClass: 'bg-status-warning-foreground',
       description: 'Vehicle & driver dispatched, en route to destination',
     },
-    DELIVERED: {
-      label: 'Delivered',
+    RECONCILED: {
+      label: 'Reconciled',
       badgeClass:
         'bg-status-success text-status-success-foreground border-status-success-foreground/20',
       dotClass: 'bg-status-success-foreground',
-      description: 'Successfully delivered and stock deducted',
+      description: 'Loaded goods reconciled against deliveries and returns',
     },
     CANCELLED: {
       label: 'Cancelled',
@@ -140,11 +140,11 @@ export class DeliveryUtils {
     switch (status) {
       case 'DRAFT':
         return 0
-      case 'SCHEDULED':
+      case 'READY':
         return 1
       case 'DISPATCHED':
         return 2
-      case 'DELIVERED':
+      case 'RECONCILED':
         return 3
       case 'CANCELLED':
         return -1
@@ -158,7 +158,7 @@ export class DeliveryUtils {
   }
 
   public static canDispatch(status: OutgoingDeliveryStatus): boolean {
-    return status === 'SCHEDULED'
+    return status === 'READY'
   }
 
   public static canComplete(status: OutgoingDeliveryStatus): boolean {
@@ -166,88 +166,39 @@ export class DeliveryUtils {
   }
 
   public static canCancel(status: OutgoingDeliveryStatus): boolean {
-    return status === 'DRAFT' || status === 'SCHEDULED'
+    return status === 'DRAFT' || status === 'READY'
   }
 
   public static getVehicleAvailability(
-    vehicle: { id: number; status: VehicleStatus; isActive: boolean },
-    deliveries: {
-      id: number
-      deliveryNumber: string
-      deliveryVehicleId: number | null
-      status: OutgoingDeliveryStatus
-    }[],
-    currentDeliveryId?: number,
+    vehicle: Pick<DeliveryVehicle, 'id' | 'operationalStatus' | 'isActive' | 'isAvailable' | 'activeRunId'>,
+    runs: DeliveryRunRecord[],
+    currentRunId?: number,
   ): { isAvailable: boolean; reason?: string } {
-    if (!vehicle.isActive) {
-      return { isAvailable: false, reason: 'Deactivated' }
-    }
-    if (vehicle.status === 'MAINTENANCE') {
+    if (!vehicle.isActive) return { isAvailable: false, reason: 'Deactivated' }
+    if (vehicle.operationalStatus === 'MAINTENANCE')
       return { isAvailable: false, reason: 'In Maintenance' }
-    }
-    if (vehicle.status === 'OUT_OF_SERVICE') {
+    if (vehicle.operationalStatus === 'OUT_OF_SERVICE')
       return { isAvailable: false, reason: 'Out of Service' }
-    }
-    if (vehicle.status === 'IN_DELIVERY') {
-      const activeDelivery = deliveries.find(
-        (d) =>
-          d.id !== currentDeliveryId &&
-          d.deliveryVehicleId === vehicle.id &&
-          d.status === 'DISPATCHED',
-      )
-      return {
-        isAvailable: false,
-        reason: activeDelivery ? `In Transit (${activeDelivery.deliveryNumber})` : 'In Transit',
-      }
-    }
-
-    const assignedDelivery = deliveries.find(
-      (d) =>
-        d.id !== currentDeliveryId &&
-        d.deliveryVehicleId === vehicle.id &&
-        isActiveDeliveryStatus(d.status),
+    const assigned = runs.find((run) =>
+      run.id !== currentRunId && run.deliveryVehicleId === vehicle.id && run.status === 'DISPATCHED',
     )
-
-    if (assignedDelivery) {
-      const stateLabel = assignedDelivery.status === 'DISPATCHED' ? 'In Transit' : 'Scheduled'
-      return {
-        isAvailable: false,
-        reason: `${stateLabel} (${assignedDelivery.deliveryNumber})`,
-      }
-    }
-
+    if (assigned) return { isAvailable: false, reason: `In Transit (${assigned.runNumber})` }
+    if (!vehicle.isAvailable && (currentRunId === undefined || vehicle.activeRunId !== currentRunId))
+      return { isAvailable: false, reason: 'In Transit' }
     return { isAvailable: true }
   }
 
   public static getDriverAvailability(
     driver: { id: number; isActive: boolean },
-    deliveries: {
-      id: number
-      deliveryNumber: string
-      driverEmployeeId: number | null
-      status: OutgoingDeliveryStatus
-    }[],
-    currentDeliveryId?: number,
+    runs: DeliveryRunRecord[],
+    currentRunId?: number,
   ): { isAvailable: boolean; reason?: string } {
-    if (!driver.isActive) {
-      return { isAvailable: false, reason: 'Inactive' }
-    }
-
-    const assignedDelivery = deliveries.find(
-      (d) =>
-        d.id !== currentDeliveryId &&
-        d.driverEmployeeId === driver.id &&
-        isActiveDeliveryStatus(d.status),
+    if (!driver.isActive) return { isAvailable: false, reason: 'Inactive' }
+    const assigned = runs.find((run) =>
+      run.id !== currentRunId && run.driverEmployeeId === driver.id && run.status === 'DISPATCHED',
     )
-
-    if (assignedDelivery) {
-      const stateLabel = assignedDelivery.status === 'DISPATCHED' ? 'On Route' : 'Scheduled'
-      return {
-        isAvailable: false,
-        reason: `${stateLabel} (${assignedDelivery.deliveryNumber})`,
-      }
-    }
-
-    return { isAvailable: true }
+    return assigned
+      ? { isAvailable: false, reason: `On Route (${assigned.runNumber})` }
+      : { isAvailable: true }
   }
 }

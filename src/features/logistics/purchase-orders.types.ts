@@ -72,5 +72,11 @@ export type UpdatePurchaseOrderDraftPayload = Partial<CreatePurchaseOrderPayload
 
 export interface PurchaseOrderFilter extends CursorParams {
   status?: PurchaseOrderStatus
+  statuses?: PurchaseOrderStatus[]
+  q?: string
+  orderedFrom?: string
+  orderedBefore?: string
+  expectedFrom?: string
+  expectedBefore?: string
   supplierId?: number
 }

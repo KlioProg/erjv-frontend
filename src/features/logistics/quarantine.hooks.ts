@@ -1,25 +1,37 @@
+import { useCursorLookup } from '@/lib/use-cursor-lookup'
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import {
+  fetchQuarantineLotApi,
   correctQuarantineConditionApi,
   createManualQuarantineApi,
-  fetchQuarantineLotsApi,
   resolveQuarantineApi,
-} from './stock-items.api'
+} from './quarantine.api'
 import type {
   ManualQuarantinePayload,
   QuarantineConditionPayload,
   QuarantineFilter,
+  QuarantineLot,
+  QuarantineConditionChange,
+  QuarantineResolution,
   QuarantineResolutionPayload,
-} from './stock-items.types'
+} from './quarantine.types'
 
 export const QUARANTINE_QUERY_KEY = ['quarantine-lots'] as const
 
 export function useRefreshQuarantine() {
   const client = useQueryClient()
-  return () => Promise.all(
-    ['stock-items', 'products', 'warehouses', 'quarantine-lots', 'purchase-orders', 'incoming-deliveries', 'outgoing-deliveries']
-      .map((key) => client.invalidateQueries({ queryKey: [key] }, { throwOnError: true })),
-  )
+  return () =>
+    Promise.all(
+      [
+        'stock-items',
+        'products',
+        'warehouses',
+        'quarantine-lots',
+        'purchase-orders',
+        'incoming-deliveries',
+        'outgoing-deliveries',
+      ].map((key) => client.invalidateQueries({ queryKey: [key] }, { throwOnError: true })),
+    )
 }
 
 export const useCreateManualQuarantine = useManualQuarantineTag
@@ -40,11 +52,21 @@ function refreshStockConditionQueries(client: QueryClient) {
 }
 
 export function useQuarantineLots(filter?: QuarantineFilter, enabled = true) {
+  return useCursorLookup<QuarantineLot>('/stock-items/quarantine-lots', filter, enabled)
+}
+export function useQuarantineLot(id: number) {
   return useQuery({
-    queryKey: [...QUARANTINE_QUERY_KEY, filter ?? {}],
-    queryFn: () => fetchQuarantineLotsApi(filter),
-    enabled,
+    queryKey: [...QUARANTINE_QUERY_KEY, id],
+    queryFn: () => fetchQuarantineLotApi(id),
   })
+}
+export function useQuarantineConditionChanges(id: number) {
+  return useCursorLookup<QuarantineConditionChange>(
+    `/stock-items/quarantine-lots/${id}/condition-changes`,
+  )
+}
+export function useQuarantineResolutions(id: number) {
+  return useCursorLookup<QuarantineResolution>(`/stock-items/quarantine-lots/${id}/resolutions`)
 }
 
 export function useManualQuarantineTag() {

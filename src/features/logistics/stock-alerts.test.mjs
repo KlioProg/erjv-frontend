@@ -8,7 +8,7 @@ const stock = (productId, warehouseId, quantity, id = warehouseId) => ({
   id,
   inventoryItemId: productId,
   warehouseId,
-  quantity,
+  availableQuantity: quantity,
 })
 const products = [product(1), product(2), product(3, false)]
 const warehouses = [warehouse(1), warehouse(2), warehouse(3, false)]

@@ -1,4 +1,4 @@
-import { apiClient } from '@/lib/api-client'
+import { apiClient, requireRevision } from '@/lib/api-client'
 import { fetchCursorList } from '@/lib/cursor-pagination'
 import { parseStockCents } from './stock-display'
 import type {
@@ -12,7 +12,8 @@ export async function fetchIncomingDeliveriesApi(
   filter?: IncomingDeliveryFilter,
   signal?: AbortSignal,
 ): Promise<IncomingDeliveryRecord[]> {
-  return fetchCursorList<IncomingDeliveryRecord>('/incoming-deliveries', filter, signal)
+  const { status, ...filters } = filter ?? {}
+  return fetchCursorList<IncomingDeliveryRecord>('/incoming-deliveries', { ...filters, ...(status ? { statuses: [status] } : {}) }, signal)
 }
 
 export async function fetchIncomingDeliveryByIdApi(
@@ -51,9 +52,10 @@ export async function createIncomingDeliveryApi(
   return data
 }
 
-export async function scheduleIncomingDeliveryApi(id: number): Promise<IncomingDeliveryRecord> {
+export async function scheduleIncomingDeliveryApi(id: number, expectedRevision: number): Promise<IncomingDeliveryRecord> {
   const { data } = await apiClient.patch<IncomingDeliveryRecord>(
     `/incoming-deliveries/${id}/schedule`,
+    { expectedRevision: requireRevision(expectedRevision) },
   )
   return data
 }
@@ -62,6 +64,7 @@ export async function completeIncomingDeliveryApi(
   id: number,
   payload: CompleteIncomingDeliveryPayload,
 ): Promise<IncomingDeliveryRecord> {
+  const expectedRevision = requireRevision(payload.expectedRevision)
   if (!Array.isArray(payload.items))
     throw new Error('Confirm the actual receipt before continuing.')
   const reason = payload.noReceiptReason?.trim()
@@ -94,14 +97,15 @@ export async function completeIncomingDeliveryApi(
   })
   const { data } = await apiClient.patch<IncomingDeliveryRecord>(
     `/incoming-deliveries/${id}/complete`,
-    { items, ...(reason ? { noReceiptReason: reason } : {}) },
+    { expectedRevision, items, ...(reason ? { noReceiptReason: reason } : {}) },
   )
   return data
 }
 
-export async function cancelIncomingDeliveryApi(id: number): Promise<IncomingDeliveryRecord> {
+export async function cancelIncomingDeliveryApi(id: number, expectedRevision: number): Promise<IncomingDeliveryRecord> {
   const { data } = await apiClient.patch<IncomingDeliveryRecord>(
     `/incoming-deliveries/${id}/cancel`,
+    { expectedRevision: requireRevision(expectedRevision) },
   )
   return data
 }

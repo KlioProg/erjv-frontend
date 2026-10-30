@@ -20,13 +20,7 @@ export const PURCHASE_ORDERS_QUERY_KEY = ['purchase-orders'] as const
 
 export function usePurchaseOrders(filter?: PurchaseOrderFilter) {
   return useQuery({
-    queryKey: [
-      ...PURCHASE_ORDERS_QUERY_KEY,
-      filter?.status ?? 'ALL',
-      filter?.supplierId ?? 'ALL',
-      filter?.limit ?? 50,
-      filter?.cursor ?? null,
-    ],
+    queryKey: [...PURCHASE_ORDERS_QUERY_KEY, filter ?? {}],
     queryFn: ({ signal }) => fetchPurchaseOrdersApi(filter, signal),
   })
 }
@@ -73,15 +67,15 @@ export function useConfirmPurchaseOrder() {
   const queryClient = useQueryClient()
   return useMutation({
     retry: false,
-    mutationFn: async (id: number) => {
-      const order = await confirmPurchaseOrderApi(id)
+    mutationFn: async ({ id, expectedRevision }: { id: number; expectedRevision: number }) => {
+      const order = await confirmPurchaseOrderApi(id, expectedRevision)
       if (order.id !== id || order.status !== 'CONFIRMED')
         throw new Error(
           'The server did not confirm this purchase order. Review its status before retrying.',
         )
       return order
     },
-    onSuccess: (order, id) => {
+    onSuccess: (order, { id }) => {
       void queryClient.invalidateQueries({ queryKey: PURCHASE_ORDERS_QUERY_KEY })
       if (order.id === id && order.status === 'CONFIRMED')
         toast.success('Order confirmed', {
@@ -120,7 +114,7 @@ export function useCancelPurchaseOrder() {
   const queryClient = useQueryClient()
   return useMutation({
     retry: false,
-    mutationFn: (id: number) => cancelPurchaseOrderApi(id),
+    mutationFn: ({ id, expectedRevision }: { id: number; expectedRevision: number }) => cancelPurchaseOrderApi(id, expectedRevision),
     onSuccess: (order) => {
       queryClient.setQueryData([...PURCHASE_ORDERS_QUERY_KEY, 'id', order.id], order)
       queryClient.setQueryData([...PURCHASE_ORDERS_QUERY_KEY, 'number', order.orderNumber], order)

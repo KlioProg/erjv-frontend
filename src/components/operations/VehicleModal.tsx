@@ -23,7 +23,6 @@ import { SearchableDropdown } from '@/components/ui/SearchableDropdown'
 import { Spinner } from '@/components/ui/spinner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
-  useDeliveryVehicles,
   useCreateVehicle,
   useUpdateVehicleDetails,
   useReactivateVehicle,
@@ -32,7 +31,7 @@ import {
 import {
   OPERATIONAL_STATUSES,
   type DeliveryVehicle,
-  type VehicleStatus,
+  type VehicleOperationalStatus,
 } from '@/features/logistics/delivery-vehicles.types'
 import { getApiError, getErrorMessage } from '@/lib/api-client'
 import { parseStockCents } from '@/features/logistics/stock-display'
@@ -62,7 +61,6 @@ function VehicleFormContent({
   const submitting = useRef(false)
   const [checking, setChecking] = useState(false)
   const isEditing = !!vehicle
-  const { data: allVehicles = [] } = useDeliveryVehicles()
   const createMutation = useCreateVehicle()
   const updateMutation = useUpdateVehicleDetails()
   const reactivateMutation = useReactivateVehicle()
@@ -70,8 +68,8 @@ function VehicleFormContent({
   const [plateNumber, setPlateNumber] = useState(vehicle?.plateNumber || '')
   const [vehicleType, setVehicleType] = useState(vehicle?.vehicleType || VEHICLE_TYPES[0])
   const [model, setModel] = useState(vehicle?.model || '')
-  const [capacity, setCapacity] = useState(vehicle?.capacity ? String(vehicle.capacity) : '')
-  const [status, setStatus] = useState<VehicleStatus>(vehicle?.status || 'AVAILABLE')
+  const [capacity, setCapacity] = useState(vehicle?.capacityKg ? String(vehicle.capacityKg) : '')
+  const [status, setStatus] = useState<VehicleOperationalStatus>(vehicle?.operationalStatus || 'SERVICEABLE')
   const capacityCents = parseStockCents(capacity)
   const capacityError =
     capacity.trim() && (capacityCents === null || capacityCents > 999_999_999_999n)
@@ -128,12 +126,7 @@ function VehicleFormContent({
           return
         }
 
-        // Check if active duplicate exists
-        const isDuplicatePlate = allVehicles.some(
-          (v) => v.plateNumber.toUpperCase().trim() === cleanPlate && v.isActive !== false,
-        )
         if (
-          isDuplicatePlate ||
           (backendMatch &&
             typeof backendMatch === 'object' &&
             backendMatch.id &&
@@ -164,7 +157,7 @@ function VehicleFormContent({
               plateNumber: plateNumber.trim().toUpperCase(),
               vehicleType: vehicleType.trim(),
               model: model.trim() || null,
-              capacity: parsedCap,
+              capacityKg: parsedCap,
             },
           })
         } else {
@@ -172,8 +165,8 @@ function VehicleFormContent({
             plateNumber: plateNumber.trim().toUpperCase(),
             vehicleType: vehicleType.trim(),
             model: model.trim() || null,
-            capacity: parsedCap,
-            status,
+            capacityKg: parsedCap,
+            operationalStatus: status,
             isActive: true,
           })
         }
@@ -330,7 +323,7 @@ function VehicleFormContent({
             <Label htmlFor="v-status" className="text-[13px] font-medium">
               Vehicle Condition
             </Label>
-            <Select value={status} onValueChange={(val) => setStatus(val as VehicleStatus)}>
+            <Select value={status} onValueChange={(val) => setStatus(val as VehicleOperationalStatus)}>
               <SelectTrigger id="v-status">
                 <SelectValue placeholder="Select initial status..." />
               </SelectTrigger>
@@ -338,7 +331,7 @@ function VehicleFormContent({
                 <SelectGroup>
                   {OPERATIONAL_STATUSES.map((st) => {
                     const label =
-                      st === 'AVAILABLE'
+                      st === 'SERVICEABLE'
                         ? 'Operational'
                         : st === 'MAINTENANCE'
                           ? 'Under Maintenance'

@@ -1,34 +1,13 @@
-import { useMemo } from 'react'
-import { useAllProducts } from '../products/products.hooks'
-import { useStockItems } from './stock-items.hooks'
-import { useWarehouses } from './warehouses.hooks'
 import { buildStockWarnings } from './stock-warnings'
+import { useStockNotificationRecords } from './use-stock-notification-records'
 
-/** Shares existing query caches and mutation invalidations; no notification persistence. */
+/** Warnings describe loaded records until every stock and metadata page is complete. */
 export function useStockWarnings() {
-  const products = useAllProducts()
-  const stocks = useStockItems()
-  const warehouses = useWarehouses()
-  const unavailable = products.isError || stocks.isError || warehouses.isError
-  const loading = products.isLoading || stocks.isLoading || warehouses.isLoading
-  const warnings = useMemo(
-    () =>
-      unavailable || loading
-        ? []
-        : buildStockWarnings(products.data ?? [], stocks.data ?? [], warehouses.data ?? []),
-    [products.data, stocks.data, warehouses.data, unavailable, loading],
-  )
+  const records = useStockNotificationRecords()
   return {
-    warnings,
-    warehouses: (warehouses.data ?? []).filter((warehouse) => warehouse.isActive),
-    loading,
-    unavailable,
-    refreshing: products.isFetching || stocks.isFetching || warehouses.isFetching,
-    refresh: () =>
-      Promise.all([
-        products.refetch({ cancelRefetch: false }),
-        stocks.refetch({ cancelRefetch: false }),
-        warehouses.refetch({ cancelRefetch: false }),
-      ]),
+    ...records,
+    warehouses: records.warehouses.filter((warehouse) => warehouse.isActive),
+    warnings: records.loading || records.unavailable
+      ? [] : buildStockWarnings(records.products, records.stocks, records.warehouses),
   }
 }

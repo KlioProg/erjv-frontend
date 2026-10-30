@@ -36,7 +36,7 @@ test('warnings use real location IDs, exclude archived/unknown records and dedup
     id: 1,
     inventoryItemId: 1,
     warehouseId: 1,
-    quantity: '0.00',
+    onHandQuantity: '0.00',
     availableQuantity: '0',
     stockStatus: 'OUT',
   }
@@ -45,7 +45,7 @@ test('warnings use real location IDs, exclude archived/unknown records and dedup
     [
       stock,
       { ...stock },
-      { ...stock, warehouseId: 2, quantity: '0.01', stockStatus: 'UNCONFIGURED' },
+      { ...stock, warehouseId: 2, onHandQuantity: '0.01', stockStatus: 'UNCONFIGURED' },
       { ...stock, inventoryItemId: 2 },
       { ...stock, warehouseId: 3 },
       { ...stock, warehouseId: 99 },
@@ -78,7 +78,7 @@ test('one empty location does not make a product globally out of stock', () => {
       id: 1,
       inventoryItemId: 1,
       warehouseId: 1,
-      quantity: '0',
+      onHandQuantity: '0',
       availableQuantity: '0',
       stockStatus: 'OUT',
     },
@@ -86,14 +86,14 @@ test('one empty location does not make a product globally out of stock', () => {
       id: 2,
       inventoryItemId: 1,
       warehouseId: 2,
-      quantity: '9999999999999999.99',
+      onHandQuantity: '9999999999999999.99',
       availableQuantity: '9999999999999999.99',
       stockStatus: 'UNCONFIGURED',
     },
   ]
   assert.equal(stockCondition(buildCatalogStockMap(stocks).get(1).totalCents), 'NORMAL')
   assert.equal(buildStockWarnings(products, stocks, warehouses)[0].warehouseId, 1)
-  stocks[0].quantity = '0.01'
+  stocks[0].onHandQuantity = '0.01'
   stocks[0].availableQuantity = '0.01'
   stocks[0].stockStatus = 'UNCONFIGURED'
   assert.equal(buildStockWarnings(products, stocks, warehouses).length, 0)
@@ -101,9 +101,9 @@ test('one empty location does not make a product globally out of stock', () => {
 
 test('backend statuses are authoritative, including unconfigured and missing information', () => {
   for (const status of ['OUT', 'LOW', 'NORMAL', 'UNCONFIGURED']) {
-    assert.equal(stockConditionForItem({ quantity: '0', stockStatus: status }), status)
+    assert.equal(stockConditionForItem({ onHandQuantity: '0', stockStatus: status }), status)
   }
-  assert.equal(stockConditionForItem({ quantity: '0', availableQuantity: '0' }), 'UNKNOWN')
+  assert.equal(stockConditionForItem({ onHandQuantity: '0', availableQuantity: '0' }), 'UNKNOWN')
 })
 
 test('warnings display backend available balances even when physical stock is positive', () => {
@@ -116,9 +116,9 @@ test('warnings display backend available balances even when physical stock is po
     id: 1,
     inventoryItemId: 1,
     warehouseId: 1,
-    quantity: '10',
-    reservedQuantity: '6',
-    damagedQuantity: '4',
+    onHandQuantity: '10',
+    inTransitQuantity: '6',
+    quarantinedQuantity: '4',
     availableQuantity: '0',
     stockStatus: 'OUT',
   }

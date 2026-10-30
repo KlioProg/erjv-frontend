@@ -86,6 +86,7 @@ const incomingFixture = (
   status: IncomingDeliveryRecord['status'],
 ): IncomingDeliveryRecord => ({
   id,
+  revision: 1,
   deliveryNumber: `IN-${id}`,
   purchaseOrderId: 2,
   warehouseId: 1,
@@ -118,11 +119,12 @@ const outgoingFixture = (
   revision: 1,
   plannedItems: [],
   status,
-  deliveryVehicleId: null,
-  driverEmployeeId: null,
-  scheduledAt: '2026-10-11T14:30:00',
-  dispatchedAt: null,
-  deliveredAt: null,
+  runId: null,
+  reconciledAt: null,
+  reconciledByUserId: null,
+  fulfillmentOutcome: null,
+  hasDamage: false,
+  hasMissing: false,
   cancelledAt: null,
   notes: null,
   ...stamps,
@@ -133,6 +135,12 @@ const outgoingFixture = (
       salesOrderItemId: 10,
       stockItemId: 1,
       quantity: '0.50',
+      loadedQuantity: '0.50',
+      deliveredQuantity: status === 'RECONCILED' ? '0.50' : null,
+      returnedSellableQuantity: status === 'RECONCILED' ? '0.00' : null,
+      returnedDamagedQuantity: status === 'RECONCILED' ? '0.00' : null,
+      missingQuantity: status === 'RECONCILED' ? '0.00' : null,
+      discrepancyReason: null,
       stockItem: { warehouseId: 1 },
       ...stamps,
     },
@@ -162,12 +170,12 @@ it('displays the authoritative zero total of a fully discounted sales order', as
   expect(within(row).queryByText('₱25.00')).toBeNull()
 })
 
-function mount(ui: ReactNode) {
+function mount(ui: ReactNode, withRouter = true) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: 0 }, mutations: { retry: false } },
   })
   return {
-    ...render(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>),
+    ...render(<QueryClientProvider client={queryClient}>{withRouter ? <MemoryRouter>{ui}</MemoryRouter> : ui}</QueryClientProvider>),
     queryClient,
   }
 }
@@ -177,6 +185,7 @@ function mountDashboard() {
     <MemoryRouter>
       <AppRoutes />
     </MemoryRouter>,
+    false,
   )
 }
 
@@ -194,8 +203,8 @@ beforeEach(() => {
   ]
   outgoing = [
     outgoingFixture(5, 'DRAFT'),
-    outgoingFixture(6, 'SCHEDULED'),
-    outgoingFixture(7, 'DELIVERED'),
+    outgoingFixture(6, 'READY'),
+    outgoingFixture(7, 'RECONCILED'),
     outgoingFixture(8, 'CANCELLED'),
   ]
   failSchedule = false
@@ -265,6 +274,8 @@ beforeEach(() => {
       }
       data =
         collections[url] ??
+        (url === '/warehouses/1' ? (collections['/warehouses'] as { id: number }[])[0] : undefined) ??
+        (url === '/inventory-items/1' ? (collections['/inventory-items'] as { id: number }[])[0] : undefined) ??
         sales.find((item) => url === `/sales-orders/${item.id}`) ??
         purchases.find((item) => url === `/purchase-orders/${item.id}`) ??
         (url === '/outgoing-deliveries/planning-options'
@@ -274,11 +285,12 @@ beforeEach(() => {
                 inventoryItemId: 1,
                 orderedQuantity: '1.25',
                 committedQuantity: '0.00',
-                scheduledQuantity: '0.50',
+                readyQuantity: '0.50',
                 availableQuantity: '18.75',
                 plannedQuantity: '0.50',
                 maximumPlannableQuantity: '0.75',
-                warehouseRemainingQuantity: '18.25',
+                remainingToPlanQuantity: '0.75',
+                shortfallQuantity: '0.00',
               },
             ]
           : undefined) ??
@@ -344,7 +356,7 @@ beforeEach(() => {
           : delivery,
       )
       data = outgoing.find((delivery) => delivery.id === id)
-    } else if (url.endsWith('/schedule')) {
+    } else if (url.endsWith('/schedule') || url.endsWith('/ready')) {
       if (failSchedule) {
         failSchedule = false
         throw {
@@ -355,7 +367,7 @@ beforeEach(() => {
       const id = Number(url.split('/')[2])
       if (url.startsWith('/outgoing')) {
         outgoing = outgoing.map((delivery) =>
-          delivery.id === id ? { ...delivery, status: 'SCHEDULED' } : delivery,
+          delivery.id === id ? { ...delivery, status: 'READY' } : delivery,
         )
         data = outgoing.find((delivery) => delivery.id === id)
       } else {
@@ -388,7 +400,7 @@ beforeEach(() => {
     }
     if (
       method === 'get' &&
-      /^\/(sales-orders|purchase-orders|incoming-deliveries|outgoing-deliveries)$/.test(url)
+      /^\/(sales-orders|purchase-orders|incoming-deliveries|outgoing-deliveries|warehouses)$/.test(url)
     )
       data = { items: data, nextCursor: null }
     return { data, config, headers: {}, status: 200, statusText: 'OK' }
@@ -508,7 +520,7 @@ describe.each(['Sales', 'Purchase'])('%s composer confirmation', (kind) => {
       screen.getByRole('button', { name: salesOrder ? 'Confirm Order' : 'Confirm Purchase Order' }),
     )
     const retry = await screen.findByRole('button', { name: 'Retry Confirmation' })
-    expect(screen.getByRole('alert').textContent).toContain('Confirm failed.')
+    expect(screen.getAllByRole('alert').some((alert) => alert.textContent?.includes('Confirm failed.'))).toBe(true)
     expect(toast.success).not.toHaveBeenCalled()
     expect(screen.queryByRole('button', { name: 'Save Draft' })).toBeNull()
     expect((screen.getByLabelText('Notes') as HTMLTextAreaElement).value).toBe('Keep these details')
@@ -690,7 +702,7 @@ describe('order to delivery workflow', () => {
     ]
     const user = userEvent.setup()
     mount(<DeliveriesHub initialTab="outgoing" />)
-    const schedule = await screen.findByRole('button', { name: 'Schedule OUT-5' })
+    const schedule = await screen.findByRole('button', { name: 'Plan / Mark Ready OUT-5' })
     expect(schedule.closest('tr')?.textContent).toContain('Test Warehouse')
     await user.click(schedule)
     const quantity = await screen.findByRole('textbox', {
@@ -699,27 +711,27 @@ describe('order to delivery workflow', () => {
     await waitFor(() => expect((quantity as HTMLInputElement).disabled).toBe(false))
     expect((quantity as HTMLInputElement).value).toBe('0.25')
     expect(mutations()).toHaveLength(0)
-    await user.click(screen.getByRole('button', { name: 'Schedule Delivery' }))
-    expect(await screen.findByText('Delivery scheduled')).toBeTruthy()
+    await user.click(screen.getByRole('button', { name: 'Mark Ready' }))
+    expect(await screen.findByText('Delivery ready for a run')).toBeTruthy()
     expect(
       requests.find((request) => request.url === '/outgoing-deliveries/5/draft')?.body
         .expectedRevision,
     ).toBe(4)
     expect(
-      requests.find((request) => request.url === '/outgoing-deliveries/5/schedule')?.body,
+      requests.find((request) => request.url === '/outgoing-deliveries/5/ready')?.body,
     ).toEqual({ expectedRevision: 5 })
     expect(requests.some((request) => request.method === 'post')).toBe(false)
   })
 
   it('keeps sales-order rows to order identity and delivery status', async () => {
-    outgoing = [outgoingFixture(6, 'SCHEDULED')]
+    outgoing = [outgoingFixture(6, 'READY')]
     mount(<OrdersView />)
 
     const orderRow = (await screen.findByText('SO-TEST')).closest('tr')
     expect(orderRow).toBeTruthy()
     expect(orderRow?.textContent).toContain('Test Customer')
     expect(orderRow?.textContent).toContain('Test Address')
-    expect(within(orderRow!).getByText('Scheduled')).toBeTruthy()
+    expect(within(orderRow!).getByText('Ready')).toBeTruthy()
     expect(orderRow?.textContent).not.toContain('Oct 1, 2026')
     expect(orderRow?.textContent).not.toContain('Oct 11')
     expect(orderRow?.textContent).not.toContain('Delivery draft')
@@ -926,7 +938,7 @@ describe('order to delivery workflow', () => {
     expect(screen.queryByRole('columnheader', { name: 'Type' })).toBeNull()
     expect(screen.queryByRole('tablist')).toBeNull()
     await user.click(nav.getByRole('link', { name: 'Outgoing' }))
-    expect(await screen.findByRole('button', { name: 'Dispatch OUT-6' })).toBeTruthy()
+    expect(await screen.findByRole('button', { name: 'Manage Run OUT-6' })).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'View delivery OUT-7' })).toBeNull()
     await user.click(nav.getByRole('link', { name: 'History' }))
     expect(await screen.findByRole('button', { name: 'View delivery IN-23' })).toBeTruthy()
@@ -1033,23 +1045,23 @@ describe('order to delivery workflow', () => {
 
   it('saves decimal outgoing quantities and retries the saved draft schedule without duplicate creation', async () => {
     sales[0].status = 'CONFIRMED'
-    outgoing = [outgoingFixture(6, 'SCHEDULED'), outgoingFixture(8, 'CANCELLED')]
+    outgoing = [outgoingFixture(6, 'READY'), outgoingFixture(8, 'CANCELLED')]
     failSchedule = true
     const user = userEvent.setup()
     const close = vi.fn()
     mount(<ScheduleDeliveryModal open preselectedOrderId={1} onClose={close} />)
-    await user.click(await screen.findByRole('combobox', { name: /Stock Source \/ Warehouse/ }))
-    await user.click(screen.getByRole('option', { name: /Test Warehouse/ }))
+    await user.click(await screen.findByRole('button', { name: /Stock Source \/ Warehouse/ }))
+    await user.click(screen.getByRole('menuitem', { name: /Test Warehouse/ }))
     const quantity = await screen.findByRole('textbox', {
       name: 'Quantity to ship for Test Mango',
     })
     await waitFor(() => expect((quantity as HTMLInputElement).disabled).toBe(false))
     expect((quantity as HTMLInputElement).value).toBe('')
     await user.type(quantity, '0.75')
-    await user.click(screen.getByRole('button', { name: 'Schedule Delivery' }))
+    await user.click(screen.getByRole('button', { name: 'Mark Ready' }))
     expect(await screen.findByText('Schedule retry required.')).toBeTruthy()
     expect(close).not.toHaveBeenCalled()
-    await user.click(screen.getByRole('button', { name: 'Schedule Delivery' }))
+    await user.click(screen.getByRole('button', { name: 'Mark Ready' }))
     await user.click(await screen.findByRole('button', { name: 'Done' }))
     await waitFor(() => expect(close).toHaveBeenCalledOnce())
     const creates = requests.filter((request) => request.method === 'post')
@@ -1065,7 +1077,7 @@ describe('order to delivery workflow', () => {
       }),
     )
     expect(
-      requests.filter((request) => request.url === '/outgoing-deliveries/90/schedule'),
+      requests.filter((request) => request.url === '/outgoing-deliveries/90/ready'),
     ).toHaveLength(2)
   })
 
@@ -1078,8 +1090,8 @@ describe('order to delivery workflow', () => {
     const summary = await screen.findByRole('region', { name: 'Purchase order receiving summary' })
     await waitFor(() => expect(within(summary).getByText('0.05')).toBeTruthy())
     expect(within(summary).queryByRole('textbox')).toBeNull()
-    await user.click(screen.getByRole('combobox', { name: /Destination Warehouse/ }))
-    await user.click(screen.getByRole('option', { name: 'Test Warehouse' }))
+    await user.click(screen.getByRole('button', { name: /Destination Warehouse/ }))
+    await user.click(screen.getByRole('menuitem', { name: 'Test Warehouse' }))
     await user.type(screen.getByLabelText('Supplier Reference (optional)'), ' WAYBILL-12 ')
     await user.type(screen.getByLabelText('Notes (optional)'), ' Dock 2 ')
     await user.click(screen.getByRole('button', { name: 'Schedule Incoming Delivery' }))
@@ -1093,7 +1105,7 @@ describe('order to delivery workflow', () => {
     expect(requests.find((request) => request.method === 'post')?.body).not.toHaveProperty('items')
     expect(
       requests.find((request) => request.url === '/incoming-deliveries/91/schedule')?.body,
-    ).toEqual({})
+    ).toEqual({ expectedRevision: 1 })
     expect(await screen.findByText('IN-91')).toBeTruthy()
     expect(requests.some((request) => request.url.endsWith('/complete'))).toBe(false)
   })
@@ -1132,28 +1144,28 @@ describe('order to delivery workflow', () => {
     await screen.findByText(
       'This purchase order is no longer available to arrange. Choose another purchase order.',
     )
-    expect(screen.getByRole('combobox', { name: /Purchase Order/ }).textContent).toContain(
-      'Select purchase order',
+    expect(screen.getByRole('button', { name: /Purchase Order/ }).textContent).toContain(
+      'PO-TEST',
     )
     expect(
       (screen.getByRole('button', { name: 'Schedule Incoming Delivery' }) as HTMLButtonElement)
         .disabled,
     ).toBe(true)
-    await user.click(screen.getByRole('combobox', { name: /Purchase Order/ }))
-    expect(screen.queryByRole('option', { name: /PO-TEST/ })).toBeNull()
-    expect(screen.queryByRole('option', { name: /PO-DRAFT/ })).toBeNull()
+    await user.click(screen.getByRole('button', { name: /Purchase Order/ }))
+    expect(screen.queryByRole('menuitem', { name: /PO-TEST/ })).toBeNull()
+    expect(screen.queryByRole('menuitem', { name: /PO-DRAFT/ })).toBeNull()
     expect(
-      screen.getByRole('option', { name: /PO-CANCELLED-SHIPMENT.*0.20 remaining/ }),
+      screen.getByRole('menuitem', { name: /PO-CANCELLED-SHIPMENT/ }),
     ).toBeTruthy()
-    await user.click(screen.getByRole('option', { name: /PO-PARTIAL.*0.25 remaining/ }))
+    await user.click(screen.getByRole('menuitem', { name: /PO-PARTIAL/ }))
     expect(
       within(screen.getByRole('region', { name: 'Purchase order receiving summary' })).getAllByText(
         '0.25',
       ),
     ).toHaveLength(2)
     expect(screen.queryByRole('textbox', { name: /Quantity to receive/ })).toBeNull()
-    await user.click(screen.getByRole('combobox', { name: /Destination Warehouse/ }))
-    await user.click(screen.getByRole('option', { name: 'Test Warehouse' }))
+    await user.click(screen.getByRole('button', { name: /Destination Warehouse/ }))
+    await user.click(screen.getByRole('menuitem', { name: 'Test Warehouse' }))
     await user.click(screen.getByRole('button', { name: 'Schedule Incoming Delivery' }))
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
     expect(requests.find((request) => request.method === 'post')?.body).toMatchObject({
@@ -1170,8 +1182,8 @@ describe('order to delivery workflow', () => {
       'No purchase orders have remaining quantities to arrange. Review existing Incoming Deliveries.',
     )
     expect(
-      (screen.getByRole('combobox', { name: /Purchase Order/ }) as HTMLButtonElement).disabled,
-    ).toBe(true)
+      (screen.getByRole('button', { name: /Purchase Order/ }) as HTMLButtonElement).disabled,
+    ).toBe(false)
     expect(
       (screen.getByRole('button', { name: 'Schedule Incoming Delivery' }) as HTMLButtonElement)
         .disabled,
@@ -1204,8 +1216,8 @@ describe('order to delivery workflow', () => {
     await screen.findByText(
       'This purchase order is no longer available to arrange. Choose another purchase order.',
     )
-    expect(screen.getByRole('combobox', { name: /Purchase Order/ }).textContent).toContain(
-      'Select purchase order',
+    expect(screen.getByRole('button', { name: /Purchase Order/ }).textContent).toContain(
+      'PO-TEST',
     )
     expect(screen.queryByRole('textbox', { name: 'Quantity to receive for Test Mango' })).toBeNull()
     expect(
@@ -1237,6 +1249,8 @@ describe('order to delivery workflow', () => {
       }),
     )
     expect(await screen.findByText('Receipt retry required.')).toBeTruthy()
+    await user.click(screen.getByRole('button', { name: 'Refresh receipt data' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Confirm Receipt' }).hasAttribute('disabled')).toBe(false))
     await user.click(
       within(screen.getByRole('dialog')).getByRole('button', {
         name: 'Confirm Receipt',
@@ -1254,7 +1268,7 @@ describe('order to delivery workflow', () => {
     await user.click(viewOrderButtons[0])
     const dialog = await screen.findByRole('dialog')
     expect(within(dialog).getByText('Test Customer')).toBeTruthy()
-    expect(within(dialog).getByText('Test Mango')).toBeTruthy()
+    expect(within(dialog).getAllByText('Test Mango').length).toBeGreaterThan(0)
     expect(screen.queryByRole('button', { name: 'Cancel Order' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Arrange Delivery' })).toBeNull()
     expect(mutations()).toHaveLength(0)
@@ -1267,7 +1281,7 @@ describe('order to delivery workflow', () => {
     await user.click((await screen.findAllByRole('button', { name: 'View order PO-TEST' }))[0])
     const dialog = await screen.findByRole('dialog')
     expect(within(dialog).getByText('Test Supplier')).toBeTruthy()
-    expect(within(dialog).getByText('Test Mango')).toBeTruthy()
+    expect(within(dialog).getAllByText('Test Mango').length).toBeGreaterThan(0)
     expect(screen.queryByRole('button', { name: 'Confirm Purchase Order' })).toBeNull()
     expect(mutations()).toHaveLength(0)
   })
@@ -1332,4 +1346,22 @@ it('keeps history search and filters in a logical keyboard order and preserves d
   expect(from.value).toBe('')
   expect(to.value).toBe('')
   expect(await screen.findByRole('button', { name: 'View delivery OUT-7' })).toBeTruthy()
+})
+
+it('preserves a created incoming draft when scheduling fails and prevents duplicate creation', async () => {
+  purchases[0].status = 'CONFIRMED'
+  incoming = []
+  failSchedule = true
+  const user = userEvent.setup()
+  mount(<DeliveriesHub initialTab="incoming" purchaseOrderId={2} arrangeOrder />)
+  await user.click(await screen.findByRole('button', { name: /Destination Warehouse/ }))
+  await user.click(screen.getByRole('menuitem', { name: 'Test Warehouse' }))
+  await user.click(screen.getByRole('button', { name: 'Schedule Incoming Delivery' }))
+  const failure = await screen.findByText(/IN-91 was created, but scheduling was not confirmed/)
+  expect(failure.textContent).toContain('Do not create a duplicate shipment')
+  expect(screen.queryByRole('dialog')).toBeNull()
+  expect(requests.filter((request) => request.method === 'post' && request.url === '/incoming-deliveries')).toHaveLength(1)
+  expect(incoming.find((delivery) => delivery.id === 91)?.status).toBe('DRAFT')
+  expect(await screen.findByRole('button', { name: 'Schedule IN-91' })).toBeTruthy()
+  expect(requests.filter((request) => request.url === '/incoming-deliveries/91/schedule')).toHaveLength(1)
 })

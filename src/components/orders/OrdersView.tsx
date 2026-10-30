@@ -84,7 +84,7 @@ function getSalesOrderPrimaryAction(
   if (order.status === 'DELIVERED' || order.status === 'CANCELLED') return 'view-order'
   if (order.status === 'DRAFT') return 'confirm'
   if (delivery?.status === 'DISPATCHED') return 'confirm-arrival'
-  if (delivery && delivery.status !== 'DELIVERED') return 'view-delivery'
+  if (delivery && delivery.status !== 'RECONCILED') return 'view-delivery'
   if (order.status === 'PARTIALLY_DELIVERED') return 'continue-delivery'
   return 'prepare-delivery'
 }
@@ -177,7 +177,7 @@ export function OrdersView({
       const client = clientMap.get(order.clientId)
       const clientName = client?.name.toLowerCase() || ''
       const orderNo = order.orderNumber.toLowerCase()
-      const address = order.deliveryAddress.toLowerCase()
+      const address = order.deliveryAddress?.toLowerCase() ?? ''
 
       const hasMatchingProduct = (order.items || []).some((item) => {
         const prod = productMap.get(item.inventoryItemId)
@@ -208,7 +208,7 @@ export function OrdersView({
   const handleConfirmOrder = async (order: SalesOrderRecord) => {
     if (!canManage || confirmOrderMutation.isPending) return
     try {
-      await confirmOrderMutation.mutateAsync(order.id)
+      await confirmOrderMutation.mutateAsync({ id: order.id, expectedRevision: order.revision })
     } catch (err) {
       toast.error(getErrorMessage(err))
     }
@@ -316,7 +316,7 @@ export function OrdersView({
           >
             {client?.name || `Customer #${order.clientId}`}
           </span>
-          <span className="truncate text-xs text-muted-foreground" title={order.deliveryAddress}>
+          <span className="truncate text-xs text-muted-foreground" title={order.deliveryAddress ?? undefined}>
             {order.deliveryAddress || 'No address specified'}
           </span>
         </div>
@@ -599,9 +599,9 @@ export function OrdersView({
         <SalesOrderCancelModal
           order={orderToCancel}
           onClose={() => setOrderToCancel(null)}
-          onConfirm={(id) => {
+          onConfirm={(id, expectedRevision) => {
             if (!canManage) throw new Error('You do not have permission to cancel orders.')
-            return cancelOrderMutation.mutateAsync(id)
+            return cancelOrderMutation.mutateAsync({ id, expectedRevision })
           }}
         />
       )}
@@ -609,15 +609,17 @@ export function OrdersView({
       {/* Order Creation Modal */}
       {isOrderModalOpen && canManage && (
         <OrderModal
+          remoteSelectors
           open
           onClose={() => setIsOrderModalOpen(false)}
           onSubmit={handleSaveOrder}
-          onConfirm={(id) => confirmOrderMutation.mutateAsync(id)}
+          onConfirm={(id, expectedRevision) => confirmOrderMutation.mutateAsync({ id, expectedRevision })}
           clients={clients}
           products={products}
           catalogState={{
             productsLoading: productsQuery.isLoading,
             stockLoading: stockQuery.isLoading,
+            stockIncomplete: stockQuery.hasNextPage,
             productsError: productsQuery.error ? getErrorMessage(productsQuery.error) : undefined,
             stockError: stockQuery.error ? getErrorMessage(stockQuery.error) : undefined,
             onRetry: () => {
@@ -651,7 +653,7 @@ export function OrdersView({
                 staleTime: 0,
               })
             }
-            onConfirm={(id) => confirmOrderMutation.mutateAsync(id)}
+            onConfirm={(id, expectedRevision) => confirmOrderMutation.mutateAsync({ id, expectedRevision })}
             clients={clients}
             products={products}
             stockItems={stockItems}
@@ -692,7 +694,7 @@ export function OrdersView({
           </Dialog>
         ))}
 
-      {deliveryToComplete !== null && <CompleteDeliveryModal key={deliveryToComplete} deliveryId={deliveryToComplete} onClose={() => setDeliveryToComplete(null)} />}
+      {deliveryToComplete !== null && outgoingDeliveries.find((delivery) => delivery.id === deliveryToComplete)?.runId && <CompleteDeliveryModal runId={outgoingDeliveries.find((delivery) => delivery.id === deliveryToComplete)!.runId!} key={deliveryToComplete} deliveryId={deliveryToComplete} onClose={() => setDeliveryToComplete(null)} />}
       {/* Guided Order Detail Drawer */}
       <OrderDetailDrawer
         open={isDetailDrawerOpen}

@@ -1,12 +1,12 @@
 import { useRef, useState, type FormEvent } from 'react'
 import { isAxiosError } from 'axios'
-import { getErrorMessage } from '@/lib/api-client'
+import { getApiFieldErrors, getErrorMessage, requireRevision } from '@/lib/api-client'
 import type { SavedLineAmounts } from '@/lib/order-line-pricing'
 
-export type SavedOrder = { id: number; orderNumber: string; status: string; items?: SavedLineAmounts[] }
+export type SavedOrder = { id: number; revision?: number; orderNumber: string; status: string; items?: SavedLineAmounts[] }
 export type OrderSubmissionProps<Values> = {
   onSubmit: (values: Values, intent?: 'draft' | 'confirm') => Promise<SavedOrder>
-  onConfirm?: (id: number) => Promise<SavedOrder>
+  onConfirm?: (id: number, expectedRevision: number) => Promise<SavedOrder>
   onExportReceipt?: (id: number) => Promise<void> | void
   onConfirmed?: (order: SavedOrder) => void
   savedDraft?: SavedOrder
@@ -32,6 +32,7 @@ export function useOrderSubmission({
   const [savedOrder, setSavedOrder] = useState(savedDraft)
   const [phase, setPhase] = useState<'idle' | 'saving' | 'confirming' | 'exporting'>('idle')
   const [error, setError] = useState('')
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [confirmationAttempted, setConfirmationAttempted] = useState(false)
   const pending = useRef(false)
   const finished = useRef(false)
@@ -45,6 +46,7 @@ export function useOrderSubmission({
     if (pending.current || finished.current || reviewLock.current) return
     pending.current = true
     setError('')
+    setFieldErrors({})
     try {
       let order = savedRef.current
       if (!order) {
@@ -59,7 +61,7 @@ export function useOrderSubmission({
         if (order.status !== 'DRAFT') throw new Error('Only a saved Draft can be confirmed.')
         setConfirmationAttempted(true)
         setPhase('confirming')
-        const confirmed = await onConfirm(order.id)
+        const confirmed = await onConfirm(order.id, requireRevision(order.revision))
         if (confirmed.id !== order.id || confirmed.status !== 'CONFIRMED')
           throw new Error(
             'The server did not confirm this order. Review its status before retrying.',
@@ -76,6 +78,7 @@ export function useOrderSubmission({
       }
       onClose()
     } catch (cause) {
+      setFieldErrors(getApiFieldErrors(cause))
       const message = getErrorMessage(cause)
       const status = isAxiosError(cause) ? cause.response?.status : undefined
       if (isAxiosError(cause) && (status === undefined || status >= 500)) {
@@ -103,7 +106,8 @@ export function useOrderSubmission({
     reviewRequired,
     phase,
     error,
-    clearError: () => setError(''),
+    fieldErrors,
+    clearError: () => { setError(''); setFieldErrors({}) },
     confirmationAttempted,
     canConfirm: !!onConfirm,
     canExportReceipt: !!onExportReceipt,

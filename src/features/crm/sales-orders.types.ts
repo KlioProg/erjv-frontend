@@ -42,7 +42,7 @@ export interface SalesOrderRecord {
   orderNumber: string
   status: SalesOrderStatus
   clientId: number
-  deliveryAddress: string
+  deliveryAddress: string | null
   orderedAt: string
   expectedAt: string | null
   confirmedAt: string | null
@@ -67,7 +67,7 @@ export interface SalesOrderLineCommand {
 
 export interface CreateSalesOrderPayload {
   clientId: number
-  deliveryAddress: string
+  deliveryAddress?: string | null
   expectedAt?: string | Date | null
   externalReference?: string | null
   notes?: string | null
@@ -76,6 +76,12 @@ export interface CreateSalesOrderPayload {
 
 export interface SalesOrderFilter extends CursorParams {
   status?: SalesOrderStatus
+  statuses?: SalesOrderStatus[]
+  q?: string
+  orderedFrom?: string
+  orderedBefore?: string
+  expectedFrom?: string
+  expectedBefore?: string
   clientId?: number
 }
 

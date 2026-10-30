@@ -9,6 +9,7 @@ const originalAdapter = apiClient.defaults.adapter
 afterEach(() => {
   apiClient.defaults.adapter = originalAdapter
 })
+const revision = { expectedRevision: 3, requestId: 'f32e429f-a96c-4567-abf7-172ab80d8f10' }
 const payload = {
   stockItemId: 4,
   condition: 'SPOILED' as const,
@@ -55,7 +56,13 @@ it.each([400, 403, 404, 409, undefined])(
 it('serializes quarantine filters including openOnly=false', async () => {
   apiClient.defaults.adapter = async (config) => {
     expect(config.params).toEqual({ stockItemId: 4, condition: 'SPOILED', openOnly: false })
-    return { config, data: [], status: 200, statusText: '', headers: {} }
+    return {
+      config,
+      data: { items: [], nextCursor: null },
+      status: 200,
+      statusText: '',
+      headers: {},
+    }
   }
   expect(
     await stockApi.fetchQuarantineLotsApi({
@@ -63,31 +70,47 @@ it('serializes quarantine filters including openOnly=false', async () => {
       condition: 'SPOILED',
       openOnly: false,
     }),
-  ).toEqual([])
+  ).toEqual({ items: [], nextCursor: null })
 })
 
 it.each([
   {
     action: 'condition',
     send: () =>
-      stockApi.correctQuarantineConditionApi(9, { condition: 'DAMAGED', reason: 'Rechecked' }),
+      stockApi.correctQuarantineConditionApi(9, {
+        condition: 'DAMAGED',
+        reason: 'Rechecked',
+        ...revision,
+      }),
     method: 'patch',
     suffix: 'condition',
-    body: { condition: 'DAMAGED', reason: 'Rechecked' },
+    body: { condition: 'DAMAGED', reason: 'Rechecked', ...revision },
   },
   ...(['CLEAR', 'REMOVE'] as const).map((action) => ({
     action,
-    send: () => stockApi.resolveQuarantineApi(9, { action, quantity: '1.00', reason: 'Inspected' }),
+    send: () =>
+      stockApi.resolveQuarantineApi(9, {
+        action,
+        quantity: '1.00',
+        reason: 'Inspected',
+        ...revision,
+      }),
     method: 'post',
     suffix: 'resolutions',
-    body: { action, quantity: '1.00', reason: 'Inspected' },
+    body: { action, quantity: '1.00', reason: 'Inspected', ...revision },
   })),
 ])('keeps the $action contract', async ({ send, method, suffix, body }) => {
   apiClient.defaults.adapter = async (config) => {
     expect(config.method).toBe(method)
     expect(config.url).toBe(`/stock-items/quarantine-lots/9/${suffix}`)
     expect(JSON.parse(config.data)).toEqual(body)
-    return { config, data: { id: 9 }, status: 200, statusText: '', headers: {} }
+    return {
+      config,
+      data: { id: 9, condition: 'DAMAGED' },
+      status: 200,
+      statusText: '',
+      headers: {},
+    }
   }
   await send()
 })
@@ -97,7 +120,7 @@ it('uses backend available stock without subtracting quarantine twice', () => {
     id: 4,
     inventoryItemId: 1,
     warehouseId: 2,
-    quantity: '20.00',
+    onHandQuantity: '20.00',
     reservedQuantity: '5.00',
     damagedQuantity: '3.00',
     quarantinedQuantity: '3.00',
@@ -111,20 +134,25 @@ it('uses backend available stock without subtracting quarantine twice', () => {
 })
 
 it('keeps backend stock status authoritative', () => {
-  expect(
-    stockConditionForItem({ quantity: '20.00', availableQuantity: '0.00', stockStatus: 'OUT' }),
-  ).toBe('OUT')
-  expect(stockConditionForItem({ quantity: '0.00', stockStatus: 'NORMAL' })).toBe('NORMAL')
+  expect(stockConditionForItem({ stockStatus: 'OUT' })).toBe('OUT')
+  expect(stockConditionForItem({ stockStatus: 'NORMAL' })).toBe('NORMAL')
 })
 
-
 it('omits an unspecified numeric stock filter from the actual URL', async () => {
-  apiClient.defaults.adapter = async config => {
+  apiClient.defaults.adapter = async (config) => {
     const url = apiClient.getUri(config)
     expect(url).toContain('/stock-items/quarantine-lots?')
     expect(url).toContain('openOnly=true')
     expect(url).not.toMatch(/stockItemId|undefined|NaN/)
-    return { config, data: [], status: 200, statusText: '', headers: {} }
+    return {
+      config,
+      data: { items: [], nextCursor: null },
+      status: 200,
+      statusText: '',
+      headers: {},
+    }
   }
-  expect(await stockApi.fetchQuarantineLotsApi({ stockItemId: undefined, openOnly: true })).toEqual([])
+  expect(await stockApi.fetchQuarantineLotsApi({ stockItemId: undefined, openOnly: true })).toEqual(
+    { items: [], nextCursor: null },
+  )
 })

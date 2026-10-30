@@ -1,16 +1,17 @@
 import { useRef, useState } from 'react'
 import axios from 'axios'
 import { toast } from 'sonner'
-import { useSalesOrders, useSalesOrderById } from '@/features/crm/sales-orders.hooks'
-import { useClients } from '@/features/crm/clients.hooks'
-import { useProducts } from '@/features/products/products.hooks'
+import { useSalesOrderById } from '@/features/crm/sales-orders.hooks'
+import { useQueries } from '@tanstack/react-query'
+import { fetchProductByIdApi } from '@/features/products/products.api'
+import { productKeys } from '@/features/products/products.hooks'
 import { getErrorMessage } from '@/lib/api-client'
 import { decimalString, parseOrderDecimal } from '@/lib/order-amounts'
-import { useWarehouses } from './warehouses.hooks'
+import { useWarehouse } from './warehouses.hooks'
 import {
   useCreateOutgoingDeliveryDraft,
   useUpdateOutgoingDeliveryDraft,
-  useScheduleOutgoingDelivery,
+  useReadyOutgoingDelivery,
   useOutgoingPlanningOptions,
 } from './outgoing-deliveries.hooks'
 import { fetchOutgoingDeliveryByIdApi } from './outgoing-deliveries.api'
@@ -20,7 +21,6 @@ import {
   outgoingPlanningErrors,
   outgoingPlanningMaximum,
 } from './outgoing-planning'
-import { DeliveryUtils } from './delivery-utils'
 
 function draftQuantities(draft?: OutgoingDeliveryRecord | null) {
   return Object.fromEntries(
@@ -32,13 +32,9 @@ export function useOutgoingPlanning(
   initialDraft?: OutgoingDeliveryRecord | null,
   preselectedOrderId?: number,
 ) {
-  const ordersQuery = useSalesOrders()
-  const clientsQuery = useClients()
-  const warehousesQuery = useWarehouses()
-  const productsQuery = useProducts()
   const create = useCreateOutgoingDeliveryDraft()
   const update = useUpdateOutgoingDeliveryDraft()
-  const schedule = useScheduleOutgoingDelivery()
+  const ready = useReadyOutgoingDelivery()
   const [savedDraft, setSavedDraft] = useState(initialDraft ?? null)
   const [latestDraft, setLatestDraft] = useState<OutgoingDeliveryRecord | null>(null)
   const [reviewRequired, setReviewRequired] = useState(false)
@@ -49,20 +45,11 @@ export function useOutgoingPlanning(
   const [quantities, setQuantities] = useState<Record<number, string>>(() =>
     draftQuantities(initialDraft),
   )
-  const [scheduledAt, setScheduledAt] = useState(() => {
-    if (initialDraft)
-      return initialDraft.scheduledAt
-        ? DeliveryUtils.toDateTimeInput(new Date(initialDraft.scheduledAt))
-        : ''
-    const date = new Date()
-    date.setDate(date.getDate() + 1)
-    return DeliveryUtils.toDateTimeInput(date)
-  })
   const [notes, setNotes] = useState(initialDraft?.notes ?? '')
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [limits, setLimits] = useState<Record<number, string>>({})
-  const [completed, setCompleted] = useState<'DRAFT' | 'SCHEDULED' | null>(null)
-  const [phase, setPhase] = useState<'checking' | 'saving' | 'scheduling' | null>(null)
+  const [completed, setCompleted] = useState<'DRAFT' | 'READY' | null>(null)
+  const [phase, setPhase] = useState<'checking' | 'saving' | 'readying' | null>(null)
   const lock = useRef(false)
   const orderQuery = useSalesOrderById(Number(selectedOrderId) || undefined)
   const planningQuery = useOutgoingPlanningOptions(
@@ -70,21 +57,21 @@ export function useOutgoingPlanning(
     Number(warehouseId) || undefined,
   )
   const order = orderQuery.data
-  const eligibleOrders = (ordersQuery.data ?? []).filter((order) =>
-    ['CONFIRMED', 'PARTIALLY_DELIVERED'].includes(order.status),
-  )
-  const activeWarehouses = (warehousesQuery.data ?? []).filter((warehouse) => warehouse.isActive)
+  const warehouseQuery = useWarehouse(Number(warehouseId) || undefined)
+  const productQueries = useQueries({ queries: [...new Set((order?.items ?? []).map((item) => item.inventoryItemId))].map((id) => ({
+    queryKey: productKeys.detail(id), queryFn: () => fetchProductByIdApi(id),
+  })) })
   const eligible = !!order && ['CONFIRMED', 'PARTIALLY_DELIVERED'].includes(order.status)
-  const activeWarehouse = activeWarehouses.some((warehouse) => String(warehouse.id) === warehouseId)
+  const activeWarehouse = warehouseQuery.data?.id === Number(warehouseId) && warehouseQuery.data.isActive
   const required = [
-    ordersQuery,
-    warehousesQuery,
     ...(selectedOrderId ? [orderQuery] : []),
+    ...(warehouseId ? [warehouseQuery] : []),
     ...(selectedOrderId && warehouseId ? [planningQuery] : []),
+    ...productQueries,
   ]
   const loading = required.some((query) => query.isLoading)
   const loadFailed = required.some((query) => query.isError)
-  const busy = phase !== null || create.isPending || update.isPending || schedule.isPending
+  const busy = phase !== null || create.isPending || update.isPending || ready.isPending
   const lineErrors =
     order && activeWarehouse && !planningQuery.isFetching && !planningQuery.isError
       ? outgoingPlanningErrors(order, planningQuery.data ?? [], quantities, limits)
@@ -93,8 +80,8 @@ export function useOutgoingPlanning(
   async function refresh() {
     setLimits({})
     await Promise.all([
-      ordersQuery.refetch(),
-      warehousesQuery.refetch(),
+      ...(warehouseId ? [warehouseQuery.refetch()] : []),
+      ...productQueries.map((query) => query.refetch()),
       ...(selectedOrderId ? [orderQuery.refetch()] : []),
       ...(selectedOrderId && warehouseId ? [planningQuery.refetch()] : []),
     ])
@@ -111,11 +98,6 @@ export function useOutgoingPlanning(
     setSelectedOrderId(String(latestDraft.salesOrderId))
     setWarehouseId(String(latestDraft.warehouseId ?? ''))
     setQuantities(draftQuantities(latestDraft))
-    setScheduledAt(
-      latestDraft.scheduledAt
-        ? DeliveryUtils.toDateTimeInput(new Date(latestDraft.scheduledAt))
-        : '',
-    )
     setNotes(latestDraft.notes ?? '')
     setLatestDraft(null)
     setReviewRequired(false)
@@ -126,7 +108,7 @@ export function useOutgoingPlanning(
     setErrors({ [field]: message })
     requestAnimationFrame(() => document.getElementById(`delivery-${field}`)?.focus())
   }
-  async function submit(intent: 'draft' | 'schedule') {
+  async function submit(intent: 'draft' | 'ready') {
     if (lock.current || completed || reviewRequired) return
     lock.current = true
     setPhase('checking')
@@ -135,23 +117,18 @@ export function useOutgoingPlanning(
     try {
       if (persisted && persisted.status !== 'DRAFT')
         throw new Error(
-          'This delivery can no longer be edited or scheduled. Review it in Outgoing Deliveries.',
+          'This delivery can no longer be edited or marked ready. Review it in Outgoing Deliveries.',
         )
       if (!selectedOrderId) return failField('sales-order', 'Choose a Sales Order to fulfill.')
       if (!warehouseId) return failField('warehouse', 'Choose an active source warehouse.')
-      if (
-        (intent === 'schedule' && !scheduledAt) ||
-        (scheduledAt && !Number.isFinite(new Date(scheduledAt).getTime()))
-      )
-        return failField('scheduled-at', 'Enter a valid scheduled date and time.')
-      const [freshOrder, freshWarehouses, freshPlanning] = await Promise.all([
+      const [freshOrder, freshWarehouse, freshPlanning] = await Promise.all([
         orderQuery.refetch(),
-        warehousesQuery.refetch(),
+        warehouseQuery.refetch(),
         planningQuery.refetch(),
       ])
       if (
         freshOrder.isError ||
-        freshWarehouses.isError ||
+        freshWarehouse.isError ||
         freshPlanning.isError ||
         !freshOrder.data ||
         !freshPlanning.data
@@ -182,9 +159,7 @@ export function useOutgoingPlanning(
           )
       }
       if (
-        !freshWarehouses.data?.some(
-          (warehouse) => warehouse.isActive && String(warehouse.id) === warehouseId,
-        )
+        !freshWarehouse.data?.isActive || String(freshWarehouse.data.id) !== warehouseId
       )
         return failField(
           'warehouse',
@@ -209,10 +184,10 @@ export function useOutgoingPlanning(
           ? [{ salesOrderItemId: Number(id), plannedQuantity: decimalString(quantity) }]
           : []
       })
-      if (intent === 'schedule' && !plannedItems.length)
+      if (intent === 'ready' && !plannedItems.length)
         return failField(
           'plan',
-          'Enter a positive planned quantity for at least one product before scheduling.',
+          'Enter a positive planned quantity for at least one product before marking ready.',
         )
       setPhase('saving')
       if (!persisted) {
@@ -235,7 +210,6 @@ export function useOutgoingPlanning(
         payload: {
           expectedRevision: persisted.revision,
           warehouseId: Number(warehouseId),
-          scheduledAt: scheduledAt ? new Date(scheduledAt).toISOString() : null,
           notes: notes.trim() || null,
           plannedItems,
         },
@@ -250,18 +224,18 @@ export function useOutgoingPlanning(
           'The server did not confirm the saved draft. Review it in Outgoing Deliveries before continuing.',
         )
       setSavedDraft(persisted)
-      if (intent === 'schedule') {
-        if (!persisted.scheduledAt || !persisted.warehouseId || !persisted.plannedItems?.length)
+      if (intent === 'ready') {
+        if (!persisted.warehouseId || !persisted.plannedItems?.length)
           throw new Error(
-            'The saved draft is incomplete. Review its warehouse, date, and planned quantities before scheduling.',
+            'The saved draft is incomplete. Review its warehouse and planned quantities before marking ready.',
           )
-        setPhase('scheduling')
-        persisted = await schedule.mutateAsync({
+        setPhase('readying')
+        persisted = await ready.mutateAsync({
           id: persisted.id,
           expectedRevision: persisted.revision,
         })
         setSavedDraft(persisted)
-        setCompleted('SCHEDULED')
+        setCompleted('READY')
       } else {
         toast.success(`Delivery draft "${persisted.deliveryNumber}" saved`)
         setCompleted('DRAFT')
@@ -273,7 +247,7 @@ export function useOutgoingPlanning(
       if (axios.isAxiosError(error) && (status === undefined || status >= 500)) {
         setReviewRequired(true)
         setErrors({
-          request: 'The result is uncertain; the server may have saved or scheduled this delivery. Review the saved record before retrying. Your input is preserved.',
+          request: 'The result is uncertain; the server may have saved this delivery or marked it ready. Review the saved record before retrying. Your input is preserved.',
         })
         if (persisted) {
           try {
@@ -289,12 +263,10 @@ export function useOutgoingPlanning(
           'Another user changed this delivery. Review the latest saved draft before continuing. Your unsaved input is kept below.',
         ORDER_CAPACITY_CHANGED:
           'The order planning capacity changed. Review the refreshed limits and adjust the highlighted quantities.',
-        WAREHOUSE_CAPACITY_CHANGED:
-          'Warehouse planning capacity changed. Review the refreshed limits and adjust the highlighted quantities.',
         PLAN_LIMIT_EXCEEDED:
           'A planned quantity exceeds the current limit. Review the highlighted quantities.',
         INVALID_DELIVERY_STATE:
-          'This delivery can no longer be edited or scheduled in its current state. Review the latest record.',
+          'This delivery can no longer be edited or marked ready in its current state. Review the latest record.',
       }
       setErrors({ request: messages[conflict?.code] ?? getErrorMessage(error) })
       if (['STALE_REVISION', 'INVALID_DELIVERY_STATE'].includes(conflict?.code) && persisted) {
@@ -306,7 +278,7 @@ export function useOutgoingPlanning(
         }
       }
       if (
-        ['ORDER_CAPACITY_CHANGED', 'WAREHOUSE_CAPACITY_CHANGED', 'PLAN_LIMIT_EXCEEDED'].includes(
+        ['ORDER_CAPACITY_CHANGED', 'PLAN_LIMIT_EXCEEDED'].includes(
           conflict?.code,
         )
       ) {
@@ -329,17 +301,13 @@ export function useOutgoingPlanning(
     }
   }
   return {
-    orders: eligibleOrders,
-    clients: clientsQuery.data ?? [],
-    products: productsQuery.data ?? [],
-    activeWarehouses,
+    products: productQueries.flatMap((query) => query.data ? [query.data] : []),
+    warehouse: warehouseQuery.data,
     order,
     selectedOrderId,
     warehouseId,
     quantities,
-    scheduledAt,
     notes,
-    setScheduledAt,
     setNotes,
     errors: { ...lineErrors, ...errors },
     loading,

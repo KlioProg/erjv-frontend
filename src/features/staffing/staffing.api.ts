@@ -1,4 +1,6 @@
 import { apiClient, extractArray, type FetchParams } from '@/lib/api-client'
+import type { CursorParams } from '@/lib/cursor-pagination'
+import type { LookupPage } from '@/lib/use-cursor-lookup'
 import type { UserRole } from '../auth/auth.types'
 import type {
   CreateEmployeePayload,
@@ -20,6 +22,27 @@ export async function fetchEmployeesApi(params?: FetchParams): Promise<Employee[
   return extractArray<Employee>(response.data)
 }
 
+export type EmployeeFilter = FetchParams & CursorParams & {
+  q?: string
+  canDrive?: 'true' | 'false'
+  available?: 'true'
+}
+
+export async function fetchAvailableDriversApi(params: EmployeeFilter = {}): Promise<LookupPage<Employee>> {
+  const { data } = await apiClient.get<LookupPage<Employee>>('/employees', {
+    params: { ...params, canDrive: 'true', available: 'true', includeInactive: 'false', limit: params.limit ?? 50 },
+  })
+  if (!Array.isArray(data?.items) || !(data.nextCursor === null || typeof data.nextCursor === 'string'))
+    throw new Error('The server returned an invalid driver page. Reload before continuing.')
+  return data
+}
+
+export async function updateEmployeeDrivingEligibilityApi(id: number, canDrive: boolean): Promise<Employee> {
+  if (typeof canDrive !== 'boolean') throw new Error('Choose explicit driving eligibility.')
+  const { data } = await apiClient.patch<Employee>(`/employees/${id}/driving-eligibility`, { canDrive })
+  return data
+}
+
 export async function fetchEmployeeByIdApi(id: number): Promise<Employee | null> {
   const { data } = await apiClient.get<Employee>(`/employees/${id}`)
   return data
@@ -34,6 +57,7 @@ export async function fetchEmployeeByEmailApi(email: string): Promise<Employee |
 
 export async function createEmployeeApi(payload: CreateEmployeePayload): Promise<Employee> {
   const cleanPayload = {
+    ...(payload.canDrive !== undefined ? { canDrive: payload.canDrive } : {}),
     firstName: payload.firstName.trim(),
     lastName: payload.lastName.trim(),
     hireDate: payload.hireDate

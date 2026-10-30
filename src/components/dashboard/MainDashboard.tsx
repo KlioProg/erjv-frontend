@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
 import { Outlet, useLocation, useNavigate, useNavigationType } from 'react-router'
 import { ManagementPage } from '@/components/ui/ManagementPage'
 import { DashboardLayout } from '../layout/DashboardLayout'
@@ -44,12 +44,10 @@ export function MainDashboard() {
   >()
 
   const { data: warehouses = [] } = useWarehouses()
-  const { data: stockItems = [] } = useStockItems()
+  const stockQuery = useStockItems()
+  const stockItems = stockQuery.data
   const { data: products = [] } = useProducts()
-  const totalStockUnits = useMemo(
-    () => stockItems.reduce((acc, s) => acc + parseFloat(s.quantity || '0'), 0),
-    [stockItems],
-  )
+
 
   const currentScreen = screenFromPath(location.pathname)
 
@@ -62,9 +60,9 @@ export function MainDashboard() {
             hint: 'Active facilities & storage hubs',
           },
           {
-            label: 'Total Stored Units',
-            value: <> {totalStockUnits.toLocaleString()} units </>,
-            hint: 'Inventory across storage hubs',
+            label: 'Loaded Stock Records',
+            value: <> {stockQuery.isPending || stockQuery.isError ? '\u2014' : stockItems.length.toLocaleString()} </>,
+            hint: 'Product allocations across storage hubs',
           },
           {
             label: 'Catalog Products',

@@ -1,552 +1,522 @@
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { getAdapter } from 'axios'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { toast } from 'sonner'
 import { apiClient } from '@/lib/api-client'
-import { dispatchOutgoingDeliveryApi } from '@/features/logistics/outgoing-deliveries.api'
+import { dispatchDeliveryRunApi } from '@/features/logistics/delivery-runs.api'
+import { validateRunLoad, type RunLoadRow } from '@/features/logistics/run-load-validation'
+import type { DeliveryRunRecord } from '@/features/logistics/delivery-runs.types'
 import { DispatchDeliveryModal } from './shared/DispatchDeliveryModal'
-import type { OutgoingDeliveryRecord } from '@/features/logistics/outgoing-deliveries.types'
-import type { SalesOrderRecord } from '@/features/crm/sales-orders.types'
-import type { StockItemWithInventoryItem } from '@/features/logistics/stock-items.types'
-import { buildDispatchPlan, validateDispatchLoad } from '@/features/logistics/outgoing-dispatch'
-import { DeliveriesHub } from './DeliveriesHub'
-import { QuickDispatchModal } from '@/components/orders/QuickDispatchModal'
-import type { ReactNode } from 'react'
 
-vi.mock('@/features/auth/AuthContext', () => ({
-  useAuth: () => ({ isAdmin: true, isManager: false, isStaff: false }),
-}))
-
-const dates = { createdAt: '2026-10-01', updatedAt: '2026-10-01' }
-let delivery: OutgoingDeliveryRecord
-let order: SalesOrderRecord
-let stocks: StockItemWithInventoryItem[]
-let requests: { method: string; url: string; body: Record<string, unknown> }[]
-let conflict: { status: number; message: string } | 'network' | undefined
-let failLoad: boolean
+const auth = vi.hoisted(() => ({ isAdmin: true, isManager: false, isStaff: false }))
+vi.mock('@/features/auth/AuthContext', () => ({ useAuth: () => auth }))
+const original = apiClient.defaults.adapter
+let run: DeliveryRunRecord
+let available: string | undefined
+let capacity: string | null
+let failure: number | 'network' | undefined
 let gate: Promise<void> | undefined
-let unavailableVehicle: boolean
-let unavailableDriver: boolean
-let unconfirmedResponse: boolean
-const originalAdapter = apiClient.defaults.adapter
-const patches = () => requests.filter((request) => request.method === 'patch')
+let unconfirmed: boolean
+let broken: string | undefined
+let vehicleAvailable: boolean
+let driverAvailable: boolean
+let writes: { url: string; body: Record<string, unknown> }[]
+let reads: string[]
 const loaded = (name = 'Banana') =>
-  screen.getByRole('textbox', { name: `Actual loaded quantity for ${name}` }) as HTMLInputElement
-function mount(ui?: ReactNode) {
+  screen.getByLabelText(`Quantity loaded for ${name} on OD-90`) as HTMLInputElement
+const weight = () => screen.getByLabelText('Actual total loaded weight (kg)') as HTMLInputElement
+const button = () => screen.getByRole('button', { name: /Confirm Run Departure|Dispatching/ })
+function mount() {
   const onClose = vi.fn()
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   })
-  return {
-    ...render(
-      <QueryClientProvider client={client}>
-        {ui ?? <DispatchDeliveryModal deliveryId={90} open onClose={onClose} />}
-      </QueryClientProvider>,
-    ),
-    client,
-    onClose,
-  }
+  render(
+    <QueryClientProvider client={client}>
+      <DispatchDeliveryModal runId={40} onClose={onClose} />
+    </QueryClientProvider>,
+  )
+  return { client, onClose }
+}
+async function ready() {
+  await screen.findAllByText('Banana')
+  await waitFor(() => expect(button().hasAttribute('disabled')).toBe(false))
+}
+function fill(quantity = '1.25', kg = '10.00') {
+  fireEvent.change(loaded(), { target: { value: quantity } })
+  fireEvent.change(weight(), { target: { value: kg } })
+}
+function submit() {
+  fireEvent.submit(button().closest('form')!)
 }
 beforeEach(() => {
-  requests = []
-  conflict = undefined
-  failLoad = false
-  gate = undefined
-  unavailableVehicle = false
-  unavailableDriver = false
-  unconfirmedResponse = false
-  delivery = {
-    id: 90,
-    deliveryNumber: 'OD-90',
-    salesOrderId: 7,
+  auth.isAdmin = true
+  auth.isManager = false
+  auth.isStaff = false
+  run = {
+    id: 40,
+    runNumber: 'RUN-40',
+    revision: 2,
+    status: 'DRAFT',
     warehouseId: 2,
-    revision: 4,
-    deliveryVehicleId: null,
-    driverEmployeeId: null,
-    status: 'SCHEDULED',
-    scheduledAt: '2026-10-20',
+    driverEmployeeId: 9,
+    deliveryVehicleId: 8,
+    scheduledDepartureAt: '2026-10-20T08:00:00Z',
     dispatchedAt: null,
-    deliveredAt: null,
+    completedAt: null,
     cancelledAt: null,
+    departureConfirmedByUserId: null,
+    loadedWeightKg: null,
+    capacityKgAtDeparture: null,
     notes: null,
-    ...dates,
-    items: [],
-    plannedItems: [
-      { id: 531, outgoingDeliveryId: 90, salesOrderItemId: 10, plannedQuantity: '5.25', ...dates },
-      { id: 532, outgoingDeliveryId: 90, salesOrderItemId: 20, plannedQuantity: '3.00', ...dates },
+    createdAt: '2026-10-01',
+    updatedAt: '2026-10-01',
+    deliveries: [
+      {
+        id: 90,
+        revision: 4,
+        status: 'READY',
+        deliveryNumber: 'OD-90',
+        warehouseId: 2,
+        salesOrderId: 7,
+      },
     ],
   }
-  order = {
-    id: 7,
-    revision: 1,
-    orderNumber: 'SO-7',
-    status: 'CONFIRMED',
-    clientId: 70,
-    deliveryAddress: 'Saved destination',
-    items: [
-      { id: 10, salesOrderId: 7, inventoryItemId: 1, quantity: '100' },
-      { id: 20, salesOrderId: 7, inventoryItemId: 2, quantity: '100' },
-    ],
-  } as SalesOrderRecord
-  stocks = [
-    {
-      id: 301,
-      inventoryItemId: 1,
-      warehouseId: 2,
-      quantity: '20.25',
-      availableQuantity: '4.25',
-      inventoryItem: { id: 1, name: 'Banana', unit: 'kg' },
-      ...dates,
-    },
-    {
-      id: 302,
-      inventoryItemId: 2,
-      warehouseId: 2,
-      quantity: '100',
-      availableQuantity: '100',
-      inventoryItem: { id: 2, name: 'Mango', unit: 'boxes' },
-      ...dates,
-    },
-    {
-      id: 999,
-      inventoryItemId: 1,
-      warehouseId: 1,
-      quantity: '500',
-      availableQuantity: '500',
-      inventoryItem: { id: 1, name: 'Banana', unit: 'kg' },
-      ...dates,
-    },
-  ]
-  vi.spyOn(toast, 'success').mockReturnValue('success')
-  vi.spyOn(toast, 'error').mockReturnValue('error')
+  available = '4.25'
+  capacity = '100.00'
+  failure = undefined
+  gate = undefined
+  broken = undefined
+  unconfirmed = false
+  vehicleAvailable = true
+  driverAvailable = true
+  writes = []
+  reads = []
   apiClient.defaults.adapter = async (config) => {
     const url = config.url ?? ''
-    const method = config.method ?? 'get'
-    const body = typeof config.data === 'string' ? JSON.parse(config.data) : (config.data ?? {})
-    requests.push({ method, url, body })
-    let data: unknown = []
-    if (method === 'get') {
-      if (url === '/outgoing-deliveries/90' && failLoad)
-        throw { isAxiosError: true, response: { status: 503, data: { message: 'Unavailable' } } }
-      data =
-        url === '/outgoing-deliveries/90'
-          ? delivery
-          : url === '/outgoing-deliveries'
-            ? [{ ...delivery, warehouseId: 1, plannedItems: [], items: [] }]
-            : url === '/sales-orders/7'
-              ? order
-              : url === '/sales-orders'
-                ? [order]
-                : url === '/clients'
-                  ? [{ id: 70, name: 'Saved customer', isActive: true }]
-                  : url === '/warehouses'
-                    ? [
-                        { id: 1, name: 'Wrong warehouse', isActive: true },
-                        { id: 2, name: 'Saved warehouse', isActive: true },
-                      ]
-                    : url === '/stock-items/warehouses/2'
-                      ? stocks.filter((stock) => stock.warehouseId === 2)
-                      : url === '/delivery-vehicles'
-                        ? [
-                            {
-                              id: 8,
-                              plateNumber: 'ABC-123',
-                              status: unavailableVehicle
-                                ? 'MAINTENANCE'
-                                : delivery.status === 'DISPATCHED'
-                                  ? 'IN_DELIVERY'
-                                  : 'AVAILABLE',
-                              vehicleType: 'TRUCK',
-                              isActive: true,
-                              model: null,
-                            },
-                          ]
-                        : url === '/employees'
-                          ? [
-                              {
-                                id: 9,
-                                firstName: 'Test',
-                                lastName: 'Driver',
-                                isActive: !unavailableDriver,
-                              },
-                            ]
-                          : []
-    } else if (url === '/outgoing-deliveries/90/dispatch') {
+    let data: unknown
+    if (config.method === 'patch') {
+      const body = JSON.parse(config.data)
+      writes.push({ url, body })
       await gate
-      if (conflict)
+      if (failure)
         throw {
           isAxiosError: true,
           response:
-            conflict === 'network'
+            failure === 'network'
               ? undefined
-              : { status: conflict.status, data: { message: conflict.message } },
+              : { status: failure, data: { message: 'Departure conflict; review current run' } },
         }
-      delivery = {
-        ...delivery,
-        status: 'DISPATCHED',
-        deliveryVehicleId: 8,
-        driverEmployeeId: 9,
-        revision: 5,
-        items: (
-          body.items as { salesOrderItemId: number; stockItemId: number; loadedQuantity: string }[]
-        ).map((line, index) => ({
-          id: index + 900,
-          outgoingDeliveryId: 90,
-          salesOrderItemId: line.salesOrderItemId,
-          stockItemId: line.stockItemId,
-          quantity: line.loadedQuantity,
-          ...dates,
-        })),
+      data = {
+        ...run,
+        revision: run.revision + 1,
+        status: unconfirmed ? 'DRAFT' : 'DISPATCHED',
+        loadedWeightKg: body.loadedWeightKg,
       }
-      data = unconfirmedResponse ? { ...delivery, status: 'SCHEDULED' } : delivery
+    } else {
+      reads.push(url)
+      if (broken === 'load failure' && url === '/delivery-runs/40')
+        throw new Error('Run unavailable')
+      if (url === '/delivery-runs/40') data = run
+      else if (url === '/delivery-runs')
+        data = { items: broken === 'active driver' ? [{ id: 99 }] : [], nextCursor: null }
+      else if (url === '/outgoing-deliveries/90')
+        data = {
+          id: 90,
+          deliveryNumber: 'OD-90',
+          runId: 40,
+          revision: broken === 'member revision' ? 3 : 4,
+          salesOrderId: 7,
+          warehouseId: broken === 'missing warehouse' ? null : 2,
+          status: 'READY',
+          items: [],
+          plannedItems:
+            broken === 'missing plan'
+              ? []
+              : [
+                  { salesOrderItemId: 10, plannedQuantity: '5.25' },
+                  {
+                    salesOrderItemId: broken === 'duplicate plan' ? 10 : 20,
+                    plannedQuantity: '3.00',
+                  },
+                ],
+        }
+      else if (url === '/sales-orders/7')
+        data = {
+          id: 7,
+          status: broken === 'cancelled order' ? 'CANCELLED' : 'CONFIRMED',
+          items:
+            broken === 'missing order line'
+              ? []
+              : [
+                  { id: 10, inventoryItemId: 1 },
+                  { id: 20, inventoryItemId: 2 },
+                ],
+        }
+      else if (url.startsWith('/inventory-items/'))
+        data = {
+          id: Number(url.split('/').pop()),
+          name: url.endsWith('/1') ? 'Banana' : 'Mango',
+          unit: url.endsWith('/1') ? 'kg' : 'boxes',
+        }
+      else if (url.startsWith('/stock-items/pair/'))
+        data = {
+          id: url.includes('/1/') ? 301 : 302,
+          inventoryItemId: url.includes('/1/') ? 1 : 2,
+          warehouseId: broken === 'wrong warehouse stock' ? 1 : 2,
+          quantity: '20.25',
+          availableQuantity:
+            broken === 'unknown availability'
+              ? undefined
+              : url.includes('/1/')
+                ? available
+                : '100.00',
+        }
+      else if (url === '/delivery-vehicles/8')
+        data = {
+          id: 8,
+          plateNumber: 'ABC-123',
+          isActive: true,
+          operationalStatus: 'SERVICEABLE',
+          isAvailable: vehicleAvailable,
+          activeRunId: null,
+          capacityKg: capacity,
+        }
+      else if (url === '/employees/9')
+        data = {
+          id: 9,
+          firstName: 'Test',
+          lastName: 'Driver',
+          isActive: true,
+          canDrive: driverAvailable,
+        }
+      else if (url === '/warehouses/2') data = { id: 2, name: 'Saved warehouse', isActive: true }
+      else throw new Error(`Unexpected request ${url}`)
     }
-    return { config, data: structuredClone(data), status: 200, statusText: 'OK', headers: {} }
+    return { config, data: structuredClone(data), status: 200, statusText: '', headers: {} }
   }
 })
 afterEach(() => {
-  apiClient.defaults.adapter = originalAdapter
+  apiClient.defaults.adapter = original
   vi.restoreAllMocks()
 })
 
-async function chooseAssignments() {
-  const user = userEvent.setup()
-  await user.click(screen.getByRole('combobox', { name: /Available Delivery Vehicle/ }))
-  await user.click(screen.getByRole('option', { name: /ABC-123/ }))
-  await user.click(screen.getByRole('combobox', { name: /Assigned Driver/ }))
-  await user.click(screen.getByRole('option', { name: /Test Driver/ }))
-}
-
-it('serializes actual loaded items with the latest dispatch contract', async () => {
-  await dispatchOutgoingDeliveryApi(90, {
-    deliveryVehicleId: 8,
-    driverEmployeeId: 9,
-    items: [{ salesOrderItemId: 10, stockItemId: 301, loadedQuantity: '1.25' }],
-  })
-  expect(patches()[0].body).toEqual({
-    deliveryVehicleId: 8,
-    driverEmployeeId: 9,
-    items: [{ salesOrderItemId: 10, stockItemId: 301, loadedQuantity: '1.25' }],
-  })
-})
-
-it('loads the persisted scheduled plan and source warehouse with empty confirmed items', async () => {
+it('loads the persisted run, member plan, exact warehouse stock and saved assignments without writes', async () => {
   mount()
-  expect(await screen.findByText('Banana')).toBeTruthy()
-  expect(screen.getByText('Mango')).toBeTruthy()
-  expect(screen.getByText('Saved warehouse')).toBeTruthy()
-  expect(screen.getByText('Saved customer')).toBeTruthy()
-  expect(screen.getByText('Saved destination')).toBeTruthy()
-  expect(screen.getByText('2 planned product lines')).toBeTruthy()
-  expect(screen.queryByText(/0 items to transport/)).toBeNull()
+  await ready()
+  for (const text of ['Mango', 'Saved warehouse', 'ABC-123', 'Test Driver'])
+    expect(screen.getByText(text)).toBeTruthy()
   expect(loaded().value).toBe('')
-  expect(loaded('Mango').value).toBe('')
-  expect(screen.getByText('5.25')).toBeTruthy()
-  expect(screen.getByText('4.25')).toBeTruthy()
-  expect(requests.some((request) => request.url === '/outgoing-deliveries/90')).toBe(true)
-  expect(patches()).toHaveLength(0)
+  expect(weight().value).toBe('')
+  expect(reads).toContain('/stock-items/pair/1/2')
+  expect(screen.queryByRole('combobox')).toBeNull()
+  expect(writes).toHaveLength(0)
 })
-
-it('dispatches a partial load, skips zero lines, confirms the response and refreshes shared caches', async () => {
-  const user = userEvent.setup()
-  const { onClose, client } = mount()
-  for (const key of [
-    ['stock-items', 'item', 1],
-    ['sales-orders', 'ALL', 'ALL'],
-    ['products'],
-    ['warehouses', 'detail', 2],
+it('serializes one run departure with run and member revisions, measured weight and partial loads', async () => {
+  await dispatchDeliveryRunApi(40, {
+    expectedRevision: 2,
+    loadedWeightKg: '10.00',
+    loads: [
+      {
+        deliveryId: 90,
+        expectedRevision: 4,
+        items: [{ salesOrderItemId: 10, stockItemId: 301, loadedQuantity: '1.25' }],
+      },
+    ],
+  })
+  expect(writes).toEqual([
+    {
+      url: '/delivery-runs/40/dispatch',
+      body: {
+        expectedRevision: 2,
+        loadedWeightKg: '10.00',
+        loads: [
+          {
+            deliveryId: 90,
+            expectedRevision: 4,
+            items: [{ salesOrderItemId: 10, stockItemId: 301, loadedQuantity: '1.25' }],
+          },
+        ],
+      },
+    },
   ])
-    client.setQueryData(key, [])
-  await screen.findByText('Banana')
-  await chooseAssignments()
-  fireEvent.change(loaded(), { target: { value: '1.25' } })
-  fireEvent.change(loaded('Mango'), { target: { value: '0.00' } })
-  await user.click(screen.getByRole('button', { name: 'Dispatch Shipment' }))
-  await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
-  expect(patches()).toHaveLength(1)
-  expect(patches()[0]).toEqual({
-    method: 'patch',
-    url: '/outgoing-deliveries/90/dispatch',
-    body: {
-      deliveryVehicleId: 8,
-      driverEmployeeId: 9,
+})
+it('skips zero lines and refreshes every operational cache only after confirmed departure', async () => {
+  const { client, onClose } = mount()
+  await ready()
+  const keys = [
+    'stock-items',
+    'sales-orders',
+    'delivery-vehicles',
+    'staffing',
+    'quarantine-lots',
+    'products',
+    'warehouses',
+  ]
+  keys.forEach((key) => client.setQueryData([key, 'check'], []))
+  fill()
+  fireEvent.change(loaded('Mango'), { target: { value: '0' } })
+  submit()
+  await waitFor(() => expect(onClose).toHaveBeenCalledOnce())
+  expect(writes).toHaveLength(1)
+  expect(writes[0].body.loads).toEqual([
+    {
+      deliveryId: 90,
+      expectedRevision: 4,
       items: [{ salesOrderItemId: 10, stockItemId: 301, loadedQuantity: '1.25' }],
     },
-  })
-  expect(
-    client.getQueryData<OutgoingDeliveryRecord>(['outgoing-deliveries', 'id', 90])?.status,
-  ).toBe('DISPATCHED')
-  for (const key of [
-    ['stock-items', 'item', 1],
-    ['sales-orders', 'ALL', 'ALL'],
-    ['products'],
-    ['warehouses', 'detail', 2],
   ])
-    expect(client.getQueryState(key)?.isInvalidated).toBe(true)
-  for (const url of [
-    '/outgoing-deliveries',
-    '/delivery-vehicles',
-    '/stock-items/warehouses/2',
-    '/sales-orders/7',
-  ])
-    expect(requests.filter((request) => request.url === url).length).toBeGreaterThan(1)
-  expect(toast.success).toHaveBeenCalledTimes(1)
+  keys.forEach((key) => expect(client.getQueryState([key, 'check'])?.isInvalidated).toBe(true))
 })
-
-it('blocks duplicate submissions, closing and input edits while dispatch is pending', async () => {
+it('prevents duplicate submissions, edits and dismissal while departure is pending', async () => {
   let release!: () => void
   gate = new Promise<void>((resolve) => {
     release = resolve
   })
   const { onClose } = mount()
-  await screen.findByText('Banana')
-  await chooseAssignments()
-  fireEvent.change(loaded(), { target: { value: '2.25' } })
-  const form = screen.getByRole('button', { name: 'Dispatch Shipment' }).closest('form')!
-  fireEvent.submit(form)
-  fireEvent.submit(form)
-  await waitFor(() => expect(patches()).toHaveLength(1))
+  await ready()
+  fill()
+  submit()
+  submit()
+  await waitFor(() => expect(writes).toHaveLength(1))
   expect(loaded().disabled).toBe(true)
-  expect(screen.getByRole('button', { name: 'Close' }).hasAttribute('disabled')).toBe(true)
+  expect(weight().disabled).toBe(true)
   expect(screen.getByRole('button', { name: 'Cancel' }).hasAttribute('disabled')).toBe(true)
-  expect(toast.success).not.toHaveBeenCalled()
   fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' })
   expect(onClose).not.toHaveBeenCalled()
   await act(async () => release())
-  await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
+  await waitFor(() => expect(onClose).toHaveBeenCalledOnce())
 })
-
 it.each(['-1', 'abc', '1.001', '1e2', '5.26', '4.26'])(
-  'rejects invalid, excessive planned or unavailable loaded quantity %s',
-  async (quantity) => {
+  'rejects invalid or excessive actual member load %s',
+  async (value) => {
     mount()
-    await screen.findByText('Banana')
-    await chooseAssignments()
-    fireEvent.change(loaded(), { target: { value: quantity } })
-    fireEvent.submit(screen.getByRole('button', { name: 'Dispatch Shipment' }).closest('form')!)
-    expect(within(loaded().closest('tr')!).getByRole('alert')).toBeTruthy()
-    expect(loaded().value).toBe(quantity)
-    expect(patches()).toHaveLength(0)
+    await ready()
+    fill(value)
+    submit()
+    expect(await screen.findByRole('alert')).toBeTruthy()
+    expect(loaded().value).toBe(value)
+    expect(writes).toHaveLength(0)
   },
 )
-
-it('requires a positive line rather than treating the full plan as loaded', async () => {
+it.each(['', '0', '-1', '1.001', 'abc', '100.01'])(
+  'rejects missing, invalid or over-capacity measured weight %s',
+  async (value) => {
+    mount()
+    await ready()
+    fill('1.25', value)
+    submit()
+    expect((await screen.findByRole('alert')).textContent).toMatch(/actual loaded weight/)
+    expect(writes).toHaveLength(0)
+  },
+)
+it('requires a positive member line and never assumes its full plan was loaded', async () => {
   mount()
-  await screen.findByText('Banana')
-  await chooseAssignments()
-  fireEvent.submit(screen.getByRole('button', { name: 'Dispatch Shipment' }).closest('form')!)
-  expect(screen.getByText(/Enter at least one positive actual loaded quantity/)).toBeTruthy()
-  expect(patches()).toHaveLength(0)
-  fireEvent.change(loaded(), { target: { value: '0' } })
-  fireEvent.submit(screen.getByRole('button', { name: 'Dispatch Shipment' }).closest('form')!)
-  expect(patches()).toHaveLength(0)
+  await ready()
+  fill('0')
+  submit()
+  expect((await screen.findByRole('alert')).textContent).toMatch(/at least one loaded product/)
+  expect(writes).toHaveLength(0)
 })
-
 it.each([
   'missing plan',
   'missing warehouse',
   'missing order line',
   'wrong warehouse stock',
   'unknown availability',
-  'duplicate stock',
-] as const)('safely blocks %s and offers refresh', async (condition) => {
-  if (condition === 'missing plan') delivery.plannedItems = []
-  if (condition === 'missing warehouse') delivery.warehouseId = null
-  if (condition === 'missing order line') order.items = []
-  if (condition === 'wrong warehouse stock') stocks[0].warehouseId = 1
-  if (condition === 'unknown availability') stocks[0].availableQuantity = undefined
-  if (condition === 'duplicate stock') stocks.push({ ...stocks[0], id: 303 })
-  const { onClose } = mount()
-  expect(await screen.findByRole('alert')).toBeTruthy()
-  expect(screen.getByRole('button', { name: 'Refresh shipment' })).toBeTruthy()
-  expect(screen.getByRole('button', { name: 'Dispatch Shipment' }).hasAttribute('disabled')).toBe(
-    true,
-  )
-  expect(patches()).toHaveLength(0)
-  expect(onClose).not.toHaveBeenCalled()
+  'member revision',
+  'cancelled order',
+])('blocks unsafe persisted context: %s', async (condition) => {
+  broken = condition
+  mount()
+  await waitFor(() => expect(screen.getByRole('alert').textContent).not.toMatch(/Loading current/))
+  expect(button().hasAttribute('disabled')).toBe(true)
+  expect(writes).toHaveLength(0)
 })
-
-it.each([
-  'WAREHOUSE_CAPACITY_CHANGED',
-  'Vehicle is not available',
-  'Driver is not active',
-  'Only a scheduled delivery can be dispatched',
-])(
-  'retains loading inputs after backend conflict %s and requires an explicit refresh',
-  async (message) => {
-    conflict = { status: 409, message }
-    const user = userEvent.setup()
-    const { onClose } = mount()
-    await screen.findByText('Banana')
-    await chooseAssignments()
-    fireEvent.change(loaded(), { target: { value: '2.25' } })
-    await user.click(screen.getByRole('button', { name: 'Dispatch Shipment' }))
-    expect(await screen.findByRole('alert')).toBeTruthy()
-    expect(loaded().value).toBe('2.25')
-    expect(screen.getByRole('button', { name: 'Dispatch Shipment' }).hasAttribute('disabled')).toBe(
-      true,
-    )
-    expect(patches()).toHaveLength(1)
-    expect(onClose).not.toHaveBeenCalled()
-    expect(toast.success).not.toHaveBeenCalled()
-    conflict = undefined
-    await user.click(screen.getByRole('button', { name: 'Refresh shipment' }))
-    await waitFor(() => expect(loaded().disabled).toBe(false))
-    expect(loaded().value).toBe('2.25')
-    await user.click(screen.getByRole('button', { name: 'Dispatch Shipment' }))
-    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
-  },
-)
-
-it('does not retry an uncertain network dispatch and blocks resubmission if refresh confirms it already dispatched', async () => {
-  conflict = 'network'
-  const user = userEvent.setup()
-  const { onClose } = mount()
-  await screen.findByText('Banana')
-  await chooseAssignments()
-  fireEvent.change(loaded(), { target: { value: '2.25' } })
-  await user.click(screen.getByRole('button', { name: 'Dispatch Shipment' }))
-  await screen.findByRole('alert')
-  expect(patches()).toHaveLength(1)
-  expect(loaded().value).toBe('2.25')
-  delivery.status = 'DISPATCHED'
-  await user.click(screen.getByRole('button', { name: 'Refresh shipment' }))
-  expect(await screen.findByText(/Only a scheduled shipment can be dispatched/)).toBeTruthy()
-  expect(screen.getByRole('button', { name: 'Dispatch Shipment' }).hasAttribute('disabled')).toBe(
-    true,
-  )
-  expect(patches()).toHaveLength(1)
-  expect(onClose).not.toHaveBeenCalled()
+it('rejects duplicate plan lines before any inventory mutation', async () => {
+  broken = 'duplicate plan'
+  mount()
+  await ready()
+  fireEvent.change(screen.getAllByLabelText('Quantity loaded for Banana on OD-90')[0], {
+    target: { value: '1' },
+  })
+  fireEvent.change(weight(), { target: { value: '10' } })
+  submit()
+  expect((await screen.findByRole('alert')).textContent).toMatch(/duplicate lines/)
+  expect(writes).toHaveLength(0)
 })
-
-it('does not close or announce success for an unconfirmed dispatch response', async () => {
-  unconfirmedResponse = true
-  const user = userEvent.setup()
-  const { onClose } = mount()
-  await screen.findByText('Banana')
-  await chooseAssignments()
-  fireEvent.change(loaded(), { target: { value: '2.25' } })
-  await user.click(screen.getByRole('button', { name: 'Dispatch Shipment' }))
-  expect(await screen.findByRole('alert')).toBeTruthy()
-  expect(toast.success).not.toHaveBeenCalled()
-  expect(onClose).not.toHaveBeenCalled()
-})
-
-it.each(['vehicle', 'driver'] as const)(
-  'rejects a %s that becomes unavailable on refresh without dropping entered loads',
-  async (assignment) => {
-    const user = userEvent.setup()
+it.each(['vehicle', 'driver', 'active driver', 'capacity'] as const)(
+  'validates saved run assignments before departure: %s',
+  async (kind) => {
+    if (kind === 'vehicle') vehicleAvailable = false
+    if (kind === 'driver') driverAvailable = false
+    if (kind === 'active driver') broken = kind
+    if (kind === 'capacity') capacity = null
     mount()
     await screen.findByText('Banana')
-    await chooseAssignments()
-    fireEvent.change(loaded(), { target: { value: '1.25' } })
-    if (assignment === 'vehicle') unavailableVehicle = true
-    else unavailableDriver = true
-    await user.click(screen.getByRole('button', { name: 'Refresh shipment' }))
-    await waitFor(() => expect(loaded().disabled).toBe(false))
-    fireEvent.submit(screen.getByRole('button', { name: 'Dispatch Shipment' }).closest('form')!)
-    expect(screen.getByRole('alert')).toBeTruthy()
-    expect(loaded().value).toBe('1.25')
-    expect(patches()).toHaveLength(0)
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toMatch(/assigned|capacity/))
+    expect(button().hasAttribute('disabled')).toBe(true)
+    expect(writes).toHaveLength(0)
   },
 )
-
-it('recovers a delivery load failure with a safe refresh', async () => {
-  failLoad = true
-  const user = userEvent.setup()
+it.each([400, 403, 404, 409, 'network'] as const)(
+  'retains entries after %s and requires explicit review before retry',
+  async (status) => {
+    failure = status
+    const { onClose } = mount()
+    await ready()
+    fill('2.25')
+    submit()
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toMatch(/Refresh and review/))
+    expect(loaded().value).toBe('2.25')
+    expect(button().hasAttribute('disabled')).toBe(true)
+    expect(writes).toHaveLength(1)
+    expect(onClose).not.toHaveBeenCalled()
+    failure = undefined
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh run and review current data' }))
+    await waitFor(() => expect(button().hasAttribute('disabled')).toBe(false))
+    submit()
+    await waitFor(() => expect(onClose).toHaveBeenCalledOnce())
+    expect(writes).toHaveLength(2)
+  },
+)
+it('never retries an uncertain departure when refresh shows the run already dispatched', async () => {
+  failure = 'network'
+  const { onClose } = mount()
+  await ready()
+  fill()
+  submit()
+  await waitFor(() => expect(button().hasAttribute('disabled')).toBe(true))
+  run.status = 'DISPATCHED'
+  fireEvent.click(screen.getByRole('button', { name: 'Refresh run and review current data' }))
+  expect(await screen.findByText(/Only a draft run can depart/)).toBeTruthy()
+  expect(writes).toHaveLength(1)
+  expect(onClose).not.toHaveBeenCalled()
+})
+it('does not close on an unconfirmed departure response', async () => {
+  unconfirmed = true
+  const { onClose } = mount()
+  await ready()
+  fill()
+  submit()
+  await waitFor(() => expect(screen.getByRole('alert').textContent).toMatch(/confirm|Refresh/))
+  expect(onClose).not.toHaveBeenCalled()
+  expect(writes).toHaveLength(1)
+})
+it('recovers a run load failure by explicit refresh', async () => {
+  broken = 'load failure'
   mount()
-  expect(await screen.findByRole('alert')).toBeTruthy()
-  expect(patches()).toHaveLength(0)
-  failLoad = false
-  await user.click(screen.getByRole('button', { name: 'Refresh shipment' }))
-  expect(await screen.findByText('Banana')).toBeTruthy()
+  expect(await screen.findByText(/Run unavailable/)).toBeTruthy()
+  expect(writes).toHaveLength(0)
+  broken = undefined
+  fireEvent.click(screen.getByRole('button', { name: 'Refresh run and review current data' }))
+  await ready()
 })
-
-it('validates aggregate stock availability for two order lines sharing one warehouse stock item', () => {
-  order.items[1].inventoryItemId = 1
-  const plan = buildDispatchPlan(delivery, order, stocks)
-  expect(plan.error).toBeUndefined()
-  expect(plan.rows.map((row) => row.stockItemId)).toEqual([301, 301])
-  const excessive = validateDispatchLoad(plan.rows, { 10: '3.00', 20: '2.00' })
-  expect(Object.keys(excessive.errors)).toEqual(['10', '20'])
-  const partial = validateDispatchLoad(plan.rows, { 10: '1.25', 20: '2.00' })
-  expect(partial.error).toBeUndefined()
-  expect(partial.items.map((item) => item.loadedQuantity)).toEqual(['1.25', '2.00'])
-})
-
-it('keeps large decimal strings exact through validation and dispatch serialization', async () => {
-  delivery.plannedItems[0].plannedQuantity = '9999999999.99'
-  stocks[0].availableQuantity = '9999999999.99'
-  const plan = buildDispatchPlan(delivery, order, stocks)
-  const validation = validateDispatchLoad(plan.rows, { 10: '9999999999.98' })
-  expect(validation.error).toBeUndefined()
-  await dispatchOutgoingDeliveryApi(90, {
-    deliveryVehicleId: 8,
-    driverEmployeeId: 9,
-    items: validation.items,
-  })
-  expect((patches()[0].body.items as { loadedQuantity: string }[])[0].loadedQuantity).toBe(
-    '9999999999.98',
-  )
-})
-
-it('opens from the delivery list using its ID and updates the shipment to In Transit after confirmation', async () => {
-  const user = userEvent.setup()
-  mount(<DeliveriesHub initialTab="outgoing" />)
-  await user.click(await screen.findByRole('button', { name: 'Dispatch OD-90' }))
-  expect(await screen.findByText('Banana')).toBeTruthy()
-  expect(within(screen.getByRole('dialog')).getByText('Saved warehouse')).toBeTruthy()
-  await chooseAssignments()
-  fireEvent.change(loaded(), { target: { value: '2.25' } })
-  await user.click(screen.getByRole('button', { name: 'Dispatch Shipment' }))
-  await waitFor(() =>
-    expect(screen.queryByRole('dialog', { name: 'Dispatch Shipment to Transit' })).toBeNull(),
-  )
-  expect(screen.queryByRole('button', { name: 'Dispatch OD-90' })).toBeNull()
-  expect(screen.getByRole('button', { name: 'Complete Delivery OD-90' })).toBeTruthy()
-  expect(screen.getByText('In Transit')).toBeTruthy()
-})
-
-it('requires review when a saved plan revision changes and validates retained input against the updated plan', async () => {
-  const user = userEvent.setup()
+it('requires reviewed member revisions after an updated run is fetched', async () => {
   const { client } = mount()
-  await screen.findByText('Banana')
-  await chooseAssignments()
-  fireEvent.change(loaded(), { target: { value: '2.25' } })
-  delivery = {
-    ...delivery,
-    revision: 5,
-    plannedItems: delivery.plannedItems.map((line) => ({ ...line, plannedQuantity: '1.00' })),
-  }
-  act(() => client.setQueryData(['outgoing-deliveries', 'id', 90], structuredClone(delivery)))
-  expect(await screen.findByText(/saved shipment plan changed/)).toBeTruthy()
-  expect(screen.getByRole('button', { name: 'Dispatch Shipment' }).hasAttribute('disabled')).toBe(
-    true,
-  )
-  await user.click(screen.getByRole('button', { name: 'Refresh shipment' }))
-  await waitFor(() => expect(loaded().disabled).toBe(false))
+  await ready()
+  fill()
+  run = { ...run, revision: 3 }
+  await act(async () => {
+    client.setQueryData(['delivery-runs', 'id', 40], structuredClone(run))
+  })
+  expect(await screen.findByText(/revision changed/)).toBeTruthy()
+  expect(button().hasAttribute('disabled')).toBe(true)
+  expect(loaded().value).toBe('1.25')
+  expect(writes).toHaveLength(0)
+})
+it('preserves explicit quantities after current stock falls instead of clamping', async () => {
+  mount()
+  await ready()
+  fill('2.25')
+  available = '1.00'
+  fireEvent.click(screen.getByRole('button', { name: 'Refresh run and review current data' }))
+  await waitFor(() => expect(button().hasAttribute('disabled')).toBe(false))
+  submit()
+  expect((await screen.findByRole('alert')).textContent).toMatch(/Combined loads exceed/)
   expect(loaded().value).toBe('2.25')
-  await user.click(screen.getByRole('button', { name: 'Dispatch Shipment' }))
-  expect(within(loaded().closest('tr')!).getByText(/exceeds the planned 1 kg/)).toBeTruthy()
-  expect(patches()).toHaveLength(0)
+  expect(writes).toHaveLength(0)
+})
+it('keeps planned quantities editable and never submits the shortcut automatically', async () => {
+  available = '10.00'
+  mount()
+  await ready()
+  fireEvent.click(screen.getByRole('button', { name: 'Use Planned Quantities' }))
+  expect(loaded().value).toBe('5.25')
+  expect(writes).toHaveLength(0)
+  fill('1.00')
+  expect(loaded().value).toBe('1.00')
+})
+it('retains permission restrictions and accessible keyboard dismissal without writing', async () => {
+  auth.isAdmin = false
+  const { onClose } = mount()
+  expect(await screen.findByText(/do not have permission/)).toBeTruthy()
+  expect(button().hasAttribute('disabled')).toBe(true)
+  await userEvent.setup().keyboard('{Escape}')
+  expect(onClose).toHaveBeenCalledOnce()
+  expect(writes).toHaveLength(0)
+})
+it('keeps large quantities exact and sums availability shared by member product lines', () => {
+  const row: RunLoadRow = {
+    key: '90:10',
+    deliveryId: 90,
+    deliveryNumber: 'OD-90',
+    expectedRevision: 4,
+    salesOrderItemId: 10,
+    stockItemId: 301,
+    productName: 'Banana',
+    unit: 'kg',
+    plannedQuantity: '9999999999.99',
+    availableQuantity: '9999999999.99',
+  }
+  expect(
+    validateRunLoad([{ id: 90, revision: 4 }], [row], { '90:10': '9999999999.98' }).loads[0]
+      .items[0].loadedQuantity,
+  ).toBe('9999999999.98')
+  const shared = [
+    { ...row, plannedQuantity: '5', availableQuantity: '4.25' },
+    { ...row, key: '90:20', salesOrderItemId: 20, plannedQuantity: '3', availableQuantity: '4.25' },
+  ]
+  expect(() =>
+    validateRunLoad([{ id: 90, revision: 4 }], shared, { '90:10': '3', '90:20': '2' }),
+  ).toThrow(/Combined loads exceed/)
+  expect(
+    validateRunLoad([{ id: 90, revision: 4 }], shared, { '90:10': '1.25', '90:20': '2' }).loads[0]
+      .items,
+  ).toHaveLength(2)
 })
 
-it('routes the order shortcut through existing saved planning without auto-dispatching an assumed full load', async () => {
-  mount(
-    <QuickDispatchModal
-      open
-      onClose={vi.fn()}
-      order={order}
-      vehicles={[]}
-      employees={[]}
-      warehouses={[]}
-      stockItems={[]}
-    />,
-  )
-  expect(screen.getByRole('heading', { name: 'Schedule Outgoing Delivery' })).toBeTruthy()
-  await waitFor(() =>
-    expect(requests.some((request) => request.url === '/sales-orders/7')).toBe(true),
-  )
-  expect(requests.filter((request) => request.method !== 'get')).toHaveLength(0)
-  expect(screen.queryByText(/immediately dispatch/)).toBeNull()
+it('allows staff to confirm an authorized run departure', async () => {
+  auth.isAdmin = false
+  auth.isStaff = true
+  const { onClose } = mount()
+  await ready()
+  fill()
+  submit()
+  await waitFor(() => expect(onClose).toHaveBeenCalledOnce())
+  expect(writes).toHaveLength(1)
+  expect(writes[0].url).toBe('/delivery-runs/40/dispatch')
+})
+
+it('binds nested run load issues to the submitted member item and measured weight', async () => {
+  const base = getAdapter(apiClient.defaults.adapter)
+  apiClient.defaults.adapter = async (config) => {
+    if (config.method === 'patch') throw { isAxiosError: true, response: { status: 400, data: { detail: 'Review run loads.', issues: [
+      { path: 'loads[0].items[1].loadedQuantity', code: 'INVALID', message: 'Mango stock changed.' },
+      { path: 'loadedWeightKg', code: 'INVALID', message: 'Recheck the scale reading.' },
+    ] } } }
+    return base(config)
+  }
+  const { onClose } = mount()
+  await ready()
+  fill()
+  fireEvent.change(loaded('Mango'), { target: { value: '2' } })
+  submit()
+  await waitFor(() => expect(loaded('Mango').getAttribute('aria-invalid')).toBe('true'))
+  expect(loaded().getAttribute('aria-invalid')).toBe('false')
+  expect(weight().getAttribute('aria-invalid')).toBe('true')
+  expect(document.getElementById(loaded('Mango').getAttribute('aria-describedby')!)?.textContent).toBe('Mango stock changed.')
+  expect(loaded('Mango').value).toBe('2')
+  expect(onClose).not.toHaveBeenCalled()
 })

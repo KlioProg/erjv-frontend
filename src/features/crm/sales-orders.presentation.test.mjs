@@ -4,7 +4,7 @@ import { getSalesOrderDeliveryDisplay, salesDeliveryProgress } from './sales-ord
 
 test('sales progress uses confirmed delivered quantities, excluding returned and merely loaded goods', () => {
   const order = { id: 1, items: [{ id: 11, quantity: '10' }] }
-  const delivered = { id: 1, salesOrderId: 1, status: 'DELIVERED', items: [
+  const delivered = { id: 1, salesOrderId: 1, status: 'RECONCILED', items: [
     { id: 101, salesOrderItemId: 11, quantity: '10', deliveredQuantity: '7.25' },
   ] }
   const [row] = salesDeliveryProgress(order, [delivered, { ...delivered, status: 'DISPATCHED' }])
@@ -18,9 +18,10 @@ const order = { id: 1, status: 'DRAFT', completedAt: null, cancelledAt: null }
 const delivery = {
   id: 1,
   salesOrderId: 1,
-  status: 'SCHEDULED',
+  status: 'READY',
+  runId: null,
   scheduledAt: '2026-10-05T09:00:00',
-  deliveredAt: null,
+  reconciledAt: null,
 }
 
 test('distinguishes an unconfirmed order from one ready for delivery', () => {
@@ -31,28 +32,23 @@ test('distinguishes an unconfirmed order from one ready for delivery', () => {
   )
 })
 
-test('shows the recorded schedule with the year and without time', () => {
+test('shows READY separately from a run schedule', () => {
   const display = getSalesOrderDeliveryDisplay(order, delivery, [delivery])
-  assert.equal(display.label, 'Scheduled')
-  assert.equal(display.supportingText, 'Oct 5, 2026')
-  for (const scheduledAt of [null, 'invalid']) {
-    assert.equal(
-      getSalesOrderDeliveryDisplay(order, { ...delivery, scheduledAt }, []).supportingText,
-      undefined,
-    )
-  }
+  assert.equal(display.label, 'Ready')
+  assert.equal(display.supportingText, 'Awaiting run assignment')
+  assert.equal(getSalesOrderDeliveryDisplay(order, { ...delivery, runId: 7 }, []).supportingText, 'Run #7')
 })
 
 test('retains the active delivery state on partially delivered orders', () => {
   const partial = { ...order, status: 'PARTIALLY_DELIVERED' }
-  assert.equal(getSalesOrderDeliveryDisplay(partial, delivery, [delivery]).label, 'Scheduled')
+  assert.equal(getSalesOrderDeliveryDisplay(partial, delivery, [delivery]).label, 'Ready')
   const dispatched = { ...delivery, status: 'DISPATCHED' }
   assert.equal(getSalesOrderDeliveryDisplay(partial, dispatched, []).supportingText, 'On the way')
 })
 
 test('counts only this order’s uncancelled deliveries', () => {
   const partial = { ...order, status: 'PARTIALLY_DELIVERED' }
-  const completed = { ...delivery, status: 'DELIVERED' }
+  const completed = { ...delivery, status: 'RECONCILED' }
   const records = [
     completed,
     { ...delivery, id: 2 },
@@ -75,8 +71,8 @@ test('counts only this order’s uncancelled deliveries', () => {
 
 test('uses order completion or the latest recorded delivery, without inventing dates', () => {
   const completedOrder = { ...order, status: 'DELIVERED' }
-  const completed = { ...delivery, status: 'DELIVERED', deliveredAt: '2026-10-02T12:00:00' }
-  const later = { ...completed, id: 2, deliveredAt: '2026-10-03T12:00:00' }
+  const completed = { ...delivery, status: 'RECONCILED', reconciledAt: '2026-10-02T12:00:00' }
+  const later = { ...completed, id: 2, reconciledAt: '2026-10-03T12:00:00' }
   assert.equal(
     getSalesOrderDeliveryDisplay(completedOrder, completed, [completed, later]).supportingText,
     'Completed Oct 3, 2026',

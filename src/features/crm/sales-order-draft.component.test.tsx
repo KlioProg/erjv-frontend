@@ -335,7 +335,7 @@ describe('sales draft integration', () => {
     act(() => result.current.setNotes('Ready'))
     await act(() => result.current.submit(submitEvent(true)))
     expect(onUpdateDraft).toHaveBeenCalledOnce()
-    expect(onConfirm).toHaveBeenCalledExactlyOnceWith(42)
+    expect(onConfirm).toHaveBeenCalledExactlyOnceWith(42, 4)
     expect(onSubmit).not.toHaveBeenCalled()
   })
 

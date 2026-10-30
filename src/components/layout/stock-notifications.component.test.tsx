@@ -9,6 +9,9 @@ const state = vi.hoisted(() => ({
   loading: false,
   unavailable: false,
   refreshing: false,
+  complete: true,
+  hasMore: false,
+  loadNext: vi.fn(),
   refresh: vi.fn(),
 }))
 vi.mock('@/features/logistics/stock-warnings.hooks', () => ({
@@ -21,6 +24,9 @@ vi.mock('@/features/logistics/stock-warnings.hooks', () => ({
   }),
 }))
 beforeEach(() => {
+  state.complete = true
+  state.hasMore = false
+  state.loadNext.mockReset().mockResolvedValue([])
   state.loading = false
   state.unavailable = false
   state.warnings = [
@@ -138,3 +144,18 @@ it.each(['loading', 'unavailable'] as const)(
     expect(screen.queryByRole('menuitemradio')).toBeNull()
   },
 )
+
+
+it('identifies loaded warning counts and never claims a global empty state while more pages remain', async () => {
+  state.complete = false
+  state.hasMore = true
+  state.warnings = []
+  const user = userEvent.setup()
+  render(<StockNotifications onOpenInventory={vi.fn()} />)
+  await user.click(screen.getByRole('button', { name: 'Stock notifications, 0 loaded warnings, more records available' }))
+  expect(screen.getByText('0 loaded warnings')).toBeTruthy()
+  expect(screen.getByText('No warnings in loaded records. Load more records to continue checking.')).toBeTruthy()
+  expect(screen.queryByText('No stock warnings.')).toBeNull()
+  await user.click(screen.getByRole('menuitem', { name: 'Load more warning records' }))
+  expect(state.loadNext).toHaveBeenCalledOnce()
+})

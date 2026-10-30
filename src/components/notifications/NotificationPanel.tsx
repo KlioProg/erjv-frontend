@@ -14,6 +14,8 @@ import { StockAlertItem } from './StockAlertItem'
 
 type NotificationPanelProps = {
   alerts: StockAlert[]
+  hasMore?: boolean
+  onLoadMore?: () => void
   isLoading: boolean
   isFetching: boolean
   error: unknown
@@ -23,6 +25,8 @@ type NotificationPanelProps = {
 
 export function NotificationPanel({
   alerts,
+  hasMore,
+  onLoadMore,
   isLoading,
   isFetching,
   error,
@@ -68,6 +72,11 @@ export function NotificationPanel({
               Stock alerts could not be verified. {getErrorMessage(error)} Use Refresh to try again.
             </AlertDescription>
           </Alert>
+        ) : hasMore ? (
+          <div className="px-3 py-6 text-center text-sm text-muted-foreground">
+            <p role="status">Load all stock, product, and warehouse records to verify stock alerts.</p>
+            <Button variant="outline" size="sm" disabled={isFetching} onClick={onLoadMore}>Load more alert records</Button>
+          </div>
         ) : alerts.length === 0 ? (
           <p role="status" className="px-3 py-6 text-center text-sm text-muted-foreground">
             No confirmed stockouts in active warehouses.
@@ -82,8 +91,7 @@ export function NotificationPanel({
       </div>
       <DropdownMenuSeparator className="m-0" />
       <p className="shrink-0 px-4 py-3 text-xs leading-relaxed text-muted-foreground">
-        Active alerts resolve when stock is replenished. Low-stock alerts require reorder
-        thresholds, which aren’t available yet.
+        Active alerts resolve when stock is replenished. Configure low-stock thresholds in Inventory.
       </p>
     </DropdownMenuContent>
   )

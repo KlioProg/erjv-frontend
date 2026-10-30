@@ -1,3 +1,5 @@
+import { useCursorLookup } from '@/lib/use-cursor-lookup'
+import { StockPagingControls } from '@/components/inventory/StockPagingControls'
 import {
   DataTableExpandedSection,
   DataTableExpandToggle,
@@ -36,7 +38,7 @@ import { DataTableActions } from '@/components/ui/DataTableActions'
 import { DataTable, type ColumnDef } from '@/components/ui/data-table'
 import { OverflowValue } from '@/components/ui/OverflowValue'
 import {
-  useAllProducts,
+  useProduct,
   useDeactivateProduct,
   useReactivateProduct,
 } from '@/features/products/products.hooks'
@@ -50,7 +52,12 @@ import type { InventoryItemResponse } from '@/features/products/products.types'
 import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal'
 import { InventoryItemModal } from '@/components/operations/InventoryItemModal'
 import { getErrorMessage } from '@/lib/api-client'
-import { availableStockCents, formatStockCents, parseStockCents, stockSortKey } from '@/features/logistics/stock-display'
+import {
+  availableStockCents,
+  formatStockCents,
+  parseStockCents,
+  stockSortKey,
+} from '@/features/logistics/stock-display'
 
 export interface InventoryItemCatalogProps {
   activeTab?: 'ACTIVE' | 'ARCHIVED'
@@ -81,14 +88,29 @@ export function InventoryItemCatalog({
     () => (warehousesQuery.data ?? []).filter((item) => item.isActive),
     [warehousesQuery.data],
   )
-  const productsQuery = useAllProducts()
+  const [internalActiveTab, setInternalActiveTab] = useState<'ACTIVE' | 'ARCHIVED'>('ACTIVE')
+  const activeTab = controlledActiveTab ?? internalActiveTab
+  const [searchTerm, setSearchTerm] = useState('')
+  const productsQuery = useCursorLookup<InventoryItemResponse>('/inventory-items', {
+    includeInactive: activeTab === 'ARCHIVED' ? 'only' : 'false',
+    ...(searchTerm.trim() ? { q: searchTerm.trim() } : {}),
+  })
+  const focusedProductQuery = useProduct(focusTarget?.productId ?? 0)
+  const allProducts = useMemo(() => {
+    const items = productsQuery.items
+    const focused = focusedProductQuery.data
+    return focusTarget &&
+      focused?.id === focusTarget.productId &&
+      !searchTerm.trim() &&
+      focused.isActive === (activeTab === 'ACTIVE') &&
+      !items.some((item) => item.id === focused.id)
+      ? [...items, focused]
+      : items
+  }, [productsQuery.items, focusedProductQuery.data, focusTarget, searchTerm, activeTab])
   const stockQuery = useStockItems()
-  const allProducts = useMemo(() => productsQuery.data ?? [], [productsQuery.data])
   const stockItems = useMemo(() => stockQuery.data ?? [], [stockQuery.data])
   const { isAdmin, isManager } = useAuth()
 
-  const [internalActiveTab, setInternalActiveTab] = useState<'ACTIVE' | 'ARCHIVED'>('ACTIVE')
-  const activeTab = controlledActiveTab ?? internalActiveTab
   const handleTabChange = (tab: 'ACTIVE' | 'ARCHIVED') => {
     setSelectedPage(1)
     setSearchTerm('')
@@ -97,7 +119,6 @@ export function InventoryItemCatalog({
     else setInternalActiveTab(tab)
   }
 
-  const [searchTerm, setSearchTerm] = useState('')
   const [expandedProductIds, setExpandedProductIds] = useState<Set<number>>(
     () => new Set(focusTarget ? [focusTarget.productId] : []),
   )
@@ -115,6 +136,8 @@ export function InventoryItemCatalog({
     onViewArchive: () => handleTabChange('ARCHIVED'),
   })
   const reactivateProductMutation = useReactivateProduct()
+
+  const stockComplete = !stockQuery.hasNextPage && !stockQuery.isPending && !stockQuery.isError
 
   // Calculate stock metrics per product
   const productStockMap = useMemo(() => buildCatalogStockMap(stockItems), [stockItems])
@@ -157,7 +180,9 @@ export function InventoryItemCatalog({
         .filter((product) => !warningScope || warningProductIds.has(product.id))
         .sort((a, b) => {
           const quantity = (id: number) =>
-            productStockMap.get(id)?.totalCents ?? (productStockMap.has(id) ? null : 0n)
+            stockComplete
+              ? (productStockMap.get(id)?.totalCents ?? (productStockMap.has(id) ? null : 0n))
+              : null
           return (
             stockConditionRank[stockCondition(quantity(a.id))] -
               stockConditionRank[stockCondition(quantity(b.id))] ||
@@ -165,7 +190,7 @@ export function InventoryItemCatalog({
             a.id - b.id
           )
         }),
-    [currentList, searchTerm, productStockMap, warningScope, warningProductIds],
+    [currentList, searchTerm, productStockMap, warningScope, warningProductIds, stockComplete],
   )
 
   const handleCreateProduct = () => {
@@ -192,6 +217,7 @@ export function InventoryItemCatalog({
 
   const isLoading =
     productsQuery.isLoading ||
+    Boolean(focusTarget && focusedProductQuery.isLoading) ||
     stockQuery.isLoading ||
     Boolean(warningScope && warehousesQuery.isLoading)
 
@@ -301,11 +327,14 @@ export function InventoryItemCatalog({
       sortable: true,
       sortKey: (row) =>
         stockSortKey(
-          productStockMap.get(row.id)?.totalCents ?? (productStockMap.has(row.id) ? null : 0n),
+          stockComplete
+            ? (productStockMap.get(row.id)?.totalCents ?? (productStockMap.has(row.id) ? null : 0n))
+            : null,
         ),
       cell: ({ row }) => {
-        const total =
-          productStockMap.get(row.id)?.totalCents ?? (productStockMap.has(row.id) ? null : 0n)
+        const total = stockComplete
+          ? (productStockMap.get(row.id)?.totalCents ?? (productStockMap.has(row.id) ? null : 0n))
+          : null
         return (
           <div className="flex min-w-0 items-center justify-center gap-1 text-sm font-normal">
             {row.isActive && (
@@ -319,7 +348,7 @@ export function InventoryItemCatalog({
               total > 0n &&
               productStockMap
                 .get(row.id)
-                ?.allocations.some((stock) => parseStockCents(stock.quantity) === 0n) && (
+                ?.allocations.some((stock) => stockConditionForItem(stock) === 'OUT') && (
                 <StockIndicator
                   condition="OUT"
                   label="Out of stock at some locations. Expand Locations for details."
@@ -352,10 +381,10 @@ export function InventoryItemCatalog({
       width: '16%',
       align: 'center',
       sortable: true,
-      sortKey: (row) => productStockMap.get(row.id)?.warehouseCount ?? 0,
+      sortKey: (row) => (stockComplete ? (productStockMap.get(row.id)?.warehouseCount ?? 0) : null),
       cell: ({ row }) => {
         const warehouseCount = productStockMap.get(row.id)?.warehouseCount ?? 0
-        if (warehouseCount === 0) {
+        if (warehouseCount === 0 && stockComplete) {
           return (
             <span className="text-xs text-muted-foreground">
               <span className="sm:hidden">0 loc.</span>
@@ -372,9 +401,13 @@ export function InventoryItemCatalog({
             controls={`inventory-locations-${row.id}`}
             ariaLabel={`${isExpanded ? 'Hide' : 'Show'} stock by location for ${row.name}`}
           >
-            <span className="sm:hidden">{warehouseCount} loc.</span>
+            <span className="sm:hidden">
+              {warehouseCount}
+              {stockComplete ? '' : '+'} loc.
+            </span>
             <span className="hidden sm:inline">
-              {warehouseCount} {warehouseCount === 1 ? 'Warehouse' : 'Warehouses'}
+              {warehouseCount}
+              {stockComplete ? '' : '+'} {warehouseCount === 1 ? 'Warehouse' : 'Warehouses'}
             </span>
           </DataTableExpandToggle>
         )
@@ -419,9 +452,7 @@ export function InventoryItemCatalog({
               String(a.warehouse?.name ?? '').localeCompare(String(b.warehouse?.name ?? '')),
             )
             .map((stock) => {
-              const quarantined = parseStockCents(
-                stock.quarantinedQuantity ?? stock.damagedQuantity ?? '0',
-              )
+              const quarantined = parseStockCents(stock.quarantinedQuantity)
               return (
                 <div
                   key={stock.id}
@@ -573,7 +604,8 @@ export function InventoryItemCatalog({
           </Button>
           <p className="w-full text-xs text-muted-foreground">
             Warnings use available stock at each active warehouse. Product totals include all
-            warehouses. Low-stock detection requires configured reorder thresholds.
+            warehouses once all stock records are loaded. Low-stock detection requires configured
+            reorder thresholds.
           </p>
         </section>
       )}
@@ -583,7 +615,7 @@ export function InventoryItemCatalog({
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
           <Input
             aria-label="Search inventory"
-            placeholder="Search product, variety, or description..."
+            placeholder="Search product names..."
             value={searchTerm}
             onChange={(e) => {
               setSearchTerm(e.target.value)
@@ -594,17 +626,17 @@ export function InventoryItemCatalog({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-        {reportAction}
-        {(isAdmin || isManager) && activeTab === 'ACTIVE' && (
-          <Button
-            onClick={handleCreateProduct}
-            size="sm"
-            className="gap-1.5 font-medium cursor-pointer shrink-0"
-          >
-            <Plus className="size-4" />
-            Register Product
-          </Button>
-        )}
+          {reportAction}
+          {(isAdmin || isManager) && activeTab === 'ACTIVE' && (
+            <Button
+              onClick={handleCreateProduct}
+              size="sm"
+              className="gap-1.5 font-medium cursor-pointer shrink-0"
+            >
+              <Plus className="size-4" />
+              Register Product
+            </Button>
+          )}
         </div>
       </PageToolbar>
 
@@ -621,8 +653,8 @@ export function InventoryItemCatalog({
             variant="link"
             size="sm"
             onClick={() => {
-              if (productsQuery.isError) void productsQuery.refetch()
-              if (stockQuery.isError) void stockQuery.refetch()
+              if (productsQuery.isError) void productsQuery.reload()
+              if (stockQuery.isError) void stockQuery.reload()
               if (warningScope && warehousesQuery.isError) void warehousesQuery.refetch()
             }}
           >
@@ -633,14 +665,39 @@ export function InventoryItemCatalog({
       {focusTarget &&
         !isLoading &&
         !productsQuery.isError &&
+        !focusedProductQuery.isError &&
         !stockQuery.isError &&
-        (!targetProduct || !targetStock) && (
+        (!targetProduct || (!targetStock && stockComplete)) && (
           <p role="status" className="text-xs text-muted-foreground">
             {!targetProduct
               ? 'This product is archived or no longer available. Browse active inventory below.'
               : 'This stock location is no longer available. Review the current locations below.'}
           </p>
         )}
+      {focusTarget && focusedProductQuery.isError && (
+        <p role="alert" className="text-xs text-destructive">
+          The selected product could not be loaded.{' '}
+          <Button variant="link" onClick={() => void focusedProductQuery.refetch()}>
+            Retry selected product
+          </Button>
+        </p>
+      )}
+      <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground">
+        <p>
+          {productsQuery.items.length} loaded {activeTab === 'ARCHIVED' ? 'archived' : 'active'}{' '}
+          products. Tab counts describe loaded records.
+        </p>
+        {productsQuery.hasNextPage && (
+          <Button
+            variant="outline"
+            disabled={productsQuery.isFetching}
+            onClick={() => void productsQuery.fetchNextPage()}
+          >
+            Load more products
+          </Button>
+        )}
+      </div>
+      <StockPagingControls {...stockQuery} />
       {/* Reusable DataTable Component */}
       {!productsQuery.isError &&
         !stockQuery.isError &&
@@ -650,15 +707,17 @@ export function InventoryItemCatalog({
             emptyContent={
               warningScope ? (
                 <p role="status" className="px-4 py-8 text-center text-sm text-muted-foreground">
-                  {searchTerm
-                    ? 'No warning items match your search.'
-                    : warningScope.warningFilter === 'LOW'
-                      ? 'No low-stock items can be identified without configured reorder thresholds.'
-                      : warningScope.warningFilter === 'OUT'
-                        ? 'No out-of-stock items for the selected warehouses.'
-                        : warningScope.warehouseId
-                          ? 'No warnings for the selected warehouse.'
-                          : 'No stock warnings.'}
+                  {!stockComplete
+                    ? 'No warning items in loaded stock records. Load more stock records to continue checking.'
+                    : searchTerm
+                      ? 'No warning items match your search.'
+                      : warningScope.warningFilter === 'LOW'
+                        ? 'No low-stock items can be identified without configured reorder thresholds.'
+                        : warningScope.warningFilter === 'OUT'
+                          ? 'No out-of-stock items for the selected warehouses.'
+                          : warningScope.warehouseId
+                            ? 'No warnings for the selected warehouse.'
+                            : 'No stock warnings.'}
                 </p>
               ) : undefined
             }
@@ -675,8 +734,10 @@ export function InventoryItemCatalog({
             pageSizeOptions={[10, 25, 50, 100]}
             tableClassName="table-fixed w-full"
             rowClassName={(row) => {
-              const total =
-                productStockMap.get(row.id)?.totalCents ?? (productStockMap.has(row.id) ? null : 0n)
+              const total = stockComplete
+                ? (productStockMap.get(row.id)?.totalCents ??
+                  (productStockMap.has(row.id) ? null : 0n))
+                : null
               const condition = stockCondition(total)
               return row.isActive === false
                 ? 'opacity-75 bg-background'

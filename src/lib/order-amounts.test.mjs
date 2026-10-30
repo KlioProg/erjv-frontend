@@ -112,10 +112,13 @@ test('VAT and discount rounding happen per line, not once on the whole order', (
   assert.equal(free.vat, '0.00')
 })
 
-test('stock limits use unreserved quantities exactly and handle missing or depleted sources', () => {
-  assert.equal(availableStock({ quantity: '0.30', reservedQuantity: '0.20' }), 10n)
-  assert.equal(availableStock({ quantity: '10.50' }), 1050n)
-  assert.equal(availableStock({ quantity: '1', reservedQuantity: '2' }), 0n)
+test('stock limits use authoritative available quantities and reject missing or malformed balances', () => {
+  assert.equal(availableStock({ onHandQuantity: '0.30', availableQuantity: '0.10', inTransitQuantity: '0.20' }), 10n)
+  assert.equal(availableStock({ onHandQuantity: '20', availableQuantity: '10.50', quarantinedQuantity: '9.50' }), 1050n)
+  assert.equal(availableStock({ availableQuantity: '0' }), 0n)
+  for (const availableQuantity of [undefined, null, '', 'bad', '-1', '1.001']) {
+    assert.equal(availableStock({ onHandQuantity: '10', availableQuantity }), 0n)
+  }
   assert.equal(availableStock(), 0n)
 })
 

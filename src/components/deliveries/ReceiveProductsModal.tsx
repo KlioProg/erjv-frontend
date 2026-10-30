@@ -31,7 +31,7 @@ export function ReceiveProductsModal(props: {
 } & ({ delivery: IncomingDeliveryRecord; deliveryId?: never } | { deliveryId: number; delivery?: never })) {
   const current = useIncomingDeliveryById(props.deliveryId)
   const delivery = props.delivery ?? current.data
-  if (delivery) return <ReceiveProductsForm delivery={delivery} onClose={props.onClose} />
+  if (delivery) return <ReceiveProductsForm key={delivery.id} delivery={delivery} onClose={props.onClose} />
   return (
     <Dialog open onOpenChange={(open) => !open && props.onClose()}>
       <DialogContent>
@@ -39,6 +39,8 @@ export function ReceiveProductsModal(props: {
           <DialogTitle>Receive Goods</DialogTitle>
           <DialogDescription>{current.isError ? 'Unable to load delivery. Close and retry.' : 'Loading delivery…'}</DialogDescription>
         </DialogHeader>
+        {current.isError && <Alert variant="destructive"><AlertDescription>Delivery details could not be loaded.</AlertDescription></Alert>}
+        {current.isError && <Button type="button" disabled={current.isFetching} onClick={() => void current.refetch()}>Refresh receipt data</Button>}
       </DialogContent>
     </Dialog>
   )

@@ -34,7 +34,7 @@ export function ExecutiveDashboard() {
   const [period, setPeriod] = useState<'This week' | 'This month' | 'This year'>('This week')
   const [yearPeriod, setYearPeriod] = useState<'2026' | '2025'>('2026')
 
-  const deliveriesInProgress = vehicles.filter((v) => v.status === 'IN_DELIVERY').length
+  const deliveriesInProgress = vehicles.filter((v) => v.activeRunId != null).length
 
   return (
     <div className="flex flex-col gap-6">

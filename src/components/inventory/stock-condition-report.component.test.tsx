@@ -14,7 +14,15 @@ const stock = {
   id: 4,
   inventoryItemId: 1,
   warehouseId: 2,
-  quantity: '20.00',
+  onHandQuantity: '20.00',
+  revision: 1,
+  inTransitQuantity: '0.00',
+  quarantinedQuantity: '0.00',
+  conditionQuantities: { DAMAGED: '0.00', SPOILED: '0.00' },
+  reorderThreshold: null,
+  stockStatus: 'NORMAL',
+  createdAt: '',
+  updatedAt: '',
   availableQuantity: '12.00',
   inventoryItem: { id: 1, name: 'Rice', unit: 'kg' },
   warehouse: { id: 2, name: 'Main Warehouse' },
@@ -76,7 +84,13 @@ it('keeps the exact payload and UUID across timeout, unmount, and an explicit re
       return { config, status: 200, statusText: '', headers: {}, data: [] }
     bodies.push(JSON.parse(config.data))
     if (bodies.length === 1) throw new AxiosError('timeout', 'ECONNABORTED')
-    return { config, status: 201, statusText: '', headers: {}, data: { id: 9 } }
+    return {
+      config,
+      status: 201,
+      statusText: '',
+      headers: {},
+      data: { id: 9, ...JSON.parse(config.data) },
+    }
   }
   const first = setup()
   fill()
@@ -182,7 +196,13 @@ it('selects the actual warehouse stock record and condition without changing phy
     expect(config.method).toBe('post')
     expect(config.url).toBe('/stock-items/quarantine-lots')
     bodies.push(JSON.parse(config.data))
-    return { config, status: 201, statusText: '', headers: {}, data: { id: 9 } }
+    return {
+      config,
+      status: 201,
+      statusText: '',
+      headers: {},
+      data: { id: 9, ...JSON.parse(config.data) },
+    }
   }
   const client = new QueryClient()
   cacheWarehouses(client)

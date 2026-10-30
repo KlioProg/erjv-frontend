@@ -30,24 +30,22 @@ import {
 import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
-  useAllDeliveryVehicles,
   useDeactivateVehicle,
   useReactivateVehicle,
   useUpdateVehicleStatus,
 } from '@/features/logistics/delivery-vehicles.hooks'
-import { useOutgoingDeliveries } from '@/features/logistics/outgoing-deliveries.hooks'
-import { useSalesOrders } from '@/features/crm/sales-orders.hooks'
-import { useClients } from '@/features/crm/clients.hooks'
-import { useEmployees } from '@/features/staffing/staffing.hooks'
+import { useCursorLookup } from '@/lib/use-cursor-lookup'
+import { useDeliveryRuns } from '@/features/logistics/delivery-runs.hooks'
+import { useNavigate } from 'react-router'
+import { ROUTES } from '@/routes'
 import { useAuth } from '@/features/auth/AuthContext'
-import type { DeliveryVehicle, VehicleStatus } from '@/features/logistics/delivery-vehicles.types'
+import type { DeliveryVehicle, VehicleStatus, VehicleOperationalStatus } from '@/features/logistics/delivery-vehicles.types'
 import {
   getVehicleAssignments,
   getVehicleAvailabilityStatus,
   getVehicleCondition,
 } from '@/features/logistics/vehicle-assignment'
 import { VehicleStatusBadge } from '@/components/deliveries/shared/VehicleStatusBadge'
-import { DeliveryDetailModal } from '@/components/deliveries/shared/DeliveryDetailModal'
 import { VehicleModal } from './VehicleModal'
 import { toast } from 'sonner'
 
@@ -65,15 +63,15 @@ export function VehicleList() {
   const [editVehicleId, setEditVehicleId] = useState<number | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [viewVehicleId, setViewVehicleId] = useState<number | null>(null)
-  const [historyDeliveryId, setHistoryDeliveryId] = useState<number | null>(null)
+  const navigate = useNavigate()
   const [archiveId, setArchiveId] = useState<number | null>(null)
-  const vehicleQuery = useAllDeliveryVehicles()
-  const { data: vehicles = [] } = vehicleQuery
-  const deliveryQuery = useOutgoingDeliveries()
-  const { data: deliveries = [] } = deliveryQuery
-  const { data: salesOrders = [] } = useSalesOrders()
-  const { data: clients = [] } = useClients({ includeInactive: 'true' })
-  const { data: employees = [] } = useEmployees({ includeInactive: 'true' })
+  const vehicleQuery = useCursorLookup<DeliveryVehicle>('/delivery-vehicles', {
+    includeInactive: activeTab === 'ARCHIVED' ? 'only' : 'false',
+    ...(search.trim() ? { q: search.trim() } : {}),
+  })
+  const vehicles = vehicleQuery.items
+  const deliveryQuery = useDeliveryRuns({ statuses: ['DISPATCHED'] })
+  const deliveries = deliveryQuery.data?.pages.flatMap((page) => page.items) ?? []
   const deactivate = useDeactivateVehicle({ onViewArchive: () => setActiveTab('ARCHIVED') })
   const reactivate = useReactivateVehicle()
   const updateStatus = useUpdateVehicleStatus()
@@ -82,15 +80,14 @@ export function VehicleList() {
   const pending = deactivate.isPending || reactivate.isPending || updateStatus.isPending
   const rows: VehicleRow[] = vehicles.map((vehicle) => {
     const assignments = getVehicleAssignments(vehicle.id, deliveries)
-    const drivers = assignments.flatMap((delivery) => {
-      const employee = employees.find((employee) => employee.id === delivery.driverEmployeeId)
-      return employee ? [`${employee.firstName} ${employee.lastName}`] : []
-    })
+    const drivers = assignments.flatMap((run) =>
+      run.driverEmployeeId == null ? [] : [`Employee #${run.driverEmployeeId}`],
+    )
     return {
       vehicle,
       condition: CONDITIONS[getVehicleCondition(vehicle)],
       status: getVehicleAvailabilityStatus(vehicle, deliveries),
-      assignment: assignments.map((delivery) => delivery.deliveryNumber).join(', ') || '—',
+      assignment: assignments.map((delivery) => delivery.runNumber).join(', ') || '—',
       driver: [...new Set(drivers)].join(', ') || '—',
     }
   })
@@ -112,13 +109,13 @@ export function VehicleList() {
   const canChangeCondition = (vehicle: DeliveryVehicle) =>
     !deliveryQuery.isPending &&
     !deliveryQuery.isError &&
-    getVehicleAssignments(vehicle.id, deliveries).length === 0
-  const changeCondition = (vehicle: DeliveryVehicle, status: VehicleStatus) => {
+    vehicle.activeRunId == null && getVehicleAssignments(vehicle.id, deliveries).length === 0
+  const changeCondition = (vehicle: DeliveryVehicle, operationalStatus: VehicleOperationalStatus) => {
     if (!canChangeCondition(vehicle)) {
       toast.error('Finish or cancel the active delivery before changing this vehicle’s condition.')
       return
     }
-    updateStatus.mutate({ id: vehicle.id, status })
+    updateStatus.mutate({ id: vehicle.id, operationalStatus })
   }
   const columns: ColumnDef<VehicleRow>[] = [
     {
@@ -130,8 +127,8 @@ export function VehicleList() {
         <div className="flex flex-col gap-1">
           <span className="font-medium">{row.vehicle.model || row.vehicle.vehicleType}</span>
           <span className="text-xs text-muted-foreground">
-            {row.vehicle.capacity
-              ? `${Number(row.vehicle.capacity).toLocaleString()} kg capacity`
+            {row.vehicle.capacityKg
+              ? `${Number(row.vehicle.capacityKg).toLocaleString()} kg capacity`
               : 'Capacity not specified'}
           </span>
         </div>
@@ -175,9 +172,9 @@ export function VehicleList() {
               variant="link"
               size="sm"
               className="justify-start text-[13px]"
-              onClick={() => setHistoryDeliveryId(delivery.id)}
+              onClick={() => navigate(`${ROUTES.deliveryRuns}?run=${delivery.id}`)}
             >
-              {delivery.deliveryNumber}
+              {delivery.runNumber}
             </Button>
           ))}
           {row.assignment === '—' && '—'}
@@ -241,9 +238,9 @@ export function VehicleList() {
                         disabled={
                           pending ||
                           !canChangeCondition(row.vehicle) ||
-                          row.vehicle.status === 'AVAILABLE'
+                          row.vehicle.operationalStatus === 'SERVICEABLE'
                         }
-                        onClick={() => changeCondition(row.vehicle, 'AVAILABLE')}
+                        onClick={() => changeCondition(row.vehicle, 'SERVICEABLE')}
                       >
                         Return to Service
                       </DropdownMenuItem>
@@ -252,7 +249,7 @@ export function VehicleList() {
                         disabled={
                           pending ||
                           !canChangeCondition(row.vehicle) ||
-                          row.vehicle.status === 'IN_DELIVERY'
+                          !row.vehicle.isAvailable
                         }
                         onClick={() => setArchiveId(row.vehicle.id)}
                       >
@@ -320,6 +317,7 @@ export function VehicleList() {
         activeIcon={<Truck className="size-3.5" />}
         bannerDescription="Archived ERJV vehicles remain linked to their historical deliveries and can be restored."
       />
+      <p className="text-xs text-muted-foreground">Counts and assignments below reflect loaded results. Search or load more vehicles to expand this view.</p>
       <dl
         aria-label="Fleet status overview"
         className="grid grid-cols-2 gap-3 rounded-lg border border-border bg-secondary/40 p-3 sm:grid-cols-3 lg:grid-cols-5"
@@ -338,7 +336,7 @@ export function VehicleList() {
           <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             aria-label="Search vehicles"
-            placeholder="Search plate, model, type, assignment, or driver..."
+            placeholder="Search plate, model, or vehicle type..."
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             className="h-9 pl-9 text-[13px]"
@@ -410,26 +408,20 @@ export function VehicleList() {
           </div>
         }
       />
+      {vehicleQuery.hasNextPage && <Button variant="outline" disabled={vehicleQuery.isFetching}
+        onClick={() => void vehicleQuery.fetchNextPage()}>Load more vehicles</Button>}
       <VehicleModal
         vehicle={vehicles.find((vehicle) => vehicle.id === editVehicleId) || null}
         open={isModalOpen}
         onClose={() => setIsModalOpen(false)}
       />
-      <VehicleDetailModal
+      {viewVehicle && <VehicleDetailModal
         key={viewVehicleId ?? 'vehicle'}
         viewVehicle={viewVehicle}
-        deliveries={deliveries}
-        salesOrders={salesOrders}
-        clients={clients}
-        open={viewVehicleId !== null && historyDeliveryId === null}
+        open={viewVehicleId !== null}
         onClose={() => setViewVehicleId(null)}
-        onViewDelivery={setHistoryDeliveryId}
-      />
-      <DeliveryDetailModal
-        deliveryId={historyDeliveryId}
-        open={historyDeliveryId !== null}
-        onClose={() => setHistoryDeliveryId(null)}
-      />
+        onViewRun={(id) => navigate(`${ROUTES.deliveryRuns}?run=${id}`)}
+      />}
       <ConfirmDeleteModal
         open={archiveId !== null}
         onClose={() => setArchiveId(null)}
@@ -437,7 +429,7 @@ export function VehicleList() {
           if (
             archiveVehicle &&
             canChangeCondition(archiveVehicle) &&
-            archiveVehicle.status !== 'IN_DELIVERY'
+            archiveVehicle.isAvailable
           )
             await deactivate.mutateAsync(archiveVehicle)
           else throw new Error('Vehicle has an active delivery assignment.')

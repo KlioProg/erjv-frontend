@@ -20,10 +20,10 @@ import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { DataTableActions } from '@/components/ui/DataTableActions'
 import {
-  useAllEmployees,
   useDeactivateEmployee,
   useReactivateEmployee,
 } from '@/features/staffing/staffing.hooks'
+import { useCursorLookup } from '@/lib/use-cursor-lookup'
 import type { Employee } from '@/features/staffing/staffing.types'
 import { EmployeeModal } from './EmployeeModal'
 import { EmployeePositionSelector } from './EmployeePositionSelector'
@@ -31,12 +31,17 @@ import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal'
 
 export function EmployeeList() {
   const [activeTab, setActiveTab] = useState<'ACTIVE' | 'ARCHIVED'>('ACTIVE')
-  const { data: allEmployees = [], isLoading, isFetching, error, refetch } = useAllEmployees()
   const deactivateMutation = useDeactivateEmployee({
     onViewArchive: () => setActiveTab('ARCHIVED'),
   })
   const reactivateMutation = useReactivateEmployee()
   const [searchQuery, setSearchQuery] = useState('')
+  const employeeQuery = useCursorLookup<Employee>('/employees', {
+    includeInactive: activeTab === 'ARCHIVED' ? 'only' : 'false',
+    ...(searchQuery.trim() ? { q: searchQuery.trim() } : {}),
+  })
+  const { isLoading, isFetching, error, refetch } = employeeQuery
+  const allEmployees = employeeQuery.items
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [employeeToDeactivate, setEmployeeToDeactivate] = useState<Employee | null>(null)
@@ -221,6 +226,7 @@ export function EmployeeList() {
       header: 'Hire Date',
       cell: ({ row }) => renderEmployeeCell(row, 'hireDate'),
     },
+    { id: 'driving', header: 'Driving Eligibility', cell: ({ row }) => row.canDrive ? 'Eligible driver' : 'Not eligible' },
     {
       id: 'user-account',
       header: 'User Account',
@@ -273,6 +279,7 @@ export function EmployeeList() {
         )}
       </PageToolbar>
 
+      <p className="text-xs text-muted-foreground">Counts reflect loaded results. Search or load more staff to expand this view.</p>
       {/* Employees Table Card */}
       <div className="min-w-0">
         {isLoading ? (
@@ -347,6 +354,8 @@ export function EmployeeList() {
         )}
       </div>
 
+      {employeeQuery.hasNextPage && <Button variant="outline" disabled={isFetching}
+        onClick={() => void employeeQuery.fetchNextPage()}>Load more staff</Button>}
       {/* Registration & Edit Modal */}
       <EmployeeModal
         employee={selectedEmployee}

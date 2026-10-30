@@ -16,7 +16,7 @@ describe('saved order confirmation', () => {
   })
 
   it('confirms an existing draft without creating, and ignores further submits after success', async () => {
-    const savedDraft = { id: 42, orderNumber: 'ORDER-42', status: 'DRAFT' }
+    const savedDraft = { id: 42, revision: 3, orderNumber: 'ORDER-42', status: 'DRAFT' }
     const confirmed = { ...savedDraft, status: 'CONFIRMED' }
     const create = vi.fn()
     const onConfirm = vi.fn().mockResolvedValue(confirmed)
@@ -28,7 +28,7 @@ describe('saved order confirmation', () => {
     await act(() => result.current.submit(create, true))
     await act(() => result.current.submit(create, true))
     expect(create).not.toHaveBeenCalled()
-    expect(onConfirm.mock.calls).toEqual([[42]])
+    expect(onConfirm.mock.calls).toEqual([[42, 3]])
     expect(onConfirmed.mock.calls).toEqual([[confirmed]])
     expect(onClose).toHaveBeenCalledOnce()
   })
@@ -37,7 +37,7 @@ describe('saved order confirmation', () => {
     { id: 42, orderNumber: 'ORDER-42', status: 'DRAFT' },
     { id: 99, orderNumber: 'ORDER-99', status: 'CONFIRMED' },
   ])('requires the matching confirmed response before showing success: %j', async (response) => {
-    const savedDraft = { id: 42, orderNumber: 'ORDER-42', status: 'DRAFT' }
+    const savedDraft = { id: 42, revision: 3, orderNumber: 'ORDER-42', status: 'DRAFT' }
     const create = vi.fn()
     const onConfirm = vi.fn().mockResolvedValue(response)
     const onConfirmed = vi.fn()

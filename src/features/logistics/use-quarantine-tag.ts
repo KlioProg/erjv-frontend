@@ -2,12 +2,14 @@ import { useRef, useState } from 'react'
 import { isAxiosError } from 'axios'
 import { toast } from 'sonner'
 import { useAuth } from '@/features/auth/AuthContext'
-import { useStockItems } from './stock-items.hooks'
-import { useWarehouses } from './warehouses.hooks'
-import { useProducts } from '@/features/products/products.hooks'
+import { useWarehouseStock } from './stock-items.hooks'
+import { useStockMetadata } from './use-stock-metadata'
+import { useCursorLookup } from '@/lib/use-cursor-lookup'
+import type { Warehouse } from './warehouses.types'
+import { useWarehouse } from './warehouses.hooks'
 import { useCreateManualQuarantine, useRefreshQuarantine } from './quarantine.hooks'
-import { fetchQuarantineLotsApi } from './stock-items.api'
-import type { CreateManualQuarantinePayload } from './stock-items.types'
+import { fetchQuarantineLotsApi } from './quarantine.api'
+import type { CreateManualQuarantinePayload } from './quarantine.types'
 import { parseStockCents } from './stock-display'
 import { getErrorMessage } from '@/lib/api-client'
 
@@ -18,9 +20,12 @@ export function useQuarantineTag(onClose: () => void, stockItemId?: number) {
     isManager ||
     isStaff ||
     ['ADMIN', 'MANAGER', 'SUPERADMIN', 'STAFF'].includes(user?.role ?? '')
-  const stocks = useStockItems(),
-    warehouses = useWarehouses(),
-    products = useProducts()
+  const [stockSearch, setStockSearch] = useState('')
+  const [warehouseSearch, setWarehouseSearch] = useState('')
+  const warehouses = useCursorLookup<Warehouse>('/warehouses', {
+    includeInactive: 'false',
+    ...(warehouseSearch.trim() ? { q: warehouseSearch.trim() } : {}),
+  })
   const create = useCreateManualQuarantine(),
     refresh = useRefreshQuarantine()
   const [warehouseId, setWarehouseId] = useState('')
@@ -35,20 +40,26 @@ export function useQuarantineTag(onClose: () => void, stockItemId?: number) {
   const [uncertain, setUncertain] = useState<CreateManualQuarantinePayload | null>(null)
   const [recorded, setRecorded] = useState(false)
   const lock = useRef(false)
-  const selected = stocks.data?.find((stock) => String(stock.id) === selectedStockId)
+  const metadata = useStockMetadata(Number(selectedStockId) || undefined)
+  const selected = metadata.data
   const currentWarehouseId = warehouseId || (selected ? String(selected.warehouseId) : '')
-  const queries = [stocks, warehouses, products]
-  const loading = queries.some((query) => query.isLoading),
-    fetching = queries.some((query) => query.isFetching)
-  const loadError = queries.find((query) => query.isError)?.error
-  const options = (stocks.data ?? []).filter(
-    (stock) =>
-      String(stock.warehouseId) === currentWarehouseId &&
-      warehouses.data?.some(
-        (warehouse) => warehouse.id === stock.warehouseId && warehouse.isActive,
-      ) &&
-      products.data?.some((product) => product.id === stock.inventoryItemId && product.isActive),
-  )
+  const warehouse = useWarehouse(Number(currentWarehouseId) || undefined)
+  const stocks = useWarehouseStock(Number(currentWarehouseId) || undefined, {
+    q: stockSearch.trim() || undefined,
+  })
+  const loading = Boolean(selectedStockId) && metadata.isPending
+  const fetching = Boolean(selectedStockId) && (metadata.isFetching || warehouse.isFetching)
+  const loadError = selectedStockId ? metadata.error ?? warehouse.error : null
+  const options = stocks.data
+  const selectedValid =
+    !!selected &&
+    selected.id === Number(selectedStockId) &&
+    String(selected.warehouseId) === currentWarehouseId &&
+    selected.inventoryItem.isActive &&
+    selected.warehouse.isActive &&
+    !warehouse.isError &&
+    warehouse.data?.id === selected.warehouseId &&
+    warehouse.data.isActive
   const available = parseStockCents(selected?.availableQuantity)
   const finish = () => {
     toast.success('Stock recorded in quarantine')
@@ -59,13 +70,29 @@ export function useQuarantineTag(onClose: () => void, stockItemId?: number) {
     setBusy(true)
     try {
       await refresh()
+      if (selectedStockId) {
+        const checked = await metadata.refetch()
+        if (checked.isError) throw checked.error
+      }
+      if (currentWarehouseId) await warehouse.refetch()
       if (recorded) {
         finish()
         return
       }
       if (uncertain) {
-        const lots = await fetchQuarantineLotsApi({ stockItemId: uncertain.stockItemId })
-        const lot = lots.find((lot) => lot.requestId === uncertain.requestId)
+        let page = await fetchQuarantineLotsApi({ stockItemId: uncertain.stockItemId })
+        let lot = page.items.find((lot) => lot.requestId === uncertain.requestId)
+        const cursors = new Set<string>()
+        while (!lot && page.nextCursor) {
+          if (cursors.has(page.nextCursor))
+            throw Error('The server repeated a cursor. Reload quarantine lots.')
+          cursors.add(page.nextCursor)
+          page = await fetchQuarantineLotsApi({
+            stockItemId: uncertain.stockItemId,
+            cursor: page.nextCursor,
+          })
+          lot = page.items.find((lot) => lot.requestId === uncertain.requestId)
+        }
         if (
           lot &&
           lot.stockItemId === uncertain.stockItemId &&
@@ -99,6 +126,7 @@ export function useQuarantineTag(onClose: () => void, stockItemId?: number) {
       loading ||
       fetching ||
       loadError ||
+      warehouse.isFetching ||
       !canTag ||
       needsReview ||
       recorded
@@ -109,7 +137,7 @@ export function useQuarantineTag(onClose: () => void, stockItemId?: number) {
       const amount = parseStockCents(quantity)
       if (
         !selected ||
-        !options.some((stock) => stock.id === selected.id) ||
+        !selectedValid ||
         amount === null ||
         amount <= 0n ||
         available === null ||
@@ -159,20 +187,52 @@ export function useQuarantineTag(onClose: () => void, stockItemId?: number) {
   }
   return {
     canTag,
+    setStockSearch,
+    setWarehouseSearch,
+    warehousesHaveMore: warehouses.hasNextPage,
+    loadMoreWarehouses: () => warehouses.fetchNextPage(),
+    warehousesFetching: warehouses.isFetching,
+    warehousesLoading: warehouses.isPending,
+    warehousesError: warehouses.error,
+    reloadWarehouses: warehouses.reload,
+    stocksLoading: !!currentWarehouseId && stocks.isPending,
+    stocksFetching: stocks.isFetching,
+    stocksError: stocks.error,
+    reloadStocks: stocks.reload,
+    warehouseLabel: warehouse.data?.name ?? selected?.warehouse.name,
+    selectionIssue:
+      selectedStockId &&
+      !loading &&
+      !fetching &&
+      !loadError &&
+      (!selectedValid || available === null || available <= 0n)
+        ? 'The selected stock record is inactive, unavailable, or outside the selected warehouse. Choose another record or refresh its details.'
+        : '',
+    stocksHaveMore: stocks.hasNextPage,
+    loadMoreStocks: () => stocks.fetchNextPage(),
     warehouseId: currentWarehouseId,
     setWarehouseId: (value: string) => {
+      if (value === currentWarehouseId) return
       setWarehouseId(value)
       setSelectedStockId('')
+      setStockSearch('')
+      setQuantity('')
+      setError('')
     },
     stockId: selectedStockId,
-    setStockId: setSelectedStockId,
+    setStockId: (value: string) => {
+      if (value === selectedStockId) return
+      setSelectedStockId(value)
+      setQuantity('')
+      setError('')
+    },
     condition,
     setCondition,
     quantity,
     setQuantity,
     reason,
     setReason,
-    warehouses: (warehouses.data ?? []).filter((warehouse) => warehouse.isActive),
+    warehouses: warehouses.items.filter((warehouse) => warehouse.isActive),
     stocks: options,
     selected,
     available,
@@ -180,8 +240,17 @@ export function useQuarantineTag(onClose: () => void, stockItemId?: number) {
     loading,
     fetching,
     busy,
-    canEdit: canTag && !busy && !loading && !fetching && !loadError && !uncertain && !recorded,
-    canSubmit: canTag && !busy && !loading && !fetching && !loadError && !needsReview && !recorded,
+    canEdit: canTag && !busy && !uncertain && !recorded,
+    canSubmit:
+      canTag &&
+      !busy &&
+      !loading &&
+      !fetching &&
+      !loadError &&
+      !warehouse.isFetching &&
+      !needsReview &&
+      !recorded &&
+      (!!uncertain || (!!selectedValid && available !== null && available > 0n)),
     retrying: !!uncertain,
     submit,
     refreshData,

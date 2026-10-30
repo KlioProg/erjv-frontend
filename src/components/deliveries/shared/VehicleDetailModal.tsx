@@ -17,9 +17,9 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import type { DeliveryVehicle } from '@/features/logistics/delivery-vehicles.types'
-import type { OutgoingDeliveryRecord } from '@/features/logistics/outgoing-deliveries.types'
-import type { SalesOrderRecord } from '@/features/crm/sales-orders.types'
-import type { Client } from '@/features/crm/clients.types'
+import type { DeliveryRunRecord } from '@/features/logistics/delivery-runs.types'
+import { useCursorLookup } from '@/lib/use-cursor-lookup'
+import { getErrorMessage } from '@/lib/api-client'
 import {
   getVehicleAssignments,
   getVehicleCondition,
@@ -28,36 +28,31 @@ import {
   VEHICLE_AVAILABILITY_LABELS as STATUS_LABELS,
 } from '@/features/logistics/vehicle-assignment'
 import { DeliveryUtils } from '@/features/logistics/delivery-utils'
-import { DeliveryStatusBadge } from './DeliveryStatusBadge'
 
 export function VehicleDetailModal({
   viewVehicle,
-  deliveries,
-  salesOrders,
-  clients,
   open,
   onClose,
-  onViewDelivery,
+  onViewRun,
 }: {
   viewVehicle?: DeliveryVehicle
-  deliveries: OutgoingDeliveryRecord[]
-  salesOrders: SalesOrderRecord[]
-  clients: Client[]
   open: boolean
   onClose: () => void
-  onViewDelivery: (id: number) => void
+  onViewRun: (id: number) => void
 }) {
   const [historyStatus, setHistoryStatus] = useState('ALL')
-  const allTrips = deliveries.filter((delivery) => delivery.deliveryVehicleId === viewVehicle?.id)
-  const trips = allTrips.filter(
-    (delivery) => historyStatus === 'ALL' || delivery.status === historyStatus,
-  )
+  const query = useCursorLookup<DeliveryRunRecord>('/delivery-runs', {
+    deliveryVehicleId: viewVehicle?.id,
+    ...(historyStatus !== 'ALL' ? { statuses: [historyStatus] } : {}),
+  }, open && !!viewVehicle)
+  const allTrips = query.items
+  const trips = allTrips
   return (
     <Dialog open={open && !!viewVehicle} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-h-[calc(100svh-2rem)] overflow-y-auto sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>{viewVehicle?.plateNumber || 'Vehicle'}</DialogTitle>
-          <DialogDescription>Vehicle details and delivery history.</DialogDescription>
+          <DialogDescription>Vehicle details and paged run history.</DialogDescription>
         </DialogHeader>
         {viewVehicle && (
           <>
@@ -65,16 +60,16 @@ export function VehicleDetailModal({
               {[
                 ['Model / Make', viewVehicle.model || '—'],
                 ['Vehicle Type', viewVehicle.vehicleType],
-                ['Capacity', viewVehicle.capacity ? `${viewVehicle.capacity} kg` : '—'],
+                ['Capacity', viewVehicle.capacityKg ? `${viewVehicle.capacityKg} kg` : '—'],
                 ['Condition', CONDITIONS[getVehicleCondition(viewVehicle)]],
                 [
                   'Availability / Status',
-                  STATUS_LABELS[getVehicleAvailabilityStatus(viewVehicle, deliveries)],
+                  STATUS_LABELS[getVehicleAvailabilityStatus(viewVehicle, allTrips)],
                 ],
                 [
                   'Current Assignment',
-                  getVehicleAssignments(viewVehicle.id, deliveries)
-                    .map((delivery) => delivery.deliveryNumber)
+                  getVehicleAssignments(viewVehicle.id, allTrips)
+                    .map((delivery) => delivery.runNumber)
                     .join(', ') || '—',
                 ],
               ].map(([label, value]) => (
@@ -87,7 +82,7 @@ export function VehicleDetailModal({
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 text-xs">
               {[
                 ['Trips', allTrips.length],
-                ['Completed', allTrips.filter((trip) => trip.status === 'DELIVERED').length],
+                ['Completed', allTrips.filter((trip) => trip.status === 'COMPLETED').length],
                 ['In Transit', allTrips.filter((trip) => trip.status === 'DISPATCHED').length],
                 ['Cancelled', allTrips.filter((trip) => trip.status === 'CANCELLED').length],
               ].map(([label, count]) => (
@@ -98,28 +93,27 @@ export function VehicleDetailModal({
               ))}
             </div>
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className="text-base font-semibold">Delivery History</h2>
+              <h2 className="text-base font-semibold">Run History</h2>
               <Select value={historyStatus} onValueChange={setHistoryStatus}>
                 <SelectTrigger aria-label="Vehicle history status" className="h-9 w-44 text-[13px]">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectGroup>
-                    <SelectItem value="ALL">All Deliveries</SelectItem>
-                    {['DRAFT', 'SCHEDULED', 'DISPATCHED', 'DELIVERED', 'CANCELLED'].map((value) => (
+                    <SelectItem value="ALL">All Runs</SelectItem>
+                    {['DRAFT', 'DISPATCHED', 'COMPLETED', 'CANCELLED'].map((value) => (
                       <SelectItem key={value} value={value}>
-                        {
-                          DeliveryUtils.getStatusConfig(
-                            value as Parameters<typeof DeliveryUtils.getStatusConfig>[0],
-                          ).label
-                        }
+                        {value}
                       </SelectItem>
                     ))}
                   </SelectGroup>
                 </SelectContent>
               </Select>
             </div>
+            <p className="text-xs text-muted-foreground">Counts reflect loaded runs matching this filter.</p>
+            {query.isError && <p role="alert">{getErrorMessage(query.error)} <Button variant="link" onClick={() => void query.reload()}>Reload runs</Button></p>}
             <DataTable
+              isLoading={query.isLoading}
               data={trips}
               getRowKey={(delivery) => delivery.id}
               tableClassName="min-w-[640px]"
@@ -127,49 +121,42 @@ export function VehicleDetailModal({
                 {
                   id: 'reference',
                   header: 'Reference',
-                  accessorKey: 'deliveryNumber',
+                  accessorKey: 'runNumber',
                   sortable: true,
                 },
                 {
-                  id: 'order',
-                  header: 'Related Order / Customer',
-                  cell: ({ row }) => {
-                    const order = salesOrders.find((order) => order.id === row.salesOrderId)
-                    const client = clients.find((client) => client.id === order?.clientId)
-                    return (
-                      <div className="flex flex-col gap-1">
-                        <span>{order?.orderNumber || `SO #${row.salesOrderId}`}</span>
-                        <span className="text-xs text-muted-foreground">{client?.name || '—'}</span>
-                      </div>
-                    )
-                  },
+                  id: 'members',
+                  header: 'Deliveries',
+                  cell: ({ row }) => row.deliveries.map((member) => member.deliveryNumber).join(', '),
                 },
                 {
                   id: 'date',
                   header: 'Date',
-                  cell: ({ row }) => DeliveryUtils.formatDateTime(row.scheduledAt),
+                  cell: ({ row }) => DeliveryUtils.formatDateTime(row.scheduledDepartureAt),
                 },
                 {
                   id: 'status',
                   header: 'Status',
-                  cell: ({ row }) => <DeliveryStatusBadge status={row.status} />,
+                  cell: ({ row }) => <span>{row.status}</span>,
                 },
                 {
                   id: 'view',
                   header: 'Actions',
                   cell: ({ row }) => (
-                    <Button variant="ghost" size="sm" onClick={() => onViewDelivery(row.id)}>
-                      View Delivery
+                    <Button variant="ghost" size="sm" onClick={() => onViewRun(row.id)}>
+                      View Run
                     </Button>
                   ),
                 },
               ]}
               emptyContent={
                 <p className="py-8 text-center text-xs text-muted-foreground">
-                  No deliveries match this vehicle and status.
+                  No runs match this vehicle and status.
                 </p>
               }
             />
+            {query.hasNextPage && <Button variant="outline" disabled={query.isFetching}
+              onClick={() => void query.fetchNextPage()}>Load more runs</Button>}
           </>
         )}
       </DialogContent>

@@ -16,6 +16,7 @@ export async function fetchCursorList<T>(
   let restarted = false
   let items: T[] = []
   const seen = new Set<string>()
+  const ids = new Set<unknown>()
   for (;;) {
     try {
       const { data } = await apiClient.get<CursorPage<T>>(path, {
@@ -27,7 +28,12 @@ export async function fetchCursorList<T>(
         !(data.nextCursor === null || typeof data.nextCursor === 'string')
       )
         throw new Error('The server returned an invalid list page. Reload before continuing.')
-      items.push(...data.items)
+      for (const item of data.items) {
+        const id = item && typeof item === 'object' && 'id' in item ? item.id : undefined
+        if (id !== undefined && ids.has(id)) continue
+        if (id !== undefined) ids.add(id)
+        items.push(item)
+      }
       if (data.nextCursor === null) return items
       if (!data.nextCursor || data.nextCursor === cursor || seen.has(data.nextCursor))
         throw new Error('The server repeated a list cursor. Reload before continuing.')
@@ -39,6 +45,7 @@ export async function fetchCursorList<T>(
         cursor = undefined
         items = []
         seen.clear()
+        ids.clear()
         continue
       }
       throw error

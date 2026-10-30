@@ -5,13 +5,15 @@ import { MemoryRouter, useLocation, useNavigate } from 'react-router'
 import { beforeEach, afterEach, describe, it, expect, vi } from 'vitest'
 import { toast } from 'sonner'
 import { apiClient } from '@/lib/api-client'
+import { parseStockCents } from '@/features/logistics/stock-display'
+import { decimalString } from '@/lib/order-amounts'
 import { AppRoutes } from '@/routing/AppRoutes'
 import { InventoryHub } from './InventoryHub'
 import { WarehouseList } from '@/components/operations/WarehouseList'
 import { WarehouseInventory } from '@/components/operations/WarehouseInventory'
 import { StockNotifications } from '@/components/layout/StockNotifications'
 import { useCompleteIncomingDelivery } from '@/features/logistics/incoming-deliveries.hooks'
-import { useCompleteOutgoingDelivery } from '@/features/logistics/outgoing-deliveries.hooks'
+import { useReconcileRunMember } from '@/features/logistics/delivery-runs.hooks'
 import type { InventoryItemResponse } from '@/features/products/products.types'
 import type { StockItemWithRelations } from '@/features/logistics/stock-items.types'
 
@@ -64,8 +66,19 @@ const stock = (
   id,
   inventoryItemId: productId,
   warehouseId,
-  quantity,
-  reservedQuantity: '0',
+  revision: 1,
+  onHandQuantity: quantity,
+  availableQuantity: quantity,
+  quarantinedQuantity: '0',
+  conditionQuantities: { DAMAGED: '0', SPOILED: '0' },
+  reorderThreshold: null,
+  stockStatus:
+    parseStockCents(quantity) === null
+      ? (undefined as unknown as StockItemWithRelations['stockStatus'])
+      : quantity === '0'
+        ? 'OUT'
+        : 'UNCONFIGURED',
+  inTransitQuantity: '0',
   inventoryItem: {
     id: productId,
     name: products.find((p) => p.id === productId)?.name || 'Unknown',
@@ -74,6 +87,25 @@ const stock = (
   warehouse: warehouses.find((w) => w.id === warehouseId)!,
   ...dates,
 })
+function stockResponse(item: StockItemWithRelations) {
+  const available = parseStockCents(item.availableQuantity)!
+  const threshold = item.reorderThreshold == null ? null : parseStockCents(item.reorderThreshold)
+  return {
+    ...item,
+    availableQuantity: available === null ? item.availableQuantity : decimalString(available),
+    stockStatus:
+      available === null
+        ? undefined
+        : (item.stockStatus ??
+          (available === 0n
+            ? 'OUT'
+            : threshold === null
+              ? 'UNCONFIGURED'
+              : available <= threshold
+                ? 'LOW'
+                : 'NORMAL')),
+  }
+}
 function mount(ui: React.ReactNode) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: 0 }, mutations: { retry: false } },
@@ -148,22 +180,50 @@ beforeEach(() => {
         }
       data =
         url === '/inventory-items'
-          ? products.filter((p) => config.params?.includeInactive === 'true' || p.isActive)
+          ? products.filter(
+              (p) =>
+                (config.params?.includeInactive === 'only'
+                  ? !p.isActive
+                  : config.params?.includeInactive === 'true' || p.isActive) &&
+                (!config.params?.q ||
+                  p.name.toLowerCase().includes(String(config.params.q).toLowerCase())),
+            )
           : url === '/stock-items'
-            ? stocks
+            ? stocks.map(stockResponse)
             : url.startsWith('/stock-items/warehouses/')
-              ? stocks.filter((s) => s.warehouseId === Number(url.split('/')[3]))
+              ? stocks.filter((s) => s.warehouseId === Number(url.split('/')[3])).map(stockResponse)
               : url === '/warehouses'
-                ? warehouses.filter((w) => w.isActive)
-                : []
+                ? warehouses.filter(
+                    (w) =>
+                      (config.params?.includeInactive === 'only'
+                        ? !w.isActive
+                        : config.params?.includeInactive === 'true' || w.isActive) &&
+                      (!config.params?.q ||
+                        w.name.toLowerCase().includes(String(config.params.q).toLowerCase())),
+                  )
+                : /^\/inventory-items\/\d+$/.test(url)
+                  ? products.find((p) => p.id === Number(url.split('/')[2]))
+                  : []
     } else if (
       url === '/incoming-deliveries/1/complete' ||
-      url === '/outgoing-deliveries/1/complete'
+      url === '/delivery-runs/1/deliveries/1/reconcile'
     ) {
       stocks = stocks.map((item) =>
-        item.id === 1 ? { ...item, quantity: url.startsWith('/incoming') ? '5' : '0' } : item,
+        item.id === 1
+          ? {
+              ...item,
+              onHandQuantity: url.startsWith('/incoming') ? '5' : '0',
+              availableQuantity: url.startsWith('/incoming') ? '5' : '0',
+              stockStatus: url.startsWith('/incoming') ? 'UNCONFIGURED' : 'OUT',
+            }
+          : item,
       )
-      data = { id: 1, deliveryNumber: 'TEST-MOVEMENT' }
+      data = url.startsWith('/incoming')
+        ? { id: 1, deliveryNumber: 'TEST-MOVEMENT' }
+        : {
+            delivery: { id: 1, revision: 3, status: 'RECONCILED' },
+            run: { id: 1, revision: 5, status: 'COMPLETED' },
+          }
     } else if (url.startsWith('/inventory-items/') && method === 'delete') {
       if (failArchive)
         throw { isAxiosError: true, response: { status: 409, data: { message: 'Archive failed' } } }
@@ -191,6 +251,14 @@ beforeEach(() => {
       products = products.map((p) => (p.id === id ? { ...p, ...body } : p))
       data = products.find((p) => p.id === id)
     }
+    if (
+      method === 'get' &&
+      (url === '/stock-items' ||
+        url === '/inventory-items' ||
+        url === '/warehouses' ||
+        url.startsWith('/stock-items/warehouses/'))
+    )
+      data = { items: data, nextCursor: null }
     return { data: structuredClone(data), config, headers: {}, status: 200, statusText: 'OK' }
   }
 })
@@ -216,16 +284,17 @@ describe('inventory and global stock warnings', () => {
     expect(document.activeElement).toBe(selector)
   })
 
-  it('refreshes notifications after receiving and outgoing completion through the existing mutation hooks', async () => {
+  it('refreshes notifications after receiving and outgoing reconciliation through the existing mutation hooks', async () => {
     function Movements() {
       const receive = useCompleteIncomingDelivery()
-      const deliver = useCompleteOutgoingDelivery()
+      const deliver = useReconcileRunMember()
       return (
         <>
           <button
             onClick={() =>
               receive.mutate({
                 id: 1,
+                expectedRevision: 1,
                 items: [
                   { purchaseOrderItemId: 1, receivedQuantity: '1.00', damagedQuantity: '0.00' },
                 ],
@@ -238,7 +307,9 @@ describe('inventory and global stock warnings', () => {
             onClick={() =>
               deliver.mutate({
                 id: 1,
+                deliveryId: 1,
                 payload: {
+                  expectedRevision: 2,
                   items: [
                     {
                       outgoingDeliveryItemId: 1,
@@ -266,12 +337,20 @@ describe('inventory and global stock warnings', () => {
     await user.click(screen.getByRole('button', { name: 'Test complete delivery' }))
     await screen.findByRole('button', { name: /2 unresolved/ })
     expect(requests.some((request) => request.url === '/incoming-deliveries/1/complete')).toBe(true)
-    expect(requests.some((request) => request.url === '/outgoing-deliveries/1/complete')).toBe(true)
+    expect(
+      requests.some((request) => request.url === '/delivery-runs/1/deliveries/1/reconcile'),
+    ).toBe(true)
   })
 
   it('hides the warehouse selector for one active warehouse and provides honest empty category states', async () => {
     warehouses[1].isActive = false
-    stocks = stocks.map((item) => ({ ...item, quantity: '50', reservedQuantity: '50' }))
+    stocks = stocks.map((item) => ({
+      ...item,
+      onHandQuantity: '50',
+      availableQuantity: '50',
+      inTransitQuantity: '50',
+      stockStatus: 'UNCONFIGURED',
+    }))
     const user = userEvent.setup()
     mount(<StockNotifications onOpenInventory={vi.fn()} />)
     await user.click(await screen.findByRole('button', { name: /0 unresolved/ }))
@@ -280,9 +359,7 @@ describe('inventory and global stock warnings', () => {
     await user.click(screen.getByRole('menuitemradio', { name: 'Out of stock' }))
     expect(screen.getByRole('status').textContent).toContain('No out-of-stock items')
     await user.click(screen.getByRole('menuitemradio', { name: 'Low stock' }))
-    expect(screen.getByRole('status').textContent).toContain(
-      'without configured reorder thresholds',
-    )
+    expect(screen.getByRole('status').textContent).toContain('No low-stock items.')
   })
 
   it('filters warnings by active warehouse and opens Inventory with the same warning scope', async () => {
@@ -317,7 +394,7 @@ describe('inventory and global stock warnings', () => {
     expect(screen.getByText('Showing 6 of 9 warnings')).toBeTruthy()
     await user.click(screen.getByRole('menuitemradio', { name: 'Low stock' }))
     expect(screen.getByRole('status').textContent).toContain('No low-stock items')
-    expect(screen.getByText(/Low-stock detection is unavailable/)).toBeTruthy()
+    expect(screen.getByText(/Warnings use backend stock status/)).toBeTruthy()
     expect(screen.queryByRole('menuitem', { name: /Out of stock:/ })).toBeNull()
   })
 
@@ -472,7 +549,7 @@ describe('inventory and global stock warnings', () => {
     ).toEqual(['Zulu Empty', 'Alpha Healthy', 'Healthy 0', 'Healthy 1'])
     expect(screen.getByRole('img', { name: 'Out of stock: Zulu Empty in Store' })).toBeTruthy()
     expect(screen.queryByRole('img', { name: /Low stock:/ })).toBeNull()
-    expect(within(visibleRows()[1]).getByText('20.01')).toBeTruthy()
+    expect(within(visibleRows()[1]).getAllByText('20.01')).toHaveLength(2)
     expect(within(visibleRows()[3]).queryByRole('img')).toBeNull()
     expect(screen.queryByText('In Stock')).toBeNull()
 
@@ -508,7 +585,6 @@ describe('inventory and global stock warnings', () => {
         ...stock(1, 1, 1, '50.25'),
         availableQuantity: '42.25',
         quarantinedQuantity: '8.00',
-        damagedQuantity: '3.00',
         conditionQuantities: { DAMAGED: '3.00', SPOILED: '5.00' },
         inventoryItem: { id: 1, name: longName, unit: 'kg' },
       },
@@ -521,8 +597,8 @@ describe('inventory and global stock warnings', () => {
       },
       {
         ...stock(3, 3, 1, '10.00'),
-        damagedQuantity: '1.00',
-        reservedQuantity: '2.00',
+        availableQuantity: undefined as unknown as string,
+        quarantinedQuantity: undefined as unknown as string,
         inventoryItem: { id: 3, name: 'Unknown balances', unit: 'L' },
       },
     ]
@@ -749,7 +825,11 @@ describe('inventory and global stock warnings', () => {
     expect(
       screen.getByRole('button', { name: 'Stock notifications, 2 unresolved warnings' }),
     ).toBeTruthy()
-    stocks = stocks.map((s) => (s.inventoryItemId === 2 ? { ...s, quantity: '5' } : s))
+    stocks = stocks.map((s) =>
+      s.inventoryItemId === 2
+        ? { ...s, onHandQuantity: '5', availableQuantity: '5', stockStatus: 'UNCONFIGURED' }
+        : s,
+    )
     await act(async () => {
       await queryClient.invalidateQueries({ queryKey: ['stock-items'] })
     })
@@ -863,19 +943,19 @@ describe('warehouse product expansion', () => {
     store.focus()
     await user.keyboard('{Enter}')
     const region = await screen.findByRole('region', { name: 'Products at Store' })
-    expect(await within(region).findByText('3,429.25')).toBeTruthy()
+    expect(await within(region).findAllByText('3,429.25')).toHaveLength(2)
     expect(within(region).getByRole('heading', { name: 'Products at Store' })).toBeTruthy()
     expect(within(region).queryByText(/Total products:/)).toBeNull()
     expect(document.activeElement).toBe(store)
     expect(within(region).getByText('piece(s)')).toBeTruthy()
-    expect(within(region).getByText('158')).toBeTruthy()
+    expect(within(region).getAllByText('158')).toHaveLength(2)
     expect(store.getAttribute('aria-expanded')).toBe('true')
     expect(store.getAttribute('aria-controls')).toBe(region.id)
     expect(openWarehouse).not.toHaveBeenCalled()
     await user.click(screen.getByRole('button', { name: 'Show products for Main Warehouse' }))
     const main = await screen.findByRole('region', { name: 'Products at Main Warehouse' })
     expect(await within(main).findByText('Gamma Small')).toBeTruthy()
-    expect(within(main).getByText('0')).toBeTruthy()
+    expect(within(main).getAllByText('0')).toHaveLength(4)
     await user.click(store)
     expect(screen.queryByRole('region', { name: 'Products at Store' })).toBeNull()
     expect(screen.getByRole('region', { name: 'Products at Main Warehouse' })).toBeTruthy()
@@ -942,7 +1022,6 @@ it('keeps backend available stock prominent and shows only a positive quarantine
       ...stock(1, 1, 1, '50.25'),
       availableQuantity: '42.25',
       quarantinedQuantity: '8.00',
-      damagedQuantity: '3.00',
       conditionQuantities: { DAMAGED: '3.00', SPOILED: '5.00' },
     },
   ]
@@ -961,7 +1040,7 @@ it('keeps 17 kg unclassified as low stock and zero-stock warnings consistent acr
   products = [product(1, 'Lakatan Banana'), product(2, 'Empty Mango'), product(3, 'Normal Coconut')]
   products[0].unit = 'kg'
   stocks = [stock(1, 1, 1, '17'), stock(2, 2, 1, '0'), stock(3, 3, 2, '100')]
-  stocks[0].reservedQuantity = '17'
+  stocks[0].inTransitQuantity = '17'
   stocks[0].inventoryItem.unit = 'kg'
   mount(
     <>
@@ -970,13 +1049,13 @@ it('keeps 17 kg unclassified as low stock and zero-stock warnings consistent acr
     </>,
   )
   const row = (await screen.findByText('Lakatan Banana')).closest('tr')!
-  expect(within(row).getByText('17')).toBeTruthy()
+  expect(within(row).getAllByText('17')).toHaveLength(2)
   expect(within(row).getByText('kg')).toBeTruthy()
   expect(within(row).queryByRole('img')).toBeNull()
   expect(screen.getByRole('img', { name: 'Out of stock: Empty Mango in Store' })).toBeTruthy()
   await user.click(await screen.findByRole('button', { name: /1 unresolved/ }))
   await user.click(screen.getByRole('menuitemradio', { name: 'Low stock' }))
-  expect(screen.getByText(/No low-stock items can be identified/)).toBeTruthy()
+  expect(screen.getByText('No low-stock items.')).toBeTruthy()
   await user.click(screen.getByRole('menuitemradio', { name: 'Out of stock' }))
   expect(screen.getByRole('menuitem', { name: /Out of stock: Empty Mango, Store, 0/ })).toBeTruthy()
   await user.click(screen.getByRole('combobox', { name: 'Warning warehouse' }))
@@ -1015,7 +1094,7 @@ it('makes product status primary and returns from quarantine to the selected arc
   await user.click(screen.getByRole('combobox', { name: 'Condition' }))
   await user.click(screen.getByRole('option', { name: 'Spoiled' }))
   await waitFor(() =>
-    expect(quarantineFilters).toContainEqual({ openOnly: true, condition: 'SPOILED' }),
+    expect(quarantineFilters).toContainEqual({ openOnly: true, condition: 'SPOILED', limit: 50 }),
   )
   await user.click(screen.getByRole('button', { name: 'Back to Products' }))
   expect(await screen.findByText('Archived Product')).toBeTruthy()
@@ -1025,4 +1104,72 @@ it('makes product status primary and returns from quarantine to the selected arc
   expect(screen.queryByText('Alpha Empty')).toBeNull()
   await user.click(screen.getByRole('button', { name: /^Active/ }))
   expect(await screen.findByText('Alpha Empty')).toBeTruthy()
+})
+
+it('withholds product totals until every stock page loads and reloads from the first page', async () => {
+  products = [product(1, 'Paged Rice')]
+  stocks = [stock(1, 1, 1, '10'), stock(2, 1, 2, '20')]
+  const adapter = apiClient.defaults.adapter as import('axios').AxiosAdapter
+  const cursors: unknown[] = []
+  apiClient.defaults.adapter = async (config) => {
+    if (config.method === 'get' && config.url === '/stock-items') {
+      cursors.push(config.params?.cursor)
+      return {
+        config,
+        headers: {},
+        status: 200,
+        statusText: 'OK',
+        data:
+          config.params?.cursor === 'stock-page-2'
+            ? { items: [stocks[1]], nextCursor: null }
+            : { items: [stocks[0]], nextCursor: 'stock-page-2' },
+      }
+    }
+    return adapter(config)
+  }
+  mount(<InventoryHub />)
+  const row = (await screen.findByText('Paged Rice')).closest('tr')!
+  expect(within(row).getByText('\u2014')).toBeTruthy()
+  expect(within(row).queryByText('10')).toBeNull()
+  const user = userEvent.setup()
+  await user.click(screen.getByRole('button', { name: 'Load more stock records' }))
+  expect(await within(row).findByText('30')).toBeTruthy()
+  expect(cursors).toEqual([undefined, 'stock-page-2'])
+  await user.click(screen.getByRole('button', { name: 'Reload stock records' }))
+  await waitFor(() => expect(cursors).toEqual([undefined, 'stock-page-2', undefined]))
+  expect(await within(row).findByText('\u2014')).toBeTruthy()
+})
+
+it('checks every warehouse stock page and blocks archive for stock in transit without adding mixed units', async () => {
+  stocks = [stock(1, 1, 1, '0'), { ...stock(2, 2, 1, '0'), inTransitQuantity: '5.25' }]
+  stocks[0].inventoryItem.unit = 'kg'
+  stocks[1].inventoryItem.unit = 'pieces'
+  const adapter = apiClient.defaults.adapter as import('axios').AxiosAdapter
+  const cursors: unknown[] = []
+  apiClient.defaults.adapter = async (config) => {
+    if (config.method === 'get' && config.url === '/stock-items/warehouses/1') {
+      cursors.push(config.params?.cursor)
+      return {
+        config,
+        headers: {},
+        status: 200,
+        statusText: 'OK',
+        data:
+          config.params?.cursor === 'warehouse-page-2'
+            ? { items: [stocks[1]], nextCursor: null }
+            : { items: [stocks[0]], nextCursor: 'warehouse-page-2' },
+      }
+    }
+    return adapter(config)
+  }
+  mount(<WarehouseList onOpenWarehouse={vi.fn()} />)
+  const row = (await screen.findByText('Store')).closest('tr')!
+  const user = userEvent.setup()
+  await user.click(within(row).getByRole('button', { name: 'Archive' }))
+  const dialog = await screen.findByRole('dialog')
+  expect(await within(dialog).findByText('Cannot Archive Warehouse')).toBeTruthy()
+  expect(within(dialog).queryByRole('button', { name: 'Archive Warehouse' })).toBeNull()
+  expect(dialog.textContent).not.toMatch(/5.25|units/)
+  expect(cursors).toEqual([undefined, 'warehouse-page-2'])
+  expect(requests.some((request) => request.method === 'delete')).toBe(false)
 })

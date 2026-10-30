@@ -20,6 +20,7 @@ it('supports keyboard discount disclosure, removal, and keeps Enter out of order
     return (
       <form onSubmit={submit}>
         <OrderLineDiscount
+          compact
           id="discount"
           name="Mango"
           value={value}
@@ -33,7 +34,7 @@ it('supports keyboard discount disclosure, removal, and keeps Enter out of order
   const user = userEvent.setup()
   expect(screen.queryByRole('textbox')).toBeNull()
   const trigger = screen.getByRole('button', { name: 'Edit discount for Mango' })
-  expect(trigger.textContent).toBe('Add discount')
+  expect(trigger.textContent).toBe('No discount')
   await user.tab()
   await user.keyboard('{Enter}')
   await user.type(screen.getByRole('textbox', { name: 'Line discount for Mango' }), '5{Enter}')
@@ -42,7 +43,7 @@ it('supports keyboard discount disclosure, removal, and keeps Enter out of order
   expect(submit).not.toHaveBeenCalled()
   await user.click(trigger)
   await user.click(screen.getByRole('button', { name: 'Remove discount' }))
-  expect(trigger.textContent).toBe('Add discount')
+  expect(trigger.textContent).toBe('No discount')
   expect(document.activeElement).toBe(trigger)
 })
 

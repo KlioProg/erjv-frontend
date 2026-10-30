@@ -21,6 +21,7 @@ it.each([null, 7])(
       address: null,
       hireDate: '2026-10-01',
       userId,
+      canDrive: false,
       isActive: true,
       createdAt: '',
       updatedAt: '',
@@ -35,7 +36,7 @@ it.each([null, 7])(
         headers: {},
         data:
           config.url === '/users'
-            ? [{ id: 7, email: 'staff@example.test', role: 'STAFF', isActive: true }]
+            ? { items: [{ id: 7, email: 'staff@example.test', role: 'STAFF', isActive: true }], nextCursor: null }
             : employee,
       }
     }
@@ -47,13 +48,11 @@ it.each([null, 7])(
       </QueryClientProvider>,
     )
     const user = userEvent.setup()
-    const selector = screen.getByRole('combobox', { name: 'Link User Account' })
-    await user.click(selector)
-    await user.click(
-      await screen.findByRole('option', {
-        name: userId ? 'No linked account' : /staff@example.test/,
-      }),
-    )
+    if (userId) await user.click(screen.getByRole('button', { name: 'No linked account' }))
+    else {
+      await user.click(screen.getByRole('button', { name: 'Choose user account' }))
+      await user.click(await screen.findByRole('menuitem', { name: /staff@example.test/ }))
+    }
     await user.click(screen.getByRole('button', { name: 'Update Employee' }))
     await waitFor(() => expect(close).toHaveBeenCalledOnce())
     expect(writes).toEqual([

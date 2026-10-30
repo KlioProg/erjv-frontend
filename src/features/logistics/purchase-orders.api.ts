@@ -1,5 +1,5 @@
 import { fetchCursorList } from '@/lib/cursor-pagination'
-import { apiClient } from '@/lib/api-client'
+import { apiClient, requireRevision } from '@/lib/api-client'
 import { serializeLineDiscount } from '@/lib/order-line-pricing'
 import type {
   CreatePurchaseOrderPayload,
@@ -9,7 +9,8 @@ import type {
 } from './purchase-orders.types'
 
 export async function fetchPurchaseOrdersApi(filter?: PurchaseOrderFilter, signal?: AbortSignal): Promise<PurchaseOrderRecord[]> {
-  return fetchCursorList<PurchaseOrderRecord>('/purchase-orders', filter, signal)
+  const { status, ...filters } = filter ?? {}
+  return fetchCursorList<PurchaseOrderRecord>('/purchase-orders', { ...filters, ...(status ? { statuses: [status] } : {}) }, signal)
 }
 
 export async function fetchPurchaseOrderByIdApi(id: number): Promise<PurchaseOrderRecord | null> {
@@ -58,7 +59,6 @@ export async function updatePurchaseOrderDraftApi(
 ): Promise<PurchaseOrderRecord> {
   if (!Number.isInteger(payload.expectedRevision) || payload.expectedRevision < 1)
     throw new Error('A valid saved revision is required. Reload this draft.')
-  if (payload.items?.length === 0) throw new Error('Add at least one product to the purchase order.')
   const cleanPayload = {
     expectedRevision: payload.expectedRevision,
     ...(payload.supplierId !== undefined ? { supplierId: payload.supplierId } : {}),
@@ -89,12 +89,12 @@ export async function updatePurchaseOrderDraftApi(
   return data
 }
 
-export async function confirmPurchaseOrderApi(id: number): Promise<PurchaseOrderRecord> {
-  const { data } = await apiClient.patch<PurchaseOrderRecord>(`/purchase-orders/${id}/confirm`)
+export async function confirmPurchaseOrderApi(id: number, expectedRevision: number): Promise<PurchaseOrderRecord> {
+  const { data } = await apiClient.patch<PurchaseOrderRecord>(`/purchase-orders/${id}/confirm`, { expectedRevision: requireRevision(expectedRevision) })
   return data
 }
 
-export async function cancelPurchaseOrderApi(id: number): Promise<PurchaseOrderRecord> {
-  const { data } = await apiClient.patch<PurchaseOrderRecord>(`/purchase-orders/${id}/cancel`)
+export async function cancelPurchaseOrderApi(id: number, expectedRevision: number): Promise<PurchaseOrderRecord> {
+  const { data } = await apiClient.patch<PurchaseOrderRecord>(`/purchase-orders/${id}/cancel`, { expectedRevision: requireRevision(expectedRevision) })
   return data
 }

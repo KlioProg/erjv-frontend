@@ -18,6 +18,7 @@ import {
 } from './DashboardPages'
 import { ROUTES } from '@/routes'
 import { WarehouseDetailsRoute } from './WarehouseDetailsRoute'
+import { DeliveryRunsHub } from '@/components/deliveries/DeliveryRunsHub'
 
 export function AppRoutes() {
   return (
@@ -36,6 +37,7 @@ export function AppRoutes() {
         <Route path="deliveries/incoming" element={<DeliveriesRoute view="incoming" />} />
         <Route path="deliveries/outgoing" element={<DeliveriesRoute view="outgoing" />} />
         <Route path="deliveries/history" element={<DeliveriesRoute view="history" />} />
+        <Route path="deliveries/runs" element={<DeliveryRunsHub />} />
         <Route element={<StaffingAccess />}>
           <Route path="staff-directory" element={<EmployeeList />} />
           <Route path="job-positions" element={<JobList />} />

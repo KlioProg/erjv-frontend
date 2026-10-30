@@ -1,5 +1,7 @@
 // These are condition commands supported by the current API. Assignment is never manual.
-export const OPERATIONAL_STATUSES = ['AVAILABLE', 'MAINTENANCE', 'OUT_OF_SERVICE'] as const
+export const OPERATIONAL_STATUSES = ['SERVICEABLE', 'MAINTENANCE', 'OUT_OF_SERVICE'] as const
+
+export type VehicleOperationalStatus = (typeof OPERATIONAL_STATUSES)[number]
 
 export type VehicleCondition = 'OPERATIONAL' | 'MAINTENANCE' | 'OUT_OF_SERVICE' | 'ARCHIVED'
 
@@ -17,8 +19,10 @@ export type DeliveryVehicle = {
   plateNumber: string
   vehicleType: string
   model: string | null
-  capacity: string | null
-  status: VehicleStatus
+  capacityKg: string | null
+  operationalStatus: VehicleOperationalStatus
+  isAvailable: boolean
+  activeRunId?: number | null
   isActive: boolean
   createdAt: string
   updatedAt: string
@@ -28,8 +32,8 @@ export type CreateDeliveryVehiclePayload = {
   plateNumber: string
   vehicleType: string
   model?: string | null
-  capacity?: string | null
-  status?: VehicleStatus
+  capacityKg?: string | null
+  operationalStatus?: VehicleOperationalStatus
   isActive?: boolean
 }
 
@@ -37,9 +41,9 @@ export type UpdateDeliveryVehicleDetailsPayload = {
   plateNumber?: string
   vehicleType?: string
   model?: string | null
-  capacity?: string | null
+  capacityKg?: string | null
 }
 
 export type UpdateDeliveryVehicleStatusPayload = {
-  status: VehicleStatus
+  operationalStatus: VehicleOperationalStatus
 }

@@ -1,3 +1,4 @@
+import { StockPagingControls } from '@/components/inventory/StockPagingControls'
 import { formatProductUnit } from '@/lib/product-unit'
 import { useMemo, useState } from 'react'
 import {
@@ -52,7 +53,7 @@ export function WarehouseInventory({
       (stockQuery.data ?? [])
         .map((stock) => ({
           stock,
-          quantityCents: parseStockCents(stock.quantity),
+          quantityCents: parseStockCents(stock.onHandQuantity),
           availableCents: parseStockCents(stock.availableQuantity),
           quarantinedCents: parseStockCents(stock.quarantinedQuantity),
         }))
@@ -76,9 +77,9 @@ export function WarehouseInventory({
       : rows
   }, [rows, search])
   const summaryMetrics = [
-    { label: 'Stock records', value: rows.length.toLocaleString(), unit: 'records', icon: Boxes },
+    { label: stockQuery.hasNextPage ? 'Loaded stock records' : 'Stock records', value: rows.length.toLocaleString(), unit: 'records', icon: Boxes },
     {
-      label: 'Products',
+      label: stockQuery.hasNextPage ? 'Loaded products' : 'Products',
       value: new Set(rows.map((row) => row.stock.inventoryItemId)).size.toLocaleString(),
       unit: 'products',
       icon: Package,
@@ -305,7 +306,7 @@ export function WarehouseInventory({
         {stockQuery.isError ? (
           <div role="alert" className="p-4 text-xs text-destructive">
             Warehouse stock could not be loaded: {getErrorMessage(stockQuery.error)}
-            <Button variant="link" size="sm" onClick={() => void stockQuery.refetch()}>
+            <Button variant="link" size="sm" onClick={() => void stockQuery.reload()}>
               Retry
             </Button>
           </div>
@@ -328,7 +329,7 @@ export function WarehouseInventory({
               <div className="px-4 py-12 text-center text-xs text-muted-foreground">
                 {search
                   ? 'No products match your search.'
-                  : 'No stock records for this warehouse yet.'}
+                  : stockQuery.hasNextPage ? 'No stock records loaded. Load more stock records to continue.' : 'No stock records for this warehouse yet.'}
               </div>
             }
             pageSizeOptions={[10, 25, 50, 100]}
@@ -337,6 +338,7 @@ export function WarehouseInventory({
           />
         )}
       </section>
+      <StockPagingControls {...stockQuery} />
       {reportOpen && (
         <StockConditionReportModal
           open

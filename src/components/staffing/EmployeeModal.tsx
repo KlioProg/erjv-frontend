@@ -11,26 +11,19 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { CursorLookup } from '@/components/ui/CursorLookup'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Spinner } from '@/components/ui/spinner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   useCreateEmployee,
   useUpdateEmployeeProfile,
   useReactivateEmployee,
-  useUsers,
+  useUpdateEmployeeDrivingEligibility,
   useLinkEmployeeUser,
   useUnlinkEmployeeUser,
 } from '@/features/staffing/staffing.hooks'
-import type { Employee } from '@/features/staffing/staffing.types'
-import { USER_ROLES } from '@/features/auth/roles'
+import type { Employee, UserAccount } from '@/features/staffing/staffing.types'
 import { getErrorMessage } from '@/lib/api-client'
 import { sanitizePhilippinePhone, validatePhilippinePhone } from '@/lib/phone-utils'
 
@@ -53,7 +46,8 @@ function EmployeeFormContent({
   const reactivateMutation = useReactivateEmployee()
   const linkMutation = useLinkEmployeeUser()
   const unlinkMutation = useUnlinkEmployeeUser()
-  const { data: users = [], isLoading: usersLoading, error: usersError } = useUsers()
+  const eligibilityMutation = useUpdateEmployeeDrivingEligibility()
+  const [canDrive, setCanDrive] = useState(employee?.canDrive ?? false)
 
   const [firstName, setFirstName] = useState(employee?.firstName || '')
   const [lastName, setLastName] = useState(employee?.lastName || '')
@@ -118,6 +112,8 @@ function EmployeeFormContent({
             hireDate: parsedHireDate,
           },
         })
+        if (canDrive !== employee.canDrive)
+          await eligibilityMutation.mutateAsync({ id: employee.id, canDrive })
         if (userId !== employee.userId) {
           if (userId !== null) await linkMutation.mutateAsync({ id: employee.id, userId })
           else await unlinkMutation.mutateAsync(employee.id)
@@ -131,6 +127,7 @@ function EmployeeFormContent({
           address: address.trim() || null,
           hireDate: parsedHireDate,
           userId,
+          canDrive,
         })
       }
       onClose()
@@ -151,6 +148,7 @@ function EmployeeFormContent({
   }
 
   const isPending =
+    eligibilityMutation.isPending ||
     linkMutation.isPending ||
     unlinkMutation.isPending ||
     createMutation.isPending ||
@@ -324,31 +322,19 @@ function EmployeeFormContent({
             <Label htmlFor="emp-user" className="text-ui font-medium">
               Link User Account
             </Label>
-            <Select
-              value={selectedUserId}
-              onValueChange={setSelectedUserId}
-              disabled={isPending || usersLoading || !!usersError}
-            >
-              <SelectTrigger id="emp-user">
-                <SelectValue placeholder="Select user (optional)" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  <SelectItem value="none">No linked account</SelectItem>
-                  {users.map((u) => (
-                    <SelectItem key={u.id} value={String(u.id)}>
-                      {u.email} ({u.role || USER_ROLES.UNKNOWN})
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-            {usersError && (
-              <p role="alert" className="text-xs text-destructive">
-                {getErrorMessage(usersError)}
-              </p>
-            )}
+            <CursorLookup<UserAccount> id="emp-user" path="/users"
+              value={selectedUserId === 'none' ? '' : selectedUserId}
+              onChange={(id) => setSelectedUserId(id)} label="User account"
+              getLabel={(user) => `${user.email} (${user.role})`} disabled={isPending} />
+            <Button type="button" variant="link" size="sm" disabled={isPending}
+              onClick={() => setSelectedUserId('none')}>No linked account</Button>
           </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Checkbox id="emp-can-drive" checked={canDrive} disabled={isPending}
+            onCheckedChange={(checked) => setCanDrive(checked === true)} />
+          <Label htmlFor="emp-can-drive">Eligible to drive delivery runs</Label>
         </div>
 
         <DialogFooter className="gap-2.5 mt-4 pt-3 border-t">

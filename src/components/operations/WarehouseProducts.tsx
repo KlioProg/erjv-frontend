@@ -1,3 +1,4 @@
+import { StockPagingControls } from '@/components/inventory/StockPagingControls'
 import { DataTableExpandedSection } from '@/components/ui/DataTableExpandedSection'
 import { Button } from '@/components/ui/button'
 import { DataTable, type ColumnDef } from '@/components/ui/data-table'
@@ -37,18 +38,18 @@ const columns: ColumnDef<StockItemWithInventoryItem>[] = [
     width: 96,
     align: 'right',
     sortable: true,
-    sortKey: (row) => stockSortKey(parseStockCents(row.quantity)),
+    sortKey: (row) => stockSortKey(parseStockCents(row.onHandQuantity)),
     cell: ({ row }) => (
       <OverflowValue
-        value={formatStockCents(parseStockCents(row.quantity))}
+        value={formatStockCents(parseStockCents(row.onHandQuantity))}
         className="text-right tabular-nums"
       />
     ),
   },
   ...(
     [
-      ['reservedQuantity', 'Reserved'],
-      ['damagedQuantity', 'Damaged'],
+      ['inTransitQuantity', 'In transit'],
+      ['quarantinedQuantity', 'Quarantined'],
       ['availableQuantity', 'Available'],
     ] as const
   ).map(([field, label]): ColumnDef<StockItemWithInventoryItem> => ({
@@ -96,13 +97,14 @@ export function WarehouseProducts({
         stockQuery.isError ? (
           <div role="alert" className="flex flex-wrap items-center gap-2 text-sm text-destructive">
             Products could not be loaded: {getErrorMessage(stockQuery.error)}
-            <Button variant="link" size="sm" onClick={() => void stockQuery.refetch()}>
+            <Button variant="link" size="sm" onClick={() => void stockQuery.reload()}>
               Retry
             </Button>
           </div>
         ) : undefined
       }
     >
+      <StockPagingControls {...stockQuery} />
       <DataTable
         data={stockQuery.data ?? []}
         columns={columns}

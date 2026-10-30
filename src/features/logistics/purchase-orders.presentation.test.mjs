@@ -13,7 +13,7 @@ const delivery = (id, status, lineId, quantity, purchaseOrderId = 1) => ({
   id,
   status,
   purchaseOrderId,
-  items: [{ id: id * 100, purchaseOrderItemId: lineId, receivedQuantity: quantity }],
+  items: [{ id: id * 100, purchaseOrderItemId: lineId, receivedQuantity: quantity, acceptedQuantity: quantity }],
 })
 
 test('only physically completed receipts contribute to receiving progress', () => {

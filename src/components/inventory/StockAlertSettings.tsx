@@ -1,3 +1,4 @@
+import { StockPagingControls } from './StockPagingControls'
 import { useState } from 'react'
 import { useAuth } from '@/features/auth/AuthContext'
 import { useWarehouses } from '@/features/logistics/warehouses.hooks'
@@ -195,7 +196,7 @@ export function StockAlertSettings({ onClose }: { onClose: () => void }) {
                   disabled={pending}
                   onClick={() => {
                     void warehouses.refetch()
-                    if (selectedId !== undefined) void stock.refetch()
+                    if (selectedId !== undefined) void stock.reload()
                   }}
                 >
                   Refresh stock list
@@ -220,13 +221,14 @@ export function StockAlertSettings({ onClose }: { onClose: () => void }) {
               tableClassName="min-w-[600px] w-full table-fixed"
             />
           )}
+          {selectedId !== undefined && !pending && <StockPagingControls {...stock} />}
           {!warehouses.isError && !stock.isError && (
             <Button
               variant="link"
               size="sm"
               className="self-start"
               disabled={pending || stock.isFetching || selectedId === undefined}
-              onClick={() => void stock.refetch()}
+              onClick={() => void stock.reload()}
             >
               Refresh stock list
             </Button>

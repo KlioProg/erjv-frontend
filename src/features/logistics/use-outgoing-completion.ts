@@ -3,7 +3,8 @@ import { useAuth } from '@/features/auth/AuthContext'
 import { useSalesOrderById } from '@/features/crm/sales-orders.hooks'
 import { useAllProducts } from '@/features/products/products.hooks'
 import { useAllWarehouses } from './warehouses.hooks'
-import { useOutgoingDeliveryById, useCompleteOutgoingDelivery } from './outgoing-deliveries.hooks'
+import { useOutgoingDeliveryById } from './outgoing-deliveries.hooks'
+import { useDeliveryRunById, useReconcileRunMember } from './delivery-runs.hooks'
 import {
   blankReconciliation,
   outgoingCompletionRows,
@@ -12,14 +13,18 @@ import {
 } from './outgoing-completion'
 import { getErrorMessage } from '@/lib/api-client'
 
-export function useOutgoingCompletion(id: number, onSuccess: () => void) {
-  const { isAdmin, isManager } = useAuth()
+export function useOutgoingCompletion(runId: number, id: number, onSuccess: () => void) {
+  const { isAdmin, isManager, isStaff } = useAuth()
   const deliveryQuery = useOutgoingDeliveryById(id)
   const delivery = deliveryQuery.data
   const orderQuery = useSalesOrderById(delivery?.salesOrderId)
   const productsQuery = useAllProducts()
   const warehousesQuery = useAllWarehouses()
-  const complete = useCompleteOutgoingDelivery()
+  const runQuery = useDeliveryRunById(runId)
+  const complete = useReconcileRunMember()
+  const [reviewedRevision, setReviewedRevision] = useState<number | null>(null)
+  if (delivery && reviewedRevision === null && deliveryQuery.isFetchedAfterMount)
+    setReviewedRevision(delivery.revision)
   const [drafts, setDrafts] = useState<Record<number, ReconciliationDraft>>({})
   const [submitted, setSubmitted] = useState(false)
   const [message, setMessage] = useState('')
@@ -31,6 +36,7 @@ export function useOutgoingCompletion(id: number, onSuccess: () => void) {
     delivery && order ? outgoingCompletionRows(delivery, order, productsQuery.data ?? []) : []
   const queries = [
     deliveryQuery,
+    runQuery,
     productsQuery,
     warehousesQuery,
     ...(delivery?.salesOrderId ? [orderQuery] : []),
@@ -42,10 +48,21 @@ export function useOutgoingCompletion(id: number, onSuccess: () => void) {
   const loadError = queries.find((query) => query.isError)?.error
   let dataIssue: string | undefined
   if (!loading && !loadError) {
-    if (!isAdmin && !isManager)
+    if (!isAdmin && !isManager && !isStaff)
       dataIssue = 'You do not have permission to reconcile outgoing deliveries.'
     else if (!delivery || delivery.id !== id)
       dataIssue = 'The saved shipment could not be loaded. Refresh before confirming delivery.'
+    else if (
+      delivery.revision !== reviewedRevision ||
+      delivery.runId !== runId ||
+      delivery.reconciledAt != null ||
+      runQuery.data?.status !== 'DISPATCHED' ||
+      !runQuery.data.deliveries.some(
+        (member) => member.id === id && member.revision === delivery.revision,
+      )
+    )
+      dataIssue =
+        'Run membership or the member revision changed. Refresh and review before reconciling.'
     else if (delivery.status !== 'DISPATCHED')
       dataIssue =
         'Only an in-transit shipment can be completed. Review its current status in Outgoing Deliveries.'
@@ -62,6 +79,8 @@ export function useOutgoingCompletion(id: number, onSuccess: () => void) {
     try {
       const results = await Promise.all(queries.map((query) => query.refetch()))
       const failed = results.some((result) => result.isError)
+      if (!failed && results[0].data && 'revision' in results[0].data)
+        setReviewedRevision(results[0].data.revision)
       setNeedsRefresh(failed)
       setMessage(
         failed
@@ -73,7 +92,7 @@ export function useOutgoingCompletion(id: number, onSuccess: () => void) {
     }
   }
   async function submit() {
-    if (lock.current || !canSubmit) return
+    if (lock.current || !canSubmit || !delivery) return
     setSubmitted(true)
     setMessage('')
     if (validation.error) {
@@ -82,7 +101,23 @@ export function useOutgoingCompletion(id: number, onSuccess: () => void) {
     }
     lock.current = true
     try {
-      await complete.mutateAsync({ id, payload: validation.payload })
+      const saved = await complete.mutateAsync({
+        id: runId,
+        deliveryId: id,
+        payload: { expectedRevision: delivery.revision, ...validation.payload },
+      })
+      if (
+        saved?.delivery?.id !== id ||
+        saved.delivery.runId !== runId ||
+        saved.delivery.status !== 'RECONCILED' ||
+        !Number.isSafeInteger(saved.delivery.revision) ||
+        saved.delivery.revision <= delivery.revision ||
+        !saved.delivery.reconciledAt ||
+        saved.run?.id !== runId
+      )
+        throw Error(
+          'The server did not confirm reconciliation. Refresh and review before retrying.',
+        )
       onSuccess()
     } catch (cause) {
       setMessage(

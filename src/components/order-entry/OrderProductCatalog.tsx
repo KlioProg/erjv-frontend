@@ -12,6 +12,8 @@ import {
   filterCatalogProducts,
 } from '@/features/products/products.catalog.utils'
 import { formatStockCents, stockSortKey } from '@/features/logistics/stock-display'
+import { useCursorLookup } from '@/lib/use-cursor-lookup'
+import { getErrorMessage } from '@/lib/api-client'
 import { ProductPickerOption } from './OrderEntryFields'
 
 export type OrderCatalogState = {
@@ -20,6 +22,12 @@ export type OrderCatalogState = {
   productsError?: string
   stockError?: string
   onRetry?: () => void
+  stockIncomplete?: boolean
+  search?: string
+  onSearchChange?: (value: string) => void
+  hasNextPage?: boolean
+  fetchingNextPage?: boolean
+  onLoadMore?: () => void
 }
 
 export function OrderProductCatalog({
@@ -37,16 +45,17 @@ export function OrderProductCatalog({
   busy: boolean
   state?: OrderCatalogState
 }) {
-  const [search, setSearch] = useState('')
+  const [localSearch, setSearch] = useState('')
+  const search = state.search ?? localSearch
   const [page, setPage] = useState(1)
   const stockMap = useMemo(() => buildCatalogStockMap(stockItems), [stockItems])
   const filtered = useMemo(
     () =>
       filterCatalogProducts(
         products.filter((product) => product.isActive),
-        search,
+        state.onSearchChange ? '' : search,
       ),
-    [products, search],
+    [products, search, state.onSearchChange],
   )
   const isAddDisabled = () => busy
   const addProduct = (product: InventoryItemResponse) => {
@@ -104,7 +113,7 @@ export function OrderProductCatalog({
       },
       cell: ({ row }) => {
         const stock = stockMap.get(row.id)
-        const unknown = state.stockLoading || !!state.stockError
+        const unknown = state.stockLoading || state.stockIncomplete || !!state.stockError
         return (
           <div className="flex flex-col gap-0.5 text-right text-sm tabular-nums">
             <span>
@@ -129,7 +138,9 @@ export function OrderProductCatalog({
       <div className="flex shrink-0 flex-col gap-3 border-b px-4 py-4">
         <div className="flex items-center justify-between gap-2">
           <h2 className="text-base font-semibold">Products</h2>
-          <span className="text-xs text-muted-foreground">{filtered.length} products</span>
+          <span className="text-xs text-muted-foreground">
+            {filtered.length} {state.onSearchChange ? 'loaded products' : 'products'}
+          </span>
         </div>
         <div className="relative">
           <Search
@@ -142,6 +153,7 @@ export function OrderProductCatalog({
             value={search}
             onChange={(event) => {
               setSearch(event.target.value)
+              state.onSearchChange?.(event.target.value)
               setPage(1)
             }}
             className="h-9 pl-9 text-ui"
@@ -178,6 +190,7 @@ export function OrderProductCatalog({
             }
             isLoading={state.productsLoading}
             loadingMessage="Loading products…"
+            pagination={state.onSearchChange ? false : undefined}
             page={page}
             onPageChange={setPage}
             pageSizeOptions={[10, 25, 50, 100]}
@@ -191,6 +204,48 @@ export function OrderProductCatalog({
           />
         )}
       </div>
+      {state.hasNextPage && (
+        <div className="shrink-0 border-t p-3">
+          <Button
+            type="button"
+            variant="outline"
+            disabled={busy || state.fetchingNextPage}
+            onClick={state.onLoadMore}
+          >
+            {state.fetchingNextPage ? 'Loading products...' : 'Load more products'}
+          </Button>
+        </div>
+      )}
     </div>
+  )
+}
+
+export function PagedOrderProductCatalog(props: Parameters<typeof OrderProductCatalog>[0]) {
+  const [q, setQ] = useState('')
+  const query = useCursorLookup<InventoryItemResponse>('/inventory-items', {
+    includeInactive: 'false',
+    ...(q.trim() ? { q: q.trim() } : {}),
+  })
+  return (
+    <OrderProductCatalog
+      {...props}
+      products={query.items}
+      state={{
+        ...props.state,
+        search: q,
+        onSearchChange: setQ,
+        productsLoading: query.isPending,
+        productsError: query.isError ? getErrorMessage(query.error) : undefined,
+        hasNextPage: query.hasNextPage,
+        fetchingNextPage: query.isFetchingNextPage,
+        onLoadMore: () => {
+          void query.fetchNextPage()
+        },
+        onRetry: () => {
+          if (query.isError) void query.reload()
+          else props.state?.onRetry?.()
+        },
+      }}
+    />
   )
 }

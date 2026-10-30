@@ -9,14 +9,14 @@ export function SalesOrderCancelModal({
 }: {
   order: SalesOrderRecord
   onClose: () => void
-  onConfirm: (id: number) => Promise<unknown>
+  onConfirm: (id: number, expectedRevision: number) => Promise<unknown>
 }) {
   return (
     <ConfirmDeleteModal
       open
       onClose={onClose}
       onConfirm={async () => {
-        await onConfirm(order.id)
+        await onConfirm(order.id, order.revision)
       }}
       title="Cancel Sales Order"
       description="Cancel this sales order? Physical stock will not change. Orders with active deliveries or stock movements cannot be cancelled."

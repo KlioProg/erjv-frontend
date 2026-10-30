@@ -1,486 +1,132 @@
+import { useRef, useState, type FormEvent } from 'react'
+import { Package, PlusCircle, MinusCircle, SlidersHorizontal } from 'lucide-react'
 import { formatProductUnit } from '@/lib/product-unit'
-import { useState, useMemo, type FormEvent } from 'react'
-import {
-  PlusCircle,
-  MinusCircle,
-  Package,
-  SlidersHorizontal,
-  ArrowRight,
-  AlertCircle,
-} from 'lucide-react'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import { Spinner } from '@/components/ui/spinner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import {
-  useCreateStockItem,
-  useDecreaseStock,
-  useIncreaseStock,
-  useSetStockQuantity,
-  useStockItemByPair,
-  useStockItems,
-} from '@/features/logistics/stock-items.hooks'
-import { useWarehouses } from '@/features/logistics/warehouses.hooks'
-import type { StockItemWithRelations } from '@/features/logistics/stock-items.types'
+import { CursorLookup } from '@/components/ui/CursorLookup'
+import { DataTable, type ColumnDef } from '@/components/ui/data-table'
+import { useCreateStockAdjustment, useCreateStockItem, useStockItemById, useStockItemByPair } from '@/features/logistics/stock-items.hooks'
+import type { StockAdjustment, StockAdjustmentPayload, StockItem, StockItemWithRelations } from '@/features/logistics/stock-items.types'
 import type { InventoryItemResponse } from '@/features/products/products.types'
-import { getErrorMessage } from '@/lib/api-client'
-import { parseStockCents } from '@/features/logistics/stock-display'
+import { getApiError, getErrorMessage, requireRevision } from '@/lib/api-client'
+import { formatStockCents, parseStockCents } from '@/features/logistics/stock-display'
+import { decimalString } from '@/features/logistics/purchase-pricing'
+import { useCursorLookup } from '@/lib/use-cursor-lookup'
 
+type Mode = 'increase' | 'decrease' | 'set'
 export type StockAdjustModalProps = {
   stockItem?: StockItemWithRelations | null
   inventoryItem?: InventoryItemResponse | null
   warehouseId?: number
-  initialMode?: 'increase' | 'decrease' | 'set'
+  initialMode?: Mode
   open: boolean
   onClose: () => void
 }
-
-function StockAdjustContent({
-  stockItem,
-  inventoryItem,
-  warehouseId,
-  initialMode = 'increase',
-  onClose,
-}: {
-  stockItem?: StockItemWithRelations | null
-  inventoryItem?: InventoryItemResponse | null
-  warehouseId?: number
-  initialMode?: 'increase' | 'decrease' | 'set'
-  onClose: () => void
-}) {
-  const { data: warehouses = [] } = useWarehouses()
-  const { data: allStock = [] } = useStockItems()
-  const createStockMutation = useCreateStockItem()
-  const setQuantityMutation = useSetStockQuantity()
-  const increaseMutation = useIncreaseStock()
-  const decreaseMutation = useDecreaseStock()
-
-  const activeWarehouses = useMemo(
-    () => warehouses.filter((w) => w.isActive !== false),
-    [warehouses],
-  )
-
-  const [selectedWarehouseId, setSelectedWarehouseId] = useState<string>(() =>
-    stockItem ? String(stockItem.warehouseId) : warehouseId ? String(warehouseId) : '',
-  )
-
-  const effectiveWarehouseId =
-    selectedWarehouseId || (activeWarehouses[0]?.id ? String(activeWarehouses[0].id) : '')
-
-  const activeWhId = stockItem ? stockItem.warehouseId : Number(effectiveWarehouseId)
-  const {
-    data: pairStockItem,
-    isLoading: isLoadingPair,
-    error: pairError,
-  } = useStockItemByPair(inventoryItem?.id, !stockItem && activeWhId > 0 ? activeWhId : undefined)
-
-  const effectiveStock = stockItem || pairStockItem || null
-  const isExistingStock = !!effectiveStock
-
-  const [mode, setMode] = useState<'increase' | 'decrease' | 'set'>(stockItem ? initialMode : 'set')
-  const effectiveMode = isExistingStock ? mode : 'set'
-
-  const [amount, setAmount] = useState<string>('20')
-  const [errorMsg, setErrorMsg] = useState<string | null>(null)
-
-  const currentQty = effectiveStock ? parseFloat(effectiveStock.quantity) : 0
-  const amountCents = parseStockCents(amount)
-  const parsedVal = amountCents === null ? NaN : Number(amountCents) / 100
-
-  // Live balance calculation
-  const calculatedNewQty = useMemo(() => {
-    if (!isExistingStock) return parsedVal
-    if (isNaN(parsedVal)) return currentQty
-    if (effectiveMode === 'increase') return currentQty + parsedVal
-    if (effectiveMode === 'decrease') return currentQty - parsedVal
-    return parsedVal // effectiveMode === 'set'
-  }, [isExistingStock, currentQty, parsedVal, effectiveMode])
-
-  const isDecreaseExceeding =
-    isExistingStock && effectiveMode === 'decrease' && parsedVal > currentQty
-  const isPending =
-    createStockMutation.isPending ||
-    setQuantityMutation.isPending ||
-    increaseMutation.isPending ||
-    decreaseMutation.isPending
-
-  const itemName = stockItem?.inventoryItem?.name || inventoryItem?.name || 'Product Item'
-  const whName =
-    stockItem?.warehouse?.name || warehouses.find((w) => w.id === activeWhId)?.name || 'Warehouse'
-
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault()
-    setErrorMsg(null)
-    if (isPending || isLoadingPair) return
-    if (pairError) {
-      setErrorMsg(getErrorMessage(pairError))
-      return
-    }
-
-    if (isNaN(parsedVal) || parsedVal < 0) {
-      setErrorMsg('Please enter a valid non-negative quantity.')
-      return
-    }
-
-    if (isDecreaseExceeding) {
-      setErrorMsg(
-        `Cannot reduce stock by ${parsedVal.toLocaleString()} ${formatProductUnit(inventoryItem?.unit || stockItem?.inventoryItem?.unit, 'units')} because available inventory is only ${currentQty.toLocaleString()} ${formatProductUnit(inventoryItem?.unit || stockItem?.inventoryItem?.unit, 'units')}.`,
-      )
-      return
-    }
-
+const historyColumns: ColumnDef<StockAdjustment>[] = [
+  { accessorKey: 'createdAt', header: 'Recorded' },
+  { accessorKey: 'kind', header: 'Action' },
+  { accessorKey: 'submittedQuantity', header: 'Quantity' },
+  { accessorKey: 'beforeOnHandQuantity', header: 'Before on hand' },
+  { accessorKey: 'afterOnHandQuantity', header: 'After on hand' },
+  { accessorKey: 'reason', header: 'Reason' },
+]
+function StockAdjustContent({ stockItem, inventoryItem, warehouseId, initialMode = 'increase', onClose }: Omit<StockAdjustModalProps, 'open'>) {
+  const [selectedWarehouseId, setSelectedWarehouseId] = useState(String(stockItem?.warehouseId ?? warehouseId ?? ''))
+  const detail = useStockItemById(stockItem?.id)
+  const pair = useStockItemByPair(stockItem ? undefined : inventoryItem?.id, Number(selectedWarehouseId) || undefined)
+  const query = stockItem ? detail : pair
+  const [reviewed, setReviewed] = useState<StockItem | null>(stockItem ?? null)
+  const current = reviewed ?? query.data ?? null
+  const [mode, setMode] = useState<Mode>(initialMode)
+  const [amount, setAmount] = useState('20')
+  const [reason, setReason] = useState('')
+  const [message, setMessage] = useState('')
+  const [attempt, setAttempt] = useState<{ id: number; payload: StockAdjustmentPayload } | null>(null)
+  const [rejected, setRejected] = useState(false)
+  const lock = useRef(false)
+  const create = useCreateStockItem()
+  const adjust = useCreateStockAdjustment()
+  const history = useCursorLookup<StockAdjustment>(`/stock-items/${current?.id}/adjustments`, {}, Boolean(current?.id))
+  const quantity = parseStockCents(amount)
+  const onHand = parseStockCents(current?.onHandQuantity)
+  const projected = quantity === null || onHand === null ? null : mode === 'set' ? quantity : mode === 'increase' ? onHand + quantity : onHand - quantity
+  const stale = Boolean(current && query.data && current.revision !== query.data.revision)
+  const busy = create.isPending || adjust.isPending
+  const freeze = busy || Boolean(attempt)
+  const unit = formatProductUnit(stockItem?.inventoryItem.unit ?? inventoryItem?.unit, 'units')
+  const capture = () => { if (current && !reviewed) setReviewed(current) }
+  const invalid = quantity === null || (mode !== 'set' && quantity <= 0n) || !reason.trim() || projected === null || projected < 0n
+  const submit = async (event: FormEvent) => {
+    event.preventDefault()
+    if (lock.current || busy || query.isPending || query.isError || !selectedWarehouseId || rejected) return
+    if (!attempt && current && (stale || invalid)) return
+    lock.current = true
+    setMessage('')
     try {
-      if (effectiveStock) {
-        if (effectiveMode === 'increase') {
-          await increaseMutation.mutateAsync({
-            id: effectiveStock.id,
-            payload: { amount: parsedVal.toFixed(2) },
-          })
-        } else if (effectiveMode === 'decrease') {
-          await decreaseMutation.mutateAsync({
-            id: effectiveStock.id,
-            payload: { amount: parsedVal.toFixed(2) },
-          })
-        } else {
-          await setQuantityMutation.mutateAsync({
-            id: effectiveStock.id,
-            payload: { quantity: parsedVal.toFixed(2) },
-          })
-        }
-      } else if (inventoryItem) {
-        const whId = Number(effectiveWarehouseId)
-        if (!whId) {
-          setErrorMsg('Please select a target warehouse facility.')
-          return
-        }
-        const whObj = warehouses.find((w) => w.id === whId)
-        await createStockMutation.mutateAsync({
-          payload: {
-            inventoryItemId: inventoryItem.id,
-            warehouseId: whId,
-            quantity: parsedVal.toFixed(2),
-          },
-          itemName: inventoryItem.name,
-          whName: whObj?.name,
-        })
+      if (!current) {
+        if (!inventoryItem) throw Error('Choose a product before creating an allocation.')
+        await create.mutateAsync({ payload: { inventoryItemId: inventoryItem.id, warehouseId: Number(selectedWarehouseId) } })
+      } else {
+        const command = attempt ?? { id: current.id, payload: {
+          kind: mode.toUpperCase() as StockAdjustmentPayload['kind'], quantity: decimalString(quantity!),
+          expectedRevision: requireRevision(current.revision), reason: reason.trim(), requestId: crypto.randomUUID(),
+        } }
+        setAttempt(command)
+        await adjust.mutateAsync(command)
       }
       onClose()
-    } catch (err) {
-      setErrorMsg(getErrorMessage(err))
+    } catch (error) {
+      const status = getApiError(error)?.status
+      const definiteRejection = status !== undefined && status >= 400 && status < 500 && status !== 408 && status !== 429
+      setRejected(definiteRejection)
+      setMessage(`${getErrorMessage(error)} ${definiteRejection ? 'Refresh and review the current balance before creating a new adjustment.' : 'The outcome may be uncertain. Retry the same adjustment to avoid recording it twice.'}`)
+    } finally { lock.current = false }
+  }
+  const refresh = async () => {
+    const result = await query.refetch()
+    if (result.isSuccess) {
+      setReviewed(result.data ?? null)
+      if (rejected) { setAttempt(null); setRejected(false) }
+      setMessage('Current balance refreshed. Review the quantities before submitting.')
     }
   }
-
-  return (
-    <>
-      <DialogHeader className="pb-1">
-        <DialogTitle>
-          {isExistingStock ? 'Adjust Stock Quantity' : 'Allocate Stock to Warehouse'}
-        </DialogTitle>
-        <DialogDescription className="text-xs text-muted-foreground leading-relaxed">
-          {isExistingStock ? (
-            <>
-              Update physical inventory count for{' '}
-              <span className="font-medium text-foreground">{itemName}</span> at{' '}
-              <span className="font-medium text-foreground">{whName}</span>.
-            </>
-          ) : (
-            <>
-              Allocate initial stock for{' '}
-              <span className="font-medium text-foreground">{itemName}</span> to a facility.
-            </>
-          )}
-        </DialogDescription>
-      </DialogHeader>
-
-      {(errorMsg || pairError) && (
-        <Alert variant="destructive" className="py-2.5 px-3 my-1">
-          <AlertCircle className="size-4" />
-          <AlertDescription className="text-xs font-semibold">
-            {errorMsg || getErrorMessage(pairError)}
-          </AlertDescription>
-        </Alert>
-      )}
-
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4 py-1">
-        {/* Target Warehouse Facility Selector (shown when adjusting an item across facilities) */}
-        {!stockItem && !warehouseId && (
-          <div className="flex flex-col gap-1.5">
-            <div className="flex items-center justify-between">
-              <Label className="text-[13px] font-medium text-foreground">
-                Target Warehouse Facility <span className="text-primary">*</span>
-              </Label>
-              {isLoadingPair && (
-                <span className="flex items-center gap-1 text-xs text-muted-foreground font-medium">
-                  <Spinner className="size-3" /> Checking stock...
-                </span>
-              )}
-            </div>
-            {activeWarehouses.length === 0 ? (
-              <Alert className="border-status-warning-foreground/30 bg-status-warning text-foreground">
-                <AlertDescription className="text-xs">
-                  No active warehouse facilities available.
-                </AlertDescription>
-              </Alert>
-            ) : (
-              <Select
-                value={effectiveWarehouseId}
-                onValueChange={(val) => {
-                  setSelectedWarehouseId(val)
-                  setErrorMsg(null)
-                }}
-              >
-                <SelectTrigger className="h-10 text-[13px] rounded-md">
-                  <SelectValue placeholder="Select warehouse facility" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    {activeWarehouses.map((wh) => {
-                      const stockRecord = allStock.find(
-                        (s) => s.inventoryItemId === inventoryItem?.id && s.warehouseId === wh.id,
-                      )
-                      return (
-                        <SelectItem key={wh.id} value={String(wh.id)} className="text-[13px]">
-                          <div className="flex items-center justify-between w-full gap-3">
-                            <span className="font-semibold">{wh.name}</span>
-                            {stockRecord ? (
-                              <span className="text-xs font-medium text-status-success-foreground">
-                                ({parseFloat(stockRecord.quantity).toLocaleString()} in stock)
-                              </span>
-                            ) : (
-                              <span className="text-xs text-muted-foreground">
-                                (New allocation)
-                              </span>
-                            )}
-                          </div>
-                        </SelectItem>
-                      )
-                    })}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            )}
-          </div>
-        )}
-
-        {/* Adjustment Type Selector */}
-        {isExistingStock && (
-          <div className="flex flex-col gap-1.5">
-            <Label className="text-[13px] font-medium text-foreground">Adjustment Action</Label>
-            <div className="grid grid-cols-3 gap-2">
-              <button
-                type="button"
-                onClick={() => setMode('increase')}
-                className={`flex flex-col items-center justify-center p-2.5 rounded-md border text-center transition-all cursor-pointer ${
-                  effectiveMode === 'increase'
-                    ? 'border-status-success-foreground/40 bg-status-success text-status-success-foreground font-medium'
-                    : 'border-border bg-card hover:bg-muted/50 text-muted-foreground font-semibold'
-                }`}
-              >
-                <PlusCircle className="size-4 mb-1 text-status-success-foreground" />
-                <span className="text-[13px]">Receive (+)</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setMode('decrease')}
-                className={`flex flex-col items-center justify-center p-2.5 rounded-md border text-center transition-all cursor-pointer ${
-                  effectiveMode === 'decrease'
-                    ? 'border-status-warning-foreground/40 bg-status-warning text-status-warning-foreground font-medium'
-                    : 'border-border bg-card hover:bg-muted/50 text-muted-foreground font-semibold'
-                }`}
-              >
-                <MinusCircle className="size-4 mb-1 text-status-warning-foreground" />
-                <span className="text-[13px]">Dispatch (-)</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setMode('set')}
-                className={`flex flex-col items-center justify-center p-2.5 rounded-md border text-center transition-all cursor-pointer ${
-                  effectiveMode === 'set'
-                    ? 'border-primary-text bg-primary-selected text-primary-text font-medium'
-                    : 'border-border bg-card hover:bg-muted/50 text-muted-foreground font-semibold'
-                }`}
-              >
-                <SlidersHorizontal className="size-4 mb-1 text-primary" />
-                <span className="text-[13px]">Set Total (=)</span>
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Amount Input */}
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="stock-amount" className="text-[13px] font-medium text-foreground">
-            {isExistingStock
-              ? effectiveMode === 'increase'
-                ? 'Units to Receive / Add (+)'
-                : effectiveMode === 'decrease'
-                  ? 'Units to Dispatch / Deduct (-)'
-                  : 'Exact Total Physical Count (=)'
-              : 'Initial Stock Quantity'}
-          </Label>
-          <div className="relative">
-            <Package className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
-            <Input
-              id="stock-amount"
-              type="number"
-              step="any"
-              min="0"
-              placeholder="0.00"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              className="pl-9 h-10 text-[13px] rounded-md font-medium"
-              required
-            />
-          </div>
-
-          {/* Quick preset chips */}
-          <div className="flex items-center gap-1.5 pt-1 text-xs">
-            <span className="text-muted-foreground font-semibold">Presets:</span>
-            {[10, 25, 50, 100, 250].map((val) => (
-              <button
-                key={val}
-                type="button"
-                onClick={() => setAmount(String(val))}
-                className="px-2 min-h-8 pointer-coarse:min-h-11 py-0.5 rounded-md bg-secondary hover:bg-muted border border-border text-[13px] font-medium text-foreground cursor-pointer transition-colors"
-              >
-                +{val}
-              </button>
-            ))}
-          </div>
+  return <>
+    <DialogHeader>
+      <DialogTitle>{current ? 'Adjust Stock Quantity' : 'Allocate Stock to Warehouse'}</DialogTitle>
+      <DialogDescription>{current ? `Record an audited adjustment for ${stockItem?.inventoryItem.name ?? inventoryItem?.name ?? 'this product'}.` : 'Register this product at a warehouse with zero stock. Record a separate adjustment to change the balance.'}</DialogDescription>
+    </DialogHeader>
+    {(message || query.isError || stale) && <Alert variant={query.isError || rejected || stale ? 'destructive' : 'default'}><AlertDescription>
+      {message || (query.isError ? getErrorMessage(query.error) : 'This balance has changed. Refresh and review it before submitting.')}
+    </AlertDescription></Alert>}
+    <form onSubmit={submit} className="flex flex-col gap-4">
+      {!stockItem && !warehouseId && <div className="space-y-2"><Label htmlFor="stock-warehouse">Target Warehouse Facility</Label>
+        <CursorLookup<{ id: number; name: string }> id="stock-warehouse" path="/warehouses" filter={{ includeInactive: 'false' }} value={selectedWarehouseId} label="Warehouse" getLabel={(record) => record.name} disabled={freeze} onChange={(id) => { setSelectedWarehouseId(id); setReviewed(null); setMessage('') }} />
+      </div>}
+      {current && <>
+        <div className="grid grid-cols-3 gap-2" role="group" aria-label="Adjustment action">
+          {([['increase', 'Increase (+)', PlusCircle], ['decrease', 'Decrease (-)', MinusCircle], ['set', 'Set Total (=)', SlidersHorizontal]] as const).map(([value, label, Icon]) => <Button key={value} type="button" variant={mode === value ? 'default' : 'outline'} disabled={freeze} aria-pressed={mode === value} onClick={() => { capture(); setMode(value) }}><Icon className="size-4" />{label}</Button>)}
         </div>
-
-        {/* Real-time Projected Balance Preview */}
-        {isExistingStock && (
-          <div className="rounded-lg border border-border bg-secondary p-3.5 flex items-center justify-between">
-            <div className="flex flex-col">
-              <span className="text-xs font-medium text-muted-foreground">Current Units</span>
-              <span className="text-sm font-normal tabular-nums text-foreground">
-                {currentQty.toLocaleString()}{' '}
-                {formatProductUnit(inventoryItem?.unit || stockItem?.inventoryItem?.unit, 'units')}
-              </span>
-            </div>
-
-            <div className="flex items-center gap-1 text-xs text-muted-foreground">
-              <span>
-                {effectiveMode === 'increase'
-                  ? `+ ${parsedVal.toLocaleString()}`
-                  : effectiveMode === 'decrease'
-                    ? `- ${parsedVal.toLocaleString()}`
-                    : `→`}
-              </span>
-              <ArrowRight className="size-3 text-primary" />
-            </div>
-
-            <div className="flex flex-col text-right">
-              <span className="text-xs font-medium text-muted-foreground">Projected Balance</span>
-              <span
-                className={`text-sm font-medium tabular-nums ${
-                  calculatedNewQty < 0
-                    ? 'text-destructive'
-                    : effectiveMode === 'increase'
-                      ? 'text-status-success-foreground'
-                      : 'text-foreground'
-                }`}
-              >
-                {calculatedNewQty < 0
-                  ? 'Invalid (< 0)'
-                  : `${calculatedNewQty.toLocaleString()} ${formatProductUnit(inventoryItem?.unit || stockItem?.inventoryItem?.unit, 'units')}`}
-              </span>
-            </div>
-          </div>
-        )}
-
-        <DialogFooter className="gap-2 pt-2 border-t">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={onClose}
-            disabled={isPending}
-            className="text-[13px] font-medium h-9 rounded-md cursor-pointer"
-          >
-            Cancel
-          </Button>
-          <Button
-            type="submit"
-            disabled={
-              isPending ||
-              isLoadingPair ||
-              !!pairError ||
-              (!stockItem && activeWarehouses.length === 0) ||
-              isDecreaseExceeding ||
-              isNaN(parsedVal) ||
-              parsedVal < 0
-            }
-            className={`text-[13px] font-medium h-9 rounded-md cursor-pointer ${
-              isExistingStock && effectiveMode === 'increase'
-                ? ''
-                : isExistingStock && effectiveMode === 'decrease'
-                  ? 'bg-status-warning-foreground hover:bg-status-warning-foreground/90 text-white'
-                  : ''
-            }`}
-          >
-            {isPending && <Spinner className="size-3.5 mr-1" />}
-            {!isExistingStock
-              ? 'Allocate Stock'
-              : effectiveMode === 'increase'
-                ? 'Confirm Inward Stock'
-                : effectiveMode === 'decrease'
-                  ? 'Confirm Dispatch'
-                  : 'Save Stock Balance'}
-          </Button>
-        </DialogFooter>
-      </form>
-    </>
-  )
+        <div className="space-y-2"><Label htmlFor="stock-amount">Adjustment quantity ({unit})</Label><div className="relative"><Package className="absolute left-3 top-3 size-4 text-muted-foreground" /><Input id="stock-amount" className="pl-9" type="text" inputMode="decimal" value={amount} disabled={freeze} onChange={(event) => { capture(); setAmount(event.target.value) }} required /></div></div>
+        <div className="space-y-2"><Label htmlFor="stock-reason">Adjustment reason</Label><Input id="stock-reason" value={reason} disabled={freeze} onChange={(event) => { capture(); setReason(event.target.value) }} required /></div>
+        <div className="flex justify-between rounded-lg border bg-muted/30 p-3 text-sm"><span>On hand: {formatStockCents(onHand)} {unit}</span><span>Projected: {projected !== null && projected >= 0n ? formatStockCents(projected) : '?'} {unit}</span></div>
+        <p className="text-xs text-muted-foreground">In transit: {current.inTransitQuantity} {unit} ? Quarantined: {current.quarantinedQuantity} {unit}. Adjustments change on-hand stock; delivery and quarantine actions remain separate.</p>
+      </>}
+      <DialogFooter className="flex-wrap gap-2">
+        <Button type="button" variant="outline" disabled={busy} onClick={onClose}>Cancel</Button>
+        {(stale || rejected || query.isError) && <Button type="button" variant="outline" disabled={busy || query.isFetching} onClick={() => void refresh()}>Refresh stock balance</Button>}
+        <Button type="submit" disabled={busy || query.isPending || query.isError || !selectedWarehouseId || rejected || (!attempt && Boolean(current) && (invalid || stale))}>{busy ? 'Saving?' : !current ? 'Allocate Stock' : attempt ? 'Retry Same Adjustment' : 'Record Adjustment'}</Button>
+      </DialogFooter>
+    </form>
+    {current && <section className="space-y-2 border-t pt-3" aria-label="Adjustment history"><h3 className="text-sm font-medium">Adjustment history</h3>
+      {history.isError && <Alert variant="destructive"><AlertDescription>{getErrorMessage(history.error)} <Button type="button" variant="outline" size="sm" onClick={() => void history.reload()}>Reload history</Button></AlertDescription></Alert>}
+      <DataTable data={history.items} columns={historyColumns} isLoading={history.isPending} pagination={false} emptyContent={<p>No adjustments recorded.</p>} />
+      {history.hasNextPage && <Button type="button" variant="outline" size="sm" disabled={history.isFetching} onClick={() => void history.fetchNextPage()}>Load more adjustments</Button>}
+    </section>}
+  </>
 }
-
-export function StockAdjustModal({
-  stockItem,
-  inventoryItem,
-  warehouseId,
-  initialMode = 'increase',
-  open,
-  onClose,
-}: StockAdjustModalProps) {
-  return (
-    <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-      <DialogContent className="sm:max-w-[480px] p-6">
-        {open && (
-          <StockAdjustContent
-            key={
-              stockItem
-                ? `stock-${stockItem.id}-${initialMode}`
-                : inventoryItem
-                  ? `inv-${inventoryItem.id}`
-                  : 'new-stock'
-            }
-            stockItem={stockItem}
-            inventoryItem={inventoryItem}
-            warehouseId={warehouseId}
-            initialMode={initialMode}
-            onClose={onClose}
-          />
-        )}
-      </DialogContent>
-    </Dialog>
-  )
+export function StockAdjustModal({ open, ...props }: StockAdjustModalProps) {
+  return <Dialog open={open} onOpenChange={(value) => !value && props.onClose()}><DialogContent className="sm:max-w-[680px] max-h-[90vh] overflow-y-auto">{open && <StockAdjustContent key={props.stockItem ? `stock-${props.stockItem.id}-${props.initialMode}` : `product-${props.inventoryItem?.id}`} {...props} />}</DialogContent></Dialog>
 }

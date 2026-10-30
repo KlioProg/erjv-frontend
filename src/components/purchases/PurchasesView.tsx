@@ -139,12 +139,12 @@ export function PurchasesView({
     return new Map(suppliers.map((s) => [s.id, s]))
   }, [suppliers])
 
-  const confirmPurchaseOrder = async (id: number): Promise<PurchaseOrderRecord> => {
+  const confirmPurchaseOrder = async (id: number, expectedRevision: number): Promise<PurchaseOrderRecord> => {
     if (!canConfirmPurchaseOrder || confirmPOMutation.isPending || confirmationInFlight.current)
       throw new Error('Purchase order confirmation is unavailable.')
     confirmationInFlight.current = true
     try {
-      const confirmedOrder = await confirmPOMutation.mutateAsync(id)
+      const confirmedOrder = await confirmPOMutation.mutateAsync({ id, expectedRevision })
       setSelectedOrderId(null)
       return confirmedOrder
     } finally {
@@ -429,7 +429,7 @@ export function PurchasesView({
               size="sm"
               className="pointer-coarse:min-h-11"
               disabled={confirmPOMutation.isPending}
-              onClick={() => void confirmPurchaseOrder(po.id).catch(() => undefined)}
+              onClick={() => void confirmPurchaseOrder(po.id, po.revision).catch(() => undefined)}
               title="Confirm Purchase Order"
             >
               <Check aria-hidden="true" data-icon="inline-start" />
@@ -633,7 +633,7 @@ export function PurchasesView({
             <Button
               size="sm"
               onClick={() => setIsPurchaseModalOpen(true)}
-              disabled={!canManage || !suppliers.some((supplier) => supplier.isActive)}
+              disabled={!canManage}
             >
               <Plus className="size-4" />
               Create Purchase Order
@@ -801,7 +801,7 @@ export function PurchasesView({
           onNavigateToDeliveries={onNavigateToDeliveries}
           onConfirm={
             canConfirmPurchaseOrder
-              ? () => void confirmPurchaseOrder(selectedOrder.id).catch(() => undefined)
+              ? () => void confirmPurchaseOrder(selectedOrder.id, selectedOrder.revision).catch(() => undefined)
               : undefined
           }
           onExportReceipt={
@@ -815,6 +815,7 @@ export function PurchasesView({
 
       {(isPurchaseModalOpen || editingOrder) && canManage && (
         <PurchaseModal
+          remoteSelectors={!editingOrder}
           key={editingOrder?.id ?? 'new-purchase-order'}
           open
           onClose={() => {
@@ -832,6 +833,7 @@ export function PurchasesView({
           catalogState={{
             productsLoading: productsQuery.isLoading,
             stockLoading: stockQuery.isLoading,
+            stockIncomplete: stockQuery.hasNextPage,
             productsError: productsQuery.error ? getErrorMessage(productsQuery.error) : undefined,
             stockError: stockQuery.error ? getErrorMessage(stockQuery.error) : undefined,
             onRetry: () => {
@@ -860,7 +862,7 @@ export function PurchasesView({
         open={!!orderToCancel}
         onClose={() => setOrderToCancel(null)}
         onConfirm={async () => {
-          if (orderToCancel && canManage) await cancelPOMutation.mutateAsync(orderToCancel.id)
+          if (orderToCancel && canManage) await cancelPOMutation.mutateAsync({ id: orderToCancel.id, expectedRevision: orderToCancel.revision })
         }}
         title="Cancel Purchase Order"
         description="Cancel this order if it has no stock movements. Physical stock is unchanged."

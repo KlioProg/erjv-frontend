@@ -7,10 +7,38 @@ export type FetchParams = {
   includeInactive?: IncludeInactive
 }
 
+export type ApiIssue = { path: string; code: string; message: string }
+
+/** Keep DTO paths intact so item errors can be bound to the submitted row. */
+export function getApiFieldErrors(error: unknown): Record<string, string> {
+  const issues = getApiError(error)?.issues
+  if (!Array.isArray(issues)) return {}
+  const fields: Record<string, string> = {}
+  for (const issue of issues) {
+    if (typeof issue?.path !== 'string' || typeof issue.message !== 'string' || !issue.message.trim()) continue
+    const path = issue.path.replace(/\[(\d+)\]/g, '.$1')
+    if (path && !Object.hasOwn(fields, path))
+      Object.defineProperty(fields, path, { value: issue.message, enumerable: true, configurable: true })
+  }
+  return fields
+}
+type ApiErrorBody = {
+  code?: string; message?: string | string[]; detail?: string; title?: string
+  details?: unknown; issues?: ApiIssue[]; [key: string]: unknown
+}
+
 export function getApiError(error: unknown) {
-  if (!axios.isAxiosError<{ code?: string; message?: string | string[]; details?: unknown }>(error))
-    return undefined
-  return { status: error.response?.status, ...error.response?.data }
+  if (!axios.isAxiosError<ApiErrorBody>(error)) return undefined
+  const body = error.response?.data
+  if (!body || typeof body !== 'object' || Array.isArray(body))
+    return { status: error.response?.status }
+  return { ...body, status: error.response?.status }
+}
+
+export function requireRevision(revision: number | undefined): number {
+  if (typeof revision !== 'number' || !Number.isSafeInteger(revision) || revision < 1)
+    throw new Error('A valid saved revision is required. Reload the record and review it before continuing.')
+  return revision
 }
 
 const workflowCodes = new Set([
@@ -33,6 +61,7 @@ function formatErrorDetails(details: unknown): string {
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
+  paramsSerializer: { indexes: null },
   headers: {
     'Content-Type': 'application/json',
   },
@@ -235,6 +264,8 @@ export function humanizeErrorMessage(raw: string, status?: number): string {
 export function getErrorMessage(error: unknown): string {
   if (axios.isAxiosError(error)) {
     const axiosErr = error as AxiosError<{
+      detail?: string
+      issues?: ApiIssue[]
       message?: string | string[]
       error?: string
       statusCode?: number
@@ -244,7 +275,9 @@ export function getErrorMessage(error: unknown): string {
     let serverMessage = ''
 
     if (resData) {
-      if (Array.isArray(resData.message)) {
+      if (typeof resData.detail === 'string' && resData.detail.trim()) {
+        serverMessage = resData.detail
+      } else if (Array.isArray(resData.message)) {
         serverMessage = resData.message.join('. ')
       } else if (typeof resData.message === 'string' && resData.message.trim()) {
         serverMessage = resData.message
@@ -254,6 +287,20 @@ export function getErrorMessage(error: unknown): string {
     }
 
     const structured = getApiError(error)
+    if (status !== undefined && status >= 500)
+      return humanizeErrorMessage('Internal server error', status)
+    if (structured && typeof structured.detail === 'string' && status !== 401 && status !== 403) {
+      const extensions = Object.fromEntries(Object.entries(structured).filter(([key]) =>
+        !['type', 'title', 'status', 'detail', 'code', 'issues', 'message', 'error', 'statusCode', 'details'].includes(key),
+      ))
+      const details = formatErrorDetails(structured.details ?? extensions)
+      const issues = Array.isArray(structured.issues) ? structured.issues.filter((issue) =>
+        issue && typeof issue.path === 'string' && typeof issue.message === 'string',
+      ).map((issue) => `${issue.path}: ${issue.message}`).join('; ') : ''
+      const guidance = structured.code === 'STALE_REVISION'
+        ? ' Refresh the record and review your changes before submitting again.' : ''
+      return [serverMessage || 'Review the submitted information.', details, issues].filter(Boolean).join(' · ') + guidance
+    }
     if (structured?.code && workflowCodes.has(structured.code)) {
       const message = serverMessage.trim() || 'Review the current record before continuing.'
       const details = formatErrorDetails(structured.details)

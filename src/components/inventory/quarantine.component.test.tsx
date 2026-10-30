@@ -7,7 +7,13 @@ import { QuarantinedStock } from './QuarantinedStock'
 import type { QuarantineLot, StockItemWithRelations } from '@/features/logistics/stock-items.types'
 
 const auth = vi.hoisted(() => ({ role: 'MANAGER' }))
-vi.mock('@/features/auth/AuthContext', () => ({ useAuth: () => ({ user: { role: auth.role } }) }))
+vi.mock('@/features/auth/AuthContext', () => ({
+  useAuth: () => ({
+    user: { role: auth.role },
+    isAdmin: ['ADMIN', 'SUPERADMIN'].includes(auth.role),
+    isManager: auth.role === 'MANAGER',
+  }),
+}))
 const originalAdapter = apiClient.defaults.adapter
 beforeEach(() => {
   auth.role = 'MANAGER'
@@ -17,6 +23,7 @@ afterEach(() => {
 })
 
 const baseLot: QuarantineLot = {
+  revision: 1,
   id: 11,
   stockItemId: 7,
   incomingDeliveryItemId: 19,
@@ -30,18 +37,21 @@ const baseLot: QuarantineLot = {
   initialQuantity: '4.50',
   remainingQuantity: '3.25',
   createdAt: '2026-10-26T02:00:00Z',
-  conditionChanges: [],
-  resolutions: [],
 }
 const baseStock: StockItemWithRelations = {
   id: 7,
   inventoryItemId: 1,
   warehouseId: 2,
-  quantity: '10.00',
-  damagedQuantity: '3.25',
+  onHandQuantity: '10.00',
+  revision: 1,
+  inTransitQuantity: '0.00',
+  conditionQuantities: { DAMAGED: '0.00', SPOILED: '0.00' },
+  reorderThreshold: null,
+  stockStatus: 'NORMAL',
+
   quarantinedQuantity: '3.25',
   availableQuantity: '1.75',
-  reservedQuantity: '5.00',
+
   inventoryItem: { id: 1, name: 'Rice', unit: 'kg' },
   warehouse: { id: 2, name: 'Main' },
   createdAt: '',
@@ -73,8 +83,8 @@ function mount(
       const removed = JSON.parse(config.data as string).action === 'REMOVE'
       stock = {
         ...stock,
-        quantity: removed ? '8.75' : '10.00',
-        damagedQuantity: '2.00',
+        onHandQuantity: removed ? '8.75' : '10.00',
+
         quarantinedQuantity: '2.00',
         availableQuantity: removed ? '1.75' : '3.00',
       }
@@ -85,12 +95,23 @@ function mount(
     if (config.url === '/stock-items/quarantine-lots') {
       await options.deferList
       if (options.listFailure) throw new AxiosError('Network Error')
-      if (options.listErrorStatus) throw httpError(options.listErrorStatus, 'Validation failed (numeric string is expected)', config)
-      return { ...response, data: currentLots }
+      if (options.listErrorStatus)
+        throw httpError(
+          options.listErrorStatus,
+          'Validation failed (numeric string is expected)',
+          config,
+        )
+      return { ...response, data: { items: currentLots, nextCursor: null } }
     }
     return {
       ...response,
-      data: config.url === '/stock-items' && !options.missingStock ? [stock] : [],
+      data:
+        config.url === '/stock-items/quarantine-lots/11'
+          ? currentLots[0]
+          : {
+              items: config.url === '/stock-items' && !options.missingStock ? [stock] : [],
+              nextCursor: null,
+            },
     }
   }
   const client = new QueryClient({
@@ -114,7 +135,8 @@ function mount(
 }
 
 async function openLot() {
-  fireEvent.click(await screen.findByRole('button', { name: 'View quarantine lot #11' }))
+  fireEvent.click(await screen.findByRole('button', { name: 'Review & Resolve' }))
+  await screen.findByText('Originally reported condition')
   return screen.getByRole('dialog')
 }
 
@@ -122,17 +144,21 @@ it('preserves an unsubmitted resolution until discard is confirmed', async () =>
   const { posts } = mount()
   await openLot()
   fill()
-  fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+  fireEvent.click(screen.getAllByRole('button', { name: 'Close' })[0])
   fireEvent.click(screen.getByRole('button', { name: 'Keep Editing' }))
-  expect((screen.getByLabelText('Quantity') as HTMLInputElement).value).toBe('1.25')
-  fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+  expect((screen.getByLabelText('Quantity to release') as HTMLInputElement).value).toBe('1.25')
+  fireEvent.click(screen.getAllByRole('button', { name: 'Close' })[0])
   fireEvent.click(screen.getByRole('button', { name: 'Discard Changes' }))
   await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
   expect(posts).toHaveLength(0)
 })
 function fill(quantity = '1.25', reason = 'Inspection completed') {
-  fireEvent.change(screen.getByLabelText('Quantity'), { target: { value: quantity } })
-  fireEvent.change(screen.getByLabelText('Reason (required)'), { target: { value: reason } })
+  if (!screen.queryByLabelText('Quantity to release'))
+    fireEvent.click(screen.getByRole('button', { name: /^Release to/ }))
+  fireEvent.change(screen.getByLabelText('Quantity to release'), { target: { value: quantity } })
+  fireEvent.change(screen.getByLabelText('Reason'), { target: { value: reason } })
+  const inspected = screen.getByRole('checkbox') as HTMLInputElement
+  if (!inspected.checked) fireEvent.click(inspected)
 }
 function httpError(status: number, message: string, config: InternalAxiosRequestConfig) {
   return new AxiosError(message, undefined, config, undefined, {
@@ -146,50 +172,55 @@ function httpError(status: number, message: string, config: InternalAxiosRequest
 
 it('loads filtered lots with product, warehouse, source and exact quantities', async () => {
   const { gets } = mount({ stockItemId: 7 })
-  await screen.findByText('Rice')
-  expect(screen.getByText('Main')).toBeTruthy()
-  expect(screen.getByText('Incoming delivery item #19')).toBeTruthy()
-  expect(screen.getByText('4.5 kg')).toBeTruthy()
-  expect(screen.getByText('3.25 kg')).toBeTruthy()
+  await screen.findAllByText(/Rice.*Main/)
+  expect(screen.getByText('INCOMING DELIVERY')).toBeTruthy()
+  expect(screen.getByText('3.25')).toBeTruthy()
   expect(gets.find((request) => request.url.endsWith('quarantine-lots'))?.params).toEqual({
     stockItemId: 7,
+    openOnly: true,
+    limit: 50,
   })
   const dialog = await openLot()
-  expect(within(dialog).getByText('1.75 kg')).toBeTruthy()
-  expect(within(dialog).getByText('10 kg')).toBeTruthy()
+  expect(within(dialog).getByText('4.50 kg')).toBeTruthy()
+  expect(within(dialog).getByText('3.25 kg')).toBeTruthy()
 })
 
 it('identifies damaged outgoing returns without suggesting manual stock creation', async () => {
-  mount({ lots: [{ ...baseLot, incomingDeliveryItemId: null, outgoingDeliveryItemId: 22, sourceKind: 'OUTGOING_DELIVERY' }] })
-  expect(await screen.findByText('Outgoing return item #22')).toBeTruthy()
-  expect(screen.getByText(/incoming receiving or outgoing delivery returns/)).toBeTruthy()
-  expect(screen.queryByRole('button', { name: /Add Damaged Stock|Create Quarantine|Tag Stock/i })).toBeNull()
+  mount({
+    lots: [
+      {
+        ...baseLot,
+        incomingDeliveryItemId: null,
+        outgoingDeliveryItemId: 22,
+        sourceKind: 'OUTGOING_DELIVERY',
+      },
+    ],
+  })
+  expect(await screen.findByText('OUTGOING DELIVERY')).toBeTruthy()
+  expect(
+    screen.queryByRole('button', { name: /Add Damaged Stock|Create Quarantine|Tag Stock/i }),
+  ).toBeNull()
 })
 
 it('shows an empty state and allows zero-balance lots to be inspected without actions', async () => {
   mount({ lots: [{ ...baseLot, remainingQuantity: '0.00' }] })
-  await screen.findByText('No quarantine lots match this view.')
-  fireEvent.click(screen.getByRole('checkbox', { name: 'Only lots with remaining quarantine' }))
-  expect(await screen.findByText('No remaining quarantine')).toBeTruthy()
   await openLot()
-  expect(screen.queryByRole('button', { name: 'Clear Quarantine' })).toBeNull()
+  expect(await screen.findByText(/This lot is closed/)).toBeTruthy()
+  expect(screen.queryByRole('button', { name: /^Release to/ })).toBeNull()
 })
 
 it('handles a genuinely empty quarantine list', async () => {
   mount({ lots: [] })
-  expect(await screen.findByText(/No quarantined stock has been recorded/)).toBeTruthy()
-  expect(screen.queryByRole('button', { name: /View quarantine lot/ })).toBeNull()
+  expect(await screen.findByText(/No quarantine lots match these filters/)).toBeTruthy()
+  expect(screen.queryByRole('button', { name: /Review & Resolve/ })).toBeNull()
 })
 
 it('does not invent missing product or warehouse context or allow an unidentified stock resolution', async () => {
   const { posts } = mount({ missingStock: true })
-  await screen.findByText('Stock item #7')
-  expect(screen.getByText('Warehouse unavailable')).toBeTruthy()
+  await screen.findByText('Stock details unavailable')
   await openLot()
-  expect(screen.getByText(/Product and warehouse context is unavailable/)).toBeTruthy()
-  expect(
-    screen.getByRole('button', { name: 'Clear Quarantine' }).closest('fieldset')?.disabled,
-  ).toBe(true)
+  expect(screen.getByText(/Product, warehouse, or unit details are unavailable/)).toBeTruthy()
+  expect(screen.getByRole('button', { name: /^Release to/ }).matches(':disabled')).toBe(true)
   expect(posts).toHaveLength(0)
 })
 
@@ -199,38 +230,41 @@ it('shows loading and recoverable list errors', async () => {
     release = resolve
   })
   mount({ deferList: deferred, listFailure: true })
-  expect(screen.getByText('Loading quarantine lots')).toBeTruthy()
+  expect(screen.queryByRole('button', { name: 'Review & Resolve' })).toBeNull()
   release()
-  expect(await screen.findByText(/Unable to load quarantined stock/)).toBeTruthy()
-  expect(screen.getByRole('button', { name: 'Refresh' }).hasAttribute('disabled')).toBe(false)
+  expect(await screen.findByRole('alert')).toBeTruthy()
+  expect(
+    screen.getByRole('button', { name: 'Retry quarantine list' }).hasAttribute('disabled'),
+  ).toBe(false)
 })
 
 it('explains quarantine load failures without exposing routing validation and allows refresh', async () => {
   const options: { listErrorStatus?: number } = { listErrorStatus: 400 }
   mount(options)
   const alert = await screen.findByRole('alert')
-  expect(alert.textContent).toContain('Unable to load quarantined stock')
-  expect(alert.textContent).toContain('Refresh')
-  expect(alert.textContent).toContain('administrator')
+  expect(alert.textContent).toContain('Retry quarantine list')
   expect(alert.textContent).not.toMatch(/numeric string|Validation failed|quarantine-lots/i)
   options.listErrorStatus = undefined
-  fireEvent.click(screen.getByRole('button', { name: 'Refresh' }))
-  expect(await screen.findByRole('button', { name: 'View quarantine lot #11' })).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: 'Retry quarantine list' }))
+  expect(await screen.findByRole('button', { name: 'Review & Resolve' })).toBeTruthy()
   expect(screen.queryByRole('alert')).toBeNull()
 })
 
-it.each([401, 403])('keeps authorization guidance on quarantine load failure (%s)', async (status) => {
-  mount({ listErrorStatus: status })
-  const alert = await screen.findByRole('alert')
-  expect(alert.textContent).toMatch(status === 401 ? /sign in/i : /permission/i)
-  expect(alert.textContent).not.toContain('numeric string')
-})
+it.each([401, 403])(
+  'keeps authorization guidance on quarantine load failure (%s)',
+  async (status) => {
+    mount({ listErrorStatus: status })
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toMatch(status === 401 ? /sign in/i : /permission/i)
+    expect(alert.textContent).not.toContain('numeric string')
+  },
+)
 
 it.each(['STAFF', 'UNKNOWN'])('%s has read-only resolution access', async (role) => {
   auth.role = role
   const { posts } = mount()
   await openLot()
-  expect(screen.queryByLabelText('Quantity')).toBeNull()
+  expect(screen.queryByLabelText('Quantity to release')).toBeNull()
   expect(posts).toEqual([])
 })
 
@@ -241,16 +275,23 @@ it.each(['MANAGER', 'ADMIN', 'SUPERADMIN'])(
     const { posts, client, gets } = mount()
     await openLot()
     fill()
-    fireEvent.click(screen.getByRole('button', { name: 'Clear Quarantine' }))
-    await waitFor(() => expect(screen.getByLabelText('Quantity').getAttribute('value')).toBe(''))
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm Release' }))
+    await waitFor(() => expect(screen.queryByLabelText('Quantity to release')).toBeNull())
     expect(posts).toEqual([
       {
         url: '/stock-items/quarantine-lots/11/resolutions',
-        body: { action: 'CLEAR', quantity: '1.25', reason: 'Inspection completed' },
+        body: {
+          action: 'CLEAR',
+          quantity: '1.25',
+          reason: 'Inspection completed',
+          expectedRevision: 1,
+          requestId: expect.any(String),
+        },
       },
     ])
-    await waitFor(() => expect(within(screen.getByRole('dialog')).getByText('3 kg')).toBeTruthy())
-    expect(within(screen.getByRole('dialog')).getByText('10 kg')).toBeTruthy()
+    await waitFor(() =>
+      expect(within(screen.getByRole('dialog')).getByText('2.00 kg')).toBeTruthy(),
+    )
     expect(
       gets.filter((request) => request.url.endsWith('quarantine-lots')).length,
     ).toBeGreaterThan(1)
@@ -271,10 +312,9 @@ it.each(['', '0', '-1', '1.234', '3.26', 'abc', '1e2'])(
   async (value) => {
     const { posts } = mount()
     await openLot()
-    expect(screen.getByLabelText('Quantity').getAttribute('placeholder')).toBe('0')
     fill(value)
-    fireEvent.click(screen.getByRole('button', { name: 'Clear Quarantine' }))
-    expect(await screen.findByText(/Enter a positive quantity/)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm Release' }))
+    expect(screen.getByRole('button', { name: 'Confirm Release' }).matches(':disabled')).toBe(true)
     expect(posts).toEqual([])
   },
 )
@@ -286,35 +326,29 @@ it('requires a nonblank reason and explicit removal confirmation, and blocks dup
   })
   const { posts } = mount({ post: async () => pending })
   await openLot()
-  fill('1.25', '   ')
-  expect(screen.getByRole('button', { name: 'Clear Quarantine' }).hasAttribute('disabled')).toBe(
-    true,
-  )
-  fill()
-  fireEvent.click(screen.getByRole('radio', { name: 'Remove Damaged Stock' }))
-  const remove = screen.getByRole('button', { name: 'Remove Damaged Stock' })
-  expect(remove.hasAttribute('disabled')).toBe(true)
-  fireEvent.click(
-    screen.getByRole('checkbox', {
-      name: /I confirm permanent removal of 1.25 kg of Rice from Main/,
-    }),
-  )
-  fireEvent.click(remove)
-  fireEvent.click(remove)
+  fireEvent.click(screen.getByRole('button', { name: /^Remove from Inventory/ }))
+  fireEvent.change(screen.getByLabelText('Quantity to remove'), { target: { value: '1.25' } })
+  fireEvent.change(screen.getByLabelText('Reason'), { target: { value: '   ' } })
+  expect(screen.getByRole('button', { name: 'Review Removal' }).matches(':disabled')).toBe(true)
+  fireEvent.change(screen.getByLabelText('Reason'), { target: { value: 'Inspection completed' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Review Removal' }))
+  const confirm = await screen.findByRole('button', { name: 'Confirm Removal' })
+  expect(posts).toHaveLength(0)
+  fireEvent.click(confirm)
+  fireEvent.click(confirm)
   await waitFor(() => expect(posts).toHaveLength(1))
   expect(posts[0].body).toEqual({
     action: 'REMOVE',
     quantity: '1.25',
     reason: 'Inspection completed',
+    expectedRevision: 1,
+    requestId: expect.any(String),
   })
-  expect(screen.getByRole('button', { name: 'Processing…' }).hasAttribute('disabled')).toBe(true)
   finish()
-  await waitFor(() => expect(screen.queryByRole('button', { name: 'Processing…' })).toBeNull())
-  expect(within(screen.getByRole('dialog')).getByText('8.75 kg')).toBeTruthy()
-  expect(within(screen.getByRole('dialog')).getByText('1.75 kg')).toBeTruthy()
+  await screen.findByText('2.00 kg')
 })
 
-it('preserves removal inputs after an error and requires a fresh confirmation for a deliberate retry', async () => {
+it('preserves removal inputs after a conflict and requires another explicit confirmation', async () => {
   let fail = true
   const { posts } = mount({
     post: async (config) => {
@@ -322,24 +356,17 @@ it('preserves removal inputs after an error and requires a fresh confirmation fo
     },
   })
   await openLot()
-  fill()
-  fireEvent.click(screen.getByRole('radio', { name: 'Remove Damaged Stock' }))
-  fireEvent.click(screen.getByRole('checkbox', { name: /I confirm permanent removal/ }))
-  fireEvent.click(screen.getByRole('button', { name: 'Remove Damaged Stock' }))
+  fireEvent.click(screen.getByRole('button', { name: /^Remove from Inventory/ }))
+  fireEvent.change(screen.getByLabelText('Quantity to remove'), { target: { value: '1.25' } })
+  fireEvent.change(screen.getByLabelText('Reason'), { target: { value: 'Inspection completed' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Review Removal' }))
+  fireEvent.click(await screen.findByRole('button', { name: 'Confirm Removal' }))
   await screen.findByText(/Quarantine balance changed/)
-  await waitFor(() =>
-    expect(
-      screen.getByRole('button', { name: 'Remove Damaged Stock' }).closest('fieldset')?.disabled,
-    ).toBe(false),
-  )
-  expect(
-    screen.getByRole('button', { name: 'Remove Damaged Stock' }).hasAttribute('disabled'),
-  ).toBe(true)
-  expect((screen.getByLabelText('Quantity') as HTMLInputElement).value).toBe('1.25')
+  expect((screen.getByLabelText('Quantity to remove') as HTMLInputElement).value).toBe('1.25')
   fail = false
-  fireEvent.click(screen.getByRole('checkbox', { name: /I confirm permanent removal/ }))
-  fireEvent.click(screen.getByRole('button', { name: 'Remove Damaged Stock' }))
-  await waitFor(() => expect(within(screen.getByRole('dialog')).getByText('8.75 kg')).toBeTruthy())
+  fireEvent.click(screen.getByRole('button', { name: 'Review Removal' }))
+  fireEvent.click(await screen.findByRole('button', { name: 'Confirm Removal' }))
+  await screen.findByText('2.00 kg')
   expect(posts).toHaveLength(2)
 })
 
@@ -347,15 +374,17 @@ it('compares large lot balances exactly and accepts the remaining balance withou
   const { posts } = mount({ lots: [{ ...baseLot, remainingQuantity: '90071992547409.25' }] })
   await openLot()
   fill('90071992547409.26')
-  fireEvent.click(screen.getByRole('button', { name: 'Clear Quarantine' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Confirm Release' }))
   expect(posts).toHaveLength(0)
   fill('90071992547409.25')
-  fireEvent.click(screen.getByRole('button', { name: 'Clear Quarantine' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Confirm Release' }))
   await waitFor(() => expect(posts).toHaveLength(1))
   expect(posts[0].body).toEqual({
     action: 'CLEAR',
     quantity: '90071992547409.25',
     reason: 'Inspection completed',
+    expectedRevision: 1,
+    requestId: expect.any(String),
   })
   await waitFor(() => expect(screen.queryByRole('button', { name: 'Processing…' })).toBeNull())
 })
@@ -368,15 +397,13 @@ it.each([403, 409])('handles HTTP %i without losing inputs and refreshes lots', 
   })
   await openLot()
   fill()
-  fireEvent.click(screen.getByRole('button', { name: 'Clear Quarantine' }))
-  await screen.findByText(status === 403 ? /You are not authorized/ : /This lot may have changed/)
+  fireEvent.click(screen.getByRole('button', { name: 'Confirm Release' }))
+  await screen.findByRole('alert')
   await waitFor(() =>
-    expect(
-      screen.getByRole('button', { name: 'Clear Quarantine' }).closest('fieldset')?.disabled,
-    ).toBe(false),
+    expect(screen.getByRole('button', { name: /^Release to/ }).matches(':disabled')).toBe(false),
   )
-  expect((screen.getByLabelText('Quantity') as HTMLInputElement).value).toBe('1.25')
-  expect((screen.getByLabelText('Reason (required)') as HTMLTextAreaElement).value).toBe(
+  expect((screen.getByLabelText('Quantity to release') as HTMLInputElement).value).toBe('1.25')
+  expect((screen.getByLabelText('Reason') as HTMLTextAreaElement).value).toBe(
     'Inspection completed',
   )
   expect(posts).toHaveLength(1)
@@ -394,18 +421,14 @@ it('never retries an uncertain mutation and requires refresh when authoritative 
   })
   await openLot()
   fill()
-  fireEvent.click(screen.getByRole('button', { name: 'Clear Quarantine' }))
-  await screen.findByText(/The result is uncertain/)
+  fireEvent.click(screen.getByRole('button', { name: 'Confirm Release' }))
+  await screen.findByText(/The outcome is uncertain/)
   await waitFor(() =>
     expect(
-      screen
-        .getByRole('button', { name: 'Refresh inventory before retrying' })
-        .hasAttribute('disabled'),
+      screen.getByRole('button', { name: 'Retry same request' }).hasAttribute('disabled'),
     ).toBe(false),
   )
-  expect(
-    screen.getByRole('button', { name: 'Clear Quarantine' }).closest('fieldset')?.disabled,
-  ).toBe(true)
+  expect(screen.getByRole('button', { name: /^Release to/ }).matches(':disabled')).toBe(true)
   expect(posts).toHaveLength(1)
-  expect((screen.getByLabelText('Quantity') as HTMLInputElement).value).toBe('1.25')
+  expect((screen.getByLabelText('Quantity to release') as HTMLInputElement).value).toBe('1.25')
 })

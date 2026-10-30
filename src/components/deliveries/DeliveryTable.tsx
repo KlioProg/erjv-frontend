@@ -14,9 +14,11 @@ import {
 
 const actions = {
   schedule: { label: 'Schedule', Icon: CalendarCheck },
-  dispatch: { label: 'Dispatch', Icon: Send },
+  ready: { label: 'Plan / Mark Ready', Icon: Check },
+  reopen: { label: 'Reopen Draft', Icon: CalendarCheck },
+  run: { label: 'Manage Run', Icon: Send },
   receive: { label: 'Receive Goods', Icon: PackageCheck },
-  complete: { label: 'Complete Delivery', Icon: Check },
+  reconcile: { label: 'Reconcile Delivery', Icon: Check },
   cancel: { label: 'Cancel Delivery', Icon: X },
 }
 
@@ -100,7 +102,7 @@ export function DeliveryTable({
         const schedule = formatDeliverySchedule(
           row.date,
           view === 'history',
-          !!row.record.scheduledAt,
+          row.type === 'Incoming' && !!row.record.scheduledAt,
         )
         return (
           <div title={schedule.title} className="flex flex-col gap-1 whitespace-nowrap py-1">

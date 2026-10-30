@@ -21,15 +21,11 @@ import { getErrorMessage } from '@/lib/api-client'
 
 export const INCOMING_DELIVERIES_QUERY_KEY = ['incoming-deliveries'] as const
 
-export function useIncomingDeliveries(filter?: IncomingDeliveryFilter) {
+export function useIncomingDeliveries(filter?: IncomingDeliveryFilter, enabled = true) {
   return useQuery({
-    queryKey: [
-      ...INCOMING_DELIVERIES_QUERY_KEY,
-      filter?.status ?? 'ALL',
-      filter?.purchaseOrderId ?? 'ALL',
-      filter?.warehouseId ?? 'ALL', filter?.limit ?? 50, filter?.cursor ?? null,
-    ],
+    queryKey: [...INCOMING_DELIVERIES_QUERY_KEY, filter ?? {}],
     queryFn: ({ signal }) => fetchIncomingDeliveriesApi(filter, signal),
+    enabled,
   })
 }
 
@@ -78,7 +74,7 @@ export function useScheduleIncomingDelivery() {
   const queryClient = useQueryClient()
   return useMutation({
     retry: false,
-    mutationFn: (id: number) => scheduleIncomingDeliveryApi(id),
+    mutationFn: ({ id, expectedRevision }: { id: number; expectedRevision: number }) => scheduleIncomingDeliveryApi(id, expectedRevision),
     onSuccess: (delivery) => {
       void queryClient.invalidateQueries({ queryKey: INCOMING_DELIVERIES_QUERY_KEY })
       toast.success(`Incoming Delivery "${delivery.deliveryNumber}" scheduled`)
@@ -141,7 +137,7 @@ export function useCancelIncomingDelivery() {
   const queryClient = useQueryClient()
   return useMutation({
     retry: false,
-    mutationFn: (id: number) => cancelIncomingDeliveryApi(id),
+    mutationFn: ({ id, expectedRevision }: { id: number; expectedRevision: number }) => cancelIncomingDeliveryApi(id, expectedRevision),
     onSuccess: (delivery) => {
       void queryClient.invalidateQueries({ queryKey: INCOMING_DELIVERIES_QUERY_KEY })
       void queryClient.invalidateQueries({ queryKey: PURCHASE_ORDERS_QUERY_KEY })

@@ -139,13 +139,24 @@ beforeEach(() => {
             id: 50,
             warehouseId: 1,
             inventoryItemId: 1,
-            quantity: warehouseQuantity,
+            revision: 1,
+            onHandQuantity: warehouseQuantity,
+            inTransitQuantity: '0.00',
+            quarantinedQuantity: '0.00',
+            availableQuantity: warehouseQuantity,
+            conditionQuantities: { DAMAGED: '0.00', SPOILED: '0.00' },
+            reorderThreshold: null,
+            stockStatus: 'UNCONFIGURED',
+            createdAt: '',
+            updatedAt: '',
             inventoryItem: { id: 1, name: 'Product', unit: 'sacks' },
           },
         ]
       } else if (url === endpoint && records[endpoint]) {
-        data = records[endpoint].filter(
-          (record) => config.params?.includeInactive === 'true' || record.isActive,
+        data = records[endpoint].filter((record) =>
+          config.params?.includeInactive === 'only'
+            ? !record.isActive
+            : config.params?.includeInactive === 'true' || record.isActive,
         )
       }
     } else if (records[endpoint]) {
@@ -164,6 +175,14 @@ beforeEach(() => {
       )
       data = records[endpoint].find((record) => record.id === id)
     }
+    if (
+      method === 'get' &&
+      (url === '/warehouses' ||
+        url === '/employees' ||
+        url === '/stock-items' ||
+        url.startsWith('/stock-items/warehouses/'))
+    )
+      data = { items: data, nextCursor: null }
     return { data: structuredClone(data), config, headers: {}, status: 200, statusText: 'OK' }
   }
 })

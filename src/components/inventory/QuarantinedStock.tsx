@@ -15,12 +15,13 @@ import { DataTable, type ColumnDef } from '@/components/ui/data-table'
 import { DataTableActions } from '@/components/ui/DataTableActions'
 import { useQuarantineLots } from '@/features/logistics/quarantine.hooks'
 import { useStockItems } from '@/features/logistics/stock-items.hooks'
-import type { QuarantineCondition, QuarantineLot } from '@/features/logistics/stock-items.types'
+import type { QuarantineCondition, QuarantineLot } from '@/features/logistics/quarantine.types'
 import { getErrorMessage } from '@/lib/api-client'
 import { QuarantineLotDialog } from './QuarantineLotDialog'
 
 export function QuarantinedStock({ stockItemId }: { stockItemId?: number } = {}) {
-  const stocks = useStockItems()
+  const [stockSearch, setStockSearch] = useState('')
+  const stocks = useStockItems({ q: stockSearch || undefined })
   const [stockId, setStockId] = useState(stockItemId === undefined ? 'ALL' : String(stockItemId))
   const [condition, setCondition] = useState<QuarantineCondition | 'ALL'>('ALL')
   const [openOnly, setOpenOnly] = useState(true)
@@ -69,6 +70,18 @@ export function QuarantinedStock({ stockItemId }: { stockItemId?: number } = {})
           <Label htmlFor="quarantine-stock-filter">Stock record</Label>
           <SearchableDropdown
             id="quarantine-stock-filter"
+            onSearchChange={setStockSearch}
+            footer={
+              stocks.hasNextPage ? (
+                <Button
+                  variant="ghost"
+                  disabled={stocks.isFetching}
+                  onClick={() => void stocks.fetchNextPage()}
+                >
+                  Load more stock records
+                </Button>
+              ) : undefined
+            }
             value={stockId}
             onValueChange={setStockId}
             options={[
@@ -136,19 +149,28 @@ export function QuarantinedStock({ stockItemId }: { stockItemId?: number } = {})
         <Alert variant="destructive">
           <AlertDescription>
             {getErrorMessage(query.error)}
-            <Button variant="link" onClick={() => void query.refetch()}>
+            <Button variant="link" onClick={() => void query.reload()}>
               Retry quarantine list
             </Button>
           </AlertDescription>
         </Alert>
       ) : (
         <DataTable
-          data={query.data ?? []}
+          data={query.items}
           columns={columns}
           getRowKey={(lot) => lot.id}
           isLoading={query.isLoading}
           emptyContent="No quarantine lots match these filters."
         />
+      )}
+      {query.hasNextPage && (
+        <Button
+          variant="outline"
+          disabled={query.isFetching}
+          onClick={() => void query.fetchNextPage()}
+        >
+          Load more quarantine lots
+        </Button>
       )}
       {selected && (
         <QuarantineLotDialog

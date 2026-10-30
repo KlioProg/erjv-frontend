@@ -1,7 +1,7 @@
 import { fetchCursorList } from '@/lib/cursor-pagination'
 import axios from 'axios'
 import { serializeLineDiscount } from '@/lib/order-line-pricing'
-import { apiClient } from '@/lib/api-client'
+import { apiClient, requireRevision } from '@/lib/api-client'
 import type {
   CreateSalesOrderPayload,
   SalesOrderFilter,
@@ -13,7 +13,8 @@ export async function fetchSalesOrdersApi(
   filter?: SalesOrderFilter,
   signal?: AbortSignal,
 ): Promise<SalesOrderRecord[]> {
-  return fetchCursorList<SalesOrderRecord>('/sales-orders', filter, signal)
+  const { status, ...filters } = filter ?? {}
+  return fetchCursorList<SalesOrderRecord>('/sales-orders', { ...filters, ...(status ? { statuses: [status] } : {}) }, signal)
 }
 
 export async function fetchSalesOrderByIdApi(id: number): Promise<SalesOrderRecord | null> {
@@ -35,7 +36,7 @@ export async function createSalesOrderApi(
 ): Promise<SalesOrderRecord> {
   const cleanPayload = {
     clientId: payload.clientId,
-    deliveryAddress: payload.deliveryAddress.trim(),
+    ...(payload.deliveryAddress?.trim() ? { deliveryAddress: payload.deliveryAddress.trim() } : {}),
     ...(payload.expectedAt ? { expectedAt: new Date(payload.expectedAt).toISOString() } : {}),
     ...(payload.externalReference?.trim()
       ? { externalReference: payload.externalReference.trim() }
@@ -55,8 +56,8 @@ export async function createSalesOrderApi(
   return data
 }
 
-export async function confirmSalesOrderApi(id: number): Promise<SalesOrderRecord> {
-  const { data } = await apiClient.patch<SalesOrderRecord>(`/sales-orders/${id}/confirm`)
+export async function confirmSalesOrderApi(id: number, expectedRevision: number): Promise<SalesOrderRecord> {
+  const { data } = await apiClient.patch<SalesOrderRecord>(`/sales-orders/${id}/confirm`, { expectedRevision: requireRevision(expectedRevision) })
   return data
 }
 
@@ -74,12 +75,11 @@ export async function updateSalesOrderDraftApi(
 ): Promise<SalesOrderRecord> {
   if (!Number.isInteger(payload.expectedRevision) || payload.expectedRevision < 1)
     throw new Error('A valid saved revision is required. Reload this draft.')
-  if (payload.items?.length === 0) throw new Error('Add at least one product to the sales order.')
   const cleanPayload = {
     expectedRevision: payload.expectedRevision,
     ...(payload.clientId !== undefined ? { clientId: payload.clientId } : {}),
     ...(payload.deliveryAddress !== undefined
-      ? { deliveryAddress: payload.deliveryAddress.trim() }
+      ? { deliveryAddress: payload.deliveryAddress?.trim() || null }
       : {}),
     ...(payload.expectedAt !== undefined
       ? {
@@ -110,7 +110,7 @@ export async function updateSalesOrderDraftApi(
   return data
 }
 
-export async function cancelSalesOrderApi(id: number): Promise<SalesOrderRecord> {
-  const { data } = await apiClient.patch<SalesOrderRecord>(`/sales-orders/${id}/cancel`)
+export async function cancelSalesOrderApi(id: number, expectedRevision: number): Promise<SalesOrderRecord> {
+  const { data } = await apiClient.patch<SalesOrderRecord>(`/sales-orders/${id}/cancel`, { expectedRevision: requireRevision(expectedRevision) })
   return data
 }

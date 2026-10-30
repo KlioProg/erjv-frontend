@@ -6,6 +6,7 @@ import { AxiosError, getAdapter } from 'axios'
 import type { ReactNode } from 'react'
 import { apiClient } from '@/lib/api-client'
 import type { IncomingDeliveryRecord } from '@/features/logistics/incoming-deliveries.types'
+import type { DeliveryRunRecord } from '@/features/logistics/delivery-runs.types'
 import type { OutgoingDeliveryRecord } from '@/features/logistics/outgoing-deliveries.types'
 import { ReceiveProductsModal } from './ReceiveProductsModal'
 import { CompleteDeliveryModal } from './shared/CompleteDeliveryModal'
@@ -19,6 +20,7 @@ vi.mock('@/features/auth/AuthContext', () => ({
 const original = apiClient.defaults.adapter
 const incoming = {
   id: 1,
+  revision: 4,
   purchaseOrderId: 2,
   deliveryNumber: 'IN-1',
   warehouseId: 3,
@@ -31,8 +33,9 @@ const outgoing = {
   deliveryNumber: 'OUT-8',
   warehouseId: 3,
   status: 'SCHEDULED',
-  deliveryVehicleId: 6,
-  driverEmployeeId: 7,
+  revision: 4,
+  runId: 40,
+  reconciledAt: null,
   plannedItems: [{ id: 10, salesOrderItemId: 15, plannedQuantity: '2.00' }],
   items: [
     { id: 11, salesOrderItemId: 15, stockItemId: 22, quantity: '2.00', loadedQuantity: '2.00' },
@@ -40,11 +43,41 @@ const outgoing = {
 } as unknown as OutgoingDeliveryRecord
 let writes: { url?: string; body: unknown }[]
 let fail: boolean
+let run: DeliveryRunRecord
 beforeEach(() => {
   receiptAuth.isAdmin = true
   receiptAuth.isManager = false
   writes = []
   fail = false
+  run = {
+    id: 40,
+    runNumber: 'RUN-40',
+    revision: 2,
+    status: 'DISPATCHED',
+    warehouseId: 3,
+    driverEmployeeId: 7,
+    deliveryVehicleId: 6,
+    scheduledDepartureAt: '2026-10-20T08:00:00Z',
+    dispatchedAt: '2026-10-20T08:00:00Z',
+    completedAt: null,
+    cancelledAt: null,
+    loadedWeightKg: '10.00',
+    capacityKgAtDeparture: '100.00',
+    departureConfirmedByUserId: 1,
+    notes: null,
+    createdAt: '2026-10-01',
+    updatedAt: '2026-10-01',
+    deliveries: [
+      {
+        id: 8,
+        deliveryNumber: 'OUT-8',
+        revision: 4,
+        status: 'DISPATCHED',
+        salesOrderId: 4,
+        warehouseId: 3,
+      },
+    ],
+  }
   apiClient.defaults.adapter = async (config) => {
     let data: unknown = []
     if (config.method !== 'get') {
@@ -58,7 +91,23 @@ beforeEach(() => {
           data: { message: 'Counts changed. Review the current delivery.' },
         })
       data = { ...incoming, deliveryNumber: 'Confirmed' }
-    } else if (config.url === '/incoming-deliveries/1') data = incoming
+      if (config.url === '/delivery-runs/40/dispatch')
+        data = { ...run, status: 'DISPATCHED', revision: run.revision + 1 }
+      if (config.url === '/delivery-runs/40/deliveries/8/reconcile')
+        data = {
+          delivery: {
+            ...outgoing,
+            status: 'RECONCILED',
+            revision: 5,
+            reconciledAt: '2026-10-21T08:00:00Z',
+          },
+          run: { ...run, revision: 3, status: 'COMPLETED' },
+        }
+      if (config.url === '/incoming-deliveries/1/complete')
+        data = { ...incoming, revision: incoming.revision + 1, status: 'COMPLETED' }
+    } else if (config.url === '/delivery-runs/40') data = run
+    else if (config.url === '/delivery-runs') data = { items: [], nextCursor: null }
+    else if (config.url === '/incoming-deliveries/1') data = incoming
     else if (config.url === '/purchase-orders/2')
       data = {
         id: 2,
@@ -77,9 +126,13 @@ beforeEach(() => {
       data = {
         id: 4,
         clientId: 2,
+        status: 'CONFIRMED',
         deliveryAddress: 'Market Street',
         items: [{ id: 15, inventoryItemId: 5, quantity: '3.00' }],
       }
+    else if (config.url === '/inventory-items/5') data = { id: 5, name: 'Rice', variety: 'Jasmine', unit: 'kg', isActive: true, unitPrice: '10.00' }
+    else if (config.url === '/warehouses/3') data = { id: 3, name: 'Main', isActive: true }
+    else if (config.url === '/clients/2') data = { id: 2, name: 'Test Customer' }
     else if (config.url === '/suppliers') data = [{ id: 4, name: 'Test Supplier' }]
     else if (config.url === '/clients') data = [{ id: 2, name: 'Test Customer' }]
     else if (config.url === '/warehouses') data = [{ id: 3, name: 'Main' }]
@@ -113,16 +166,7 @@ beforeEach(() => {
       ]
     else if (config.url === '/employees')
       data = [{ id: 7, firstName: 'Test', lastName: 'Driver', isActive: true }]
-    if (
-      config.method === 'get' &&
-      [
-        '/incoming-deliveries',
-        '/outgoing-deliveries',
-        '/sales-orders',
-        '/purchase-orders',
-      ].includes(config.url ?? '')
-    )
-      data = { items: data, nextCursor: null }
+    if (config.method === 'get' && Array.isArray(data)) data = { items: data, nextCursor: null }
     return { config, data, status: 200, statusText: '', headers: {} }
   }
 })
@@ -162,17 +206,24 @@ async function chooseOutcome(all: boolean) {
 }
 function overrideGet(url: string, data: unknown | (() => unknown)) {
   const base = getAdapter(apiClient.defaults.adapter)
-  apiClient.defaults.adapter = (config) =>
-    config.method === 'get' && config.url === url
-      ? Promise.resolve({
-          config,
-          data: typeof data === 'function' ? data() : data,
-          status: 200,
-          statusText: '',
-          headers: {},
-        })
-      : base(config)
+  apiClient.defaults.adapter = (config) => {
+    const productDetail = url === '/inventory-items' && /^\/inventory-items\/\d+$/.test(config.url ?? '')
+    if (config.method === 'get' && (config.url === url || productDetail)) {
+      const resolved = typeof data === 'function' ? data() : data
+      return Promise.resolve({
+        config,
+        data: productDetail && Array.isArray(resolved)
+          ? resolved.find((product) => product.id === Number(config.url!.split('/').pop())) ?? null
+          : resolved,
+        status: 200,
+        statusText: '',
+        headers: {},
+      })
+    }
+    return base(config)
+  }
 }
+
 function reconcile(name: string, delivered: string, sellable = '0', damaged = '0', missing = '0') {
   for (const [label, amount] of [
     ['Delivered', delivered],
@@ -181,6 +232,42 @@ function reconcile(name: string, delivered: string, sellable = '0', damaged = '0
     ['Missing', missing],
   ])
     value(`${label} for ${name}`, amount)
+}
+
+function setupDispatch() {
+  run.status = 'DRAFT'
+  run.deliveries[0].status = 'READY'
+  overrideGet('/outgoing-deliveries/8', { ...outgoing, status: 'READY', items: [] })
+  overrideGet('/warehouses/3', { id: 3, name: 'Main', isActive: true })
+  overrideGet('/stock-items/pair/5/3', {
+    id: 22,
+    inventoryItemId: 5,
+    warehouseId: 3,
+    quantity: '3.00',
+    availableQuantity: '3.00',
+  })
+  overrideGet('/inventory-items/5', { id: 5, name: 'Rice', variety: 'Jasmine', unit: 'kg' })
+  overrideGet('/delivery-vehicles/6', {
+    id: 6,
+    plateNumber: 'ABC-6',
+    isActive: true,
+    operationalStatus: 'SERVICEABLE',
+    isAvailable: true,
+    activeRunId: null,
+    capacityKg: '100.00',
+  })
+  overrideGet('/employees/7', {
+    id: 7,
+    firstName: 'Test',
+    lastName: 'Driver',
+    isActive: true,
+    canDrive: true,
+  })
+}
+const departure = () => screen.getByRole('button', { name: 'Confirm Run Departure' })
+function dispatchValue(valueToLoad: string, kg = '10.00') {
+  value('Quantity loaded for Rice on OUT-8', valueToLoad)
+  value('Actual total loaded weight (kg)', kg)
 }
 
 it('loads current PO lines for an empty scheduled delivery and records a partial receipt with damage', async () => {
@@ -197,6 +284,7 @@ it('loads current PO lines for an empty scheduled delivery and records a partial
     {
       url: '/incoming-deliveries/1/complete',
       body: {
+        expectedRevision: 4,
         items: [{ purchaseOrderItemId: 25, receivedQuantity: '40.50', damagedQuantity: '2.00' }],
       },
     },
@@ -227,7 +315,11 @@ it('requires an explicit no-receipt choice and reason', async () => {
   value('Reason no goods arrived', 'Supplier did not arrive')
   fireEvent.click(button)
   await waitFor(() => expect(writes).toHaveLength(1))
-  expect(writes[0].body).toEqual({ items: [], noReceiptReason: 'Supplier did not arrive' })
+  expect(writes[0].body).toEqual({
+    expectedRevision: 4,
+    items: [],
+    noReceiptReason: 'Supplier did not arrive',
+  })
 })
 
 it('rejects invalid receipt decimals and damaged quantities greater than received', async () => {
@@ -253,7 +345,7 @@ it('rejects invalid receipt decimals and damaged quantities greater than receive
 
 it('requires all reconciliation categories, matching totals, and reasons for damage or missing goods', async () => {
   const close = vi.fn()
-  const client = mount(<CompleteDeliveryModal deliveryId={8} onClose={close} />)
+  const client = mount(<CompleteDeliveryModal runId={40} deliveryId={8} onClose={close} />)
   const button = await screen.findByRole('button', { name: 'Confirm Completion' })
   await chooseOutcome(false)
   await waitFor(() =>
@@ -276,6 +368,7 @@ it('requires all reconciliation categories, matching totals, and reasons for dam
   fireEvent.click(button)
   await waitFor(() => expect(close).toHaveBeenCalledOnce())
   expect(writes[0].body).toEqual({
+    expectedRevision: 4,
     items: [
       {
         outgoingDeliveryItemId: 11,
@@ -292,7 +385,7 @@ it('requires all reconciliation categories, matching totals, and reasons for dam
 })
 
 it('rejects completion without persisted loaded lines', async () => {
-  mount(<CompleteDeliveryModal deliveryId={9} onClose={vi.fn()} />)
+  mount(<CompleteDeliveryModal runId={40} deliveryId={9} onClose={vi.fn()} />)
   const button = await screen.findByRole('button', { name: 'Confirm Completion' })
   expect(button.hasAttribute('disabled')).toBe(true)
   expect(await screen.findByText(/Loaded products are missing/)).toBeTruthy()
@@ -311,33 +404,31 @@ it('keeps the receipt form open and refreshes state on a 409', async () => {
   expect(client.getQueryState(['incoming-deliveries', 'check'])?.isInvalidated).toBe(true)
 })
 
-it('dispatches explicit actual quantities from the scheduled warehouse, not the first matching product', async () => {
-  const base = getAdapter(apiClient.defaults.adapter)
-  apiClient.defaults.adapter = (config) =>
-    config.url === '/outgoing-deliveries/8' && config.method === 'get'
-      ? Promise.resolve({
-          config,
-          data: { ...outgoing, items: [] },
-          status: 200,
-          statusText: '',
-          headers: {},
-        })
-      : base(config)
+it('dispatches explicit actual quantities from the run warehouse, not the first matching product', async () => {
+  setupDispatch()
   const close = vi.fn()
-  mount(<DispatchDeliveryModal delivery={outgoing} open onClose={close} />)
+  mount(<DispatchDeliveryModal runId={40} onClose={close} />)
   await ready('Use Planned Quantities')
-  const button = screen.getByRole('button', { name: 'Confirm Dispatch' })
-  expect(button.hasAttribute('disabled')).toBe(true)
-  value('Actually loaded for Rice', '2.01')
-  fireEvent.click(button)
+  dispatchValue('2.01')
+  fireEvent.click(departure())
+  expect((await screen.findByRole('alert')).textContent).toMatch(/within the plan/)
   expect(writes).toHaveLength(0)
-  value('Actually loaded for Rice', '1.5')
-  fireEvent.click(button)
+  dispatchValue('1.5')
+  fireEvent.click(departure())
   await waitFor(() => expect(close).toHaveBeenCalledOnce())
-  expect(writes[0].body).toEqual({
-    deliveryVehicleId: 6,
-    driverEmployeeId: 7,
-    items: [{ salesOrderItemId: 15, stockItemId: 22, loadedQuantity: '1.50' }],
+  expect(writes[0]).toEqual({
+    url: '/delivery-runs/40/dispatch',
+    body: {
+      expectedRevision: 2,
+      loadedWeightKg: '10.00',
+      loads: [
+        {
+          deliveryId: 8,
+          expectedRevision: 4,
+          items: [{ salesOrderItemId: 15, stockItemId: 22, loadedQuantity: '1.50' }],
+        },
+      ],
+    },
   })
 })
 
@@ -392,169 +483,126 @@ it('respects accepted receipt capacity while allowing physically received damage
   await waitFor(() => expect(writes).toHaveLength(1))
 })
 
-it('rejects duplicate scheduled lines before dispatch and refreshes dispatch conflicts', async () => {
-  const base = getAdapter(apiClient.defaults.adapter)
+it('rejects duplicate member plan lines before dispatch and refreshes conflicts without dropping entries', async () => {
+  setupDispatch()
   let duplicate = true
-  apiClient.defaults.adapter = (config) =>
-    config.url === '/outgoing-deliveries/8' && config.method === 'get'
-      ? Promise.resolve({
-          config,
-          data: {
-            ...outgoing,
-            items: [],
-            plannedItems: duplicate
-              ? [...outgoing.plannedItems, { ...outgoing.plannedItems[0], id: 12 }]
-              : outgoing.plannedItems,
-          },
-          status: 200,
-          statusText: '',
-          headers: {},
-        })
-      : base(config)
+  overrideGet('/outgoing-deliveries/8', () => ({
+    ...outgoing,
+    status: 'READY',
+    items: [],
+    plannedItems: duplicate
+      ? [...outgoing.plannedItems, { ...outgoing.plannedItems[0], id: 12 }]
+      : outgoing.plannedItems,
+  }))
   const close = vi.fn()
-  const client = mount(<DispatchDeliveryModal delivery={outgoing} open onClose={close} />)
+  const client = mount(<DispatchDeliveryModal runId={40} onClose={close} />)
   await ready('Use Planned Quantities')
-  fireEvent.change(screen.getAllByLabelText('Actually loaded for Rice')[0], {
+  value('Actual total loaded weight (kg)', '10')
+  fireEvent.change(screen.getAllByLabelText('Quantity loaded for Rice on OUT-8')[0], {
     target: { value: '1' },
   })
-  fireEvent.click(await ready('Confirm Dispatch'))
-  expect((await screen.findByRole('alert')).textContent).toMatch(/duplicated/i)
+  fireEvent.click(departure())
+  expect((await screen.findByRole('alert')).textContent).toMatch(/duplicate/i)
   expect(writes).toHaveLength(0)
   duplicate = false
-  await client.invalidateQueries({ queryKey: ['outgoing-deliveries'] })
+  fireEvent.click(screen.getByRole('button', { name: 'Refresh run and review current data' }))
   await ready('Use Planned Quantities')
-  value('Actually loaded for Rice', '1')
+  dispatchValue('1')
   fail = true
-  fireEvent.click(screen.getByRole('button', { name: 'Confirm Dispatch' }))
-  expect((await screen.findByRole('alert')).textContent).toContain('Counts changed')
+  fireEvent.click(departure())
+  await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('Counts changed'))
   expect(close).not.toHaveBeenCalled()
   expect(client.getQueryState(['outgoing-deliveries', 'check'])?.isInvalidated).toBe(true)
 })
 
-it('uses planned quantities without submitting, keeps them editable, and shows recognizable products', async () => {
-  overrideGet('/outgoing-deliveries/8', { ...outgoing, items: [] })
-  mount(<DispatchDeliveryModal delivery={outgoing} open onClose={vi.fn()} />)
+it('uses planned quantities without submitting and keeps recognizable member products editable', async () => {
+  setupDispatch()
+  mount(<DispatchDeliveryModal runId={40} onClose={vi.fn()} />)
   fireEvent.click(await ready('Use Planned Quantities'))
-  expect((screen.getByLabelText('Actually loaded for Rice') as HTMLInputElement).value).toBe('2.00')
-  expect(screen.getByText('Main · Jasmine · kg')).toBeTruthy()
-  expect(screen.getByText('Market Street')).toBeTruthy()
-  expect(screen.getByText('Main')).toBeTruthy()
-  expect(screen.getByRole('dialog').textContent).not.toMatch(/Stock #|Order line #|\?/)
-  expect(writes).toHaveLength(0)
-  value('Actually loaded for Rice', '0.75')
-  fireEvent.click(await ready('Confirm Dispatch'))
-  await waitFor(() => expect(writes).toHaveLength(1))
-  expect(writes[0].body).toMatchObject({ items: [{ loadedQuantity: '0.75', stockItemId: 22 }] })
-})
-
-it('rejects the planned shortcut when capacity falls and preserves actual input instead of clamping', async () => {
-  overrideGet('/outgoing-deliveries/8', { ...outgoing, items: [] })
-  overrideGet('/stock-items', [
-    {
-      id: 22,
-      inventoryItemId: 5,
-      warehouseId: 3,
-      quantity: '1.25',
-      availableQuantity: '1.25',
-      inventoryItem: { name: 'Rice' },
-      warehouse: { name: 'Main' },
-    },
-  ])
-  mount(<DispatchDeliveryModal delivery={outgoing} open onClose={vi.fn()} />)
-  await ready('Use Planned Quantities')
-  value('Actually loaded for Rice', '1')
-  fireEvent.click(screen.getByRole('button', { name: 'Use Planned Quantities' }))
-  expect((await screen.findByRole('alert')).textContent).toMatch(/planned quantities exceed/)
-  expect((screen.getByLabelText('Actually loaded for Rice') as HTMLInputElement).value).toBe('1')
-  value('Actually loaded for Rice', '1.26')
-  expect(screen.getByText(/Loading limit: 1.25 kg/)).toBeTruthy()
-  expect(screen.getByRole('button', { name: 'Confirm Dispatch' }).hasAttribute('disabled')).toBe(
-    true,
-  )
-  expect(writes).toHaveLength(0)
-})
-
-it('requires available vehicle and driver selections and preserves their dispatch IDs', async () => {
-  const scheduled = { ...outgoing, items: [], deliveryVehicleId: null, driverEmployeeId: null }
-  overrideGet('/outgoing-deliveries/8', scheduled)
-  overrideGet('/delivery-vehicles', [
-    {
-      id: 6,
-      plateNumber: 'ABC-6',
-      model: 'Toyota Hiace',
-      vehicleType: 'VAN',
-      isActive: true,
-      status: 'AVAILABLE',
-    },
-    { id: 9, plateNumber: 'BUSY-9', vehicleType: 'TRUCK', isActive: true, status: 'MAINTENANCE' },
-  ])
-  mount(<DispatchDeliveryModal delivery={scheduled} open onClose={vi.fn()} />)
-  fireEvent.click(await ready('Use Planned Quantities'))
-  const button = screen.getByRole('button', { name: 'Confirm Dispatch' })
-  expect(button.hasAttribute('disabled')).toBe(true)
-  const user = userEvent.setup()
-  await user.click(screen.getByRole('combobox', { name: 'Vehicle' }))
-  expect(screen.getByRole('option', { name: /BUSY-9/ }).getAttribute('aria-disabled')).toBe('true')
-  await user.click(screen.getByRole('option', { name: /ABC-6/ }))
-  expect(button.hasAttribute('disabled')).toBe(true)
-  await user.click(screen.getByRole('combobox', { name: 'Driver' }))
-  await user.click(screen.getByRole('option', { name: /Test Driver/ }))
-  await user.click(button)
-  await waitFor(() => expect(writes).toHaveLength(1))
-  expect(writes[0].body).toMatchObject({ deliveryVehicleId: 6, driverEmployeeId: 7 })
-})
-
-it('keeps long assignment labels available on hover and supports keyboard selection and dispatch', async () => {
-  const scheduled = { ...outgoing, items: [], deliveryVehicleId: null, driverEmployeeId: null }
-  const model = 'Toyota Hiace refrigerated delivery vehicle for regional distribution'
-  const driver = 'Alexandria Longlastname Regional Delivery Officer'
-  overrideGet('/outgoing-deliveries/8', scheduled)
-  overrideGet('/delivery-vehicles', [
-    { id: 9, plateNumber: 'BUSY-9', vehicleType: 'TRUCK', isActive: true, status: 'MAINTENANCE' },
-    { id: 6, plateNumber: 'ABC-6', model, vehicleType: 'VAN', isActive: true, status: 'AVAILABLE' },
-  ])
-  overrideGet('/employees', [
-    { id: 9, firstName: 'Inactive', lastName: 'Driver', isActive: false },
-    {
-      id: 7,
-      firstName: 'Alexandria',
-      lastName: 'Longlastname Regional Delivery Officer',
-      isActive: true,
-    },
-  ])
-  mount(<DispatchDeliveryModal delivery={scheduled} open onClose={vi.fn()} />)
-  fireEvent.click(await ready('Use Planned Quantities'))
-  const user = userEvent.setup()
-  const vehicleTrigger = screen.getByRole('combobox', { name: 'Vehicle' })
-  vehicleTrigger.focus()
-  await user.keyboard('{Enter}')
-  expect(screen.getByRole('option', { name: /BUSY-9/ }).getAttribute('aria-disabled')).toBe('true')
-  await user.keyboard('{Home}{Enter}')
-  expect(vehicleTrigger.textContent).toContain(model)
-  expect(vehicleTrigger.querySelector('[title]')?.getAttribute('title')).toBe(`ABC-6 · ${model}`)
-  const driverTrigger = screen.getByRole('combobox', { name: 'Driver' })
-  driverTrigger.focus()
-  await user.keyboard('{Enter}')
   expect(
-    screen.getByRole('option', { name: /Inactive Driver/ }).getAttribute('aria-disabled'),
-  ).toBe('true')
-  await user.keyboard('{Home}{Enter}')
-  expect(driverTrigger.textContent).toContain(driver)
-  expect(driverTrigger.querySelector('[title]')?.getAttribute('title')).toBe(driver)
-  fireEvent.click(await ready('Confirm Dispatch'))
+    (screen.getByLabelText('Quantity loaded for Rice on OUT-8') as HTMLInputElement).value,
+  ).toBe('2.00')
+  expect(screen.getByText('Rice')).toBeTruthy()
+  expect(screen.getByText('Main')).toBeTruthy()
+  expect(screen.getByRole('dialog').textContent).not.toMatch(/Stock #|Order line #/)
+  expect(writes).toHaveLength(0)
+  dispatchValue('0.75')
+  fireEvent.click(departure())
   await waitFor(() => expect(writes).toHaveLength(1))
-  expect(writes[0]).toEqual({
-    url: '/outgoing-deliveries/8/dispatch',
-    body: {
-      deliveryVehicleId: 6,
-      driverEmployeeId: 7,
-      items: [{ salesOrderItemId: 15, stockItemId: 22, loadedQuantity: '2.00' }],
-    },
+  expect(writes[0].body).toMatchObject({
+    loads: [{ deliveryId: 8, items: [{ loadedQuantity: '0.75', stockItemId: 22 }] }],
   })
 })
 
+it('rejects the planned shortcut when source availability falls and retains actual input', async () => {
+  setupDispatch()
+  overrideGet('/stock-items/pair/5/3', {
+    id: 22,
+    inventoryItemId: 5,
+    warehouseId: 3,
+    quantity: '1.25',
+    availableQuantity: '1.25',
+  })
+  mount(<DispatchDeliveryModal runId={40} onClose={vi.fn()} />)
+  await ready('Use Planned Quantities')
+  dispatchValue('1')
+  fireEvent.click(screen.getByRole('button', { name: 'Use Planned Quantities' }))
+  expect((await screen.findByRole('alert')).textContent).toMatch(/exceed/)
+  expect(
+    (screen.getByLabelText('Quantity loaded for Rice on OUT-8') as HTMLInputElement).value,
+  ).toBe('1')
+  dispatchValue('1.26')
+  fireEvent.click(departure())
+  expect(screen.getByRole('alert').textContent).toMatch(/exceed/)
+  expect(writes).toHaveLength(0)
+})
+
+it('migrates assignment validation to saved draft run assignments and blocks an unavailable vehicle', async () => {
+  setupDispatch()
+  overrideGet('/delivery-vehicles/6', {
+    id: 6,
+    plateNumber: 'BUSY-6',
+    isActive: true,
+    operationalStatus: 'MAINTENANCE',
+    isAvailable: false,
+    activeRunId: null,
+    capacityKg: '100.00',
+  })
+  mount(<DispatchDeliveryModal runId={40} onClose={vi.fn()} />)
+  expect(await screen.findByText(/assigned vehicle is unavailable/)).toBeTruthy()
+  expect(screen.queryByRole('combobox')).toBeNull()
+  expect(departure().hasAttribute('disabled')).toBe(true)
+  expect(writes).toHaveLength(0)
+})
+
+it('shows full saved assignment labels and supports keyboard departure without selecting replacement IDs', async () => {
+  setupDispatch()
+  const driver = 'Alexandria Longlastname Regional Delivery Officer'
+  overrideGet('/employees/7', {
+    id: 7,
+    firstName: 'Alexandria',
+    lastName: 'Longlastname Regional Delivery Officer',
+    isActive: true,
+    canDrive: true,
+  })
+  mount(<DispatchDeliveryModal runId={40} onClose={vi.fn()} />)
+  await ready('Use Planned Quantities')
+  expect(screen.getByText(driver)).toBeTruthy()
+  expect(screen.getByText('ABC-6')).toBeTruthy()
+  dispatchValue('2.00')
+  const user = userEvent.setup()
+  departure().focus()
+  await user.keyboard('{Enter}')
+  await waitFor(() => expect(writes).toHaveLength(1))
+  expect(writes[0].body).toMatchObject({
+    expectedRevision: 2,
+    loads: [{ deliveryId: 8, expectedRevision: 4 }],
+  })
+  expect(writes[0].body).not.toHaveProperty('driverEmployeeId')
+})
+
 it('starts completion with neither outcome selected and sends the explicit all-delivered payload only on confirmation', async () => {
-  mount(<CompleteDeliveryModal deliveryId={8} onClose={vi.fn()} />)
+  mount(<CompleteDeliveryModal runId={40} deliveryId={8} onClose={vi.fn()} />)
   const button = screen.getByRole('button', { name: 'Confirm Completion' })
   expect(screen.getAllByRole('radio').every((radio) => !(radio as HTMLInputElement).checked)).toBe(
     true,
@@ -570,8 +618,9 @@ it('starts completion with neither outcome selected and sends the explicit all-d
   fireEvent.click(button)
   await waitFor(() => expect(writes).toHaveLength(1))
   expect(writes[0]).toEqual({
-    url: '/outgoing-deliveries/8/complete',
+    url: '/delivery-runs/40/deliveries/8/reconcile',
     body: {
+      expectedRevision: 4,
       items: [
         {
           outgoingDeliveryItemId: 11,
@@ -606,7 +655,7 @@ it('balances products separately with different units and requires reasons only 
     { id: 5, name: 'Rice', unit: 'kg' },
     { id: 6, name: 'Oil', unit: 'L' },
   ])
-  mount(<CompleteDeliveryModal deliveryId={8} onClose={vi.fn()} />)
+  mount(<CompleteDeliveryModal runId={40} deliveryId={8} onClose={vi.fn()} />)
   await chooseOutcome(false)
   reconcile('Rice (1)', '1', '1')
   reconcile('Oil (2)', '0.10', '0', '0', '0.20')
@@ -620,6 +669,7 @@ it('balances products separately with different units and requires reasons only 
   fireEvent.click(await ready('Confirm Completion'))
   await waitFor(() => expect(writes).toHaveLength(1))
   expect(writes[0].body).toEqual({
+    expectedRevision: 4,
     items: [
       {
         outgoingDeliveryItemId: 11,
@@ -641,7 +691,7 @@ it('balances products separately with different units and requires reasons only 
 })
 
 it('warns before switching away from exceptions and restores entered quantities and reasons', async () => {
-  mount(<CompleteDeliveryModal deliveryId={8} onClose={vi.fn()} />)
+  mount(<CompleteDeliveryModal runId={40} deliveryId={8} onClose={vi.fn()} />)
   await chooseOutcome(false)
   reconcile('Rice (1)', '1', '0', '1')
   value('Discrepancy Reason for Rice (1)', 'Damaged packaging')
@@ -669,7 +719,7 @@ it('warns before switching away from exceptions and restores entered quantities 
 it('keeps completion entries after a recoverable conflict and prevents duplicate pending submissions', async () => {
   fail = true
   const close = vi.fn()
-  const client = mount(<CompleteDeliveryModal deliveryId={8} onClose={close} />)
+  const client = mount(<CompleteDeliveryModal runId={40} deliveryId={8} onClose={close} />)
   await chooseOutcome(false)
   reconcile('Rice (1)', '1.5', '0.5')
   fireEvent.click(await ready('Confirm Completion'))
@@ -688,6 +738,7 @@ it('keeps completion entries after a recoverable conflict and prevents duplicate
     if (config.method === 'patch') await pending
     return base(config)
   }
+  fireEvent.click(screen.getByRole('button', { name: 'Refresh delivery data' }))
   const button = await ready('Confirm Completion')
   fireEvent.submit(button.closest('form')!)
   fireEvent.submit(button.closest('form')!)
@@ -705,7 +756,7 @@ it('requires a new explicit outcome after persisted loaded quantities change dur
     status: 'DISPATCHED',
     items: [{ ...outgoing.items[0], loadedQuantity: loaded }],
   }))
-  const client = mount(<CompleteDeliveryModal deliveryId={8} onClose={vi.fn()} />)
+  const client = mount(<CompleteDeliveryModal runId={40} deliveryId={8} onClose={vi.fn()} />)
   await chooseOutcome(true)
   loaded = '1.25'
   await client.invalidateQueries({ queryKey: ['outgoing-deliveries'] })
@@ -721,7 +772,7 @@ it('requires a new explicit outcome after persisted loaded quantities change dur
 
 it('blocks completion when product lookup data is unavailable without fabricating labels', async () => {
   overrideGet('/inventory-items', [])
-  mount(<CompleteDeliveryModal deliveryId={8} onClose={vi.fn()} />)
+  mount(<CompleteDeliveryModal runId={40} deliveryId={8} onClose={vi.fn()} />)
   expect(await screen.findByText('Product unavailable')).toBeTruthy()
   expect(screen.getByRole('button', { name: 'Confirm Completion' }).hasAttribute('disabled')).toBe(
     true,
@@ -730,35 +781,32 @@ it('blocks completion when product lookup data is unavailable without fabricatin
   expect(writes).toHaveLength(0)
 })
 
-it('keeps dispatch input and blocks confirmation when current stock changes during editing', async () => {
-  overrideGet('/outgoing-deliveries/8', { ...outgoing, items: [] })
+it('retains dispatch input and blocks mutation after current source stock changes', async () => {
+  setupDispatch()
   let available = '3.00'
-  overrideGet('/stock-items', () => [
-    {
-      id: 22,
-      inventoryItemId: 5,
-      warehouseId: 3,
-      quantity: '3.00',
-      availableQuantity: available,
-      inventoryItem: { name: 'Rice' },
-      warehouse: { name: 'Main' },
-    },
-  ])
-  const client = mount(<DispatchDeliveryModal delivery={outgoing} open onClose={vi.fn()} />)
+  overrideGet('/stock-items/pair/5/3', () => ({
+    id: 22,
+    inventoryItemId: 5,
+    warehouseId: 3,
+    quantity: '3.00',
+    availableQuantity: available,
+  }))
+  mount(<DispatchDeliveryModal runId={40} onClose={vi.fn()} />)
   fireEvent.click(await ready('Use Planned Quantities'))
-  await ready('Confirm Dispatch')
+  value('Actual total loaded weight (kg)', '10')
   available = '1.00'
-  await client.invalidateQueries({ queryKey: ['stock-items'] })
-  expect(await screen.findByText(/Loading limit: 1 kg/)).toBeTruthy()
-  expect((screen.getByLabelText('Actually loaded for Rice') as HTMLInputElement).value).toBe('2.00')
-  expect(screen.getByRole('button', { name: 'Confirm Dispatch' }).hasAttribute('disabled')).toBe(
-    true,
-  )
+  fireEvent.click(screen.getByRole('button', { name: 'Refresh run and review current data' }))
+  await ready('Confirm Run Departure')
+  fireEvent.click(departure())
+  expect((await screen.findByRole('alert')).textContent).toMatch(/exceed/)
+  expect(
+    (screen.getByLabelText('Quantity loaded for Rice on OUT-8') as HTMLInputElement).value,
+  ).toBe('2.00')
   expect(writes).toHaveLength(0)
 })
 
-it('prevents duplicate dispatch while the inventory mutation is pending', async () => {
-  overrideGet('/outgoing-deliveries/8', { ...outgoing, items: [] })
+it('prevents duplicate run departure while the inventory mutation is pending', async () => {
+  setupDispatch()
   let release!: () => void
   const pending = new Promise<void>((resolve) => {
     release = resolve
@@ -769,9 +817,10 @@ it('prevents duplicate dispatch while the inventory mutation is pending', async 
     return base(config)
   }
   const close = vi.fn()
-  mount(<DispatchDeliveryModal delivery={outgoing} open onClose={close} />)
+  mount(<DispatchDeliveryModal runId={40} onClose={close} />)
   fireEvent.click(await ready('Use Planned Quantities'))
-  const button = await ready('Confirm Dispatch')
+  value('Actual total loaded weight (kg)', '10')
+  const button = await ready('Confirm Run Departure')
   fireEvent.submit(button.closest('form')!)
   fireEvent.submit(button.closest('form')!)
   await waitFor(() => expect(button.hasAttribute('disabled')).toBe(true))
@@ -782,7 +831,7 @@ it('prevents duplicate dispatch while the inventory mutation is pending', async 
 })
 
 it('rejects invalid reconciliation decimals without silently allocating the difference', async () => {
-  mount(<CompleteDeliveryModal deliveryId={8} onClose={vi.fn()} />)
+  mount(<CompleteDeliveryModal runId={40} deliveryId={8} onClose={vi.fn()} />)
   await chooseOutcome(false)
   reconcile('Rice (1)', '1.5', '0.5')
   for (const invalid of ['-1', '1.234', 'abc']) {
@@ -800,7 +849,7 @@ it('rejects invalid reconciliation decimals without silently allocating the diff
 
 it('supports keyboard outcome selection, traps focus, and closes with Escape without submitting', async () => {
   const close = vi.fn()
-  mount(<CompleteDeliveryModal deliveryId={8} onClose={close} />)
+  mount(<CompleteDeliveryModal runId={40} deliveryId={8} onClose={close} />)
   const radio = screen.getByRole('radio', { name: 'Yes, everything was delivered' })
   await waitFor(() => expect(radio.matches(':disabled')).toBe(false))
   const user = userEvent.setup()
@@ -857,6 +906,7 @@ it('builds the full receipt only after an explicit choice and records exact curr
     {
       url: '/incoming-deliveries/1/complete',
       body: {
+        expectedRevision: 4,
         items: [
           { purchaseOrderItemId: 25, receivedQuantity: '0.99', damagedQuantity: '0.00' },
           { purchaseOrderItemId: 26, receivedQuantity: '10.00', damagedQuantity: '0.00' },
@@ -890,7 +940,7 @@ it('retains partial quantities across confirmed switches and submits only the ch
   value('Reason no goods arrived', 'No delivery')
   fireEvent.click(screen.getByRole('button', { name: 'Confirm No Receipt' }))
   await waitFor(() => expect(writes).toHaveLength(1))
-  expect(writes[0].body).toEqual({ items: [], noReceiptReason: 'No delivery' })
+  expect(writes[0].body).toEqual({ expectedRevision: 4, items: [], noReceiptReason: 'No delivery' })
 })
 
 it('blocks a stale full receipt and allows a fresh review without silently changing the draft', async () => {
@@ -1005,7 +1055,7 @@ it('uses scoped green choice styling and keyboard focus for incoming controls', 
 })
 
 it('keeps outgoing choices neutral until selected, with green selection and keyboard focus tokens', async () => {
-  mount(<CompleteDeliveryModal deliveryId={8} onClose={vi.fn()} />)
+  mount(<CompleteDeliveryModal runId={40} deliveryId={8} onClose={vi.fn()} />)
   await chooseOutcome(true)
   const selected = screen.getByRole('radio', { name: 'Yes, everything was delivered' })
   const other = screen.getByRole('radio', { name: 'No, there were returns or missing goods' })
@@ -1050,6 +1100,7 @@ it('records independent exact receipt quantities and checks capacity again befor
   fireEvent.click(await ready('Confirm Receipt'))
   await waitFor(() => expect(writes).toHaveLength(1))
   expect(writes[0].body).toEqual({
+    expectedRevision: 4,
     items: [
       { purchaseOrderItemId: 25, receivedQuantity: '0.51', damagedQuantity: '0.01' },
       { purchaseOrderItemId: 26, receivedQuantity: '2.22', damagedQuantity: '0.22' },

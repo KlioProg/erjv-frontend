@@ -21,11 +21,15 @@ const delivery = (status, salesOrderItemId, stockItemId, quantity, salesOrderId 
   status,
   items: [{ salesOrderItemId, stockItemId, quantity }],
 })
-const stocks = [
-  { id: 1, warehouseId: 1, inventoryItemId: 1, quantity: '100', reservedQuantity: '40' },
-  { id: 2, warehouseId: 2, inventoryItemId: 1, quantity: '100' },
-  { id: 3, warehouseId: 1, inventoryItemId: 2, quantity: '0.20' },
-]
+const stock = (id, warehouseId, inventoryItemId, availableQuantity, inTransitQuantity = '0') => ({
+  id, revision: 1, warehouseId, inventoryItemId,
+  onHandQuantity: availableQuantity, availableQuantity, inTransitQuantity,
+  quarantinedQuantity: '0', conditionQuantities: { DAMAGED: '0', SPOILED: '0' },
+  reorderThreshold: null, stockStatus: availableQuantity === '0' ? 'OUT' : 'UNCONFIGURED',
+  createdAt: '', updatedAt: '',
+})
+const stocks = [stock(1, 1, 1, '60', '40'), stock(2, 2, 1, '100'), stock(3, 1, 2, '0.20')]
+
 const warehouses = [
   { id: 1, isActive: true },
   { id: 2, isActive: true },
@@ -40,13 +44,13 @@ test('outgoing eligibility follows deliverable states, not display labels', () =
 
 test('every non-cancelled delivery counts against its sales-order item', () => {
   const balances = outgoingOrderBalances(order, [
-    delivery('DRAFT', 10, 1, '10'),
+    delivery('READY', 10, 1, '10'),
     delivery('SCHEDULED', 10, 1, '20'),
     delivery('DISPATCHED', 10, 1, '10'),
-    delivery('DELIVERED', 10, 2, '20'),
+    delivery('RECONCILED', 10, 2, '20'),
     delivery('CANCELLED', 10, 2, '20'),
     delivery('SCHEDULED', 10, 1, '100', 99),
-    delivery('DELIVERED', 20, 3, '0.20'),
+    delivery('RECONCILED', 20, 3, '0.20'),
   ], stocks, warehouses)
 
   assert.equal(balances[0].committed, '60.00')
@@ -59,7 +63,7 @@ test('every non-cancelled delivery counts against its sales-order item', () => {
 
 test('cancelled deliveries restore ordered quantities and source choices allow split fulfillment', () => {
   const arranged = [
-    delivery('DRAFT', 10, 1, '60'),
+    delivery('READY', 10, 1, '60'),
     delivery('SCHEDULED', 10, 2, '40'),
     delivery('DISPATCHED', 20, 3, '0.25'),
   ]
@@ -128,7 +132,7 @@ test('unknown, malformed and very large quantities stay exact and block unsafe s
     items: [{ id: 30, inventoryItemId: 3, quantity: '9999999999999999.99' }],
   }
   const large = outgoingOrderBalances(largeOrder, [], [
-    { id: 4, warehouseId: 1, inventoryItemId: 3, quantity: '9999999999999999.99' },
+    stock(4, 1, 3, '9999999999999999.99'),
   ], warehouses)
   assert.equal(large[0].remaining, '9999999999999999.99')
   assert.deepEqual(

@@ -8,6 +8,7 @@ export type Employee = {
   email: string | null
   address: string | null
   hireDate: string
+  canDrive: boolean
   isActive: boolean
   userId: number | null
   createdAt: string
@@ -22,6 +23,7 @@ export type CreateEmployeePayload = {
   address?: string | null
   hireDate: string
   userId?: number | null
+  canDrive?: boolean
 }
 
 export type UpdateEmployeeProfilePayload = {

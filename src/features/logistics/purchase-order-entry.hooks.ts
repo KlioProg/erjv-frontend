@@ -83,6 +83,9 @@ export function usePurchaseOrderEntry({
     savedDraft,
     onClose,
   })
+  const submittedLineIds = useRef<number[]>([])
+  const lineFieldError = (formId: number, field: 'quantity' | 'unitPrice') =>
+    submission.fieldErrors[`items.${submittedLineIds.current.indexOf(formId)}.${field}`]
   const focus = useOrderItemFocus(lines)
   const editUnavailable = draft && (draft.status !== 'DRAFT'
     ? 'Only a Draft purchase order can be edited. Close this form and review its current status.'
@@ -122,6 +125,7 @@ export function usePurchaseOrderEntry({
     : orderLineTotals(lines.map((line) => ({ ...line, unitPrice: line.unitCost, ...discountFields(line.discount) })))
 
   function addProduct(product: InventoryItemResponse) {
+    submission.clearError()
     if (!product.isActive || submission.locked) return
     const existing = lines.find((line) => line.inventoryItemId === product.id)
     const formId = existing?.formId ?? ++nextFormId.current
@@ -155,6 +159,7 @@ export function usePurchaseOrderEntry({
   }
 
   function updateLine(id: number, field: 'quantity' | 'unitCost', value: string) {
+    submission.clearError()
     setLines((current) =>
       current.map((line) => (line.formId === id ? { ...line, [field]: value } : line)),
     )
@@ -162,11 +167,13 @@ export function usePurchaseOrderEntry({
   }
 
   function updateDiscount(id: number, discount: LineDiscount) {
+    submission.clearError()
     setLines((current) => current.map((line) => line.formId === id ? { ...line, discount } : line))
     setError('')
   }
 
   function setTaxExemption(exempt: boolean) {
+    submission.clearError()
     setTaxExemptionState(exempt)
     setLines((current) => current.map((line) => ({
       ...line,
@@ -194,7 +201,7 @@ export function usePurchaseOrderEntry({
     if (supplierId && !selectedSupplier)
       return setError('Choose a supplier that is available in the supplier list.')
     if (confirm && !selectedSupplier?.isActive) return setError('Select an active supplier to confirm.')
-    if (!lines.length) return setError('Add at least one product to the purchase order.')
+    if (confirm && !lines.length) return setError('Add at least one product to confirm the purchase order.')
     const dateError = expectedDateError(expectedAt)
     if (dateError) return setError(dateError)
     for (const line of lines) {
@@ -234,6 +241,7 @@ export function usePurchaseOrderEntry({
     const updateDraft = onUpdateDraft
     if (draft && !updateDraft)
       return setError('Updating saved purchase order drafts is unavailable.')
+    submittedLineIds.current = lines.map((line) => line.formId)
     await submission.submit(async () => {
       if (!draft) return onSubmit(payload, confirm ? 'confirm' : 'draft')
       if (!updateDraft) return Promise.reject(new Error('Draft update is unavailable.'))
@@ -256,11 +264,11 @@ export function usePurchaseOrderEntry({
   return {
     hasUnsavedChanges: signature !== initialSignature,
     supplierId,
-    setSupplierId,
+    setSupplierId: (value: string) => { submission.clearError(); setSupplierId(value) },
     reference,
     setReference,
     expectedAt,
-    setExpectedAt,
+    setExpectedAt: (value: string) => { submission.clearError(); setExpectedAt(value) },
     notes,
     setNotes,
     taxExemption,
@@ -274,6 +282,8 @@ export function usePurchaseOrderEntry({
     fetchLatestDraft,
     reloadLatestDraft,
     submitDisabled: !!editUnavailable || !!conflict,
+    lineFieldError,
+    fieldErrors: submission.fieldErrors,
     errorFocusId,
     busy: submission.busy,
     submission,
@@ -283,6 +293,7 @@ export function usePurchaseOrderEntry({
     submit,
     focus,
     removeLine: (id: number) => {
+      submission.clearError()
       setLines((current) => current.filter((line) => line.formId !== id))
       setError('')
     },

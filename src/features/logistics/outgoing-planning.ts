@@ -19,7 +19,6 @@ export function outgoingPlanningErrors(
   limits: Record<number, string> = {},
 ): Record<string, string> {
   const errors: Record<string, string> = {}
-  const totals = new Map<number, bigint>()
   for (const [id, raw] of Object.entries(quantities)) {
     const quantity = parseOrderDecimal(raw || '0')
     const field = `quantity-${id}`
@@ -43,30 +42,12 @@ export function outgoingPlanningErrors(
     if (quantity > maximum)
       errors[field] =
         `Maximum plannable quantity is ${decimalString(maximum)}. Review this quantity.`
-    totals.set(item.inventoryItemId, (totals.get(item.inventoryItemId) ?? 0n) + quantity)
-  }
-  // Multiple order lines for one product share the warehouse's planning capacity.
-  for (const option of options) {
-    const remaining = parseOrderDecimal(option.warehouseRemainingQuantity)
-    if (remaining === null) {
-      if ((totals.get(option.inventoryItemId) ?? 0n) > 0n)
-        errors[`quantity-${option.salesOrderItemId}`] ??= 'Warehouse planning capacity is unavailable. Reload this warehouse.'
-      continue
-    }
-    if ((totals.get(option.inventoryItemId) ?? 0n) > remaining) {
-      errors[`quantity-${option.salesOrderItemId}`] ??=
-        `Combined quantities for this product exceed the warehouse planning capacity of ${decimalString(remaining)}.`
-    }
   }
   return errors
 }
 
 export function outgoingOrderRemaining(option?: OutgoingPlanningOption): string | null {
   if (!option) return null
-  const values = [option.orderedQuantity, option.committedQuantity, option.scheduledQuantity].map(
-    parseOrderDecimal,
-  )
-  if (values.some((value) => value === null)) return null
-  const remaining = values[0]! - values[1]! - values[2]!
-  return decimalString(remaining > 0n ? remaining : 0n)
+  const remaining = parseOrderDecimal(option.remainingToPlanQuantity)
+  return remaining === null ? null : decimalString(remaining)
 }

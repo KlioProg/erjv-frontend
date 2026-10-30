@@ -40,18 +40,26 @@ beforeEach(() => {
           id: 4,
           inventoryItemId: 1,
           warehouseId: 2,
-          quantity: '10.00',
+          revision: 1,
+          onHandQuantity: '10.00',
+          inTransitQuantity: '0.00',
+          conditionQuantities: { DAMAGED: '0.00', SPOILED: '0.00' },
+          stockStatus: 'UNCONFIGURED',
+          createdAt: '',
+          updatedAt: '',
           availableQuantity: '10.00',
           quarantinedQuantity: '0.00',
           reorderThreshold: threshold,
           inventoryItem: { id: 1, name: 'Rice', unit: 'kg' },
         },
       ]
+    if (config.method === 'get' && config.url === '/stock-items/warehouses/2')
+      data = { items: data, nextCursor: null }
     if (config.method !== 'get') {
       const body = JSON.parse(config.data)
       writes.push({ url: config.url, body })
       if (config.url?.endsWith('/reorder-threshold')) threshold = body.reorderThreshold
-      data = { id: 4, ...body, isActive: true }
+      data = { id: 4, revision: 2, ...body, isActive: true }
     }
     return { config, data, status: 200, statusText: '', headers: {} }
   }

@@ -86,12 +86,14 @@ beforeEach(() => {
       warehouseId: 1,
       inventoryItem: products[0],
       warehouse: warehouses[0],
-      quantity: '25.25',
-      reservedQuantity: '4',
-      damagedQuantity: '4.25',
+      onHandQuantity: '25.25',
       availableQuantity: '17.00',
       reorderThreshold: '5.25',
       stockStatus: 'NORMAL',
+      revision: 1,
+      inTransitQuantity: '0',
+      quarantinedQuantity: '8.25',
+      conditionQuantities: { DAMAGED: '4.25', SPOILED: '4.00' },
       ...dates,
     },
     {
@@ -100,10 +102,14 @@ beforeEach(() => {
       warehouseId: 1,
       inventoryItem: products[1],
       warehouse: warehouses[0],
-      quantity: '0',
+      onHandQuantity: '0',
       availableQuantity: '0',
       reorderThreshold: null,
       stockStatus: 'OUT',
+      revision: 1,
+      inTransitQuantity: '0',
+      quarantinedQuantity: '0',
+      conditionQuantities: { DAMAGED: '0', SPOILED: '0' },
       ...dates,
     },
     {
@@ -112,10 +118,14 @@ beforeEach(() => {
       warehouseId: 2,
       inventoryItem: products[2],
       warehouse: warehouses[1],
-      quantity: '9999999999.99',
+      onHandQuantity: '9999999999.99',
       availableQuantity: '9999999999.99',
       reorderThreshold: null,
       stockStatus: 'UNCONFIGURED',
+      revision: 1,
+      inTransitQuantity: '0',
+      quarantinedQuantity: '0',
+      conditionQuantities: { DAMAGED: '0', SPOILED: '0' },
       ...dates,
     },
   ]
@@ -170,6 +180,7 @@ beforeEach(() => {
             : 'LOW'
       data = malformedSave ? { id } : row
     }
+    if (method === 'get' && (url === '/stock-items' || url === '/inventory-items' || url === '/warehouses' || url.startsWith('/stock-items/warehouses/'))) data = { items: data, nextCursor: null }
     return { config, data: structuredClone(data), status: 200, statusText: 'OK', headers: {} }
   }
 })

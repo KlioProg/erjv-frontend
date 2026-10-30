@@ -2,48 +2,37 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import {
   createStockItemApi,
-  decreaseStockQuantityApi,
   deleteStockItemApi,
-  fetchStockByItemApi,
-  fetchStockByWarehouseApi,
   fetchStockItemByPairApi,
-  fetchStockItemsApi,
-  increaseStockQuantityApi,
+  fetchStockItemByIdApi,
   setReorderThresholdApi,
-  setStockQuantityApi,
+  createStockAdjustmentApi,
 } from './stock-items.api'
 import type {
-  AdjustStockQuantityPayload,
   CreateStockItemPayload,
   SetReorderThresholdPayload,
-  SetStockQuantityPayload,
+  StockAdjustmentPayload,
+  StockItemWithRelations,
+  StockItemWithInventoryItem,
+  StockItemWithWarehouse,
 } from './stock-items.types'
-import { getErrorMessage, type FetchParams } from '@/lib/api-client'
+import { getErrorMessage } from '@/lib/api-client'
+import { useCursorLookup } from '@/lib/use-cursor-lookup'
 import { parseStockCents } from './stock-display'
 
 export const STOCK_ITEMS_QUERY_KEY = ['stock-items'] as const
 
-export function useStockItems(params?: FetchParams) {
-  return useQuery({
-    queryKey: [...STOCK_ITEMS_QUERY_KEY, params?.includeInactive ?? 'false'],
-    queryFn: () => fetchStockItemsApi(params),
-  })
+export function useStockItems(filter: { q?: string } = {}) {
+  const query = useCursorLookup<StockItemWithRelations>('/stock-items', filter)
+  return { ...query, data: query.items }
 }
-
-export function useWarehouseStock(warehouseId?: number) {
-  return useQuery({
-    queryKey: [...STOCK_ITEMS_QUERY_KEY, 'warehouse', warehouseId],
-    queryFn: () => fetchStockByWarehouseApi(warehouseId!),
-    enabled: warehouseId !== undefined,
-  })
+export function useWarehouseStock(warehouseId?: number, filter: { q?: string } = {}) {
+  const query = useCursorLookup<StockItemWithInventoryItem>(`/stock-items/warehouses/${warehouseId}`, filter, warehouseId !== undefined)
+  return { ...query, data: query.items }
 }
-
-export function useItemStock(inventoryItemId?: number) {
-  return useQuery({
-    queryKey: [...STOCK_ITEMS_QUERY_KEY, 'item', inventoryItemId],
-    queryFn: () => fetchStockByItemApi(inventoryItemId!),
-    enabled: inventoryItemId !== undefined,
-  })
+export function useItemStock(inventoryItemId?: number, filter: { q?: string } = {}) {
+  const query = useCursorLookup<StockItemWithWarehouse>(`/stock-items/inventory-items/${inventoryItemId}`, filter, inventoryItemId !== undefined)
+  return { ...query, data: query.items }
 }
 
 export function useStockItemByPair(inventoryItemId?: number, warehouseId?: number) {
@@ -54,6 +43,14 @@ export function useStockItemByPair(inventoryItemId?: number, warehouseId?: numbe
         ? fetchStockItemByPairApi(inventoryItemId, warehouseId)
         : Promise.resolve(null),
     enabled: Boolean(inventoryItemId && warehouseId && inventoryItemId > 0 && warehouseId > 0),
+  })
+}
+
+export function useStockItemById(id?: number) {
+  return useQuery({
+    queryKey: [...STOCK_ITEMS_QUERY_KEY, 'detail', id],
+    queryFn: () => fetchStockItemByIdApi(id!),
+    enabled: id !== undefined,
   })
 }
 
@@ -79,20 +76,16 @@ export function useCreateStockItem() {
   })
 }
 
-export function useSetStockQuantity() {
-  const queryClient = useQueryClient()
+export function useCreateStockAdjustment() {
+  const client = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, payload }: { id: number; payload: SetStockQuantityPayload }) =>
-      setStockQuantityApi(id, payload),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: STOCK_ITEMS_QUERY_KEY })
-      void queryClient.invalidateQueries({ queryKey: ['products'] })
-      void queryClient.invalidateQueries({ queryKey: ['warehouses'] })
-      toast.success('Stock quantity updated')
+    retry: false,
+    mutationFn: ({ id, payload }: { id: number; payload: StockAdjustmentPayload }) => createStockAdjustmentApi(id, payload),
+    onSettled: async () => {
+      await Promise.all(['stock-items', 'products', 'warehouses', 'quarantine-lots', 'outgoing-deliveries', 'delivery-runs'].map((key) => client.invalidateQueries({ queryKey: [key] })))
     },
-    onError: (err) => {
-      toast.error(getErrorMessage(err))
-    },
+    onSuccess: () => toast.success('Stock adjustment recorded'),
+    onError: (error) => toast.error(getErrorMessage(error)),
   })
 }
 
@@ -126,40 +119,6 @@ export function useSetReorderThreshold() {
     onSuccess: async () => {
       await refresh()
       toast.success('Reorder threshold updated')
-    },
-    onError: (err) => {
-      toast.error(getErrorMessage(err))
-    },
-  })
-}
-
-export function useIncreaseStock() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: ({ id, payload }: { id: number; payload: AdjustStockQuantityPayload }) =>
-      increaseStockQuantityApi(id, payload),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: STOCK_ITEMS_QUERY_KEY })
-      void queryClient.invalidateQueries({ queryKey: ['products'] })
-      void queryClient.invalidateQueries({ queryKey: ['warehouses'] })
-      toast.success('Stock increased successfully')
-    },
-    onError: (err) => {
-      toast.error(getErrorMessage(err))
-    },
-  })
-}
-
-export function useDecreaseStock() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: ({ id, payload }: { id: number; payload: AdjustStockQuantityPayload }) =>
-      decreaseStockQuantityApi(id, payload),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: STOCK_ITEMS_QUERY_KEY })
-      void queryClient.invalidateQueries({ queryKey: ['products'] })
-      void queryClient.invalidateQueries({ queryKey: ['warehouses'] })
-      toast.success('Stock decreased successfully')
     },
     onError: (err) => {
       toast.error(getErrorMessage(err))

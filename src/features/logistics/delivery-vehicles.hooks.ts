@@ -15,7 +15,7 @@ import type {
   CreateDeliveryVehiclePayload,
   DeliveryVehicle,
   UpdateDeliveryVehicleDetailsPayload,
-  VehicleStatus,
+  VehicleOperationalStatus,
 } from './delivery-vehicles.types'
 import { getErrorMessage, type FetchParams } from '@/lib/api-client'
 
@@ -90,11 +90,11 @@ export function useUpdateVehicleDetails() {
 export function useUpdateVehicleStatus() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, status }: { id: number; status: VehicleStatus }) =>
-      updateVehicleStatusApi(id, status),
+    mutationFn: ({ id, operationalStatus }: { id: number; operationalStatus: VehicleOperationalStatus }) =>
+      updateVehicleStatusApi(id, operationalStatus),
     onSuccess: (v) => {
       void queryClient.invalidateQueries({ queryKey: VEHICLES_QUERY_KEY })
-      toast.success(`Vehicle "${v.plateNumber}" status set to ${v.status}`)
+      toast.success(`Vehicle "${v.plateNumber}" status set to ${v.operationalStatus}`)
     },
     onError: (err) => {
       toast.error(getErrorMessage(err))

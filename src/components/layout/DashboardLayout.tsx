@@ -137,7 +137,7 @@ export function DashboardLayout({
   })).filter((group) => group.items.length > 0)
 
   const deliveryView =
-    currentScreen === 'incoming-deliveries'
+    currentScreen === 'delivery-runs' ? 'runs' : currentScreen === 'incoming-deliveries'
       ? 'incoming'
       : currentScreen === 'delivery-history'
         ? 'history'
@@ -368,7 +368,7 @@ export function DashboardLayout({
                   )}
                   <span aria-current="page" className="font-medium text-foreground">
                     {deliveryView
-                      ? `Deliveries / ${deliveryView === 'incoming' ? 'Incoming' : deliveryView === 'outgoing' ? 'Outgoing' : 'History'}`
+                      ? `Deliveries / ${deliveryView === 'incoming' ? 'Incoming' : deliveryView === 'outgoing' ? 'Outgoing' : deliveryView === 'runs' ? 'Runs' : 'History'}`
                       : currentItem?.label}
                   </span>
                 </div>

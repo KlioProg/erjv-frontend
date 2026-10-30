@@ -1,7 +1,7 @@
 import type {
   OutgoingDeliveryRecord,
-  CompleteOutgoingDeliveryPayload,
 } from './outgoing-deliveries.types'
+import type { ReconcileRunMemberPayload } from './delivery-runs.types'
 import type { SalesOrderRecord } from '../crm/sales-orders.types'
 import { formatProductUnit } from '@/lib/product-unit'
 import { parseStockCents, formatStockCents } from './stock-display'
@@ -40,7 +40,7 @@ export function outgoingCompletionRows(
   const seen = new Set<number>()
   const rows: CompletionRow[] = []
   for (const item of delivery.items) {
-    const loaded = parseStockCents(item.quantity)
+    const loaded = parseStockCents(item.loadedQuantity)
     const orderLine = order.items.find((line) => line.id === item.salesOrderItemId)
     if (
       !Number.isSafeInteger(item.id) ||
@@ -57,7 +57,7 @@ export function outgoingCompletionRows(
       id: item.id,
       name: product?.name ?? `Product #${orderLine.inventoryItemId}`,
       unit: formatProductUnit(product?.unit, 'units'),
-      loadedQuantity: item.quantity,
+      loadedQuantity: item.loadedQuantity!,
     })
   }
   return rows
@@ -68,7 +68,7 @@ export function validateOutgoingCompletion(
   drafts: Record<number, ReconciliationDraft>,
 ) {
   const errors: Record<number, Partial<Record<keyof ReconciliationDraft, string>>> = {}
-  const payload: CompleteOutgoingDeliveryPayload = { items: [] }
+  const payload: Pick<ReconcileRunMemberPayload, 'items'> = { items: [] }
   for (const row of rows) {
     const draft = drafts[row.id] ?? blankReconciliation()
     const values = reconciliationFields.map((field) =>

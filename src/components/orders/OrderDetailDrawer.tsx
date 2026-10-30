@@ -90,8 +90,6 @@ export function OrderDetailDrawer({
   )
 
   const productMap = useMemo(() => new Map((products || []).map((p) => [p.id, p])), [products])
-  const vehicleMap = useMemo(() => new Map((vehicles || []).map((v) => [v.id, v])), [vehicles])
-  const employeeMap = useMemo(() => new Map((employees || []).map((e) => [e.id, e])), [employees])
 
   // Find active outgoing deliveries tied to this order
   const tiedDeliveries = useMemo(() => {
@@ -103,7 +101,7 @@ export function OrderDetailDrawer({
 
   const activeDelivery =
     tiedDeliveries.find((delivery) => delivery.status === 'DISPATCHED') ||
-    tiedDeliveries.find((delivery) => ['DRAFT', 'SCHEDULED'].includes(delivery.status)) ||
+    tiedDeliveries.find((delivery) => ['DRAFT', 'READY'].includes(delivery.status)) ||
     tiedDeliveries[0] ||
     null
 
@@ -115,7 +113,7 @@ export function OrderDetailDrawer({
     if (
       order.status === 'PARTIALLY_DELIVERED' ||
       activeDelivery?.status === 'DISPATCHED' ||
-      activeDelivery?.status === 'SCHEDULED'
+      activeDelivery?.status === 'READY'
     )
       return 3
     if (order.status === 'CONFIRMED') return 2
@@ -134,7 +132,7 @@ export function OrderDetailDrawer({
     try {
       if (!canManage || confirmMutation.isPending) return
       setErrorMessage('')
-      const confirmed = await confirmMutation.mutateAsync(order.id)
+      const confirmed = await confirmMutation.mutateAsync({ id: order.id, expectedRevision: order.revision })
       onConfirmed?.(confirmed)
     } catch (err) {
       setErrorMessage(getErrorMessage(err))
@@ -382,7 +380,7 @@ export function OrderDetailDrawer({
                       <X className="size-3 mr-1" />
                       Cancel Order
                     </Button>
-                    {(!activeDelivery || activeDelivery.status === 'DELIVERED') && (
+                    {(!activeDelivery || activeDelivery.status === 'RECONCILED') && (
                       <Button
                         size="sm"
                         disabled={!canManage}
@@ -425,8 +423,8 @@ export function OrderDetailDrawer({
                     </p>
                     <p className="font-medium text-foreground mt-2">What should you do next?</p>
                     <p className="text-muted-foreground">
-                      Once the customer inspects and signs for the shipment, click below to confirm
-                      delivery and complete the order.
+                      Record delivered goods, sellable returns, damaged returns, and missing goods.
+                      Reconciliation updates the order's actual fulfillment progress.
                     </p>
                   </div>
                 </div>
@@ -514,7 +512,7 @@ export function OrderDetailDrawer({
                     <Badge
                       variant="outline"
                       className={`text-xs ${
-                        activeDelivery.status === 'DELIVERED'
+                        activeDelivery.status === 'RECONCILED'
                           ? 'bg-status-success text-status-success-foreground'
                           : 'bg-status-info text-status-info-foreground'
                       }`}
@@ -524,28 +522,7 @@ export function OrderDetailDrawer({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2 text-muted-foreground pt-1 border-t border-border">
-                  <div>
-                    Vehicle:{' '}
-                    <span className="font-medium text-foreground">
-                      {activeDelivery.deliveryVehicleId
-                        ? vehicleMap.get(activeDelivery.deliveryVehicleId)?.plateNumber ||
-                          `Vehicle #${activeDelivery.deliveryVehicleId}`
-                        : 'Not assigned'}
-                    </span>
-                  </div>
-                  <div>
-                    Driver:{' '}
-                    <span className="font-medium text-foreground">
-                      {activeDelivery.driverEmployeeId &&
-                      employeeMap.get(activeDelivery.driverEmployeeId)
-                        ? `${employeeMap.get(activeDelivery.driverEmployeeId)?.firstName || ''} ${employeeMap.get(activeDelivery.driverEmployeeId)?.lastName || ''}`.trim()
-                        : activeDelivery.driverEmployeeId
-                          ? `Driver #${activeDelivery.driverEmployeeId}`
-                          : 'Not assigned'}
-                    </span>
-                  </div>
-                </div>
+                <p className="border-t pt-2 text-sm">Delivery Run: {activeDelivery.runId ? `#${activeDelivery.runId}` : 'Not assigned'}. Driver and vehicle assignments are managed on the run.</p>
               </div>
             )}
 
@@ -614,14 +591,14 @@ export function OrderDetailDrawer({
         <SalesOrderCancelModal
           order={orderToCancel}
           onClose={() => setOrderToCancel(null)}
-          onConfirm={(id) => {
+          onConfirm={(id, expectedRevision) => {
             if (!canManage) throw new Error('You do not have permission to cancel orders.')
-            return cancelMutation.mutateAsync(id)
+            return cancelMutation.mutateAsync({ id, expectedRevision })
           }}
         />
       )}
 
-      {completingDeliveryId !== null && <CompleteDeliveryModal key={completingDeliveryId} deliveryId={completingDeliveryId} onClose={() => setCompletingDeliveryId(null)} />}
+      {completingDeliveryId !== null && tiedDeliveries.find((delivery) => delivery.id === completingDeliveryId)?.runId && <CompleteDeliveryModal runId={tiedDeliveries.find((delivery) => delivery.id === completingDeliveryId)!.runId!} key={completingDeliveryId} deliveryId={completingDeliveryId} onClose={() => setCompletingDeliveryId(null)} />}
       {/* Quick Dispatch Modal */}
       {isDispatchModalOpen && order && (
         <QuickDispatchModal

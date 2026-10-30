@@ -28,7 +28,7 @@ export function buildStockAlerts(
   for (const stock of stocks) {
     if (!productMap.has(stock.inventoryItemId)) continue
     const key = `${stock.inventoryItemId}:${stock.warehouseId}`
-    const quantity = parseStockCents(stock.quantity)
+    const quantity = parseStockCents(stock.availableQuantity)
     const existing = balances.get(key)
     // The backend enforces one allocation per product/warehouse. Fail closed on conflicting data.
     balances.set(key, {

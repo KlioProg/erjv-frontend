@@ -18,6 +18,8 @@ import type { PurchaseOrderRecord } from '@/features/logistics/purchase-orders.t
 import { decimalString } from '@/lib/order-amounts'
 import { parseStockCents } from '@/features/logistics/stock-display'
 import { useState } from 'react'
+import { MemoryRouter } from 'react-router'
+import { getAdapter } from 'axios'
 
 const auth = vi.hoisted(() => ({ isAdmin: true, isManager: false, isStaff: false }))
 vi.mock('@/features/auth/AuthContext', () => ({ useAuth: () => auth }))
@@ -32,9 +34,9 @@ let gate: Promise<void> | undefined
 const originalAdapter = apiClient.defaults.adapter
 const writes = () => requests.filter((request) => request.method !== 'get')
 const received = (product = 'Banana') =>
-  screen.getByRole('textbox', { name: `Received now for ${product}` }) as HTMLInputElement
+  screen.getByRole('textbox', { name: `Received now for ${product} (${product === 'Banana' ? 1 : 2})` }) as HTMLInputElement
 const damaged = (product = 'Banana') =>
-  screen.getByRole('textbox', { name: `Damaged now for ${product}` }) as HTMLInputElement
+  screen.getByRole('textbox', { name: `Damaged now for ${product} (${product === 'Banana' ? 1 : 2})` }) as HTMLInputElement
 function mount(ui?: ReactNode) {
   const onClose = vi.fn()
   const client = new QueryClient({
@@ -43,12 +45,17 @@ function mount(ui?: ReactNode) {
   return {
     ...render(
       <QueryClientProvider client={client}>
-        {ui ?? <ReceiveProductsModal deliveryId={90} onClose={onClose} />}
+        <MemoryRouter>{ui ?? <ReceiveProductsModal deliveryId={90} onClose={onClose} />}</MemoryRouter>
       </QueryClientProvider>,
     ),
     client,
     onClose,
   }
+}
+async function choosePartial() {
+  const choice = await screen.findByRole('radio', { name: 'Some goods arrived or were damaged' })
+  await waitFor(() => expect(choice.matches(':disabled')).toBe(false))
+  fireEvent.click(choice)
 }
 beforeEach(() => {
   requests = []
@@ -60,6 +67,7 @@ beforeEach(() => {
   auth.isStaff = false
   delivery = {
     id: 90,
+    revision: 1,
     deliveryNumber: 'IN-90',
     purchaseOrderId: 7,
     warehouseId: 2,
@@ -118,10 +126,13 @@ beforeEach(() => {
       id: 301,
       inventoryItemId: 1,
       warehouseId: 2,
-      quantity: receipt?.receivedQuantity ?? '0.00',
+      revision: 1,
+      onHandQuantity: receipt?.receivedQuantity ?? '0.00',
+      inTransitQuantity: '0.00',
+      quarantinedQuantity: receipt?.damagedQuantity ?? '0.00',
+      conditionQuantities: { DAMAGED: receipt?.damagedQuantity ?? '0.00', SPOILED: '0.00' },
+      reorderThreshold: null,
       availableQuantity: receipt?.acceptedQuantity ?? '0.00',
-      reservedQuantity: '0.00',
-      damagedQuantity: receipt?.damagedQuantity ?? '0.00',
       stockStatus: (parseStockCents(receipt?.acceptedQuantity) ?? 0n) > 0n ? 'UNCONFIGURED' : 'OUT',
       inventoryItem: { id: 1, name: 'Banana', unit: 'kg' },
       warehouse: { id: 2, name: 'Saved warehouse' },
@@ -134,13 +145,11 @@ beforeEach(() => {
         url === '/incoming-deliveries/90'
           ? delivery
           : url === '/incoming-deliveries'
-            ? config.params?.status === 'COMPLETED'
-              ? history
-              : [delivery, ...history]
+            ? { items: config.params?.statuses?.includes('COMPLETED') ? history : [delivery, ...history], nextCursor: null }
             : url === '/purchase-orders/7'
               ? order
               : url === '/purchase-orders'
-                ? [order]
+                ? { items: [order], nextCursor: null }
                 : url === '/warehouses'
                   ? [{ id: 2, name: 'Saved warehouse', isActive: true }]
                   : url === '/inventory-items'
@@ -157,6 +166,7 @@ beforeEach(() => {
                           ? [
                               {
                                 id: 700,
+                                revision: 1,
                                 stockItemId: 301,
                                 incomingDeliveryItemId: 900,
                                 outgoingDeliveryItemId: null,
@@ -215,6 +225,10 @@ beforeEach(() => {
       history = [...history, delivery]
       data = delivery
     }
+    if (method === 'get' && /^\/inventory-items\/[12]$/.test(url)) data = { id: Number(url.split('/').pop()), name: url.endsWith('/1') ? 'Banana' : 'Mango', unit: url.endsWith('/1') ? 'kg' : 'boxes', isActive: true }
+    if (method === 'get' && url === '/warehouses/2') data = { id: 2, name: 'Saved warehouse', isActive: true }
+    if (method === 'get' && url === '/suppliers/70') data = { id: 70, name: 'Saved supplier', isActive: true }
+    if (Array.isArray(data)) data = { items: data, nextCursor: null }
     return { config, data: structuredClone(data), status: 200, statusText: 'OK', headers: {} }
   }
 })
@@ -236,9 +250,11 @@ it('creates a delivery header without receipt items', async () => {
 
 it('sends actual received and damaged quantities in the completion request', async () => {
   await completeIncomingDeliveryApi(90, {
+    expectedRevision: 1,
     items: [{ purchaseOrderItemId: 10, receivedQuantity: '2.25', damagedQuantity: '0.25' }],
   })
   expect(writes()[0].body).toEqual({
+    expectedRevision: 1,
     items: [{ purchaseOrderItemId: 10, receivedQuantity: '2.25', damagedQuantity: '0.25' }],
   })
 })
@@ -246,15 +262,15 @@ it('sends actual received and damaged quantities in the completion request', asy
 it('loads current delivery and PO lines with blank receipt inputs and authoritative prior receiving balances', async () => {
   mount()
   expect(await screen.findByText('Banana')).toBeTruthy()
+  expect(screen.getAllByRole('radio').every((radio) => !(radio as HTMLInputElement).checked)).toBe(true)
+  await choosePartial()
   expect(screen.getByText('Mango')).toBeTruthy()
   expect(screen.getByText('Saved warehouse')).toBeTruthy()
   expect(screen.getByText('Saved supplier')).toBeTruthy()
   const row = within(received().closest('tr')!)
-  expect(row.getByText('10.25')).toBeTruthy()
-  expect(row.getByText('4.25')).toBeTruthy()
-  expect(row.getByText('7')).toBeTruthy()
+  expect(row.getByText('7 kg outstanding')).toBeTruthy()
   expect(received().value).toBe('')
-  expect(damaged().value).toBe('')
+  expect(damaged().value).toBe('0')
   expect(writes()).toHaveLength(0)
 })
 
@@ -271,6 +287,7 @@ it('confirms a partial damaged receipt using PO line IDs and refreshes every aff
   ]
   for (const key of keys) client.setQueryData(key, [])
   await screen.findByText('Banana')
+  await choosePartial()
   fireEvent.change(received(), { target: { value: '2.25' } })
   fireEvent.change(damaged(), { target: { value: '0.25' } })
   fireEvent.change(received('Mango'), { target: { value: '0.00' } })
@@ -281,13 +298,21 @@ it('confirms a partial damaged receipt using PO line IDs and refreshes every aff
       method: 'patch',
       url: '/incoming-deliveries/90/complete',
       body: {
+        expectedRevision: 1,
         items: [{ purchaseOrderItemId: 10, receivedQuantity: '2.25', damagedQuantity: '0.25' }],
       },
     },
   ])
   expect(delivery.items[0].acceptedQuantity).toBe('2.00')
   expect(delivery.outcome).toBe('RECEIVED_WITH_DAMAGE')
-  for (const key of keys) expect(client.getQueryState(key)?.isInvalidated).toBe(true)
+  for (const key of keys) {
+    if ((key[0] === 'products' || key[0] === 'warehouses') && key[1] === 'detail') {
+      const writeIndex = requests.findIndex((request) => request.url === '/incoming-deliveries/90/complete')
+      const path = key[0] === 'products' ? '/inventory-items/1' : '/warehouses/2'
+      expect(requests.slice(writeIndex + 1).some((request) => request.method === 'get' && request.url === path)).toBe(true)
+      expect(client.getQueryData(key)).toMatchObject({ id: key[2] })
+    } else expect(client.getQueryState(key)?.isInvalidated).toBe(true)
+  }
   expect(
     client.getQueryData<IncomingDeliveryRecord>(['incoming-deliveries', 'id', 90])?.status,
   ).toBe('COMPLETED')
@@ -297,6 +322,7 @@ it('allows received quantities above the outstanding good balance when damage ke
   const user = userEvent.setup()
   const { onClose } = mount()
   await screen.findByText('Banana')
+  await choosePartial()
   fireEvent.change(received(), { target: { value: '8.25' } })
   fireEvent.change(damaged(), { target: { value: '1.25' } })
   await user.click(screen.getByRole('button', { name: 'Confirm Receipt' }))
@@ -308,6 +334,7 @@ it('allows a wholly damaged receipt and does not treat it as good stock', async 
   const user = userEvent.setup()
   const { onClose } = mount()
   await screen.findByText('Banana')
+  await choosePartial()
   fireEvent.change(received(), { target: { value: '2.25' } })
   fireEvent.change(damaged(), { target: { value: '2.25' } })
   await user.click(screen.getByRole('button', { name: 'Confirm Receipt' }))
@@ -319,20 +346,17 @@ it('requires a reason for no receipt and sends an empty items array without assu
   const user = userEvent.setup()
   const { onClose } = mount()
   await screen.findByText('Banana')
-  await user.click(screen.getByRole('checkbox', { name: 'No goods received' }))
-  await user.click(screen.getByRole('button', { name: 'Confirm No Receipt' }))
-  expect(
-    screen.getByRole('textbox', { name: 'Reason for no receipt' }).getAttribute('aria-invalid'),
-  ).toBe('true')
+  await user.click(screen.getByRole('radio', { name: 'No goods arrived' }))
+  expect(screen.getByRole('button', { name: 'Confirm No Receipt' }).hasAttribute('disabled')).toBe(true)
   expect(writes()).toHaveLength(0)
-  expect(received().disabled).toBe(true)
+  expect(screen.queryByRole('textbox', { name: /Received now/ })).toBeNull()
   await user.type(
-    screen.getByRole('textbox', { name: 'Reason for no receipt' }),
+    screen.getByRole('textbox', { name: 'Reason no goods arrived' }),
     '  Supplier did not arrive  ',
   )
   await user.click(screen.getByRole('button', { name: 'Confirm No Receipt' }))
   await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
-  expect(writes()[0].body).toEqual({ items: [], noReceiptReason: 'Supplier did not arrive' })
+  expect(writes()[0].body).toEqual({ expectedRevision: 1, items: [], noReceiptReason: 'Supplier did not arrive' })
   expect(delivery.outcome).toBe('NO_RECEIPT')
   expect(toast.success).toHaveBeenCalledWith(expect.stringContaining('no receipt'))
 })
@@ -353,6 +377,7 @@ it.each([
   async (value, damage) => {
     mount()
     await screen.findByText('Banana')
+  await choosePartial()
     fireEvent.change(received(), { target: { value } })
     fireEvent.change(damaged(), { target: { value: damage } })
     fireEvent.submit(screen.getByRole('button', { name: 'Confirm Receipt' }).closest('form')!)
@@ -366,8 +391,10 @@ it.each([
 it('requires explicit actual quantities rather than assuming ordered goods were received', async () => {
   mount()
   await screen.findByText('Banana')
+  await choosePartial()
   fireEvent.submit(screen.getByRole('button', { name: 'Confirm Receipt' }).closest('form')!)
-  expect(screen.getByText(/Enter at least one received quantity/)).toBeTruthy()
+  expect(screen.getByRole('button', { name: 'Confirm Receipt' }).hasAttribute('disabled')).toBe(true)
+  expect(received().value).toBe('')
   expect(writes()).toHaveLength(0)
 })
 
@@ -378,12 +405,13 @@ it('prevents repeated confirmation and closing while a receipt is pending', asyn
   })
   const { onClose } = mount()
   await screen.findByText('Banana')
+  await choosePartial()
   fireEvent.change(received(), { target: { value: '1.25' } })
   const form = screen.getByRole('button', { name: 'Confirm Receipt' }).closest('form')!
   fireEvent.submit(form)
   fireEvent.submit(form)
   await waitFor(() => expect(writes()).toHaveLength(1))
-  expect(received().disabled).toBe(true)
+  expect(received().matches(':disabled')).toBe(true)
   expect(screen.getByRole('button', { name: 'Close' }).hasAttribute('disabled')).toBe(true)
   expect(screen.getByRole('button', { name: 'Cancel' }).hasAttribute('disabled')).toBe(true)
   expect(toast.success).not.toHaveBeenCalled()
@@ -400,6 +428,7 @@ it.each([400, 403, 404, 409, 'network'] as const)(
     const user = userEvent.setup()
     const { onClose } = mount()
     await screen.findByText('Banana')
+  await choosePartial()
     fireEvent.change(received(), { target: { value: '1.25' } })
     fireEvent.change(damaged(), { target: { value: '0.25' } })
     await user.click(screen.getByRole('button', { name: 'Confirm Receipt' }))
@@ -426,12 +455,13 @@ it('does not repeat an uncertain receipt when refresh finds the delivery already
   const user = userEvent.setup()
   mount()
   await screen.findByText('Banana')
+  await choosePartial()
   fireEvent.change(received(), { target: { value: '1.25' } })
   await user.click(screen.getByRole('button', { name: 'Confirm Receipt' }))
   await screen.findByRole('alert')
   delivery.status = 'COMPLETED'
   await user.click(screen.getByRole('button', { name: 'Refresh receipt data' }))
-  expect(await screen.findByText(/Only a scheduled delivery can be received/)).toBeTruthy()
+  expect((await screen.findAllByText(/Only a scheduled delivery can be received/)).length).toBeGreaterThan(0)
   expect(writes()).toHaveLength(1)
 })
 
@@ -450,7 +480,7 @@ it('keeps existing staff permissions read-only', async () => {
   auth.isStaff = true
   mount()
   expect(await screen.findByText(/do not have permission/)).toBeTruthy()
-  expect(received().disabled).toBe(true)
+  expect(screen.getAllByRole('radio').every((radio) => radio.matches(':disabled'))).toBe(true)
   expect(screen.getByRole('button', { name: 'Confirm Receipt' }).hasAttribute('disabled')).toBe(
     true,
   )
@@ -462,6 +492,7 @@ it('opens the actual receiving form from Incoming Deliveries and moves the confi
   mount(<DeliveriesHub initialTab="incoming" />)
   await user.click(await screen.findByRole('button', { name: 'Receive Goods IN-90' }))
   expect(await screen.findByText('Banana')).toBeTruthy()
+  await choosePartial()
   fireEvent.change(received(), { target: { value: '1.25' } })
   await user.click(screen.getByRole('button', { name: 'Confirm Receipt' }))
   await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Receive Goods' })).toBeNull())
@@ -484,13 +515,14 @@ it('refreshes the rendered Stock Warnings and Quarantine views after a damaged r
   mount(<Integration />)
   await screen.findByRole('button', { name: /1 unresolved/ })
   await user.click(screen.getByRole('button', { name: 'Receive shipment' }))
-  await screen.findByRole('textbox', { name: 'Received now for Banana' })
+  await choosePartial()
   fireEvent.change(received(), { target: { value: '1.25' } })
   fireEvent.change(damaged(), { target: { value: '0.25' } })
   await user.click(screen.getByRole('button', { name: 'Confirm Receipt' }))
   await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Receive Goods' })).toBeNull())
   expect(screen.queryByRole('button', { name: /1 unresolved/ })).toBeNull()
-  expect(await screen.findByText('Incoming delivery item #900')).toBeTruthy()
+  const quarantineSource = await screen.findByText('INCOMING DELIVERY')
+  expect(within(quarantineSource.closest('tr')!).getByText('0.25')).toBeTruthy()
   expect(
     requests.filter((request) => request.url === '/stock-items/quarantine-lots').length,
   ).toBeGreaterThan(1)
@@ -501,11 +533,13 @@ it('confirms a full remaining receipt across current purchase order line IDs', a
   const user = userEvent.setup()
   const { onClose } = mount()
   await screen.findByText('Banana')
+  await choosePartial()
   fireEvent.change(received(), { target: { value: '7.00' } })
   fireEvent.change(received('Mango'), { target: { value: '5.00' } })
   await user.click(screen.getByRole('button', { name: 'Confirm Receipt' }))
   await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
   expect(writes()[0].body).toEqual({
+    expectedRevision: 1,
     items: [
       { purchaseOrderItemId: 10, receivedQuantity: '7.00', damagedQuantity: '0.00' },
       { purchaseOrderItemId: 20, receivedQuantity: '5.00', damagedQuantity: '0.00' },
@@ -521,5 +555,71 @@ it('shows a recoverable error for incomplete purchase order detail data', async 
     true,
   )
   expect(screen.getByRole('button', { name: 'Refresh receipt data' })).toBeTruthy()
+  expect(writes()).toHaveLength(0)
+})
+
+it('binds nested receipt issues to submitted purchase lines after skipped rows and restores local validation on edit', async () => {
+  const adapter = getAdapter(apiClient.defaults.adapter)
+  apiClient.defaults.adapter = async (config) => {
+    if (config.method === 'patch' && config.url === '/incoming-deliveries/90/complete') {
+      requests.push({ method: config.method, url: config.url, body: JSON.parse(config.data) })
+      throw {
+        isAxiosError: true,
+        response: { status: 400, data: {
+          message: 'Review receipt quantities',
+          issues: [{ path: 'items[0].receivedQuantity', code: 'invalid', message: 'Supplier count must be checked' }],
+        } },
+      }
+    }
+    return adapter(config)
+  }
+  const { onClose } = mount()
+  await choosePartial()
+  fireEvent.change(received('Banana'), { target: { value: '0' } })
+  fireEvent.change(received('Mango'), { target: { value: '1' } })
+  fireEvent.submit(screen.getByRole('button', { name: 'Confirm Receipt' }).closest('form')!)
+  const issue = await screen.findByText('Supplier count must be checked')
+  expect(received('Mango').getAttribute('aria-describedby')).toBe(issue.id)
+  expect(received('Mango').getAttribute('aria-invalid')).toBe('true')
+  expect(received('Banana').getAttribute('aria-invalid')).toBe('false')
+  expect(writes()[0].body.items).toEqual([{ purchaseOrderItemId: 20, receivedQuantity: '1.00', damagedQuantity: '0.00' }])
+  expect(received('Mango').value).toBe('1')
+  expect(onClose).not.toHaveBeenCalled()
+  fireEvent.change(received('Mango'), { target: { value: '-1' } })
+  expect(screen.queryByText('Supplier count must be checked')).toBeNull()
+  expect(received('Mango').getAttribute('aria-invalid')).toBe('true')
+  expect(within(received('Mango').closest('tr')!).getAllByRole('alert').length).toBeGreaterThan(0)
+  expect(writes()).toHaveLength(1)
+})
+
+it('loads receiving products, supplier and warehouse by ID without downloading selector collections', async () => {
+  mount()
+  await choosePartial()
+  expect(received('Banana')).toBeTruthy()
+  expect(received('Mango')).toBeTruthy()
+  await screen.findByText('Saved supplier')
+  expect(screen.getByText('Saved warehouse')).toBeTruthy()
+  const urls = requests.map((request) => request.url)
+  expect(urls).toEqual(expect.arrayContaining(['/inventory-items/1', '/inventory-items/2', '/warehouses/2', '/suppliers/70']))
+  expect(urls.some((url) => ['/inventory-items', '/warehouses', '/suppliers'].includes(url))).toBe(false)
+})
+
+it('keeps receipt counts while failed product details are explicitly refreshed', async () => {
+  const base = getAdapter(apiClient.defaults.adapter)
+  let failing = true
+  apiClient.defaults.adapter = async (config) => {
+    if (failing && config.url === '/inventory-items/2') throw Error('Product details unavailable')
+    return base(config)
+  }
+  mount()
+  await screen.findByText('Banana')
+  await waitFor(() => expect(screen.getByRole('radio', { name: 'Some goods arrived or were damaged' }).matches(':disabled')).toBe(true))
+  failing = false
+  fireEvent.click(screen.getByRole('button', { name: 'Refresh receipt data' }))
+  await choosePartial()
+  fireEvent.change(received(), { target: { value: '1.25' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Refresh receipt data' }))
+  await waitFor(() => expect(received().hasAttribute('disabled')).toBe(false))
+  expect(received().value).toBe('1.25')
   expect(writes()).toHaveLength(0)
 })

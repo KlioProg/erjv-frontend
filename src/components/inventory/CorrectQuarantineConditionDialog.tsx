@@ -1,13 +1,14 @@
 import { useRef, useState } from 'react'
 import { toast } from 'sonner'
+import { fetchQuarantineLotApi } from '@/features/logistics/quarantine.api'
 import { useAuth } from '@/features/auth/AuthContext'
 import {
   useCorrectQuarantineCondition,
   useRefreshQuarantine,
 } from '@/features/logistics/quarantine.hooks'
-import type { QuarantineLot } from '@/features/logistics/stock-items.types'
+import type { QuarantineLot } from '@/features/logistics/quarantine.types'
 import { parseStockCents } from '@/features/logistics/stock-display'
-import { getErrorMessage } from '@/lib/api-client'
+import { getApiError, getErrorMessage } from '@/lib/api-client'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
@@ -21,16 +22,24 @@ import {
 } from '@/components/ui/dialog'
 
 export function CorrectQuarantineConditionDialog({
-  lot,
+  lot: selectedLot,
   onClose,
 }: {
   lot: QuarantineLot
   onClose: () => void
 }) {
+  const [lot, setLot] = useState(selectedLot)
   const { user } = useAuth()
   const allowed = ['ADMIN', 'MANAGER', 'SUPERADMIN'].includes(user?.role ?? '')
   const mutation = useCorrectQuarantineCondition(),
     refresh = useRefreshQuarantine()
+  const [attempt, setAttempt] = useState<{
+    condition: typeof lot.condition
+    reason: string
+    expectedRevision: number
+    requestId: string
+  } | null>(null)
+  const [uncertain, setUncertain] = useState(false)
   const [condition, setCondition] = useState(lot.condition)
   const [reason, setReason] = useState(''),
     [error, setError] = useState('')
@@ -44,6 +53,7 @@ export function CorrectQuarantineConditionDialog({
     setBusy(true)
     try {
       await refresh()
+      if (!saved) setLot(await fetchQuarantineLotApi(lot.id))
       if (saved) onClose()
       else {
         setReview(false)
@@ -66,22 +76,32 @@ export function CorrectQuarantineConditionDialog({
       review ||
       saved ||
       !allowed ||
-      condition === lot.condition ||
+      (!uncertain && condition === lot.condition) ||
       !reason.trim() ||
-      (parseStockCents(lot.remainingQuantity) ?? 0n) <= 0n
+      (!uncertain && (parseStockCents(lot.remainingQuantity) ?? 0n) <= 0n)
     )
       return
     lock.current = true
     setBusy(true)
     setError('')
     try {
-      await mutation.mutateAsync({ id: lot.id, payload: { condition, reason: reason.trim() } })
+      const payload = attempt ?? {
+        condition,
+        reason: reason.trim(),
+        expectedRevision: lot.revision,
+        requestId: crypto.randomUUID(),
+      }
+      setAttempt(payload)
+      await mutation.mutateAsync({ id: lot.id, payload })
       setSaved(true)
       await refresh()
       toast.success('Quarantine condition corrected')
       onClose()
     } catch (cause) {
       setError(`${getErrorMessage(cause)} Refresh and review the current lot before continuing.`)
+      const status = getApiError(cause)?.status
+      setUncertain(!status || status >= 500)
+      if (status && status < 500) setAttempt(null)
       setReview(true)
     } finally {
       lock.current = false
@@ -116,7 +136,10 @@ export function CorrectQuarantineConditionDialog({
                 {error}
               </p>
             )}
-            <fieldset disabled={busy || review || !allowed || saved} className="space-y-4">
+            <fieldset
+              disabled={busy || review || uncertain || !allowed || saved}
+              className="space-y-4"
+            >
               <div className="space-y-2">
                 <Label htmlFor="correct-condition">Corrected condition</Label>
                 <select
@@ -157,12 +180,12 @@ export function CorrectQuarantineConditionDialog({
                 busy ||
                 review ||
                 !allowed ||
-                condition === lot.condition ||
+                (!uncertain && condition === lot.condition) ||
                 !reason.trim() ||
-                (parseStockCents(lot.remainingQuantity) ?? 0n) <= 0n
+                (!uncertain && (parseStockCents(lot.remainingQuantity) ?? 0n) <= 0n)
               }
             >
-              Save condition
+              {uncertain ? 'Retry same correction' : 'Save condition'}
             </Button>
           </DialogFooter>
         </form>

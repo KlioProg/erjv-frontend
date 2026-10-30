@@ -39,8 +39,13 @@ const stocks: StockItem[] = [
     id: 11,
     inventoryItemId: 1,
     warehouseId: 1,
-    quantity: '12',
-    reservedQuantity: '2',
+    revision: 1,
+    onHandQuantity: '12',
+    inTransitQuantity: '2',
+    quarantinedQuantity: '0',
+    conditionQuantities: { DAMAGED: '0', SPOILED: '0' },
+    reorderThreshold: null,
+    stockStatus: 'UNCONFIGURED',
     availableQuantity: '10',
     ...timestamps,
   },
@@ -48,8 +53,13 @@ const stocks: StockItem[] = [
     id: 12,
     inventoryItemId: 1,
     warehouseId: 2,
-    quantity: '8',
-    reservedQuantity: '1',
+    revision: 1,
+    onHandQuantity: '8',
+    inTransitQuantity: '1',
+    quarantinedQuantity: '0',
+    conditionQuantities: { DAMAGED: '0', SPOILED: '0' },
+    reorderThreshold: null,
+    stockStatus: 'UNCONFIGURED',
     availableQuantity: '7',
     ...timestamps,
   },
@@ -140,7 +150,7 @@ it('keeps Sales Order removal keyboard-accessible and preserves the other line a
   await user.click(amounts)
   expect(await within(quantity.closest('tr')!).findByText('Subtotal')).toBeTruthy()
   expect(within(quantity.closest('tr')!).getByText('VAT')).toBeTruthy()
-  expect(screen.getByText(banana, { selector: 'p' }).getAttribute('title')).toBe(banana)
+  expect(within(quantity.closest('tr')!).getByText(banana).textContent).toBe(banana)
   expect(screen.getAllByRole('button', { name: /^Remove Test/ })).toHaveLength(2)
   screen.getByLabelText('Line amounts for Test Mango').focus()
   await user.tab()
@@ -192,14 +202,14 @@ describe('purchase composer', () => {
         .getAllByRole('columnheader')
         .map((header) => header.textContent),
     ).toEqual(['Product', 'Quantity', 'Unit Cost', 'Discount', 'Line Total', 'Remove'])
-    expect(screen.getByLabelText(`Line amounts for ${name}`).textContent).toBe('₱151,413.00')
+    expect(screen.getByLabelText(`Line amounts for ${name}`).textContent).toBe('₱169,582.56')
     expect(within(row).queryByText('VAT')).toBeNull()
     await user.click(screen.getByRole('button', { name: `Edit discount for ${name}` }))
     await user.click(screen.getByRole('combobox', { name: `Discount type for ${name}` }))
     await user.click(screen.getByRole('option', { name: '₱' }))
     await user.type(screen.getByRole('textbox', { name: `Line discount for ${name}` }), '50')
     await user.click(screen.getByRole('button', { name: 'Done' }))
-    expect(screen.getByLabelText(`Line amounts for ${name}`).textContent).toBe('₱151,363.00')
+    expect(screen.getByLabelText(`Line amounts for ${name}`).textContent).toBe('₱169,526.56')
     await user.click(screen.getByLabelText(`Line amounts for ${name}`))
     expect(await within(row).findByText('VAT')).toBeTruthy()
     await user.click(screen.getByRole('button', { name: 'Remove Test Mango' }))
@@ -282,7 +292,9 @@ describe('purchase composer', () => {
     await user.tab()
     expect(document.activeElement).toBe(cost)
     await user.type(cost, '10.20')
-    expect(screen.getAllByText('₱22.95').length).toBe(3)
+    expect(screen.getByText('\u20b122.95')).toBeTruthy()
+    expect(screen.getByText('\u20b12.75')).toBeTruthy()
+    expect(screen.getAllByText('\u20b125.70')).toHaveLength(2)
     await user.click(catalog.getByText(/Fresh orchard harvest/))
     expect(document.activeElement).toBe(quantity)
     expect((quantity as HTMLInputElement).value).toBe('3.25')
@@ -331,7 +343,7 @@ describe('purchase composer', () => {
       expectedAt: '2026-10-15T00:00:00.000Z',
       externalReference: 'INV-1',
       notes: 'Delivery instructions',
-      items: [{ inventoryItemId: 1, quantity: '1', unitPrice: '12.34' }],
+      items: [{ inventoryItemId: 1, quantity: '1', unitPrice: '12.34', taxRate: '12.00' }],
     })
     expect(onClose).toHaveBeenCalledOnce()
   })
@@ -353,7 +365,7 @@ describe('purchase composer', () => {
       {
         supplierId: null,
         expectedAt: null,
-        items: [{ inventoryItemId: 1, quantity: '1', unitPrice: '12.34' }],
+        items: [{ inventoryItemId: 1, quantity: '1', unitPrice: '12.34', taxRate: '12.00' }],
       },
       'draft',
     )
@@ -600,7 +612,7 @@ describe('sales composer', () => {
 
   it('creates and confirms a sales order without selecting warehouse sources', async () => {
     const user = userEvent.setup()
-    const onSubmit = vi.fn().mockResolvedValue({ id: 42, orderNumber: 'SO-42', status: 'DRAFT' })
+    const onSubmit = vi.fn().mockResolvedValue({ id: 42, revision: 1, orderNumber: 'SO-42', status: 'DRAFT' })
     const onConfirm = vi
       .fn()
       .mockResolvedValue({ id: 42, orderNumber: 'SO-42', status: 'CONFIRMED' })
@@ -623,7 +635,7 @@ describe('sales composer', () => {
       taxRate: '12.00',
     })
     expect('allocations' in buildSalesOrderPayload(onSubmit.mock.calls[0][0]).items[0]).toBe(false)
-    expect(onConfirm).toHaveBeenCalledWith(42)
+    expect(onConfirm).toHaveBeenCalledWith(42, 1)
   })
 
   it('allows creating a sales order for products with no available stock', async () => {
@@ -771,7 +783,7 @@ describe('shared catalog', () => {
     rerender(<OrderProductCatalog {...props} />)
     await user.click(screen.getByText(products[1].name))
     expect(onAdd).toHaveBeenCalledTimes(3)
-    rerender(<OrderProductCatalog {...props} stockItems={[{ ...stocks[0], quantity: 'bad' }]} />)
+    rerender(<OrderProductCatalog {...props} stockItems={[{ ...stocks[0], onHandQuantity: 'bad' }]} />)
     await user.click(screen.getByText('Test Mango'))
     expect(onAdd).toHaveBeenCalledTimes(4)
     rerender(<OrderProductCatalog {...props} busy />)
@@ -798,7 +810,7 @@ describe('shared catalog', () => {
     const list = [products[0], { ...products[1], name: 'Test Banana' }]
     const stockItems = [
       stocks[0],
-      { ...stocks[1], inventoryItemId: 2, quantity: '30', reservedQuantity: '29', availableQuantity: '1' },
+      { ...stocks[1], inventoryItemId: 2, onHandQuantity: '30', inTransitQuantity: '29', availableQuantity: '1' },
     ]
     const props = { products: list, stockItems, onAdd: vi.fn(), busy: false }
     const { rerender } = render(<OrderProductCatalog {...props} sales />)
@@ -867,4 +879,51 @@ describe('shared catalog', () => {
     rerender(<OrderProductCatalog {...props} products={[]} />)
     expect(screen.getByText('No active products available.')).toBeTruthy()
   })
+})
+
+
+it.each(['sales', 'purchase'] as const)('binds nested %s validation issues to submitted line identities after removal and insertion', async (kind) => {
+  const rejection = (path: string, message: string) => ({
+    isAxiosError: true,
+    response: { status: 422, data: { message: 'Check the submitted fields.', issues: [
+      { path, code: 'INVALID_VALUE', message },
+      { path: kind === 'sales' ? 'clientId' : 'supplierId', code: 'INVALID_VALUE', message: 'Choose an available partner.' },
+    ] } },
+  })
+  const onSubmit = vi.fn()
+    .mockRejectedValueOnce(rejection('items[0].quantity', 'Quantity rejected by the server.'))
+    .mockRejectedValueOnce(rejection('items.1.unitPrice', 'Unit price rejected by the server.'))
+  render(kind === 'sales'
+    ? <OrderModal {...salesProps} onClose={vi.fn()} onSubmit={onSubmit} />
+    : <PurchaseModal {...purchaseProps} onClose={vi.fn()} onSubmit={onSubmit} />)
+  const user = userEvent.setup()
+  if (kind === 'sales') {
+    await user.click(screen.getByRole('button', { name: 'Search and choose a customer' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Test Customer' }))
+  }
+  for (const product of products) {
+    await user.click(screen.getByRole('button', { name: `Add ${product.name}` }))
+    if (kind === 'purchase') await user.type(screen.getByRole('textbox', { name: `Unit cost for ${product.name}` }), '10')
+  }
+  await user.click(screen.getByRole('button', { name: 'Remove Test Mango' }))
+  await user.click(screen.getByRole('button', { name: 'Save Draft' }))
+  const bananaQuantity = screen.getByRole('textbox', { name: `Quantity for ${products[1].name}` })
+  const quantityMessage = await screen.findByText('Quantity rejected by the server.')
+  expect(bananaQuantity.getAttribute('aria-invalid')).toBe('true')
+  expect(bananaQuantity.getAttribute('aria-describedby')?.split(' ')).toContain(quantityMessage.id)
+  const partner = screen.getByRole('button', { name: kind === 'sales' ? 'Search and choose a customer' : 'Search and choose a supplier' })
+  expect(partner.getAttribute('aria-invalid')).toBe('true')
+  expect(partner.getAttribute('aria-describedby')).toBe(screen.getByText('Choose an available partner.').id)
+  fireEvent.change(bananaQuantity, { target: { value: '2' } })
+  expect(screen.queryByText('Quantity rejected by the server.')).toBeNull()
+  expect(bananaQuantity.getAttribute('aria-invalid')).toBe('false')
+  await user.click(screen.getByRole('button', { name: 'Add Test Mango' }))
+  if (kind === 'purchase') await user.type(screen.getByRole('textbox', { name: 'Unit cost for Test Mango' }), '10')
+  await user.click(screen.getByRole('button', { name: 'Save Draft' }))
+  const priceMessage = await screen.findByText('Unit price rejected by the server.')
+  const mangoPrice = screen.getByRole('textbox', { name: kind === 'sales' ? 'Unit price for Test Mango' : 'Unit cost for Test Mango' })
+  expect(mangoPrice.getAttribute('aria-invalid')).toBe('true')
+  expect(mangoPrice.getAttribute('aria-describedby')?.split(' ')).toContain(priceMessage.id)
+  expect(bananaQuantity.getAttribute('aria-invalid')).toBe('false')
+  expect(onSubmit).toHaveBeenCalledTimes(2)
 })

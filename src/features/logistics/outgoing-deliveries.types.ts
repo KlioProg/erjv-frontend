@@ -1,7 +1,7 @@
 import type { CursorParams } from '@/lib/cursor-pagination'
 
 export type OutgoingDeliveryStatus =
-  'DRAFT' | 'SCHEDULED' | 'DISPATCHED' | 'DELIVERED' | 'CANCELLED'
+  'DRAFT' | 'READY' | 'DISPATCHED' | 'RECONCILED' | 'CANCELLED'
 
 export interface OutgoingDeliveryItemRecord {
   id: number
@@ -33,12 +33,13 @@ export interface OutgoingDeliveryRecord {
   warehouseId: number | null
   revision: number
   plannedItems: OutgoingDeliveryPlanItemRecord[]
-  deliveryVehicleId: number | null
-  driverEmployeeId: number | null
+  runId: number | null
+  reconciledAt: string | null
+  reconciledByUserId: number | null
+  fulfillmentOutcome: 'NONE' | 'PARTIAL' | 'FULL' | null
+  hasDamage: boolean
+  hasMissing: boolean
   status: OutgoingDeliveryStatus
-  scheduledAt: string | null
-  dispatchedAt: string | null
-  deliveredAt: string | null
   cancelledAt: string | null
   notes: string | null
   createdAt: string
@@ -63,14 +64,12 @@ export interface OutgoingDeliveryPlanItemRecord {
 
 export interface CreateOutgoingDeliveryDraftPayload {
   salesOrderId: number
-  scheduledAt?: string | null
   notes?: string | null
 }
 
 export interface UpdateOutgoingDeliveryDraftPayload {
   expectedRevision: number
   warehouseId: number | null
-  scheduledAt: string | null
   notes: string | null
   plannedItems: { salesOrderItemId: number; plannedQuantity: string }[]
 }
@@ -80,36 +79,22 @@ export interface OutgoingPlanningOption {
   inventoryItemId: number
   orderedQuantity: string
   committedQuantity: string
-  scheduledQuantity: string
+  readyQuantity: string
   availableQuantity: string
   plannedQuantity: string
   maximumPlannableQuantity: string
-  warehouseRemainingQuantity: string
+  remainingToPlanQuantity: string
+  shortfallQuantity: string
 }
 
 export type CreateOutgoingDeliveryPayload = CreateOutgoingDeliveryDraftPayload
 
-export interface CompleteOutgoingDeliveryPayload {
-  items: {
-    outgoingDeliveryItemId: number
-    deliveredQuantity: string
-    returnedSellableQuantity: string
-    returnedDamagedQuantity: string
-    missingQuantity: string
-    discrepancyReason?: string
-  }[]
-}
-
-export interface DispatchOutgoingDeliveryPayload {
-  deliveryVehicleId: number
-  driverEmployeeId: number
-  items: { salesOrderItemId: number; stockItemId: number; loadedQuantity: string }[]
-}
-
-
-
 export interface OutgoingDeliveryFilter extends CursorParams {
   status?: OutgoingDeliveryStatus
+  statuses?: OutgoingDeliveryStatus[]
+  q?: string
   salesOrderId?: number
   warehouseId?: number
+  runId?: number
+  unassigned?: 'true'
 }

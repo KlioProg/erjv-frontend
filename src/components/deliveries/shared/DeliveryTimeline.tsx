@@ -1,9 +1,10 @@
 import { Ban, Check } from 'lucide-react'
 import type { OutgoingDeliveryRecord } from '@/features/logistics/outgoing-deliveries.types'
+import type { DeliveryRunRecord } from '@/features/logistics/delivery-runs.types'
 import { DeliveryUtils } from '@/features/logistics/delivery-utils'
 import { cn } from '@/lib/utils'
 
-export function DeliveryTimeline({ delivery }: { delivery: OutgoingDeliveryRecord }) {
+export function DeliveryTimeline({ delivery, run }: { delivery: OutgoingDeliveryRecord; run?: DeliveryRunRecord | null }) {
   if (delivery.status === 'CANCELLED') {
     return (
       <div role="note" className="flex items-start gap-2 text-sm text-destructive">
@@ -24,9 +25,9 @@ export function DeliveryTimeline({ delivery }: { delivery: OutgoingDeliveryRecor
   const current = DeliveryUtils.getStepIndex(delivery.status)
   const steps = [
     { label: 'Draft Created', date: delivery.createdAt },
-    { label: 'Scheduled', date: delivery.scheduledAt },
-    { label: 'In Transit', date: delivery.dispatchedAt },
-    { label: 'Delivered', date: delivery.deliveredAt },
+    { label: 'Ready for Run', date: null },
+    { label: 'In Transit', date: run?.dispatchedAt },
+    { label: 'Reconciled', date: delivery.reconciledAt },
   ]
 
   return (

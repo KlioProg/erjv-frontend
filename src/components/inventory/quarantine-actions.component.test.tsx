@@ -12,6 +12,7 @@ const auth = vi.hoisted(() => ({ role: 'STAFF' }))
 vi.mock('@/features/auth/AuthContext', () => ({ useAuth: () => ({ user: { role: auth.role } }) }))
 const adapter = apiClient.defaults.adapter
 const lot: QuarantineLot = {
+  revision: 1,
   id: 11,
   stockItemId: 7,
   sourceKind: 'MANUAL',
@@ -25,8 +26,6 @@ const lot: QuarantineLot = {
   incomingDeliveryItemId: null,
   outgoingDeliveryItemId: null,
   createdAt: '',
-  conditionChanges: [],
-  resolutions: [],
 }
 let calls: { url: string; body: Record<string, unknown>; method: string }[],
   fail: boolean,
@@ -71,7 +70,16 @@ beforeEach(() => {
     else if (config.url === '/warehouses') data = [{ id: 2, name: 'Main', isActive: true }]
     else if (config.url === '/inventory-items')
       data = [{ id: 1, name: 'Rice', unit: 'kg', isActive: true }]
-    else if (config.url === '/stock-items/quarantine-lots') data = currentLot ? [currentLot] : []
+    else if (config.url === '/stock-items/quarantine-lots/11') data = lot
+    else if (config.url === '/stock-items/quarantine-lots')
+      data = { items: currentLot ? [currentLot] : [], nextCursor: null }
+    if (config.method === 'get' && (config.url === '/stock-items/7' || config.url === '/stock-items/warehouses/2')) {
+      const stock = { id: 7, inventoryItemId: 1, warehouseId: 2, onHandQuantity: '10.00', availableQuantity: '1.75', inventoryItem: { id: 1, name: 'Rice', unit: 'kg' } }
+      data = config.url === '/stock-items/7' ? stock : [stock]
+    }
+    if (config.method === 'get' && config.url === '/inventory-items/1') data = { id: 1, name: 'Rice', unit: 'kg', isActive: true }
+    if (config.method === 'get' && config.url === '/warehouses/2') data = { id: 2, name: 'Main', isActive: true }
+    if (config.method === 'get' && Array.isArray(data)) data = { items: data, nextCursor: null }
     return { config, data, status: 200, statusText: 'OK', headers: {} }
   }
 })
@@ -208,7 +216,12 @@ it('requires a different open-lot condition and audit reason, then refreshes aft
   expect(calls[0]).toEqual({
     url: '/stock-items/quarantine-lots/11/condition',
     method: 'patch',
-    body: { condition: 'SPOILED', reason: 'Lab inspection' },
+    body: {
+      condition: 'SPOILED',
+      reason: 'Lab inspection',
+      expectedRevision: 1,
+      requestId: expect.any(String),
+    },
   })
 })
 it('blocks condition correction by staff and on closed lots', () => {
@@ -226,4 +239,36 @@ it('blocks condition correction by staff and on closed lots', () => {
   fireEvent.change(screen.getByLabelText('Correction reason'), { target: { value: 'Inspection' } })
   fireEvent.click(screen.getByRole('button', { name: 'Save condition' }))
   expect(calls).toHaveLength(0)
+})
+
+it('freezes a condition correction revision and UUID while explicitly retrying a lost response', async () => {
+  auth.role = 'MANAGER'
+  fail = true
+  render(
+    <QueryClientProvider client={setup().client}>
+      <CorrectQuarantineConditionDialog lot={lot} onClose={() => {}} />
+    </QueryClientProvider>,
+  )
+  fireEvent.change(screen.getByLabelText('Corrected condition'), { target: { value: 'SPOILED' } })
+  fireEvent.change(screen.getByLabelText('Correction reason'), { target: { value: 'Inspection' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Save condition' }))
+  await screen.findByRole('button', { name: 'Refresh lot' })
+  expect(calls).toHaveLength(1)
+  fireEvent.click(screen.getByRole('button', { name: 'Refresh lot' }))
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: 'Retry same correction' }).matches(':disabled')).toBe(
+      false,
+    ),
+  )
+  expect(screen.getByLabelText('Correction reason').matches(':disabled')).toBe(true)
+  fail = false
+  fireEvent.click(screen.getByRole('button', { name: 'Retry same correction' }))
+  await waitFor(() => expect(calls).toHaveLength(2))
+  expect(calls[1].body).toEqual(calls[0].body)
+  expect(calls[0].body).toEqual({
+    condition: 'SPOILED',
+    reason: 'Inspection',
+    expectedRevision: 1,
+    requestId: expect.stringMatching(/^[0-9a-f-]{36}$/),
+  })
 })

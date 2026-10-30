@@ -1,29 +1,17 @@
-import { useMemo } from 'react'
-import { useAllProducts } from '../products/products.hooks'
-import { useAllWarehouses } from './warehouses.hooks'
-import { useStockItems } from './stock-items.hooks'
 import { buildStockAlerts } from './stock-alerts'
+import { useStockNotificationRecords } from './use-stock-notification-records'
 
-/** Live active conditions share the existing query cache and stock invalidations; no inbox writes. */
+/** Global depletion is verified only against complete stock and metadata lists. */
 export function useStockAlerts() {
-  const stockQuery = useStockItems()
-  const productsQuery = useAllProducts()
-  const warehousesQuery = useAllWarehouses()
-  const verified = stockQuery.isSuccess && productsQuery.isSuccess && warehousesQuery.isSuccess
-  const alerts = useMemo(
-    () =>
-      verified
-        ? buildStockAlerts(stockQuery.data!, productsQuery.data!, warehousesQuery.data!)
-        : [],
-    [verified, stockQuery.data, productsQuery.data, warehousesQuery.data],
-  )
+  const records = useStockNotificationRecords()
   return {
-    alerts,
-    verified,
-    isLoading: stockQuery.isLoading || productsQuery.isLoading || warehousesQuery.isLoading,
-    isFetching: stockQuery.isFetching || productsQuery.isFetching || warehousesQuery.isFetching,
-    error: stockQuery.error || productsQuery.error || warehousesQuery.error,
-    refresh: () =>
-      Promise.all([stockQuery.refetch(), productsQuery.refetch(), warehousesQuery.refetch()]),
+    alerts: records.complete ? buildStockAlerts(records.stocks, records.products, records.warehouses) : [],
+    verified: records.complete,
+    isLoading: records.loading,
+    isFetching: records.refreshing,
+    error: records.error,
+    hasMore: records.hasMore,
+    loadNext: records.loadNext,
+    refresh: records.refresh,
   }
 }

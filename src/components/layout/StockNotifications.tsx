@@ -34,7 +34,7 @@ export function StockNotifications({
 }: {
   onOpenInventory: (target: InventoryNavigationTarget) => void
 }) {
-  const { warnings, warehouses, loading, unavailable, refreshing, refresh } = useStockWarnings()
+  const { warnings, warehouses, loading, unavailable, refreshing, refresh, complete = true, hasMore = false, loadNext } = useStockWarnings()
   const [warehouseId, setWarehouseId] = useState('ALL')
   const warehouseTrigger = useRef<HTMLButtonElement>(null)
   const [warningFilter, setWarningFilter] = useState<StockWarningFilter>('ALL')
@@ -43,7 +43,7 @@ export function StockNotifications({
   const filtered = filterStockWarnings(warnings, scope)
   const preview = filtered.slice(0, 6)
   const emptyMessage =
-    warningFilter === 'LOW'
+    !complete ? 'No warnings in loaded records. Load more records to continue checking.' : warningFilter === 'LOW'
       ? 'No low-stock items' + (warehouse ? ' for the selected warehouse.' : '.')
       : warningFilter === 'OUT'
         ? 'No out-of-stock items' + (warehouse ? ' for the selected warehouse.' : '.')
@@ -68,7 +68,7 @@ export function StockNotifications({
               ? 'Stock notifications unavailable'
               : loading
                 ? 'Loading stock notifications'
-                : `Stock notifications, ${warnings.length} unresolved warnings`
+                : `Stock notifications, ${warnings.length} ${complete ? "unresolved" : "loaded"} warnings${complete ? "" : ", more records available"}`
           }
         >
           <Bell aria-hidden="true" />
@@ -184,7 +184,7 @@ export function StockNotifications({
                 ))}
               </DropdownMenuRadioGroup>
               <p aria-live="polite" className="px-2 py-1 text-xs text-muted-foreground">
-                {filtered.length} {filtered.length === 1 ? 'warning' : 'warnings'}
+                {filtered.length} {complete ? '' : 'loaded '}{filtered.length === 1 ? 'warning' : 'warnings'}
               </p>
               <DropdownMenuSeparator />
             </>
@@ -277,6 +277,13 @@ export function StockNotifications({
               </DropdownMenuItem>
             </DropdownMenuGroup>
           </>
+        )}
+        {hasMore && !loading && (
+          <DropdownMenuGroup>
+            <DropdownMenuItem disabled={refreshing} onSelect={(event) => { event.preventDefault(); void loadNext() }}>
+              Load more warning records
+            </DropdownMenuItem>
+          </DropdownMenuGroup>
         )}
         <DropdownMenuSeparator />
         <p className="px-2 py-2 text-xs text-muted-foreground">

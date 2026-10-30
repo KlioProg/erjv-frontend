@@ -346,10 +346,16 @@ describe.each(['sales', 'purchase'] as const)('%s line discount editor', (kind) 
     await user.type(screen.getByRole('textbox', { name: 'Line discount for Test Mango' }), '10')
     await user.click(screen.getByRole('button', { name: 'Done' }))
     const row = quantity.closest('tr')!
-    expect(within(row).getByText(kind === 'sales' ? '₱212.80' : '₱190.00')).toBeTruthy()
+    expect(within(row).getByText('\u20b1212.80')).toBeTruthy()
+    if (kind === 'purchase') {
+      await user.click(screen.getByRole('button', { name: 'Edit discount for Test Mango' }))
+      await user.click(screen.getByRole('switch', { name: 'VAT exempt for Test Mango' }))
+      await user.click(screen.getByRole('button', { name: 'Done' }))
+      expect(within(row).getByText('\u20b1190.00')).toBeTruthy()
+    }
     await user.click(screen.getByRole('button', { name: 'Save Draft' }))
     await waitFor(() => expect(onSubmit).toHaveBeenCalledOnce())
-    expect(payload().items[0]).toMatchObject({ quantity: '2', discountAmount: '10' })
+    expect(payload().items[0]).toMatchObject({ quantity: '2', discountAmount: '10', taxRate: kind === 'purchase' ? '0.00' : '12.00' })
   })
 
   it('shows authoritative saved line and overall totals while a confirmation failure remains recoverable', async () => {
@@ -357,6 +363,7 @@ describe.each(['sales', 'purchase'] as const)('%s line discount editor', (kind) 
       .fn<(values: unknown, intent?: 'draft' | 'confirm') => Promise<SavedOrder>>()
       .mockResolvedValue({
         id: 7,
+        revision: 1,
         orderNumber: 'ORDER-7',
         status: 'DRAFT',
         items: [
@@ -384,7 +391,7 @@ describe.each(['sales', 'purchase'] as const)('%s line discount editor', (kind) 
     expect(await screen.findByText(/Confirmation did not complete/)).toBeTruthy()
     expect(screen.getAllByText('₱96.00')).toHaveLength(2)
     expect(onSubmit).toHaveBeenCalledOnce()
-    expect(onConfirm).toHaveBeenCalledExactlyOnceWith(7)
+    expect(onConfirm).toHaveBeenCalledExactlyOnceWith(7, 1)
   })
 })
 

@@ -1,3 +1,5 @@
+import { useState } from 'react'
+import { CursorLookup } from '@/components/ui/CursorLookup'
 import { formatProductUnit } from '@/lib/product-unit'
 import type { OrderSubmissionProps } from '@/hooks/use-order-submission'
 import { Button } from '@/components/ui/button'
@@ -22,6 +24,7 @@ import {
 import { discountFields } from '@/lib/order-line-pricing'
 import {
   OrderProductCatalog,
+  PagedOrderProductCatalog,
   type OrderCatalogState,
 } from '@/components/order-entry/OrderProductCatalog'
 import { usePurchaseOrderEntry } from '@/features/logistics/purchase-order-entry.hooks'
@@ -39,6 +42,7 @@ import { priceError, quantityError } from '@/lib/order-entry.schema'
 export type { PurchaseLine } from '@/features/logistics/purchase-order-entry.types'
 
 type PurchaseModalProps = OrderSubmissionProps<CreatePurchaseOrderPayload> & {
+  remoteSelectors?: boolean
   open: boolean
   onClose: () => void
   suppliers: Supplier[]
@@ -62,14 +66,28 @@ export function PurchaseModal({
   onExportReceipt,
   onConfirmed,
   savedDraft,
-  suppliers,
-  products,
+  suppliers: initialSuppliers,
+  products: initialProducts,
+  remoteSelectors = false,
   stockItems = [],
   catalogState,
   processedBy,
   draftOrder,
   onUpdateDraft,
 }: PurchaseModalProps) {
+  const [selectedSuppliers, setSelectedSuppliers] = useState<Supplier[]>([])
+  const [selectedProducts, setSelectedProducts] = useState<InventoryItemResponse[]>([])
+  const suppliers = [
+    ...new Map(
+      [...initialSuppliers, ...selectedSuppliers].map((record) => [record.id, record]),
+    ).values(),
+  ]
+  const products = [
+    ...new Map(
+      [...initialProducts, ...selectedProducts].map((record) => [record.id, record]),
+    ).values(),
+  ]
+  const Catalog = remoteSelectors ? PagedOrderProductCatalog : OrderProductCatalog
   const form = usePurchaseOrderEntry({
     suppliers,
     products,
@@ -117,6 +135,7 @@ export function PurchaseModal({
                 mobileLabel=""
                 aria-label={`Quantity for ${row.name}`}
                 aria-describedby={`purchase-quantity-unit-${row.formId}`}
+                error={form.lineFieldError(row.formId, 'quantity')}
                 value={row.quantity}
                 aria-invalid={!!quantityError(row.quantity)}
                 ref={(input) => form.focus.quantityRef(row.formId, input)}
@@ -143,6 +162,7 @@ export function PurchaseModal({
           currency
           mobileLabel="Unit Cost"
           aria-label={`Unit cost for ${row.name}`}
+          error={form.lineFieldError(row.formId, 'unitPrice')}
           value={row.unitCost}
           placeholder="0.00"
           aria-invalid={row.unitCost !== '' && !!priceError(row.unitCost)}
@@ -223,12 +243,16 @@ export function PurchaseModal({
       submitDisabled={form.submitDisabled}
       readOnly={form.submitDisabled && !form.conflict}
       catalog={(returnToEditor) => (
-        <OrderProductCatalog
+        <Catalog
           products={products}
           stockItems={stockItems}
           state={catalogState}
           busy={form.submission.locked}
           onAdd={(product) => {
+            setSelectedProducts((current) => [
+              ...current.filter((record) => record.id !== product.id),
+              product,
+            ])
             form.addProduct(product)
             returnToEditor()
           }}
@@ -313,41 +337,78 @@ export function PurchaseModal({
           )}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <OrderField id="po-supplier" label="Supplier (optional for drafts)">
-              <SearchableDropdown
-                id="po-supplier"
-                options={suppliers.filter(
-                  (supplier) => supplier.isActive || String(supplier.id) === form.supplierId,
-                )}
-                value={form.supplierId}
-                onValueChange={form.setSupplierId}
-                getOptionValue={(supplier) => String(supplier.id)}
-                getOptionLabel={(supplier) => `${supplier.name} (${supplier.code})`}
-                getOptionSearchText={(supplier) =>
-                  [
-                    supplier.name,
-                    supplier.code,
-                    supplier.contactPerson,
-                    supplier.email,
-                    supplier.phone,
-                  ]
-                    .filter(Boolean)
-                    .join(' ')
-                }
-                placeholder="Search suppliers"
-                searchPlaceholder="Search supplier name or contact..."
-                emptyMessage="No active suppliers found."
-                ariaLabel="Search and choose a supplier"
-                className="h-9 text-sm"
-              />
+              {remoteSelectors ? (
+                <CursorLookup<Supplier>
+                  id="po-supplier"
+                  path="/suppliers"
+                  filter={{ includeInactive: 'false' }}
+                  value={form.supplierId}
+                  label="supplier"
+                  ariaLabel="Search and choose a supplier"
+                  searchPlaceholder="Search supplier name, code or contact..."
+                  className="h-9 text-sm"
+                  error={form.fieldErrors.supplierId}
+                  selectedLabel={
+                    suppliers.find((record) => String(record.id) === form.supplierId)?.name
+                  }
+                  getLabel={(record) => `${record.name} (${record.code})`}
+                  accept={(record) => record.isActive}
+                  disabled={form.submission.locked}
+                  onChange={(id, record) => {
+                    setSelectedSuppliers((current) => [
+                      ...current.filter((value) => value.id !== record.id),
+                      record,
+                    ])
+                    form.setSupplierId(id)
+                  }}
+                />
+              ) : (
+                <SearchableDropdown
+                  id="po-supplier"
+                  error={form.fieldErrors.supplierId}
+                  options={suppliers.filter(
+                    (supplier) => supplier.isActive || String(supplier.id) === form.supplierId,
+                  )}
+                  value={form.supplierId}
+                  onValueChange={form.setSupplierId}
+                  getOptionValue={(supplier) => String(supplier.id)}
+                  getOptionLabel={(supplier) => `${supplier.name} (${supplier.code})`}
+                  getOptionSearchText={(supplier) =>
+                    [
+                      supplier.name,
+                      supplier.code,
+                      supplier.contactPerson,
+                      supplier.email,
+                      supplier.phone,
+                    ]
+                      .filter(Boolean)
+                      .join(' ')
+                  }
+                  placeholder="Search suppliers"
+                  searchPlaceholder="Search supplier name or contact..."
+                  emptyMessage="No active suppliers found."
+                  ariaLabel="Search and choose a supplier"
+                  className="h-9 text-sm"
+                />
+              )}
             </OrderField>
             <OrderField id="po-expected" label="Expected Delivery Date">
               <Input
                 id="po-expected"
+                aria-invalid={!!form.fieldErrors.expectedAt || undefined}
+                aria-describedby={
+                  form.fieldErrors.expectedAt ? 'po-expected-server-error' : undefined
+                }
                 type="date"
                 className="h-9 min-w-0 text-sm"
                 value={form.expectedAt}
                 onChange={(event) => form.setExpectedAt(event.target.value)}
               />
+              {form.fieldErrors.expectedAt && (
+                <p id="po-expected-server-error" role="alert" className="text-xs text-destructive">
+                  {form.fieldErrors.expectedAt}
+                </p>
+              )}
             </OrderField>
             <p className="text-xs text-muted-foreground sm:col-span-2">
               Processed by: {processedBy}

@@ -1,8 +1,8 @@
 import type { SalesOrderRecord } from '../crm/sales-orders.types'
 import type {
   OutgoingDeliveryRecord,
-  DispatchOutgoingDeliveryPayload,
 } from './outgoing-deliveries.types'
+import type { RunLoad } from './delivery-runs.types'
 import type { StockItemWithInventoryItem } from './stock-items.types'
 import { formatStockCents, parseStockCents } from './stock-display'
 import { formatProductUnit } from '@/lib/product-unit'
@@ -76,7 +76,7 @@ export function buildDispatchPlan(
 
 export function validateDispatchLoad(rows: DispatchPlanRow[], values: Record<number, string>) {
   const errors: Record<number, string> = {}
-  const items: DispatchOutgoingDeliveryPayload['items'] = []
+  const items: RunLoad['items'] = []
   const totals = new Map<number, bigint>()
   for (const row of rows) {
     const raw = (values[row.salesOrderItemId] ?? '').trim()

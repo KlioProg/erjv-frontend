@@ -12,18 +12,14 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import {
-  useOutgoingDeliveryById,
-  useCompleteOutgoingDelivery,
-} from '@/features/logistics/outgoing-deliveries.hooks'
+import { useOutgoingDeliveryById } from '@/features/logistics/outgoing-deliveries.hooks'
 import { useSalesOrderById } from '@/features/crm/sales-orders.hooks'
-import { useClients } from '@/features/crm/clients.hooks'
-import { useAllProducts } from '@/features/products/products.hooks'
-import { useWarehouses } from '@/features/logistics/warehouses.hooks'
+import { useReconciliationContext } from '@/features/logistics/use-reconciliation-context'
 import { useAuth } from '@/features/auth/AuthContext'
 import { parseStockCents, formatStockCents } from '@/features/logistics/stock-display'
 import { decimalString } from '@/features/logistics/purchase-pricing'
-import { getErrorMessage } from '@/lib/api-client'
+import { getApiFieldErrors, getErrorMessage } from '@/lib/api-client'
+import { useDeliveryRunById, useReconcileRunMember } from '@/features/logistics/delivery-runs.hooks'
 
 const fields = [
   ['deliveredQuantity', 'Delivered'],
@@ -35,29 +31,34 @@ type Counts = Record<(typeof fields)[number][0] | 'discrepancyReason', string>
 type Outcome = 'all' | 'exceptions'
 
 export function CompleteDeliveryModal({
+  runId,
   deliveryId,
   onClose,
 }: {
+  runId: number
   deliveryId: number
   onClose: () => void
 }) {
   const query = useOutgoingDeliveryById(deliveryId)
-  const complete = useCompleteOutgoingDelivery()
-  const { isAdmin, isManager } = useAuth()
+  const complete = useReconcileRunMember()
+  const runQuery = useDeliveryRunById(runId)
+  const { isAdmin, isManager, isStaff } = useAuth()
   const delivery = query.data
   const order = useSalesOrderById(delivery?.salesOrderId)
-  const products = useAllProducts()
-  const warehouses = useWarehouses()
-  const clients = useClients()
+  const { products, warehouses, clients } = useReconciliationContext(delivery, order.data)
   const [counts, setCounts] = useState<Record<number, Partial<Counts>>>({})
   const [selection, setSelection] = useState<{ outcome: Outcome; signature: string } | null>(null)
   const [confirmAll, setConfirmAll] = useState(false)
   const [error, setError] = useState('')
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [needsRefresh, setNeedsRefresh] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const inFlight = useRef(false)
   const signature = JSON.stringify([
+    runId,
+    runQuery.data?.revision,
     deliveryId,
+    delivery?.revision,
     delivery?.status,
     delivery?.items.map((item) => [item.id, item.loadedQuantity ?? item.quantity]),
   ])
@@ -90,16 +91,25 @@ export function CompleteDeliveryModal({
       (row) => !Number.isSafeInteger(row.item.id) || row.item.id <= 0 || row.loaded === null,
     )
   const disabled =
-    needsRefresh || refreshing ||
+    needsRefresh ||
+    refreshing ||
     complete.isPending ||
     query.isFetching ||
     query.isError ||
+    runQuery.isFetching ||
+    runQuery.isError ||
+    runQuery.data?.status !== 'DISPATCHED' ||
+    !runQuery.data.deliveries.some(
+      (member) => member.id === deliveryId && member.revision === delivery?.revision,
+    ) ||
+    delivery?.runId !== runId ||
+    delivery?.reconciledAt != null ||
     !delivery ||
     lookupsLoading ||
     detailsUnavailable ||
     invalidLines ||
     delivery.status !== 'DISPATCHED' ||
-    !(isAdmin || isManager)
+    !(isAdmin || isManager || isStaff)
   const validOutcome =
     outcome === 'all' ||
     (outcome === 'exceptions' &&
@@ -130,6 +140,7 @@ export function CompleteDeliveryModal({
         <DialogHeader className="shrink-0 px-6 pr-14 pt-6">
           <DialogTitle>Complete Delivery</DialogTitle>
           <DialogDescription>
+            {runQuery.data?.runNumber || 'Loading run...'} ?{' '}
             {delivery?.deliveryNumber || 'Loading delivery...'} ·{' '}
             {clients.data?.find((client) => client.id === order.data?.clientId)?.name ||
               'Customer unavailable'}
@@ -141,6 +152,7 @@ export function CompleteDeliveryModal({
             event.preventDefault()
             if (disabled || inFlight.current || confirmAll || !validOutcome) return
             setError('')
+            setFieldErrors({})
             try {
               const items = rows.map((row) => {
                 const values = outcome === 'all' ? [row.loaded!, 0n, 0n, 0n] : row.values
@@ -165,9 +177,27 @@ export function CompleteDeliveryModal({
                 }
               })
               inFlight.current = true
-              await complete.mutateAsync({ id: deliveryId, payload: { items } })
+              const saved = await complete.mutateAsync({
+                id: runId,
+                deliveryId,
+                payload: { expectedRevision: delivery!.revision, items },
+              })
+              if (
+                saved?.delivery?.id !== deliveryId ||
+                saved.delivery.runId !== runId ||
+                saved.delivery.status !== 'RECONCILED' ||
+                !Number.isSafeInteger(saved.delivery.revision) ||
+                saved.delivery.revision <= delivery!.revision ||
+                !saved.delivery.reconciledAt ||
+                saved.run?.id !== runId
+              )
+                throw Error(
+                  'The server did not confirm member reconciliation. Refresh and review before retrying.',
+                )
               onClose()
             } catch (cause) {
+              const issues = getApiFieldErrors(cause)
+              setFieldErrors(Object.fromEntries(rows.flatMap((row, index) => [...fields.map(([field]) => field), 'discrepancyReason'].flatMap((field) => issues[`items.${index}.${field}`] ? [[`${row.item.id}.${field}`, issues[`items.${index}.${field}`]]] : []))))
               setNeedsRefresh(true)
               setError(getErrorMessage(cause))
             } finally {
@@ -176,21 +206,47 @@ export function CompleteDeliveryModal({
           }}
         >
           <div className="flex min-h-0 flex-col gap-5 overflow-y-auto px-6 pb-6">
-            {!(isAdmin || isManager) && <Alert><AlertDescription>You do not have permission to complete deliveries.</AlertDescription></Alert>}
-            <Button type="button" variant="link" disabled={complete.isPending || refreshing} onClick={async () => {
-              setRefreshing(true)
-              try {
-                const results = await Promise.all([query.refetch(), order.refetch(), products.refetch(), warehouses.refetch()])
-                if (results.some((result) => result.isError)) throw new Error('Delivery details could not be refreshed.')
-                setNeedsRefresh(false)
-                setError('')
-              } catch (cause) { setError(getErrorMessage(cause)) }
-              finally { setRefreshing(false) }
-            }}>Refresh delivery data</Button>
-            {(error || query.isError) && (
+            {!(isAdmin || isManager || isStaff) && (
+              <Alert>
+                <AlertDescription>
+                  You do not have permission to complete deliveries.
+                </AlertDescription>
+              </Alert>
+            )}
+            <Button
+              type="button"
+              variant="link"
+              disabled={complete.isPending || refreshing}
+              onClick={async () => {
+                setRefreshing(true)
+                try {
+                  const results = await Promise.all([
+                    runQuery.refetch(),
+                    query.refetch(),
+                    order.refetch(),
+                    products.refetch(),
+                    warehouses.refetch(),
+                  ])
+                  if (results.some((result) => result.isError))
+                    throw new Error('Delivery details could not be refreshed.')
+                  setNeedsRefresh(false)
+                  setError('')
+                } catch (cause) {
+                  setError(getErrorMessage(cause))
+                } finally {
+                  setRefreshing(false)
+                }
+              }}
+            >
+              Refresh delivery data
+            </Button>
+            {(error || query.isError || runQuery.isError) && (
               <Alert variant="destructive">
                 <AlertDescription>
-                  {error || 'The latest delivery could not be loaded. Close and retry.'}
+                  {error ||
+                    (runQuery.isError
+                      ? `The run could not be loaded. ${getErrorMessage(runQuery.error)}`
+                      : 'The latest delivery could not be loaded. Refresh and retry.')}
                 </AlertDescription>
               </Alert>
             )}
@@ -203,6 +259,19 @@ export function CompleteDeliveryModal({
                 </AlertDescription>
               </Alert>
             )}
+            {runQuery.data &&
+              (runQuery.data.status !== 'DISPATCHED' ||
+                delivery?.runId !== runId ||
+                !runQuery.data.deliveries.some(
+                  (member) => member.id === deliveryId && member.revision === delivery?.revision,
+                )) && (
+                <Alert variant="destructive">
+                  <AlertDescription>
+                    The run membership, revision, or status changed. Refresh and review before
+                    reconciling this member.
+                  </AlertDescription>
+                </Alert>
+              )}
             {delivery && invalidLines && (
               <Alert variant="destructive">
                 <AlertDescription>
@@ -348,8 +417,8 @@ export function CompleteDeliveryModal({
                               inputMode="decimal"
                               value={value}
                               aria-label={`${label} for ${row.product?.name || 'unavailable product'} (${index + 1})`}
-                              aria-invalid={invalid}
-                              aria-describedby={`completion-balance-${row.item.id}`}
+                              aria-invalid={invalid || !!fieldErrors[`${row.item.id}.${field}`]}
+                              aria-describedby={`completion-balance-${row.item.id}${fieldErrors[`${row.item.id}.${field}`] ? ` completion-${row.item.id}-${field}-error` : ''}`}
                               onChange={(event) =>
                                 setCounts((current) => ({
                                   ...current,
@@ -360,6 +429,7 @@ export function CompleteDeliveryModal({
                                 }))
                               }
                             />
+                            {fieldErrors[`${row.item.id}.${field}`] && <p id={`completion-${row.item.id}-${field}-error`} role="alert" className="text-xs text-destructive">{fieldErrors[`${row.item.id}.${field}`]}</p>}
                           </div>
                         )
                       })}
@@ -386,6 +456,8 @@ export function CompleteDeliveryModal({
                           id={`completion-reason-${row.item.id}`}
                           aria-label={`Discrepancy Reason for ${row.product?.name || 'unavailable product'} (${index + 1})`}
                           value={counts[row.item.id]?.discrepancyReason ?? ''}
+                          aria-invalid={!!fieldErrors[`${row.item.id}.discrepancyReason`]}
+                          aria-describedby={fieldErrors[`${row.item.id}.discrepancyReason`] ? `completion-reason-${row.item.id}-error` : undefined}
                           required
                           onChange={(event) =>
                             setCounts((current) => ({
@@ -397,6 +469,7 @@ export function CompleteDeliveryModal({
                             }))
                           }
                         />
+                        {fieldErrors[`${row.item.id}.discrepancyReason`] && <p id={`completion-reason-${row.item.id}-error`} role="alert" className="text-xs text-destructive">{fieldErrors[`${row.item.id}.discrepancyReason`]}</p>}
                         <p className="text-xs text-muted-foreground">
                           Explain the damaged or missing goods.
                         </p>
@@ -409,7 +482,8 @@ export function CompleteDeliveryModal({
             {outcome && (
               <p className="text-xs text-muted-foreground">
                 Delivered goods count toward order fulfillment. The system reconciles returns,
-                tracks damaged goods, and updates vehicle availability.
+                tracks damaged goods, and completes this member. The vehicle remains occupied until
+                every run member is reconciled.
               </p>
             )}
           </div>

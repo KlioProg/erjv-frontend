@@ -11,6 +11,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 import { DataTable, type ColumnDef } from '@/components/ui/data-table'
+import { useDeliveryRunById } from '@/features/logistics/delivery-runs.hooks'
 import { useOutgoingDeliveryById } from '@/features/logistics/outgoing-deliveries.hooks'
 import { useAllWarehouses } from '@/features/logistics/warehouses.hooks'
 import { useDeliveryVehicles } from '@/features/logistics/delivery-vehicles.hooks'
@@ -39,9 +40,11 @@ export function DeliveryDetailModal({ deliveryId, open, onClose }: DeliveryDetai
   const clientsQuery = useAllClients()
   const productsQuery = useAllProducts()
   const delivery = deliveryQuery.data
+  const runQuery = useDeliveryRunById(delivery?.runId ?? undefined)
+  const run = runQuery.data
   const warehouses = warehousesQuery.data ?? []
-  const vehicle = vehiclesQuery.data?.find((v) => v.id === delivery?.deliveryVehicleId)
-  const driver = employeesQuery.data?.find((e) => e.id === delivery?.driverEmployeeId)
+  const vehicle = vehiclesQuery.data?.find((v) => v.id === run?.deliveryVehicleId)
+  const driver = employeesQuery.data?.find((e) => e.id === run?.driverEmployeeId)
   const order = ordersQuery.data?.find((o) => o.id === delivery?.salesOrderId)
   const client = clientsQuery.data?.find((c) => c.id === order?.clientId)
   const referenceQueries = [
@@ -51,6 +54,7 @@ export function DeliveryDetailModal({ deliveryId, open, onClose }: DeliveryDetai
     ordersQuery,
     clientsQuery,
     productsQuery,
+    ...(delivery?.runId ? [runQuery] : []),
   ]
   const referencesFailed = referenceQueries.some((query) => query.isError)
 
@@ -61,7 +65,9 @@ export function DeliveryDetailModal({ deliveryId, open, onClose }: DeliveryDetai
       product: productsQuery.data?.find((product) => product.id === orderItem?.inventoryItemId),
     }
   }
-  const sourceWarehouseNames = [
+  const sourceWarehouseNames = delivery?.warehouseId
+    ? [warehouses.find((warehouse) => warehouse.id === delivery.warehouseId)?.name ?? `Warehouse #${delivery.warehouseId}`]
+    : [
     ...new Set(
       (delivery?.items ?? []).map((item) => {
         const id = item.stockItem?.warehouseId
@@ -102,12 +108,12 @@ export function DeliveryDetailModal({ deliveryId, open, onClose }: DeliveryDetai
     },
     {
       id: 'quantity',
-      header: 'Quantity to Deliver',
+      header: 'Loaded Quantity',
       width: '30%',
       align: 'right',
       cell: ({ row }) => (
         <div className="[overflow-wrap:anywhere]">
-          <p className="text-sm font-normal tabular-nums">{row.quantity}</p>
+          <p className="text-sm font-normal tabular-nums">{row.loadedQuantity ?? row.quantity}</p>
           <p className="text-xs text-muted-foreground">
             {formatProductUnit(cargoProduct(row).product?.unit, 'Unit unavailable')}
           </p>
@@ -213,7 +219,7 @@ export function DeliveryDetailModal({ deliveryId, open, onClose }: DeliveryDetai
               )}
 
               <section aria-label="Delivery progress" className="border-t border-border pt-4">
-                <DeliveryTimeline delivery={delivery} />
+                <DeliveryTimeline delivery={delivery} run={run} />
               </section>
 
               <section
@@ -229,17 +235,17 @@ export function DeliveryDetailModal({ deliveryId, open, onClose }: DeliveryDetai
                     value={sourceWarehouseNames.join(', ') || 'No source records'}
                   />
                   <DeliveryDetailField
-                    label="Scheduled Time"
-                    value={DeliveryUtils.formatDateTime(delivery.scheduledAt)}
+                    label="Run departure"
+                    value={run ? DeliveryUtils.formatDateTime(run.scheduledDepartureAt) : delivery.runId ? (runQuery.isFetching ? 'Loading run...' : 'Run details unavailable') : 'No run assigned'}
                   />
                   <DeliveryDetailField
                     label="Driver / Logistics Officer"
                     value={
                       driver
                         ? `${driver.firstName} ${driver.lastName}`
-                        : delivery.driverEmployeeId
-                          ? `Employee #${delivery.driverEmployeeId}`
-                          : 'Unassigned'
+                        : run?.driverEmployeeId
+                          ? `Employee #${run?.driverEmployeeId}`
+                          : delivery.runId && !run ? 'Run details unavailable' : 'Unassigned'
                     }
                     secondary={
                       driver ? driver.phone || driver.email || 'No contact listed' : undefined
@@ -250,13 +256,13 @@ export function DeliveryDetailModal({ deliveryId, open, onClose }: DeliveryDetai
                     value={
                       vehicle
                         ? `${vehicle.plateNumber} (${vehicle.vehicleType})`
-                        : delivery.deliveryVehicleId
-                          ? `Vehicle #${delivery.deliveryVehicleId}`
-                          : 'Unassigned'
+                        : run?.deliveryVehicleId
+                          ? `Vehicle #${run?.deliveryVehicleId}`
+                          : delivery.runId && !run ? 'Run details unavailable' : 'Unassigned'
                     }
                     secondary={
                       vehicle
-                        ? [vehicle.model, `Capacity: ${vehicle.capacity || 'Not recorded'}`]
+                        ? [vehicle.model, `Capacity: ${vehicle.capacityKg ? `${vehicle.capacityKg} kg` : 'Not recorded'}`]
                             .filter(Boolean)
                             .join(' / ')
                         : undefined

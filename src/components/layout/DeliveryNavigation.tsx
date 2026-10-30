@@ -5,18 +5,19 @@ import type { DeliveryView } from '@/features/logistics/delivery-workflow'
 import { cn } from '@/lib/utils'
 import { routeForScreen } from '@/routes'
 
-const links: { view: DeliveryView; label: string }[] = [
+const links: { view: DeliveryView | 'runs'; label: string }[] = [
   { view: 'incoming', label: 'Incoming' },
   { view: 'outgoing', label: 'Outgoing' },
   { view: 'history', label: 'History' },
+  { view: 'runs', label: 'Runs' },
 ]
 
 export function DeliveryNavigation({
   view,
   onSelect,
 }: {
-  view: DeliveryView | null
-  onSelect: (view: DeliveryView) => void
+  view: DeliveryView | 'runs' | null
+  onSelect: (view: DeliveryView | 'runs') => void
 }) {
   const navigationId = useId()
   const [expanded, setExpanded] = useState(!!view)
@@ -56,7 +57,7 @@ export function DeliveryNavigation({
           <NavLink
             key={link.view}
             to={routeForScreen(
-              link.view === 'incoming'
+              link.view === 'runs' ? 'delivery-runs' : link.view === 'incoming'
                 ? 'incoming-deliveries'
                 : link.view === 'history'
                   ? 'delivery-history'

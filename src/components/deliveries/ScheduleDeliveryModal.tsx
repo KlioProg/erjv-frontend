@@ -6,14 +6,9 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { DataTable, type ColumnDef } from '@/components/ui/data-table'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import { SearchableDropdown } from '@/components/ui/SearchableDropdown'
+import { CursorLookup } from '@/components/ui/CursorLookup'
+import type { Warehouse } from '@/features/logistics/warehouses.types'
+import type { SalesOrderRecord } from '@/features/crm/sales-orders.types'
 import { useOutgoingDeliveryById } from '@/features/logistics/outgoing-deliveries.hooks'
 import { useOutgoingPlanning } from '@/features/logistics/use-outgoing-planning'
 import { outgoingOrderRemaining } from '@/features/logistics/outgoing-planning'
@@ -33,7 +28,7 @@ interface ScheduleDeliveryModalProps {
   draftId?: number
 }
 const description =
-  'Choose a sales order and source warehouse, plan quantities, and set the schedule.'
+  'Choose a sales order and warehouse, then commit planned quantities as READY. Departure is scheduled on a Delivery Run.'
 function formatQuantity(value: string | null | undefined): string {
   const parsed = parseOrderDecimal(value ?? '')
   return parsed === null ? 'Unavailable' : decimalString(parsed)
@@ -57,7 +52,7 @@ export function ScheduleDeliveryModal(props: ScheduleDeliveryModalProps) {
         open={props.open}
         onClose={props.onClose}
         busy={false}
-        title="Schedule Outgoing Delivery"
+        title="Plan Outgoing Delivery"
         description={description}
       >
         <div role={draftQuery.isFetching ? 'status' : 'alert'}>
@@ -95,8 +90,8 @@ function OutgoingPlanningForm({
     if (!busy) onClose()
   }
   const readOnly = busy || form.reviewRequired || (!!savedDraft && savedDraft.status !== 'DRAFT')
-  const orderLabel = (candidate: (typeof form.orders)[number]) =>
-    `${candidate.orderNumber} · ${form.clients.find((client) => client.id === candidate.clientId)?.name || `Customer #${candidate.clientId}`}`
+  const orderLabel = (candidate: SalesOrderRecord) =>
+    `${candidate.orderNumber} / Customer #${candidate.clientId}`
   const fieldError = (field: string, message = errors[field]) =>
     message ? (
       <p id={`delivery-${field}-error`} role="alert" className="text-xs text-destructive">
@@ -127,7 +122,7 @@ function OutgoingPlanningForm({
   const rows = (order?.items ?? []).filter(
     (item) => savedDraft || (parseOrderDecimal(remaining(item) ?? '') ?? 0n) > 0n,
   )
-  const hasWarehouseCapacity = rows.some(
+  const hasPlannableDemand = rows.some(
     (item) =>
       (parseOrderDecimal(
         form.options.find((option) => option.salesOrderItemId === item.id)
@@ -160,14 +155,17 @@ function OutgoingPlanningForm({
         ),
     },
     {
-      id: 'available',
-      header: 'Warehouse Remaining',
+      id: 'committed',
+      header: 'Committed',
       align: 'right',
-      cell: ({ row }) =>
-        formatQuantity(
-          form.options.find((option) => option.salesOrderItemId === row.id)
-            ?.warehouseRemainingQuantity,
-        ),
+      cell: ({ row }) => formatQuantity(form.options.find((option) => option.salesOrderItemId === row.id)?.committedQuantity),
+    },
+    {
+      id: 'available',
+      header: 'Warehouse Available',
+      align: 'right',
+      cell: ({ row }) => <div className="flex flex-col gap-1"><span>{formatQuantity(form.options.find((option) => option.salesOrderItemId === row.id)?.availableQuantity)}</span>
+        <span className="text-xs text-muted-foreground">Shortfall: {formatQuantity(form.options.find((option) => option.salesOrderItemId === row.id)?.shortfallQuantity)}</span></div>,
     },
     {
       id: 'quantity',
@@ -234,33 +232,33 @@ function OutgoingPlanningForm({
       },
     },
   ]
-  const save = async (intent: 'draft' | 'schedule') => {
+  const save = async (intent: 'draft' | 'ready') => {
     const delivery = await form.submit(intent)
     if (delivery) onSaved?.(delivery)
   }
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault()
-    void save('schedule')
+    void save('ready')
   }
   return (
     <DeliveryFormDialog
       open={open}
       onClose={dismiss}
       busy={busy}
-      title="Schedule Outgoing Delivery"
+      title="Plan Outgoing Delivery"
       description={description}
     >
       {form.completed ? (
         <div className={deliveryFormStyles.form}>
           <div role="status" className={deliveryFormStyles.body}>
             <p className="font-semibold">
-              {form.completed === 'SCHEDULED' ? 'Delivery scheduled' : 'Delivery draft saved'}
+              {form.completed === 'READY' ? 'Delivery ready for a run' : 'Delivery draft saved'}
             </p>
             <p className="mt-1 text-xs leading-5 text-muted-foreground">
               {savedDraft?.deliveryNumber} is available in Outgoing Deliveries.{' '}
-              {form.completed === 'SCHEDULED'
-                ? 'Dispatch remains a separate action.'
-                : 'Schedule it when you are ready.'}
+              {form.completed === 'READY'
+                ? 'Add it to a Delivery Run to assign a driver, vehicle, and departure.'
+                : 'Mark it ready after reviewing the plan.'}
             </p>
           </div>
           <DeliveryFormFooter>
@@ -272,13 +270,13 @@ function OutgoingPlanningForm({
             <Button
               variant="primary-contrast"
               onClick={() => {
-                if (form.completed === 'SCHEDULED' && savedDraft && onScheduled)
+                if (form.completed === 'READY' && savedDraft && onScheduled)
                   onScheduled(savedDraft)
                 else dismiss()
               }}
               className={deliveryFormStyles.button}
             >
-              {form.completed === 'SCHEDULED' && onScheduled ? 'Continue to Dispatch' : 'Done'}
+              {form.completed === 'READY' && onScheduled ? 'Continue to Delivery Runs' : 'Done'}
             </Button>
           </DeliveryFormFooter>
         </div>
@@ -312,7 +310,7 @@ function OutgoingPlanningForm({
             {savedDraft && (
               <p role="status" className={`${deliveryFormStyles.message} text-muted-foreground`}>
                 Draft {savedDraft.deliveryNumber} · Revision {savedDraft.revision}. Saving and
-                scheduling use this same draft.
+                readiness use this same draft.
               </p>
             )}
             {form.reviewRequired && (
@@ -327,18 +325,10 @@ function OutgoingPlanningForm({
                     </p>
                     <p>
                       Warehouse:{' '}
-                      {form.activeWarehouses.find(
-                        (warehouse) => warehouse.id === latestDraft.warehouseId,
-                      )?.name ||
+                      {(form.warehouse?.id === latestDraft.warehouseId ? form.warehouse.name : null) ||
                         (latestDraft.warehouseId
                           ? `Warehouse #${latestDraft.warehouseId}`
                           : 'Unselected')}
-                    </p>
-                    <p>
-                      Scheduled:{' '}
-                      {latestDraft.scheduledAt
-                        ? new Date(latestDraft.scheduledAt).toLocaleString()
-                        : 'Unset'}
                     </p>
                     <p>Notes: {latestDraft.notes || 'None'}</p>
                     <ul className="list-inside list-disc">
@@ -350,7 +340,7 @@ function OutgoingPlanningForm({
                     </ul>
                     <p>
                       Load the latest draft to replace your unsaved input. Review it before saving
-                      or scheduling again.
+                      or marking it ready again.
                     </p>
                     <Button
                       type="button"
@@ -399,27 +389,18 @@ function OutgoingPlanningForm({
                       className={deliveryFormStyles.control}
                     />
                   ) : (
-                    <SearchableDropdown
-                      id="delivery-sales-order"
-                      ariaLabel="Sales Order to Fulfill"
-                      options={form.orders}
-                      value={form.selectedOrderId}
-                      onValueChange={form.changeOrder}
-                      getOptionValue={(order) => String(order.id)}
-                      getOptionLabel={orderLabel}
-                      className={deliveryFormStyles.control}
-                      placeholder="Choose a Sales Order"
+                    <CursorLookup<SalesOrderRecord>
+                      id="delivery-sales-order" path="/sales-orders"
+                      filter={{ statuses: ['CONFIRMED', 'PARTIALLY_DELIVERED'] }}
+                      label="Sales Order" ariaLabel="Sales Order to Fulfill"
                       searchPlaceholder="Search order or customer..."
-                      emptyMessage="No Sales Orders awaiting scheduling."
-                      contentClassName="w-[min(32rem,calc(100vw-2rem))]"
+                      value={form.selectedOrderId} onChange={form.changeOrder}
+                      getLabel={orderLabel} selectedLabel={order ? orderLabel(order) : undefined}
+                      accept={(candidate) => ['CONFIRMED', 'PARTIALLY_DELIVERED'].includes(candidate.status)}
+                      disabled={readOnly} className={deliveryFormStyles.control}
                     />
                   )}
                   {fieldError('sales-order')}
-                  {!form.loading && !form.loadFailed && !form.orders.length && (
-                    <p className="text-xs text-muted-foreground">
-                      No confirmed Sales Orders are available for planning.
-                    </p>
-                  )}
                   {order && (
                     <p className="text-xs leading-5 text-muted-foreground">
                       {order.deliveryAddress}
@@ -435,40 +416,18 @@ function OutgoingPlanningForm({
                   <Label htmlFor="delivery-warehouse" className={deliveryFormStyles.label}>
                     Stock Source / Warehouse <span className="text-primary">*</span>
                   </Label>
-                  <Select
-                    value={form.warehouseId}
-                    onValueChange={form.changeWarehouse}
-                    disabled={readOnly}
-                  >
-                    <SelectTrigger
-                      id="delivery-warehouse"
-                      className={deliveryFormStyles.control}
-                      aria-invalid={!!errors.warehouse}
-                      aria-describedby={errors.warehouse ? 'delivery-warehouse-error' : undefined}
-                    >
-                      <SelectValue placeholder="Choose a warehouse" />
-                    </SelectTrigger>
-                    <SelectContent className={deliveryFormStyles.popover}>
-                      {form.activeWarehouses.map((warehouse) => (
-                        <SelectItem
-                          key={warehouse.id}
-                          value={String(warehouse.id)}
-                          className={deliveryFormStyles.option}
-                        >
-                          {warehouse.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <CursorLookup<Warehouse>
+                    id="delivery-warehouse" path="/warehouses" filter={{ isActive: true }}
+                    label="warehouse" ariaLabel="Stock Source / Warehouse"
+                    value={form.warehouseId} onChange={form.changeWarehouse}
+                    getLabel={(warehouse) => warehouse.name} selectedLabel={form.warehouse?.name}
+                    accept={(warehouse) => warehouse.isActive}
+                    disabled={readOnly} className={deliveryFormStyles.control}
+                  />
                   {fieldError('warehouse')}
                   {!!form.warehouseId && !form.activeWarehouse && !form.loading && (
                     <p role="alert" className="text-xs text-destructive">
                       The selected warehouse is inactive or unavailable. Choose an active warehouse.
-                    </p>
-                  )}
-                  {!form.loading && !form.loadFailed && !form.activeWarehouses.length && (
-                    <p className="text-xs text-muted-foreground">
-                      No active warehouses are available.
                     </p>
                   )}
                   <p className="text-xs leading-5 text-muted-foreground">
@@ -545,27 +504,10 @@ function OutgoingPlanningForm({
                       </div>
                     )}
                     <p className="text-xs text-muted-foreground">
-                      Planning limits include existing shipments and scheduled plans. Scheduling
-                      fixes the warehouse and quantities; it does not reserve physical stock.
+                      READY commits order demand, even when stock has a shortfall. Actual goods
+                      are loaded and moved into transit only when the Delivery Run is dispatched.
                     </p>
                   </section>
-                  <div className={`${deliveryFormStyles.field} sm:max-w-sm`}>
-                    <Label htmlFor="delivery-scheduled-at" className={deliveryFormStyles.label}>
-                      Scheduled Date & Time
-                    </Label>
-                    <Input
-                      id="delivery-scheduled-at"
-                      type="datetime-local"
-                      value={form.scheduledAt}
-                      onChange={(event) => form.setScheduledAt(event.target.value)}
-                      aria-invalid={!!errors['scheduled-at']}
-                      aria-describedby={
-                        errors['scheduled-at'] ? 'delivery-scheduled-at-error' : undefined
-                      }
-                      className={deliveryFormStyles.control}
-                    />
-                    {fieldError('scheduled-at')}
-                  </div>
                   <div className="flex flex-col gap-4 border-t pt-4">
                     <details
                       open={notesOpen}
@@ -638,16 +580,16 @@ function OutgoingPlanningForm({
                 !form.eligible ||
                 !form.activeWarehouse ||
                 fullyPlanned ||
-                !hasWarehouseCapacity
+                !hasPlannableDemand
               }
             >
               {form.phase === 'checking'
                 ? 'Checking quantities...'
                 : form.phase === 'saving'
                   ? 'Saving...'
-                  : form.phase === 'scheduling'
-                    ? 'Scheduling...'
-                    : 'Schedule Delivery'}
+                  : form.phase === 'readying'
+                    ? 'Marking ready...'
+                    : 'Mark Ready'}
             </Button>
           </DeliveryFormFooter>
         </form>

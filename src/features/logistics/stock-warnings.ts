@@ -42,7 +42,7 @@ export function stockCondition(
 }
 
 export function stockConditionForItem(
-  stock: Pick<StockItem, 'quantity' | 'reorderThreshold' | 'stockStatus' | 'availableQuantity' | 'reservedQuantity' | 'damagedQuantity' | 'quarantinedQuantity'>,
+  stock: Pick<StockItem, 'stockStatus'>,
 ): StockCondition {
   return stock.stockStatus === 'OUT' ||
     stock.stockStatus === 'LOW' ||

@@ -23,7 +23,7 @@ export const SALES_ORDERS_QUERY_KEY = ['sales-orders'] as const
 
 export function useSalesOrders(filter?: SalesOrderFilter) {
   return useQuery({
-    queryKey: [...SALES_ORDERS_QUERY_KEY, filter?.status ?? 'ALL', filter?.clientId ?? 'ALL', filter?.limit ?? 50, filter?.cursor ?? null],
+    queryKey: [...SALES_ORDERS_QUERY_KEY, filter ?? {}],
     queryFn: ({ signal }) => fetchSalesOrdersApi(filter, signal),
   })
 }
@@ -51,11 +51,7 @@ export function useCreateSalesOrder({ notifySuccess = true }: { notifySuccess?: 
     retry: false,
     mutationFn: (payload: CreateSalesOrderPayload) => createSalesOrderApi(payload),
     onSuccess: (order) => {
-      // Publish only the backend response, then reconcile with the canonical list.
-      queryClient.setQueryData<SalesOrderRecord[]>(
-        [...SALES_ORDERS_QUERY_KEY, 'ALL', 'ALL', 50, null],
-        (orders = []) => [order, ...orders.filter((existing) => existing.id !== order.id)],
-      )
+      queryClient.setQueryData<SalesOrderRecord>([...SALES_ORDERS_QUERY_KEY, 'id', order.id], order)
       void queryClient.invalidateQueries({ queryKey: SALES_ORDERS_QUERY_KEY })
       if (notifySuccess) toast.success(`Sales Order "${order.orderNumber}" created successfully`)
     },
@@ -72,8 +68,8 @@ export function useConfirmSalesOrder() {
   const queryClient = useQueryClient()
   return useMutation({
     retry: false,
-    mutationFn: (id: number) => confirmSalesOrderApi(id),
-    onSuccess: (order, id) => {
+    mutationFn: ({ id, expectedRevision }: { id: number; expectedRevision: number }) => confirmSalesOrderApi(id, expectedRevision),
+    onSuccess: (order, { id }) => {
       void queryClient.invalidateQueries({ queryKey: SALES_ORDERS_QUERY_KEY })
       void queryClient.invalidateQueries({ queryKey: STOCK_ITEMS_QUERY_KEY })
       if (order.id === id && order.status === 'CONFIRMED')
@@ -115,7 +111,7 @@ export function useCancelSalesOrder() {
   const queryClient = useQueryClient()
   return useMutation({
     retry: false,
-    mutationFn: (id: number) => cancelSalesOrderApi(id),
+    mutationFn: ({ id, expectedRevision }: { id: number; expectedRevision: number }) => cancelSalesOrderApi(id, expectedRevision),
     onSuccess: (order) => {
       void queryClient.invalidateQueries({ queryKey: SALES_ORDERS_QUERY_KEY })
       void queryClient.invalidateQueries({ queryKey: STOCK_ITEMS_QUERY_KEY })

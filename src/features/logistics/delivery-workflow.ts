@@ -7,7 +7,6 @@ import type { Client } from '../crm/clients.types'
 import type { Warehouse } from './warehouses.types'
 import type { DeliveryVehicle } from './delivery-vehicles.types'
 import type { Employee } from '../staffing/staffing.types'
-import { isActiveDeliveryStatus } from './vehicle-assignment.ts'
 
 export type DeliveryRow = {
   key: string
@@ -29,8 +28,9 @@ export type DeliveryRow = {
 export const DELIVERY_STATUS_LABELS: Record<string, string> = {
   DRAFT: 'Draft',
   SCHEDULED: 'Scheduled',
+  READY: 'Ready',
+  RECONCILED: 'Reconciled',
   DISPATCHED: 'In Transit',
-  DELIVERED: 'Delivered',
   COMPLETED: 'Received & Stocked',
   CANCELLED: 'Cancelled',
 }
@@ -42,8 +42,6 @@ export function buildDeliveryRows({
   suppliers,
   clients,
   warehouses,
-  vehicles,
-  employees,
 }: {
   incoming: IncomingDeliveryRecord[]
   outgoing: OutgoingDeliveryRecord[]
@@ -80,8 +78,6 @@ export function buildDeliveryRows({
     }),
     ...outgoing.map((record) => {
       const order = salesOrders.find((order) => order.id === record.salesOrderId)
-      const vehicle = vehicles.find((vehicle) => vehicle.id === record.deliveryVehicleId)
-      const driver = employees.find((employee) => employee.id === record.driverEmployeeId)
       return {
         key: `outgoing-${record.id}`,
         reference: record.deliveryNumber,
@@ -109,13 +105,9 @@ export function buildDeliveryRows({
                   }),
                 ),
               ].join(', ') || '—',
-        vehicle: vehicle
-          ? `${vehicle.plateNumber}${vehicle.isActive ? '' : ' (Archived)'}`
-          : record.deliveryVehicleId
-            ? `Vehicle #${record.deliveryVehicleId}`
-            : 'Unassigned',
-        driver: driver ? `${driver.firstName} ${driver.lastName}` : '—',
-        date: record.scheduledAt || order?.expectedAt || null,
+        vehicle: record.runId ? `Run #${record.runId}` : 'Unassigned',
+        driver: '?',
+        date: record.reconciledAt || order?.expectedAt || null,
         status: record.status,
       }
     }),
@@ -125,7 +117,7 @@ export function buildDeliveryRows({
 export function deliveryNeedsAttention(row: DeliveryRow, now: number): boolean {
   return (
     row.status === 'DRAFT' ||
-    (isActiveDeliveryStatus(row.status) && !!row.date && new Date(row.date).getTime() < now)
+    (['SCHEDULED', 'READY', 'DISPATCHED'].includes(row.status) && !!row.date && new Date(row.date).getTime() < now)
   )
 }
 
@@ -141,25 +133,28 @@ export function localDeliveryDay(value: string | null): string {
 }
 
 export type DeliveryView = 'incoming' | 'outgoing' | 'history'
-export type DeliveryAction = 'schedule' | 'dispatch' | 'receive' | 'complete' | 'cancel'
+export type DeliveryAction = 'schedule' | 'ready' | 'reopen' | 'run' | 'reconcile' | 'receive' | 'cancel'
 
 export function deliveryBelongsToView(
   row: Pick<DeliveryRow, 'type' | 'status'>,
   view: DeliveryView,
 ): boolean {
-  const terminal = ['COMPLETED', 'DELIVERED', 'CANCELLED'].includes(row.status)
+  const terminal = ['COMPLETED', 'RECONCILED', 'CANCELLED'].includes(row.status)
   return view === 'history' ? terminal : !terminal && row.type.toLowerCase() === view
 }
 
 // These mirror the inspected backend transitions; permissions remain separate.
-export function getDeliveryActions(row: Pick<DeliveryRow, 'type' | 'status'>): DeliveryAction[] {
+export function getDeliveryActions(
+  row: Pick<DeliveryRow, 'type' | 'status'> & { runId?: number | null; record?: IncomingDeliveryRecord | OutgoingDeliveryRecord },
+): DeliveryAction[] {
   if (row.type === 'Incoming') {
     if (row.status === 'DRAFT') return ['schedule', 'cancel']
     if (row.status === 'SCHEDULED') return ['receive', 'cancel']
   } else {
-    if (row.status === 'DRAFT') return ['schedule', 'cancel']
-    if (row.status === 'SCHEDULED') return ['dispatch', 'cancel']
-    if (row.status === 'DISPATCHED') return ['complete']
+    if (row.status === 'DRAFT') return ['ready', 'cancel']
+    if (row.status === 'READY')
+      return (row.runId ?? (row.record && 'runId' in row.record ? row.record.runId : null)) != null ? ['run'] : ['reopen', 'run', 'cancel']
+    if (row.status === 'DISPATCHED') return ['reconcile']
   }
   return []
 }

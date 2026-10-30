@@ -1,197 +1,294 @@
 import { useRef, useState } from 'react'
-import { useSalesOrderById } from '@/features/crm/sales-orders.hooks'
-import { useClients } from '@/features/crm/clients.hooks'
-import { useEmployees } from '@/features/staffing/staffing.hooks'
-import { getErrorMessage } from '@/lib/api-client'
-import {
-  useOutgoingDeliveryById,
-  useOutgoingDeliveries,
-  useDispatchOutgoingDelivery,
-} from './outgoing-deliveries.hooks'
-import { useDeliveryVehicles } from './delivery-vehicles.hooks'
-import { useAllWarehouses } from './warehouses.hooks'
-import { useWarehouseStock } from './stock-items.hooks'
-import { DeliveryUtils } from './delivery-utils'
-import { buildDispatchPlan, validateDispatchLoad } from './outgoing-dispatch'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useAuth } from '@/features/auth/AuthContext'
+import { fetchSalesOrderByIdApi } from '@/features/crm/sales-orders.api'
+import { fetchEmployeeByIdApi } from '@/features/staffing/staffing.api'
+import { getApiFieldErrors, getErrorMessage } from '@/lib/api-client'
+import { fetchOutgoingDeliveryByIdApi } from './outgoing-deliveries.api'
+import { fetchVehicleByIdApi } from './delivery-vehicles.api'
+import { fetchStockItemByPairApi } from './stock-items.api'
+import { fetchProductByIdApi } from '@/features/products/products.api'
+import { fetchDeliveryRunsPageApi } from './delivery-runs.api'
+import { useDeliveryRunById, useDispatchDeliveryRun } from './delivery-runs.hooks'
+import { fetchWarehouseByIdApi } from './warehouses.api'
+import type { DeliveryRunRecord } from './delivery-runs.types'
+import { validateRunLoad, type RunLoadRow } from './run-load-validation'
+import { parseStockCents } from './stock-display'
 
-export function useOutgoingDispatch(deliveryId: number, onSuccess: () => void) {
-  const deliveryQuery = useOutgoingDeliveryById(deliveryId)
-  const delivery = deliveryQuery.data
-  const orderQuery = useSalesOrderById(delivery?.salesOrderId)
-  const stockQuery = useWarehouseStock(delivery?.warehouseId ?? undefined)
-  const warehousesQuery = useAllWarehouses()
-  const clientsQuery = useClients({ includeInactive: 'true' })
-  const vehiclesQuery = useDeliveryVehicles()
-  const deliveriesQuery = useOutgoingDeliveries()
-  const employeesQuery = useEmployees({ includeInactive: 'false' })
-  const mutation = useDispatchOutgoingDelivery()
-  const [vehicleId, setVehicleId] = useState('')
-  const [driverId, setDriverId] = useState('')
-  const [quantities, setQuantities] = useState<Record<number, string>>({})
-  const [reviewedRevision, setReviewedRevision] = useState<number | null>(null)
+export function useOutgoingDispatch(runId: number, onSuccess: () => void) {
+  const { isAdmin, isManager, isStaff } = useAuth()
+  const runQuery = useDeliveryRunById(runId)
+  const run = runQuery.data
+  const queryClient = useQueryClient()
+  const mutation = useDispatchDeliveryRun()
+  const [quantities, setQuantities] = useState<Record<string, string>>({})
+  const [loadedWeightKg, setLoadedWeightKg] = useState('')
+  const [reviewed, setReviewed] = useState<string | null>(null)
   const [needsRefresh, setNeedsRefresh] = useState(false)
-  const [submitted, setSubmitted] = useState(false)
   const [message, setMessage] = useState('')
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [refreshing, setRefreshing] = useState(false)
   const lock = useRef(false)
-
-  if (
-    deliveryQuery.isFetchedAfterMount &&
-    !deliveryQuery.isError &&
-    delivery &&
-    reviewedRevision === null
-  ) {
-    setReviewedRevision(delivery.revision)
-    setVehicleId(delivery.deliveryVehicleId ? String(delivery.deliveryVehicleId) : '')
-    setDriverId(delivery.driverEmployeeId ? String(delivery.driverEmployeeId) : '')
-  }
-  const order = orderQuery.data
-  const warehouse = warehousesQuery.data?.find(
-    (candidate) => candidate.id === delivery?.warehouseId,
-  )
-  const client = clientsQuery.data?.find((candidate) => candidate.id === order?.clientId)
-  const plan =
-    delivery && order ? buildDispatchPlan(delivery, order, stockQuery.data ?? []) : { rows: [] }
-  const queries = [
-    deliveryQuery,
-    warehousesQuery,
-    clientsQuery,
-    vehiclesQuery,
-    deliveriesQuery,
-    employeesQuery,
-    ...(delivery?.salesOrderId ? [orderQuery] : []),
-    ...(delivery?.warehouseId ? [stockQuery] : []),
+  const contextKey = (current: DeliveryRunRecord | undefined) => [
+    'delivery-runs',
+    'load-context',
+    runId,
+    current?.revision,
+    current?.deliveries.map((member) => `${member.id}:${member.revision}`).join(','),
   ]
-  const loading =
-    queries.some((query) => query.isLoading) ||
-    (!deliveryQuery.isFetchedAfterMount && deliveryQuery.isFetching)
-  const loadError = queries.find((query) => query.isError)?.error
-  const fetching = queries.some((query) => query.isFetching)
-  let dataIssue: string | undefined
-  if (!loading && !loadError) {
-    if (
-      !delivery ||
-      delivery.id !== deliveryId ||
-      !Number.isInteger(delivery.revision) ||
-      delivery.revision < 1
+  async function loadContext(run: DeliveryRunRecord) {
+    const [deliveries, vehicle, driver, activeDriverRuns, warehouse] = await Promise.all([
+      Promise.all(run.deliveries.map((member) => fetchOutgoingDeliveryByIdApi(member.id))),
+      run.deliveryVehicleId ? fetchVehicleByIdApi(run.deliveryVehicleId) : null,
+      run.driverEmployeeId ? fetchEmployeeByIdApi(run.driverEmployeeId) : null,
+      run.driverEmployeeId
+        ? fetchDeliveryRunsPageApi({
+            driverEmployeeId: run.driverEmployeeId,
+            statuses: ['DISPATCHED'],
+            limit: 1,
+          })
+        : null,
+      fetchWarehouseByIdApi(run.warehouseId),
+    ])
+    const orders = await Promise.all(
+      deliveries.map((delivery) =>
+        delivery ? fetchSalesOrderByIdApi(delivery.salesOrderId) : null,
+      ),
     )
-      dataIssue =
-        'The saved delivery details are incomplete. Refresh the shipment before dispatching.'
-    else if (delivery.status !== 'SCHEDULED')
-      dataIssue =
-        'Only a scheduled shipment can be dispatched. This shipment’s status has changed; review it in Outgoing Deliveries.'
-    else if (!delivery.warehouseId || !warehouse?.isActive)
-      dataIssue =
-        'The saved source warehouse is missing or inactive. Refresh the shipment and review its source warehouse before dispatching.'
-    else if (!order || !['CONFIRMED', 'PARTIALLY_DELIVERED'].includes(order.status))
-      dataIssue =
-        'The current sales order is unavailable or cannot be delivered. Refresh the shipment and review the order.'
-    else if (reviewedRevision !== null && delivery.revision !== reviewedRevision)
-      dataIssue =
-        'The saved shipment plan changed. Refresh the shipment and review the updated plan before dispatching.'
-    else dataIssue = plan.error
+    const productIds = [
+      ...new Set(
+        deliveries.flatMap(
+          (delivery, index) =>
+            delivery?.plannedItems
+              .map(
+                (plan) =>
+                  orders[index]?.items.find((item) => item.id === plan.salesOrderItemId)
+                    ?.inventoryItemId,
+              )
+              .filter((id): id is number => id !== undefined) ?? [],
+        ),
+      ),
+    ]
+    const sources = await Promise.all(
+      productIds.map(async (id) => ({
+        id,
+        stock: await fetchStockItemByPairApi(id, run.warehouseId),
+        product: await fetchProductByIdApi(id),
+      })),
+    )
+    const rows: RunLoadRow[] = []
+    deliveries.forEach((delivery, index) => {
+      const order = orders[index]
+      const member = run.deliveries[index]
+      if (
+        !delivery ||
+        delivery.id !== member.id ||
+        delivery.runId !== runId ||
+        delivery.status !== 'READY' ||
+        delivery.revision !== member.revision ||
+        delivery.warehouseId !== run.warehouseId ||
+        !order ||
+        !['CONFIRMED', 'PARTIALLY_DELIVERED'].includes(order.status) ||
+        !delivery.plannedItems.length
+      )
+        throw Error(
+          'A member plan, revision, source warehouse, or order status changed. Refresh and review the run.',
+        )
+      for (const plan of delivery.plannedItems) {
+        const line = order.items.find((item) => item.id === plan.salesOrderItemId)
+        const source = sources.find((source) => source.id === line?.inventoryItemId)
+        if (
+          !line ||
+          !source?.stock ||
+          source.stock.inventoryItemId !== line.inventoryItemId ||
+          source.stock.warehouseId !== run.warehouseId ||
+          !source.product?.name ||
+          !source.product.unit ||
+          parseStockCents(source.stock.availableQuantity) === null
+        )
+          throw Error(
+            'A planned product cannot be matched to unique source stock. Refresh before departure.',
+          )
+        rows.push({
+          key: `${delivery.id}:${plan.salesOrderItemId}`,
+          deliveryId: delivery.id,
+          deliveryNumber: delivery.deliveryNumber,
+          expectedRevision: delivery.revision,
+          salesOrderItemId: plan.salesOrderItemId,
+          stockItemId: source.stock.id,
+          productName: source.product.name,
+          unit: source.product.unit,
+          plannedQuantity: plan.plannedQuantity,
+          availableQuantity: source.stock.availableQuantity!,
+        })
+      }
+    })
+    return { deliveries, rows, vehicle, driver, activeDriverRuns, warehouse }
   }
-  const validation = validateDispatchLoad(plan.rows, quantities)
+  const context = useQuery({
+    queryKey: contextKey(run),
+    enabled: !!run,
+    staleTime: 0,
+    queryFn: () => {
+      if (!run) throw Error('Run details are unavailable.')
+      return loadContext(run)
+    },
+  })
+  const rows = context.data?.rows ?? []
+  const signature =
+    run && context.data
+      ? JSON.stringify([
+          run.revision,
+          run.deliveries.map((member) => [member.id, member.revision]),
+          context.data.deliveries.map((delivery) => [delivery?.id, delivery?.revision]),
+        ])
+      : null
+  if (signature && reviewed === null && runQuery.isFetchedAfterMount && context.isFetchedAfterMount)
+    setReviewed(signature)
+  const warehouse = context.data?.warehouse
+  const vehicle = context.data?.vehicle
+  const driver = context.data?.driver
+  const fetching = runQuery.isFetching || context.isFetching
   const busy = mutation.isPending || refreshing
-  const canSubmit = !loading && !loadError && !dataIssue && !needsRefresh && !fetching && !busy
-
+  let issue: string | undefined
+  if (!(isAdmin || isManager || isStaff)) issue = 'You do not have permission to dispatch runs.'
+  else if (runQuery.isError || context.isError)
+    issue = getErrorMessage(runQuery.error ?? context.error)
+  else if (!run || !context.data || !warehouse)
+    issue = 'Loading current run, member plans, stock, and assignments...'
+  else if (run.status !== 'DRAFT') issue = 'Only a draft run can depart. Review its current status.'
+  else if (reviewed !== signature)
+    issue = 'The run or a member revision changed. Refresh and review the updated loads.'
+  else if (!warehouse.isActive || !run.scheduledDepartureAt || !run.deliveries.length)
+    issue = 'An active source warehouse, departure schedule, and members are required.'
+  else if (
+    !vehicle?.isActive ||
+    vehicle.operationalStatus !== 'SERVICEABLE' ||
+    !vehicle.isAvailable ||
+    vehicle.activeRunId !== null
+  )
+    issue = 'The assigned vehicle is unavailable. Edit the run assignments before departure.'
+  else if (!driver?.isActive || !driver.canDrive || context.data.activeDriverRuns?.items.length)
+    issue =
+      'The assigned driver is ineligible or already on a dispatched run. Edit the run assignments.'
+  else if (
+    parseStockCents(vehicle.capacityKg) === null ||
+    parseStockCents(vehicle.capacityKg)! <= 0n
+  )
+    issue = 'Configure a positive vehicle capacity in kilograms before departure.'
+  const canSubmit = !issue && !fetching && !busy && !needsRefresh
   async function refresh() {
     if (lock.current || busy) return
     setRefreshing(true)
     try {
-      const [latest, ...others] = await Promise.all(queries.map((query) => query.refetch()))
-      if (latest.isError || others.some((query) => query.isError)) {
-        setMessage(
-          'The shipment could not be fully refreshed. Check your connection and try refreshing again.',
-        )
-        setNeedsRefresh(true)
-        return
-      }
-      if (latest.data && 'revision' in latest.data) setReviewedRevision(latest.data.revision)
+      const result = await runQuery.refetch()
+      const latest = result.data
+      if (result.isError || !latest)
+        throw Error('Run details could not be refreshed. Your entries have been kept.')
+      const details = await queryClient.fetchQuery({
+        queryKey: contextKey(latest),
+        queryFn: () => loadContext(latest),
+        staleTime: 0,
+      })
+      setReviewed(
+        JSON.stringify([
+          latest.revision,
+          latest.deliveries.map((member) => [member.id, member.revision]),
+          details.deliveries.map((delivery) => [delivery?.id, delivery?.revision]),
+        ]),
+      )
       setNeedsRefresh(false)
       setMessage('')
+    } catch (cause) {
+      setNeedsRefresh(true)
+      setMessage(getErrorMessage(cause))
     } finally {
       setRefreshing(false)
     }
   }
-
   async function submit() {
-    if (lock.current || !canSubmit || !delivery) return
-    setSubmitted(true)
+    if (lock.current || !canSubmit || !run) return
     setMessage('')
-    if (validation.error) {
-      setMessage(validation.error)
-      return
-    }
-    const vehicle = vehiclesQuery.data?.find((candidate) => candidate.id === Number(vehicleId))
-    if (
-      !vehicle ||
-      !DeliveryUtils.getVehicleAvailability(vehicle, deliveriesQuery.data ?? [], deliveryId)
-        .isAvailable
-    ) {
-      setMessage(
-        'Choose an available delivery vehicle. Refresh the shipment if its availability changed.',
+    setFieldErrors({})
+    let payload
+    try {
+      const weight = parseStockCents(loadedWeightKg)
+      const capacity = parseStockCents(vehicle?.capacityKg)
+      if (
+        weight === null ||
+        weight <= 0n ||
+        weight > 999_999_999_999n ||
+        capacity === null ||
+        weight > capacity
       )
-      return
-    }
-    const driver = employeesQuery.data?.find((candidate) => candidate.id === Number(driverId))
-    if (
-      !driver ||
-      !DeliveryUtils.getDriverAvailability(driver, deliveriesQuery.data ?? [], deliveryId)
-        .isAvailable
-    ) {
-      setMessage(
-        'Choose an active, available driver. Refresh the shipment if their availability changed.',
-      )
+        throw Error(
+          'Enter a positive actual loaded weight within the vehicle capacity, with up to two decimals.',
+        )
+      payload = {
+        expectedRevision: run.revision,
+        loadedWeightKg: loadedWeightKg.trim(),
+        ...validateRunLoad(run.deliveries, rows, quantities),
+      }
+    } catch (cause) {
+      setMessage(getErrorMessage(cause))
       return
     }
     lock.current = true
     try {
-      await mutation.mutateAsync({
-        id: deliveryId,
-        payload: {
-          deliveryVehicleId: vehicle.id,
-          driverEmployeeId: driver.id,
-          items: validation.items,
-        },
-      })
-      onSuccess()
-    } catch (error) {
-      setMessage(
-        `${getErrorMessage(error)} Refresh the shipment and review its status and availability before trying again.`,
+      const saved = await mutation.mutateAsync({ id: runId, payload })
+      if (
+        saved?.id !== runId ||
+        saved.status !== 'DISPATCHED' ||
+        !Number.isSafeInteger(saved.revision) ||
+        saved.revision <= payload.expectedRevision
       )
+        throw Error('The server did not confirm run departure. Refresh and review before retrying.')
+      onSuccess()
+    } catch (cause) {
       setNeedsRefresh(true)
+      const issues = getApiFieldErrors(cause)
+      const mapped: Record<string, string> = {}
+      if (issues.loadedWeightKg) mapped.loadedWeightKg = issues.loadedWeightKg
+      payload.loads.forEach((load, loadIndex) => load.items.forEach((item, itemIndex) => {
+        const issue = issues[`loads.${loadIndex}.items.${itemIndex}.loadedQuantity`]
+        if (issue) mapped[`${load.deliveryId}:${item.salesOrderItemId}`] = issue
+      }))
+      setFieldErrors(mapped)
+      setMessage(
+        `${getErrorMessage(cause)} Refresh and review before trying again. Your entries have been kept.`,
+      )
     } finally {
       lock.current = false
     }
   }
-
   return {
-    delivery,
-    order,
-    client,
+    run,
+    rows,
     warehouse,
-    rows: plan.rows,
-    vehicleId,
-    driverId,
-    setVehicleId,
-    setDriverId,
+    vehicle,
+    driver,
     quantities,
-    setQuantity: (id: number, value: string) =>
-      setQuantities((current) => ({ ...current, [id]: value })),
-    lineErrors: submitted ? validation.errors : {},
-    error: loadError
-      ? `Shipment data could not be loaded. ${getErrorMessage(loadError)}`
-      : (dataIssue ?? message),
-    loading,
-    fetching,
-    refreshing,
+    loadedWeightKg,
+    fieldErrors,
+    setLoadedWeightKg,
     busy,
     canSubmit,
+    fetching,
+    error: message || issue,
     refresh,
     submit,
-    vehicles: vehiclesQuery.data ?? [],
-    employees: employeesQuery.data ?? [],
-    deliveries: deliveriesQuery.data ?? [],
+    setQuantity: (key: string, value: string) =>
+      setQuantities((current) => ({ ...current, [key]: value })),
+    usePlannedQuantities: () => {
+      if (!canSubmit || !run) return
+      const proposed = Object.fromEntries(rows.map((row) => [row.key, row.plannedQuantity]))
+      try {
+        validateRunLoad(run.deliveries, rows, proposed)
+        setQuantities(proposed)
+        setMessage('')
+      } catch (cause) {
+        setMessage(getErrorMessage(cause))
+      }
+    },
   }
 }

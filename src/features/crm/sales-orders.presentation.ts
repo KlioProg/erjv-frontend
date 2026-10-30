@@ -11,7 +11,7 @@ export function salesDeliveryProgress(
   const seen = new Set<number>()
   let available = true
   for (const delivery of deliveries) {
-    if (delivery.salesOrderId !== order.id || delivery.status !== 'DELIVERED') continue
+    if (delivery.salesOrderId !== order.id || delivery.status !== 'RECONCILED') continue
     if (!Array.isArray(delivery.items)) {
       available = false
       break
@@ -77,8 +77,8 @@ export function getSalesOrderDeliveryDisplay(
 
   if (order.status === 'DELIVERED') {
     const completionDates = relatedDeliveries
-      .filter((record) => record.status === 'DELIVERED' && record.deliveredAt)
-      .map((record) => record.deliveredAt!)
+      .filter((record) => record.status === 'RECONCILED' && record.reconciledAt)
+      .map((record) => record.reconciledAt!)
       .filter((value) => !Number.isNaN(new Date(value).getTime()))
       .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())
     const date = formatDeliveryDate(order.completedAt) || formatDeliveryDate(completionDates[0])
@@ -96,10 +96,10 @@ export function getSalesOrderDeliveryDisplay(
       badgeClassName: infoBadge,
     }
 
-  if (delivery?.status === 'SCHEDULED')
+  if (delivery?.status === 'READY')
     return {
-      label: 'Scheduled',
-      supportingText: formatDeliveryDate(delivery.scheduledAt),
+      label: 'Ready',
+      supportingText: delivery.runId ? `Run #${delivery.runId}` : 'Awaiting run assignment',
       badgeClassName: infoBadge,
     }
 
@@ -112,7 +112,7 @@ export function getSalesOrderDeliveryDisplay(
 
   if (order.status === 'PARTIALLY_DELIVERED') {
     const completedCount = relatedDeliveries.filter(
-      (record) => record.status === 'DELIVERED',
+      (record) => record.status === 'RECONCILED',
     ).length
     return {
       label: 'Partial Delivery',

@@ -1,15 +1,17 @@
 import { useRef, useState } from 'react'
 import { useAuth } from '@/features/auth/AuthContext'
-import { useAllProducts } from '@/features/products/products.hooks'
-import { getErrorMessage } from '@/lib/api-client'
+import { useQueries } from '@tanstack/react-query'
+import { productKeys } from '@/features/products/products.hooks'
+import { fetchProductByIdApi } from '@/features/products/products.api'
+import { getApiFieldErrors, getErrorMessage } from '@/lib/api-client'
 import {
   useCompleteIncomingDelivery,
   useIncomingDeliveryById,
   useIncomingDeliveries,
 } from './incoming-deliveries.hooks'
 import { usePurchaseOrderById } from './purchase-orders.hooks'
-import { useSuppliers } from './suppliers.hooks'
-import { useAllWarehouses } from './warehouses.hooks'
+import { useSupplierById } from './suppliers.hooks'
+import { useWarehouse } from './warehouses.hooks'
 import {
   incomingReceiptLines,
   validateIncomingReceipt,
@@ -28,6 +30,7 @@ const receiptSignature = (
 ) =>
   JSON.stringify([
     delivery.id,
+    delivery.revision,
     delivery.status,
     delivery.purchaseOrderId,
     delivery.warehouseId,
@@ -41,9 +44,12 @@ export function useIncomingReceiving(delivery: IncomingDeliveryRecord, onClose: 
     purchaseOrderId: delivery.purchaseOrderId,
     status: 'COMPLETED',
   })
-  const products = useAllProducts()
-  const suppliers = useSuppliers({ includeInactive: 'true' })
-  const warehouses = useAllWarehouses()
+  const productIds = [...new Set((purchase.data?.items ?? []).map((item) => item.inventoryItemId))]
+  const products = useQueries({ queries: productIds.map((id) => ({
+    queryKey: productKeys.detail(id), queryFn: () => fetchProductByIdApi(id),
+  })) })
+  const supplier = useSupplierById(purchase.data?.supplierId ?? undefined)
+  const warehouse = useWarehouse(latest.data?.warehouseId ?? delivery.warehouseId)
   const complete = useCompleteIncomingDelivery()
   const { isAdmin, isManager } = useAuth()
   const [outcome, setOutcome] = useState<ReceiptOutcome | null>(null)
@@ -51,6 +57,7 @@ export function useIncomingReceiving(delivery: IncomingDeliveryRecord, onClose: 
   const [counts, setCounts] = useState<IncomingReceiptCounts>({})
   const [reason, setReason] = useState('')
   const [error, setError] = useState('')
+  const [serverErrors, setServerErrors] = useState<Record<number, { received?: string; damaged?: string }>>({})
   const [checking, setChecking] = useState(false)
   const [needsRefresh, setNeedsRefresh] = useState(false)
   const [fullReceipt, setFullReceipt] = useState<{
@@ -63,7 +70,7 @@ export function useIncomingReceiving(delivery: IncomingDeliveryRecord, onClose: 
     : []
   const rows = lines.map((line) => ({
     ...line,
-    product: products.data?.find((product) => product.id === line.item.inventoryItemId),
+    product: products.find((query) => query.data?.id === line.item.inventoryItemId)?.data,
   }))
   const signature = latest.data ? receiptSignature(latest.data, lines) : ''
   const validation = validateIncomingReceipt(lines, counts)
@@ -73,8 +80,7 @@ export function useIncomingReceiving(delivery: IncomingDeliveryRecord, onClose: 
     rows.some((row) => !Number.isSafeInteger(row.item.id) || row.item.id <= 0)
   const regularUnavailable =
     invalidLines ||
-    products.isFetching ||
-    products.isError ||
+    products.some((query) => query.isFetching || query.isError) ||
     rows.some((row) => !row.product?.name || !row.product.unit || row.outstanding === null)
   const loading = latest.isFetching || purchase.isFetching || receipts.isFetching
   const loadFailed = latest.isError || purchase.isError || receipts.isError
@@ -129,7 +135,7 @@ export function useIncomingReceiving(delivery: IncomingDeliveryRecord, onClose: 
         'This purchase order is no longer available for receiving. Close and review its current status.',
       )
     const currentLines = incomingReceiptLines(freshPurchase.data, freshReceipts.data, delivery.id)
-    return { lines: currentLines, signature: receiptSignature(freshDelivery.data, currentLines) }
+    return { lines: currentLines, signature: receiptSignature(freshDelivery.data, currentLines), revision: freshDelivery.data.revision }
   }
   async function applyOutcome(next: ReceiptOutcome) {
     if (disabled || inFlight.current) return
@@ -187,10 +193,15 @@ export function useIncomingReceiving(delivery: IncomingDeliveryRecord, onClose: 
     inFlight.current = true
     setChecking(true)
     setError('')
+    setServerErrors({})
     let mutationStarted = false
+    let items: CompleteIncomingDeliveryPayload['items'] = []
     try {
       const fresh = await currentReceipt()
-      let items: CompleteIncomingDeliveryPayload['items'] = []
+      if (fresh.revision !== latest.data?.revision) {
+        setNeedsRefresh(true)
+        throw Error('The delivery or outstanding quantities changed. Your input is preserved. Refresh and review the receipt before confirming again.')
+      }
       if (outcome === 'all') {
         if (!fullReceipt || fresh.signature !== fullReceipt.signature) {
           setFullReceipt(null)
@@ -210,12 +221,18 @@ export function useIncomingReceiving(delivery: IncomingDeliveryRecord, onClose: 
       mutationStarted = true
       await complete.mutateAsync({
         id: delivery.id,
+        expectedRevision: fresh.revision,
         items,
         ...(outcome === 'none' ? { noReceiptReason: reason.trim() } : {}),
       })
       onClose()
     } catch (cause) {
-      setNeedsRefresh(mutationStarted)
+      const issues = getApiFieldErrors(cause)
+      setServerErrors(Object.fromEntries(items.map((item, index) => [item.purchaseOrderItemId, {
+        ...(issues[`items.${index}.receivedQuantity`] ? { received: issues[`items.${index}.receivedQuantity`] } : {}),
+        ...(issues[`items.${index}.damagedQuantity`] ? { damaged: issues[`items.${index}.damagedQuantity`] } : {}),
+      }])))
+      setNeedsRefresh((current) => current || mutationStarted)
       setError(getErrorMessage(cause))
     } finally {
       inFlight.current = false
@@ -230,6 +247,8 @@ export function useIncomingReceiving(delivery: IncomingDeliveryRecord, onClose: 
       setChecking(true)
       try {
         await currentReceipt()
+        const metadata = await Promise.all(products.map((query) => query.refetch()))
+        if (metadata.some((result) => result.isError)) throw Error('Product details could not be loaded. Retry before recording received quantities.')
         setNeedsRefresh(false)
         setError('')
       } catch (cause) {
@@ -260,13 +279,12 @@ export function useIncomingReceiving(delivery: IncomingDeliveryRecord, onClose: 
     fullNeedsReview:
       outcome === 'all' && (!fullReceipt || fullReceipt.signature !== signature) && !checking,
     canSubmit: !!validOutcome && !disabled && !pendingOutcome,
-    errors: validation.errors,
+    errors: Object.fromEntries([...new Set([...Object.keys(validation.errors), ...Object.keys(serverErrors)])].map((id) => [id, { ...validation.errors[Number(id)], ...serverErrors[Number(id)] }])),
     submit,
-    supplier: suppliers.data?.find((supplier) => supplier.id === purchase.data?.supplierId),
-    warehouse: warehouses.data?.find(
-      (warehouse) => warehouse.id === (latest.data?.warehouseId ?? delivery.warehouseId),
-    ),
+    supplier: supplier.data?.id === purchase.data?.supplierId ? supplier.data : undefined,
+    warehouse: warehouse.data?.id === (latest.data?.warehouseId ?? delivery.warehouseId) ? warehouse.data : undefined,
     change: (id: number, field: 'received' | 'damaged', value: string) => {
+      setServerErrors((current) => ({ ...current, [id]: Object.fromEntries(Object.entries(current[id] ?? {}).filter(([key]) => key !== field)) }))
       setCounts((current) => ({
         ...current,
         [id]: {

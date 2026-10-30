@@ -9,7 +9,7 @@ import { NotificationPanel } from './NotificationPanel'
 
 export function NotificationBell({ onOpenAlert }: { onOpenAlert: (alert: StockAlert) => void }) {
   const [open, setOpen] = useState(false)
-  const { alerts, verified, isLoading, isFetching, error, refresh } = useStockAlerts()
+  const { alerts, verified, isLoading, isFetching, error, refresh, hasMore, loadNext } = useStockAlerts()
   return (
     <DropdownMenu
       modal={false}
@@ -27,7 +27,7 @@ export function NotificationBell({ onOpenAlert }: { onOpenAlert: (alert: StockAl
           aria-label={
             verified
               ? `Notifications: ${alerts.length} active stock alerts`
-              : 'Notifications: stock alerts unavailable'
+              : hasMore ? 'Notifications: load more records to verify stock alerts' : 'Notifications: stock alerts unavailable'
           }
         >
           <Bell aria-hidden="true" />
@@ -44,6 +44,8 @@ export function NotificationBell({ onOpenAlert }: { onOpenAlert: (alert: StockAl
       </DropdownMenuTrigger>
       <NotificationPanel
         alerts={alerts}
+        hasMore={hasMore}
+        onLoadMore={() => void loadNext()}
         isLoading={isLoading}
         isFetching={isFetching}
         error={error}

@@ -1,4 +1,5 @@
 import { OrderAdditionalDetails } from '@/components/order-entry/OrderAdditionalDetails'
+import type { ReactNode } from 'react'
 import { Input } from '@/components/ui/input'
 import { SearchableDropdown } from '@/components/ui/SearchableDropdown'
 import { OrderField } from '@/components/order-entry/OrderEntryFields'
@@ -11,11 +12,14 @@ export function SalesOrderCustomerInformation({
   clients,
   cashier,
   form,
+  customerSelector,
 }: {
+  customerSelector?: ReactNode
   clients: Client[]
   cashier: string
   form: Pick<
     SalesEntry,
+    | 'fieldErrors'
     | 'clientId'
     | 'changeClient'
     | 'expectedAt'
@@ -30,43 +34,65 @@ export function SalesOrderCustomerInformation({
       className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]"
     >
       <OrderField id="order-customer" label="Customer" required>
-        <SearchableDropdown
-          id="order-customer"
-          options={clients.filter((client) => client.isActive)}
-          value={form.clientId}
-          onValueChange={form.changeClient}
-          getOptionValue={(client) => String(client.id)}
-          getOptionLabel={(client) => client.name}
-          getOptionSearchText={(client) =>
-            [client.name, client.contactPerson, client.email, client.phone]
-              .filter(Boolean)
-              .join(' ')
-          }
-          placeholder="Search customers"
-          searchPlaceholder="Search customer name or contact..."
-          emptyMessage="No active customers found."
-          ariaLabel="Search and choose a customer"
-          className="h-9 text-sm"
-        />
+        {customerSelector ?? (
+          <SearchableDropdown
+            id="order-customer"
+            error={form.fieldErrors.clientId}
+            options={clients.filter((client) => client.isActive)}
+            value={form.clientId}
+            onValueChange={form.changeClient}
+            getOptionValue={(client) => String(client.id)}
+            getOptionLabel={(client) => client.name}
+            getOptionSearchText={(client) =>
+              [client.name, client.contactPerson, client.email, client.phone]
+                .filter(Boolean)
+                .join(' ')
+            }
+            placeholder="Search customers"
+            searchPlaceholder="Search customer name or contact..."
+            emptyMessage="No active customers found."
+            ariaLabel="Search and choose a customer"
+            className="h-9 text-sm"
+          />
+        )}
       </OrderField>
       <OrderField id="order-expected" label="Expected Delivery Date">
         <Input
           id="order-expected"
+          aria-invalid={!!form.fieldErrors.expectedAt || undefined}
+          aria-describedby={form.fieldErrors.expectedAt ? 'order-expected-server-error' : undefined}
           type="date"
           value={form.expectedAt}
           onChange={(event) => form.setExpectedAt(event.target.value)}
           className="h-9 min-w-0 text-sm"
         />
+        {form.fieldErrors.expectedAt && (
+          <p id="order-expected-server-error" role="alert" className="text-xs text-destructive">
+            {form.fieldErrors.expectedAt}
+          </p>
+        )}
       </OrderField>
-      <OrderField id="order-address" label="Delivery Address" required className="sm:col-span-2">
+      <OrderField
+        id="order-address"
+        label="Delivery Address (optional for drafts)"
+        className="sm:col-span-2"
+      >
         <Input
           id="order-address"
+          aria-invalid={!!form.fieldErrors.deliveryAddress || undefined}
+          aria-describedby={
+            form.fieldErrors.deliveryAddress ? 'order-address-server-error' : undefined
+          }
           value={form.deliveryAddress}
           onChange={(event) => form.setDeliveryAddress(event.target.value)}
           placeholder="Enter the delivery or pickup address"
           className="h-9 text-sm"
-          aria-required="true"
         />
+        {form.fieldErrors.deliveryAddress && (
+          <p id="order-address-server-error" role="alert" className="text-xs text-destructive">
+            {form.fieldErrors.deliveryAddress}
+          </p>
+        )}
       </OrderField>
       <p className="text-xs text-muted-foreground sm:col-span-2">Processed by: {cashier}</p>
     </section>

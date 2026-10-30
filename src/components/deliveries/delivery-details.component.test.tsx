@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { apiClient } from '@/lib/api-client'
 import type { OutgoingDeliveryRecord } from '@/features/logistics/outgoing-deliveries.types'
+import type { DeliveryRunRecord } from '@/features/logistics/delivery-runs.types'
 import type { SalesOrderRecord } from '@/features/crm/sales-orders.types'
 import { DeliveryUtils } from '@/features/logistics/delivery-utils'
 import { DeliveryDetailModal } from './shared/DeliveryDetailModal'
@@ -17,12 +18,13 @@ const deliveryFixture: OutgoingDeliveryRecord = {
   warehouseId: 3,
   revision: 1,
   plannedItems: [],
-  deliveryVehicleId: 4,
-  driverEmployeeId: 5,
+  runId: 12,
+  reconciledAt: '2026-10-04T04:15:00Z',
+  reconciledByUserId: null,
+  fulfillmentOutcome: null,
+  hasDamage: false,
+  hasMissing: false,
   status: 'DISPATCHED',
-  scheduledAt: '2026-10-02T02:30:00Z',
-  dispatchedAt: '2026-10-03T03:45:00Z',
-  deliveredAt: '2026-10-04T04:15:00Z',
   cancelledAt: '2026-10-05T05:00:00Z',
   notes: 'Keep the cargo dry.\nCall before arrival.',
   ...stamps,
@@ -37,6 +39,13 @@ const deliveryFixture: OutgoingDeliveryRecord = {
       ...stamps,
     },
   ],
+}
+const runFixture: DeliveryRunRecord = {
+  id: 12, runNumber: 'RUN-000012', revision: 4, status: 'DISPATCHED', warehouseId: 3,
+  deliveryVehicleId: 4, driverEmployeeId: 5, scheduledDepartureAt: '2026-10-02T02:30:00Z',
+  dispatchedAt: '2026-10-03T03:45:00Z', completedAt: null, cancelledAt: null,
+  departureConfirmedByUserId: 1, loadedWeightKg: '0.05', capacityKgAtDeparture: '1500.00', notes: null,
+  ...stamps, deliveries: [{ id: 10, deliveryNumber: 'OD-000010', revision: 1, status: 'DISPATCHED', salesOrderId: 11, warehouseId: 3 }],
 }
 const orderFixture: SalesOrderRecord = {
   id: 11,
@@ -102,6 +111,7 @@ beforeEach(() => {
   deliveryGate = undefined
   requests = []
   records = {
+    '/delivery-runs/12': structuredClone(runFixture),
     '/sales-orders': [orderFixture],
     '/warehouses': [
       {
@@ -118,9 +128,11 @@ beforeEach(() => {
         plateNumber: 'ABC-1234',
         vehicleType: 'Truck',
         model: 'Cargo Model',
-        capacity: '1500.00',
+        capacityKg: '1500.00',
+        operationalStatus: 'SERVICEABLE',
+        isAvailable: false,
+        activeRunId: 12,
         isActive: false,
-        status: 'IN_USE',
         ...stamps,
       },
     ],
@@ -166,7 +178,7 @@ beforeEach(() => {
     if (Array.isArray(data) && config.params?.includeInactive !== 'true') {
       data = data.filter((record) => record.isActive !== false)
     }
-    return { data: config.method === 'get' && /^\/(sales-orders|purchase-orders|incoming-deliveries|outgoing-deliveries)$/.test(config.url ?? '') ? { items: data, nextCursor: null } : data, status: 200, statusText: 'OK', headers: {}, config }
+    return { data: config.method === 'get' && Array.isArray(data) ? { items: data, nextCursor: null } : data, status: 200, statusText: 'OK', headers: {}, config }
   }
 })
 
@@ -175,19 +187,19 @@ afterEach(() => {
 })
 
 describe('delivery progress', () => {
-  it.each(['DRAFT', 'SCHEDULED', 'DISPATCHED', 'DELIVERED'] as const)(
+  it.each(['DRAFT', 'READY', 'DISPATCHED', 'RECONCILED'] as const)(
     'marks the current %s step and shows only reached timestamps',
     (status) => {
-      render(<DeliveryTimeline delivery={{ ...deliveryFixture, status }} />)
+      render(<DeliveryTimeline delivery={{ ...deliveryFixture, status }} run={runFixture} />)
       const steps = within(screen.getByRole('list', { name: 'Delivery progress' })).getAllByRole(
         'listitem',
       )
-      const current = ['DRAFT', 'SCHEDULED', 'DISPATCHED', 'DELIVERED'].indexOf(status)
+      const current = ['DRAFT', 'READY', 'DISPATCHED', 'RECONCILED'].indexOf(status)
       const dates = [
         deliveryFixture.createdAt,
-        deliveryFixture.scheduledAt,
-        deliveryFixture.dispatchedAt,
-        deliveryFixture.deliveredAt,
+        null,
+        runFixture.dispatchedAt,
+        deliveryFixture.reconciledAt,
       ]
       expect(steps).toHaveLength(4)
       steps.forEach((step, index) => {
@@ -195,9 +207,7 @@ describe('delivery progress', () => {
         expect(step.textContent).toContain(
           index === current ? 'current step' : index < current ? 'completed' : 'upcoming',
         )
-        expect(step.textContent?.includes(DeliveryUtils.formatDateTime(dates[index]))).toBe(
-          index <= current,
-        )
+        if (dates[index]) expect(step.textContent?.includes(DeliveryUtils.formatDateTime(dates[index]))).toBe(index <= current)
       })
     },
   )
@@ -220,23 +230,24 @@ describe('outgoing delivery details', () => {
     const user = userEvent.setup()
     const { onClose } = mount()
     await screen.findByText(customerName)
+    await screen.findByText('Ana Cruz')
     const dialog = screen.getByRole('dialog', { name: 'OD-000010' })
     expect(within(dialog).getByText('Sales Order SO-000011')).toBeTruthy()
-    expect(within(dialog).getByText(orderFixture.deliveryAddress)).toBeTruthy()
+    expect(within(dialog).getByText(orderFixture.deliveryAddress!)).toBeTruthy()
     expect(within(dialog).getByText('Archived Warehouse')).toBeTruthy()
     expect(within(dialog).getByText('Ana Cruz')).toBeTruthy()
     expect(within(dialog).getByText('09123456789')).toBeTruthy()
     expect(within(dialog).getByText('ABC-1234 (Truck)')).toBeTruthy()
-    expect(within(dialog).getByText('Cargo Model / Capacity: 1500.00')).toBeTruthy()
+    expect(within(dialog).getByText('Cargo Model / Capacity: 1500.00 kg')).toBeTruthy()
     expect(
-      within(dialog).getAllByText(DeliveryUtils.formatDateTime(delivery.scheduledAt)),
-    ).toHaveLength(2)
+      within(dialog).getAllByText(DeliveryUtils.formatDateTime(runFixture.scheduledDepartureAt)),
+    ).toHaveLength(1)
     const table = within(dialog).getByRole('table')
     expect(
       within(table)
         .getAllByRole('columnheader')
         .map((cell) => cell.textContent),
-    ).toEqual(['Item', 'Quantity to Deliver'])
+    ).toEqual(['Item', 'Loaded Quantity'])
     for (const text of [productName, 'Carabao', '0.05', 'kg']) {
       expect(within(table).getByText(text)).toBeTruthy()
     }
@@ -256,8 +267,8 @@ describe('outgoing delivery details', () => {
   })
 
   it('keeps missing assignments and references truthful and supports empty cargo', async () => {
-    delivery.driverEmployeeId = null
-    delivery.deliveryVehicleId = null
+    delivery.runId = null
+    delivery.warehouseId = null
     delivery.items = []
     delivery.notes = null
     records['/warehouses'] = []
@@ -294,7 +305,7 @@ describe('outgoing delivery details', () => {
     mount()
     await screen.findByText('Failed to load delivery record.')
     expect(screen.getByRole('alert').textContent).toContain(
-      'Unable to complete your request. Please check your connection and try again.',
+      'The service is temporarily offline.',
     )
     expect(screen.getAllByRole('button', { name: 'Close' })).toHaveLength(2)
     failedUrl = undefined

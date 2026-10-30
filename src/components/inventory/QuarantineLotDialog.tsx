@@ -25,17 +25,17 @@ import {
 import { useAuth } from '@/features/auth/AuthContext'
 import {
   useCorrectQuarantineCondition,
-  useQuarantineLots,
+  useQuarantineLot,
+  useQuarantineConditionChanges,
+  useQuarantineResolutions,
   useResolveQuarantine,
 } from '@/features/logistics/quarantine.hooks'
-import type {
-  QuarantineCondition,
-  QuarantineLot,
-  StockItemWithRelations,
-} from '@/features/logistics/stock-items.types'
+import type { QuarantineCondition, QuarantineLot } from '@/features/logistics/quarantine.types'
+import type { StockItemWithRelations } from '@/features/logistics/stock-items.types'
 import { parseStockCents } from '@/features/logistics/stock-display'
 import { decimalString } from '@/features/logistics/purchase-pricing'
 import { getApiError, getErrorMessage } from '@/lib/api-client'
+import { useStockMetadata } from '@/features/logistics/use-stock-metadata'
 
 type Action = 'CLEAR' | 'REMOVE' | 'CORRECT'
 const choices = [
@@ -57,14 +57,7 @@ const choices = [
   },
 ] as const
 const snapshot = (lot: QuarantineLot) =>
-  JSON.stringify([
-    lot.id,
-    lot.stockItemId,
-    lot.condition,
-    lot.remainingQuantity,
-    lot.conditionChanges?.length,
-    lot.resolutions?.length,
-  ])
+  JSON.stringify([lot.id, lot.stockItemId, lot.condition, lot.remainingQuantity, lot.revision])
 const displayQuantity = (value: unknown) => {
   const parsed = parseStockCents(value)
   return parsed === null ? 'Unavailable' : decimalString(parsed)
@@ -72,15 +65,21 @@ const displayQuantity = (value: unknown) => {
 
 export function QuarantineLotDialog({
   selectedLot,
-  stock,
+  stock: suppliedStock,
   onClose,
 }: {
   selectedLot: QuarantineLot
   stock?: StockItemWithRelations
   onClose: () => void
 }) {
-  const query = useQuarantineLots({ stockItemId: selectedLot.stockItemId })
-  const lot = query.data?.find((candidate) => candidate.id === selectedLot.id)
+  const query = useQuarantineLot(selectedLot.id)
+  const lot = query.data
+  const stockId = lot?.stockItemId ?? selectedLot.stockItemId
+  const needsStockDetails = suppliedStock?.id !== stockId
+  const stockDetails = useStockMetadata(needsStockDetails ? stockId : undefined)
+  const stock = needsStockDetails ? stockDetails.data : suppliedStock
+  const changes = useQuarantineConditionChanges(selectedLot.id)
+  const resolutions = useQuarantineResolutions(selectedLot.id)
   const { isAdmin, isManager } = useAuth()
   const canManage = isAdmin || isManager
   const correct = useCorrectQuarantineCondition()
@@ -96,7 +95,8 @@ export function QuarantineLotDialog({
   const [discardOpen, setDiscardOpen] = useState(false)
   function requestClose() {
     if (pending) return
-    if (Object.values(drafts).some((draft) => draft.quantity.trim() || draft.reason.trim())) setDiscardOpen(true)
+    if (Object.values(drafts).some((draft) => draft.quantity.trim() || draft.reason.trim()))
+      setDiscardOpen(true)
     else onClose()
   }
   const [removal, setRemoval] = useState<{
@@ -105,6 +105,18 @@ export function QuarantineLotDialog({
     reason: string
   } | null>(null)
   const [error, setError] = useState('')
+  type Attempt = {
+    action: Action
+    payload: {
+      expectedRevision: number
+      requestId: string
+      reason: string
+      condition: QuarantineCondition
+      action: 'CLEAR' | 'REMOVE'
+      quantity: string
+    }
+  }
+  const [attempt, setAttempt] = useState<Attempt | null>(null)
   const [uncertain, setUncertain] = useState(false)
   const [checking, setChecking] = useState(false)
   const inFlight = useRef(false)
@@ -113,6 +125,7 @@ export function QuarantineLotDialog({
   const isOpen = remaining !== null && remaining > 0n
   const unit = stock?.inventoryItem.unit ?? ''
   const metadataAvailable =
+    (!needsStockDetails || (!stockDetails.isPending && !stockDetails.isFetching && !stockDetails.isError)) &&
     stock?.id === lot?.stockItemId &&
     !!stock?.inventoryItem.name &&
     !!stock?.warehouse.name &&
@@ -156,28 +169,35 @@ export function QuarantineLotDialog({
     if (field === 'quantity') setConfirmedSnapshot(null)
     setError('')
   }
-  async function apply(finalRemoval = false) {
-    if (inFlight.current || disabled || !lot || !action || !valid) return
+  async function apply(finalRemoval = false, retry = false) {
+    if (
+      inFlight.current ||
+      (!retry && (disabled || !valid)) ||
+      !lot ||
+      !action ||
+      (retry && !attempt)
+    )
+      return
     inFlight.current = true
     setChecking(true)
     setError('')
     let mutationStarted = false
     try {
-      const fresh = await query.refetch()
+      const fresh = retry ? { data: lot, isError: false } : await query.refetch()
       if (fresh.isError || !fresh.data)
         throw Error(
           'The current quarantine lot could not be checked. Reload and review before confirming.',
         )
-      const current = fresh.data.find((candidate) => candidate.id === selectedLot.id)
+      const current = fresh.data
       if (
         !current ||
-        snapshot(current) !== signature ||
-        (finalRemoval && removal?.snapshot !== signature)
+        (!retry && snapshot(current) !== signature) ||
+        (!retry && finalRemoval && removal?.snapshot !== signature)
       )
         throw Error(
           'This quarantine lot changed. Review its current balance and condition, then confirm again. Your inputs have been kept.',
         )
-      if (action === 'REMOVE' && !finalRemoval) {
+      if (!retry && action === 'REMOVE' && !finalRemoval) {
         setRemoval({
           snapshot: signature,
           quantity: decimalString(amount!),
@@ -186,22 +206,48 @@ export function QuarantineLotDialog({
         return
       }
       if (
+        !retry &&
         action === 'REMOVE' &&
         (!removal ||
           removal.quantity !== decimalString(amount!) ||
           removal.reason !== draft.reason.trim())
       )
         throw Error('Review the removal quantity and reason, then confirm again.')
+      const command = retry
+        ? attempt!
+        : {
+            action,
+            payload: {
+              expectedRevision: current.revision,
+              requestId: crypto.randomUUID(),
+              condition,
+              reason: draft.reason.trim(),
+              action: action === 'REMOVE' ? ('REMOVE' as const) : ('CLEAR' as const),
+              quantity: action === 'CORRECT' ? '' : decimalString(amount!),
+            },
+          }
+      setAttempt(command)
       mutationStarted = true
       if (action === 'CORRECT')
         await correct.mutateAsync({
           id: current.id,
-          payload: { condition, reason: draft.reason.trim() },
+          payload: {
+            condition: command.payload.condition,
+            reason: command.payload.reason,
+            expectedRevision: command.payload.expectedRevision,
+            requestId: command.payload.requestId,
+          },
         })
       else
         await resolve.mutateAsync({
           id: current.id,
-          payload: { action, quantity: decimalString(amount!), reason: draft.reason.trim() },
+          payload: {
+            action: command.payload.action,
+            quantity: command.payload.quantity,
+            reason: command.payload.reason,
+            expectedRevision: command.payload.expectedRevision,
+            requestId: command.payload.requestId,
+          },
         })
       toast.success(
         action === 'CORRECT'
@@ -211,6 +257,8 @@ export function QuarantineLotDialog({
             : 'Quarantined goods removed from inventory.',
       )
       setDrafts((previous) => ({ ...previous, [action]: { quantity: '', reason: '' } }))
+      setAttempt(null)
+      setUncertain(false)
       setAction(null)
       setConfirmedSnapshot(null)
       setRemoval(null)
@@ -248,7 +296,7 @@ export function QuarantineLotDialog({
           <div className="flex min-h-0 flex-col gap-4 overflow-y-auto px-6 pb-5">
             {query.isLoading ? (
               <p role="status">Loading current quarantine record...</p>
-            ) : query.isError || !lot ? (
+            ) : !lot ? (
               <Alert variant="destructive">
                 <AlertDescription>
                   {query.error
@@ -316,19 +364,56 @@ export function QuarantineLotDialog({
                       Reported {lot.reportedCondition} on {new Date(lot.createdAt).toLocaleString()}
                       {lot.taggedByUserId !== null ? ` by user #${lot.taggedByUserId}` : ''}.
                     </li>
-                    {(lot.conditionChanges ?? []).map((change) => (
+                    {changes.items.map((change) => (
                       <li key={`condition-${change.id}`}>
                         {change.fromCondition} to {change.toCondition}: {change.reason} — user #
                         {change.actorUserId}, {new Date(change.createdAt).toLocaleString()}
                       </li>
                     ))}
-                    {(lot.resolutions ?? []).map((resolution) => (
+                    {resolutions.items.map((resolution) => (
                       <li key={`resolution-${resolution.id}`}>
                         {resolution.action} {resolution.quantity}: {resolution.reason} — user #
                         {resolution.actorUserId}, {new Date(resolution.createdAt).toLocaleString()}
                       </li>
                     ))}
                   </ul>
+                  {changes.isError && (
+                    <p role="alert">
+                      Condition history could not be loaded.{' '}
+                      <Button variant="link" onClick={() => void changes.reload()}>
+                        Retry condition history
+                      </Button>
+                    </p>
+                  )}
+                  {resolutions.isError && (
+                    <p role="alert">
+                      Resolution history could not be loaded.{' '}
+                      <Button variant="link" onClick={() => void resolutions.reload()}>
+                        Retry resolution history
+                      </Button>
+                    </p>
+                  )}
+                  {(changes.isLoading || resolutions.isLoading) && (
+                    <p role="status">Loading history...</p>
+                  )}
+                  {changes.hasNextPage && (
+                    <Button
+                      variant="outline"
+                      disabled={changes.isFetching}
+                      onClick={() => void changes.fetchNextPage()}
+                    >
+                      Load more condition changes
+                    </Button>
+                  )}
+                  {resolutions.hasNextPage && (
+                    <Button
+                      variant="outline"
+                      disabled={resolutions.isFetching}
+                      onClick={() => void resolutions.fetchNextPage()}
+                    >
+                      Load more resolutions
+                    </Button>
+                  )}
                 </details>
                 {remaining === 0n && (
                   <p className="text-sm text-muted-foreground">
@@ -342,7 +427,12 @@ export function QuarantineLotDialog({
                     changes.
                   </p>
                 )}
-                {!metadataAvailable && (
+                {needsStockDetails && stockDetails.isPending && <p role="status" className="text-sm text-muted-foreground">Loading selected stock details...</p>}
+                {needsStockDetails && stockDetails.isError && <Alert variant="destructive"><AlertDescription>
+                  {getErrorMessage(stockDetails.error)}
+                  <Button type="button" variant="link" disabled={stockDetails.isFetching} onClick={() => void stockDetails.refetch()}>Reload stock details</Button>
+                </AlertDescription></Alert>}
+                {!metadataAvailable && !(needsStockDetails && stockDetails.isPending) && (
                   <p className="text-sm text-muted-foreground">
                     Product, warehouse, or unit details are unavailable. Reload inventory before
                     making changes.
@@ -356,23 +446,15 @@ export function QuarantineLotDialog({
                 {uncertain && (
                   <Alert>
                     <AlertDescription>
-                      The outcome is uncertain. This change will not be retried automatically.
-                      Review the balance and audit history before another action.
+                      The outcome is uncertain. Retry the same request to safely confirm the outcome
+                      without recording it twice.
                       <Button
                         type="button"
                         variant="link"
                         disabled={pending || query.isFetching}
-                        onClick={async () => {
-                          const fresh = await query.refetch()
-                          if (!fresh.isError && fresh.data) {
-                            setUncertain(false)
-                            setConfirmedSnapshot(null)
-                            setAction(null)
-                            setError('')
-                          }
-                        }}
+                        onClick={() => void apply(true, true)}
                       >
-                        Refresh and review
+                        Retry same request
                       </Button>
                     </AlertDescription>
                   </Alert>
@@ -541,7 +623,7 @@ export function QuarantineLotDialog({
         onConfirm={onClose}
       />
       {removal && (
-      <ConfirmDeleteModal
+        <ConfirmDeleteModal
           open
           title="Remove from Inventory"
           description="This decreases physical inventory and permanently removes the selected goods. The quarantine audit history will be retained."

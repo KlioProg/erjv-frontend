@@ -35,9 +35,9 @@ export function StockBalanceSummary({ stock }: { stock: StockItem }) {
       <dl className="grid w-full grid-cols-2 gap-x-4 gap-y-1 text-xs sm:grid-cols-4">
         {(
           [
-            ['Physical', stock.quantity],
-            ['Reserved', stock.reservedQuantity],
-            ['Damaged', stock.damagedQuantity],
+            ['On hand', stock.onHandQuantity],
+            ['In transit', stock.inTransitQuantity],
+            ['Quarantined', stock.quarantinedQuantity],
             ['Available', stock.availableQuantity],
           ] as const
         ).map(([label, value]) => (

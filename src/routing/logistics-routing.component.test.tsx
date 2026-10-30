@@ -50,8 +50,12 @@ beforeEach(() => {
         url === '/warehouses/42'
           ? { ...warehouse, isActive: !archived }
           : url === '/warehouses'
-            ? [{ ...warehouse, isActive: !archived }]
-            : /^\/(sales-orders|purchase-orders|incoming-deliveries|outgoing-deliveries)$/.test(url) ? { items: [], nextCursor: null } : [],
+            ? { items: [{ ...warehouse, isActive: !archived }], nextCursor: null }
+            : /^\/(sales-orders|purchase-orders|incoming-deliveries|outgoing-deliveries|stock-items|employees)$/.test(
+                  url,
+                ) || url.startsWith('/stock-items/warehouses/')
+              ? { items: [], nextCursor: null }
+              : [],
     }
   }
 })
