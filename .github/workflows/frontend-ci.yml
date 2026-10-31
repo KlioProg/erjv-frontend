@@ -1,0 +1,73 @@
+name: Frontend CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    name: Node 22 · typecheck, lint, tests and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Check TypeScript
+        run: npx tsc -b --pretty false
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Run unit tests
+        run: npm run test:unit
+
+      - name: Run component tests
+        run: npm run test:components
+
+      # Vite deliberately requires a real HTTPS backend origin for builds.
+      # A repository variable is appropriate: VITE_* values are public in the bundle.
+      - name: Check production build configuration
+        id: build-config
+        shell: bash
+        env:
+          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
+        run: |
+          if [[ -n "$VITE_API_BASE_URL" ]]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Production build SKIPPED: repository variable VITE_API_BASE_URL is unset."
+            {
+              echo "### Production build: not verified"
+              echo "Set the repository Actions variable \`VITE_API_BASE_URL\` to the verified HTTPS backend origin (no path or trailing slash). The build was skipped, not passed."
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Build production frontend
+        if: steps.build-config.outputs.enabled == 'true'
+        env:
+          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
+        run: npm run build
+
+      - name: Report successful production build
+        if: success() && steps.build-config.outputs.enabled == 'true'
+        run: echo "### Production build: passed on Node.js 22" >> "$GITHUB_STEP_SUMMARY"
