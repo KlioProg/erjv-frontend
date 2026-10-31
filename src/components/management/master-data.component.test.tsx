@@ -175,11 +175,17 @@ beforeEach(() => {
       )
       data = records[endpoint].find((record) => record.id === id)
     }
+    if (method === 'get' && url === endpoint && records[endpoint]) {
+      const { q, includeInactive = 'false', limit = 50, cursor } = config.params ?? {}
+      const matches = records[endpoint].filter(record =>
+        (includeInactive === 'true' || record.isActive === (includeInactive !== 'only')) &&
+        (!q || record.name.toLowerCase().includes(q.toLowerCase())))
+      const offset = cursor ? Number(cursor) : 0
+      data = { items: matches.slice(offset, offset + limit), nextCursor: offset + limit < matches.length ? String(offset + limit) : null }
+    }
     if (
       method === 'get' &&
-      (url === '/warehouses' ||
-        url === '/employees' ||
-        url === '/stock-items' ||
+      (url === '/stock-items' ||
         url.startsWith('/stock-items/warehouses/'))
     )
       data = { items: data, nextCursor: null }
@@ -192,7 +198,7 @@ afterEach(() => {
 })
 
 describe('neutral master-data tables', () => {
-  it('keeps supplier search, name sorting and canonical pagination with six columns', async () => {
+  it('keeps supplier server search, ordering and cursor pagination with six columns', async () => {
     const user = userEvent.setup()
     records['/suppliers'] = Array.from({ length: 16 }, (_, index) => ({
       ...records['/suppliers'][0],
@@ -204,14 +210,16 @@ describe('neutral master-data tables', () => {
     await screen.findByText('Supplier 16')
     const table = screen.getByRole('table')
     expect(within(table).getAllByRole('columnheader')).toHaveLength(6)
-    expect(within(table).getAllByRole('row')).toHaveLength(11)
-    await user.click(within(table).getByRole('button', { name: 'Company Name' }))
-    expect(within(table).getAllByRole('row')[1].textContent).toContain('Supplier 01')
-    await user.click(screen.getByRole('button', { name: 'Next Page' }))
-    expect(within(table).getAllByRole('row')[1].textContent).toContain('Supplier 11')
+    expect(within(table).getAllByRole('row')).toHaveLength(17)
+    expect(within(table).queryByRole('button', { name: 'Company Name' })).toBeNull()
+    await user.click(screen.getByRole('combobox', { name: 'Suppliers per page' }))
+    await user.click(screen.getByRole('option', { name: '10' }))
+    await waitFor(() => expect(within(screen.getByRole('table')).getAllByRole('row')).toHaveLength(11))
+    await user.click(screen.getByRole('button', { name: 'Next' }))
+    await screen.findByText('Supplier 06')
     await user.type(screen.getByRole('textbox', { name: 'Search suppliers' }), 'Supplier 03')
     expect(await screen.findByText('Supplier 03')).toBeTruthy()
-    expect(within(table).getAllByRole('row')).toHaveLength(2)
+    await waitFor(() => expect(within(screen.getByRole('table')).getAllByRole('row')).toHaveLength(2))
   })
 
   it.each(surfaces)(
@@ -225,8 +233,9 @@ describe('neutral master-data tables', () => {
       expect(screen.queryByText('Archived Record')).toBeNull()
       const search = screen.getByRole('textbox', { name: surface.search })
       await user.type(search, 'not found')
-      expect(screen.queryByText('Active Record')).toBeNull()
+      await waitFor(() => expect(screen.queryByText('Active Record')).toBeNull())
       await user.clear(search)
+      await screen.findByText('Active Record')
 
       let row = screen.getByText('Active Record').closest('tr')!
       await user.click(within(row).getByRole('button', { name: 'Edit' }))

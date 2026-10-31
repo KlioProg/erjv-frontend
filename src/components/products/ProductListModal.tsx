@@ -13,7 +13,8 @@ import { DataTable, type ColumnDef } from '@/components/ui/data-table'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { useProducts } from '@/features/products/products.hooks'
+import { useResourcePage } from '@/lib/use-cursor-page'
+import { CursorPageControls } from '@/components/ui/CursorPageControls'
 import { InventoryItemModal } from '../operations/InventoryItemModal'
 import type { InventoryItemResponse } from '@/features/products/products.types'
 
@@ -23,24 +24,20 @@ type ProductListModalProps = {
 }
 
 export function ProductListModal({ open, onClose }: ProductListModalProps) {
-  const { data: products = [], isLoading, error } = useProducts({ includeInactive: 'true' })
   const [search, setSearch] = useState('')
+  const query = useResourcePage<InventoryItemResponse>('/inventory-items', { includeInactive: 'true', q: search.trim() || undefined }, open)
+  const { isFetching: isLoading, error } = query
   const [editingProduct, setEditingProduct] = useState<InventoryItemResponse | null>(null)
   const [isCreateOpen, setIsCreateOpen] = useState(false)
 
-  const filtered = products.filter(
-    (product) =>
-      product.name.toLowerCase().includes(search.toLowerCase()) ||
-      product.variety?.toLowerCase().includes(search.toLowerCase()) ||
-      product.description?.toLowerCase().includes(search.toLowerCase()),
-  )
+  const filtered = query.items
 
   const productColumns: ColumnDef<InventoryItemResponse>[] = [
     {
       id: 'product',
       header: 'Product Item',
       accessorKey: 'name',
-      sortable: true,
+      sortable: false,
       cell: ({ row }) => (
         <div className="flex flex-col gap-0.5">
           <span className="text-sm font-medium text-foreground">{row.name}</span>
@@ -70,7 +67,7 @@ export function ProductListModal({ open, onClose }: ProductListModalProps) {
       id: 'price',
       header: 'Wholesale Price',
       accessorFn: (row) => Number(row.unitPrice),
-      sortable: true,
+      sortable: false,
       align: 'right',
       cell: ({ row }) => (
         <div>
@@ -143,7 +140,7 @@ export function ProductListModal({ open, onClose }: ProductListModalProps) {
           <div className="relative mt-1 shrink-0">
             <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Search products by name or variety..."
+              placeholder="Search product name..."
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               className="h-10 pl-10 text-ui"
@@ -153,7 +150,7 @@ export function ProductListModal({ open, onClose }: ProductListModalProps) {
           <div className="mt-1 min-h-0 flex-1 overflow-y-auto">
             {error ? (
               <div className="p-8 text-center text-xs text-destructive">
-                Unable to load product catalog. Please check your connection and try again.
+                Unable to load product catalog. <Button variant="link" onClick={() => void query.reload()}>Retry</Button>
               </div>
             ) : (
               <DataTable
@@ -172,6 +169,7 @@ export function ProductListModal({ open, onClose }: ProductListModalProps) {
               />
             )}
           </div>
+          <CursorPageControls {...query} label="Product" />
         </DialogContent>
       </Dialog>
 

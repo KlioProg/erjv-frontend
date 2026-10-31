@@ -1,8 +1,10 @@
-import { StockPagingControls } from './StockPagingControls'
+import { CursorPageControls } from '@/components/ui/CursorPageControls'
+import { CursorLookup } from '@/components/ui/CursorLookup'
+import { useResourcePage } from '@/lib/use-cursor-page'
 import { useState } from 'react'
 import { useAuth } from '@/features/auth/AuthContext'
-import { useWarehouses } from '@/features/logistics/warehouses.hooks'
-import { useWarehouseStock } from '@/features/logistics/stock-items.hooks'
+import { useCursorLookup } from '@/lib/use-cursor-lookup'
+import type { Warehouse } from '@/features/logistics/warehouses.types'
 import {
   thresholdChanged,
   useStockAlertEditors,
@@ -13,7 +15,6 @@ import { formatProductUnit } from '@/lib/product-unit'
 import { getErrorMessage } from '@/lib/api-client'
 import { DataTable, type ColumnDef } from '@/components/ui/data-table'
 import { OverflowValue } from '@/components/ui/OverflowValue'
-import { SearchableDropdown } from '@/components/ui/SearchableDropdown'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -30,17 +31,17 @@ import {
 export function StockAlertSettings({ onClose }: { onClose: () => void }) {
   const { isAdmin, isManager } = useAuth()
   const canEdit = isAdmin || isManager
-  const warehouses = useWarehouses()
+  const warehouses = useCursorLookup<Warehouse>('/warehouses', { includeInactive: 'false' })
   const [warehouseId, setWarehouseId] = useState<number>()
-  const selectedId = warehouseId ?? warehouses.data?.find((warehouse) => warehouse.isActive)?.id
-  const stock = useWarehouseStock(selectedId)
+  const selectedId = warehouseId ?? warehouses.items.find((warehouse) => warehouse.isActive)?.id
+  const stock = useResourcePage<StockItemWithInventoryItem>(`/stock-items/warehouses/${selectedId}`, {}, selectedId !== undefined)
   const { drafts, change, save, pending } = useStockAlertEditors(canEdit)
   const columns: ColumnDef<StockItemWithInventoryItem>[] = [
     {
       id: 'product',
       header: 'Product',
       width: '34%',
-      sortable: true,
+      sortable: false,
       sortKey: (row) => row.inventoryItem?.name ?? '',
       cell: ({ row }) => (
         <div className="flex min-w-0 flex-col gap-1">
@@ -60,7 +61,7 @@ export function StockAlertSettings({ onClose }: { onClose: () => void }) {
       header: 'Available',
       width: '22%',
       align: 'right',
-      sortable: true,
+      sortable: false,
       sortKey: (row) => stockSortKey(parseStockCents(row.availableQuantity)),
       cell: ({ row }) => (
         <OverflowValue
@@ -166,20 +167,7 @@ export function StockAlertSettings({ onClose }: { onClose: () => void }) {
           )}
           <div className="flex min-w-0 flex-col gap-2">
             <Label htmlFor="stock-alert-warehouse">Warehouse</Label>
-            <SearchableDropdown
-              id="stock-alert-warehouse"
-              ariaLabel="Stock alert warehouse"
-              options={(warehouses.data ?? []).filter((warehouse) => warehouse.isActive)}
-              value={selectedId === undefined ? '' : String(selectedId)}
-              onValueChange={(value) => setWarehouseId(Number(value))}
-              getOptionValue={(warehouse) => String(warehouse.id)}
-              getOptionLabel={(warehouse) => warehouse.name}
-              placeholder={warehouses.isLoading ? 'Loading warehouses…' : 'Select a warehouse'}
-              searchPlaceholder="Search warehouses…"
-              emptyMessage="No warehouses found."
-              disabled={pending || warehouses.isLoading || warehouses.isError}
-              className="w-full sm:max-w-sm"
-            />
+            <CursorLookup<{ id: number; name: string }> id="stock-alert-warehouse" path="/warehouses" filter={{ includeInactive: 'false' }} value={selectedId === undefined ? '' : String(selectedId)} onChange={value => setWarehouseId(Number(value))} getLabel={warehouse => warehouse.name} label="Warehouse" ariaLabel="Stock alert warehouse" disabled={pending} className="w-full sm:max-w-sm" />
           </div>
           <p id="threshold-help" className="text-xs text-muted-foreground">
             Save each row separately. Leave a threshold blank and save to disable its low-stock
@@ -208,12 +196,13 @@ export function StockAlertSettings({ onClose }: { onClose: () => void }) {
           ) : (
             <DataTable
               key={selectedId}
-              data={stock.data ?? []}
+              data={stock.items ?? []}
               columns={columns}
               getRowKey={(row) => row.id}
-              isLoading={warehouses.isLoading || stock.isLoading}
+              isLoading={warehouses.isLoading || stock.isFetching}
               loadingMessage="Loading stock alert settings…"
-              defaultSort={{ key: 'product', direction: 'asc' }}
+              pagination={false}
+              manualSorting
               className="shrink-0"
               emptyContent={
                 <p className="text-sm text-muted-foreground">No products in this warehouse.</p>
@@ -221,7 +210,7 @@ export function StockAlertSettings({ onClose }: { onClose: () => void }) {
               tableClassName="min-w-[600px] w-full table-fixed"
             />
           )}
-          {selectedId !== undefined && !pending && <StockPagingControls {...stock} />}
+          {selectedId !== undefined && !pending && <CursorPageControls {...stock} label="Stock record" />}
           {!warehouses.isError && !stock.isError && (
             <Button
               variant="link"

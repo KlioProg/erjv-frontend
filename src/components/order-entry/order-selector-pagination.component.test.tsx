@@ -149,7 +149,7 @@ it.each(['PO', 'SO'] as const)(
   '%s pages both lookups, retains off-page selections and edited terms, and increments one line',
   async (kind) => {
     const { reads, saves, path } = mount(kind)
-    await waitFor(() => expect(reads.some((read) => read.url === path)).toBe(true))
+    expect(reads.some((read) => read.url === path)).toBe(false)
     expect(reads.some((read) => read.params.cursor)).toBe(false)
     await chooseParty(kind)
     expect(reads.find((read) => read.params.cursor === `${path}-2`)?.params).toEqual({

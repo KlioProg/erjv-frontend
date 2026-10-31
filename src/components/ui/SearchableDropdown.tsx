@@ -35,6 +35,7 @@ type SearchableDropdownProps<T> = {
   avoidCollisions?: boolean
   disabled?: boolean
   isLoading?: boolean
+  onOpenChange?: (open: boolean) => void
   onSearchChange?: (query: string) => void
   selectedLabel?: string
   footer?: ReactNode
@@ -64,6 +65,7 @@ export function SearchableDropdown<T>({
   disabled = false,
   isLoading = false,
   onSearchChange,
+  onOpenChange,
   selectedLabel: fallbackLabel,
   footer,
 }: SearchableDropdownProps<T>) {
@@ -110,10 +112,11 @@ export function SearchableDropdown<T>({
       open={open && !disabled && !isLoading}
       onOpenChange={(nextOpen) => {
         setOpen(nextOpen && !disabled && !isLoading)
+        onOpenChange?.(nextOpen && !disabled && !isLoading)
         if (nextOpen) { setQuery(''); onSearchChange?.('') }
       }}
     >
-      <OverflowValue asChild value={selectedLabel}>
+      <OverflowValue asChild value={selectedLabel} describedBy={error ? fieldErrorId : undefined}>
         <DropdownMenuTrigger asChild>
           <Button
             id={id}
@@ -126,7 +129,6 @@ export function SearchableDropdown<T>({
             )}
             aria-label={ariaLabel}
           aria-invalid={!!error || undefined}
-          aria-describedby={error ? fieldErrorId : undefined}
           >
             <span data-overflow-text className="min-w-0 flex-1 truncate text-left">
               {selectedLabel}

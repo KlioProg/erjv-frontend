@@ -1,4 +1,4 @@
-import { fetchCursorList } from '@/lib/cursor-pagination'
+import { fetchCursorList, fetchCursorPage } from '@/lib/cursor-pagination'
 import axios from 'axios'
 import { serializeLineDiscount } from '@/lib/order-line-pricing'
 import { apiClient, requireRevision } from '@/lib/api-client'
@@ -113,4 +113,9 @@ export async function updateSalesOrderDraftApi(
 export async function cancelSalesOrderApi(id: number, expectedRevision: number): Promise<SalesOrderRecord> {
   const { data } = await apiClient.patch<SalesOrderRecord>(`/sales-orders/${id}/cancel`, { expectedRevision: requireRevision(expectedRevision) })
   return data
+}
+
+export function fetchSalesOrdersPageApi(filter: SalesOrderFilter = {}, signal?: AbortSignal) {
+  const { status, statuses, q, limit, cursor, orderedFrom, orderedBefore, expectedFrom, expectedBefore, clientId } = filter
+  return fetchCursorPage<SalesOrderRecord>('/sales-orders', { limit, cursor, statuses: status ? [status] : statuses, q, orderedFrom, orderedBefore, expectedFrom, expectedBefore, clientId }, signal)
 }

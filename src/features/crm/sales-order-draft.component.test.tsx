@@ -385,6 +385,8 @@ describe('sales draft integration', () => {
             ? { items: [draft], nextCursor: null }
             : url === '/sales-orders/42'
               ? draft
+              : url === '/inventory-items/1' ? products.find(product => product.id === 1)
+              : url?.startsWith('/clients/') ? clients.find(client => client.id === Number(url.split('/')[2]))
               : url === '/clients'
                 ? clients
                 : url === '/inventory-items'
@@ -431,7 +433,7 @@ describe('sales draft integration', () => {
       status: 200,
       statusText: 'OK',
       headers: {},
-      data: config.url === '/sales-orders' ? { items: [draft], nextCursor: null } : [],
+      data: config.url === '/sales-orders' ? { items: [draft], nextCursor: null } : config.url === '/sales-orders/42' ? draft : config.url === '/clients/7' ? clients[0] : config.url === '/inventory-items/1' ? products[0] : config.url === '/outgoing-deliveries' ? { items: [], nextCursor: null } : [],
     })
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     render(
@@ -440,6 +442,8 @@ describe('sales draft integration', () => {
       </QueryClientProvider>,
     )
     await user.click(await screen.findByRole('button', { name: 'View sales order SO-42' }))
+    await screen.findByRole('dialog', { name: /SO-42/ })
+    await screen.findByText('Product 1')
     expect(screen.queryByRole('button', { name: 'Edit Draft' })).toBeNull()
     expect(screen.queryByRole('menuitem', { name: 'Edit Draft' })).toBeNull()
     queryClient.clear()

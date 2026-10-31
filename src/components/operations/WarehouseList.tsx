@@ -1,4 +1,5 @@
-import { useCursorLookup } from '@/lib/use-cursor-lookup'
+import { useResourcePage } from '@/lib/use-cursor-page'
+import { CursorPageControls } from '@/components/ui/CursorPageControls'
 import { StockPagingControls } from '@/components/inventory/StockPagingControls'
 import { DataTableExpandToggle } from '@/components/ui/DataTableExpandedSection'
 import { PageHeader, PageOverview, PageToolbar } from '@/components/ui/ManagementPage'
@@ -65,7 +66,7 @@ function summarizeWarehouseStock(items: StockItem[]): WarehouseStockSummary {
 export function WarehouseList({ onOpenWarehouse }: { onOpenWarehouse: (id: number) => void }) {
   const [activeTab, setActiveTab] = useState<'ACTIVE' | 'ARCHIVED'>('ACTIVE')
   const [searchTerm, setSearchTerm] = useState('')
-  const warehousesQuery = useCursorLookup<Warehouse>('/warehouses', {
+  const warehousesQuery = useResourcePage<Warehouse>('/warehouses', {
     includeInactive: activeTab === 'ARCHIVED' ? 'only' : 'false',
     ...(searchTerm.trim() ? { q: searchTerm.trim() } : {}),
   })
@@ -102,22 +103,7 @@ export function WarehouseList({ onOpenWarehouse }: { onOpenWarehouse: (id: numbe
     }
     return totals
   }, [stockItems])
-  const filteredWarehouses = useMemo(() => {
-    const term = searchTerm.trim().toLowerCase()
-    return (activeTab === 'ACTIVE' ? activeWarehouses : archivedWarehouses).filter(
-      (warehouse) =>
-        !term ||
-        String(warehouse.name ?? '')
-          .toLowerCase()
-          .includes(term) ||
-        String(warehouse.address ?? '')
-          .toLowerCase()
-          .includes(term) ||
-        String(warehouse.contactNumber ?? '')
-          .toLowerCase()
-          .includes(term),
-    )
-  }, [activeTab, activeWarehouses, archivedWarehouses, searchTerm])
+  const filteredWarehouses = activeTab === 'ACTIVE' ? activeWarehouses : archivedWarehouses
 
   const closeArchiveDialog = () => {
     if (deactivateMutation.isPending) return
@@ -170,7 +156,7 @@ export function WarehouseList({ onOpenWarehouse }: { onOpenWarehouse: (id: numbe
       id: 'name',
       header: 'Warehouse',
       width: '36%',
-      sortable: true,
+      sortable: false,
       sortKey: 'name',
       cell: ({ row }) => (
         <div className="min-w-0">
@@ -198,7 +184,7 @@ export function WarehouseList({ onOpenWarehouse }: { onOpenWarehouse: (id: numbe
       width: '32%',
       className: 'hidden lg:table-cell',
       headerClassName: 'hidden lg:table-cell',
-      sortable: true,
+      sortable: false,
       sortKey: 'address',
       cell: ({ row }) => (
         <span className="flex min-w-0 items-center gap-1.5 text-sm text-muted-foreground">
@@ -214,7 +200,7 @@ export function WarehouseList({ onOpenWarehouse }: { onOpenWarehouse: (id: numbe
       className: 'hidden sm:table-cell',
       headerClassName: 'hidden sm:table-cell',
       align: 'right',
-      sortable: true,
+      sortable: false,
       sortKey: (row) => warehouseTotals.get(row.id)?.products || 0,
       cell: ({ row }) => {
         const expanded = expandedWarehouseIds.has(row.id)
@@ -308,9 +294,9 @@ export function WarehouseList({ onOpenWarehouse }: { onOpenWarehouse: (id: numbe
           activeTab={activeTab}
           onTabChange={setActiveTab}
           activeLabel="Active Warehouses"
-          activeCount={activeWarehouses.length}
+
           archivedLabel="Archived Warehouses"
-          archivedCount={archivedWarehouses.length}
+
           activeIcon={<WarehouseIcon className="size-3.5" />}
           bannerDescription="Archived warehouses retain their inventory records and can be restored."
         />
@@ -341,23 +327,11 @@ export function WarehouseList({ onOpenWarehouse }: { onOpenWarehouse: (id: numbe
           </Button>
         )}
       </PageToolbar>
-      <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground">
-        <p>
-          {allWarehouses.length} loaded {activeTab === 'ARCHIVED' ? 'archived' : 'active'}{' '}
-          warehouses. Tab counts describe loaded records.
-        </p>
-        {warehousesQuery.hasNextPage && (
-          <Button
-            variant="outline"
-            disabled={warehousesQuery.isFetching}
-            onClick={() => void warehousesQuery.fetchNextPage()}
-          >
-            Load more warehouses
-          </Button>
-        )}
-      </div>
+      <CursorPageControls {...warehousesQuery} label="Warehouse" />
       <StockPagingControls {...stockQuery} />
       <DataTable
+            pagination={false}
+            manualSorting
         appearance="management"
         data={filteredWarehouses}
         columns={columns}
@@ -368,7 +342,7 @@ export function WarehouseList({ onOpenWarehouse }: { onOpenWarehouse: (id: numbe
         }
         onRowClick={(warehouse) => onOpenWarehouse(warehouse.id)}
         rowClassName={() => 'hover:bg-accent focus-within:bg-accent'}
-        isLoading={warehousesQuery.isLoading || stockQuery.isLoading}
+        isLoading={warehousesQuery.isFetching || stockQuery.isLoading}
         loadingMessage="Loading warehouses..."
         emptyContent={
           searchTerm

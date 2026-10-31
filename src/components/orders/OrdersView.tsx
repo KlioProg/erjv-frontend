@@ -1,3 +1,14 @@
+import type { Client } from '@/features/crm/clients.types'
+import type { InventoryItemResponse } from '@/features/products/products.types'
+import type { Warehouse } from '@/features/logistics/warehouses.types'
+import type { Employee } from '@/features/staffing/staffing.types'
+import type { DeliveryVehicle } from '@/features/logistics/delivery-vehicles.types'
+import type { DeliveryRunRecord } from '@/features/logistics/delivery-runs.types'
+import { useRecordsById } from '@/lib/use-records-by-id'
+import { fetchOutgoingDeliveriesApi } from '@/features/logistics/outgoing-deliveries.api'
+import { fetchClientByIdApi } from '@/features/crm/clients.api'
+import { CursorPageControls } from '@/components/ui/CursorPageControls'
+import { Label } from '@/components/ui/label'
 import { PageHeader, PageToolbar } from '@/components/ui/ManagementPage'
 import { SalesOrderCancelModal } from './SalesOrderCancelModal'
 import { useState, useMemo } from 'react'
@@ -20,16 +31,10 @@ import { buildSalesOrderPayload } from '@/features/crm/sales-order-entry.utils'
 import { OrderDetailDrawer } from './OrderDetailDrawer'
 import { QuickDispatchModal } from './QuickDispatchModal'
 import { DeliveryDetailModal } from '@/components/deliveries/shared/DeliveryDetailModal'
-import { useClients } from '@/features/crm/clients.hooks'
-import { useProducts } from '@/features/products/products.hooks'
-import { useWarehouses } from '@/features/logistics/warehouses.hooks'
 import { useStockItems } from '@/features/logistics/stock-items.hooks'
-import { useDeliveryVehicles } from '@/features/logistics/delivery-vehicles.hooks'
-import { useEmployees } from '@/features/staffing/staffing.hooks'
-import { useOutgoingDeliveries } from '@/features/logistics/outgoing-deliveries.hooks'
 import { CompleteDeliveryModal } from '@/components/deliveries/shared/CompleteDeliveryModal'
 import {
-  useSalesOrders,
+  useSalesOrdersPage,
   SALES_ORDERS_QUERY_KEY,
   useCreateSalesOrder,
   useConfirmSalesOrder,
@@ -38,7 +43,7 @@ import {
   useUpdateSalesOrderDraft,
 } from '@/features/crm/sales-orders.hooks'
 import { toast } from 'sonner'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQueries, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '@/features/auth/AuthContext'
 import type { SalesOrderRecord } from '@/features/crm/sales-orders.types'
 import { fetchSalesOrderByIdApi } from '@/features/crm/sales-orders.api'
@@ -96,6 +101,8 @@ export function OrdersView({
 }: OrdersViewProps = {}) {
   const queryClient = useQueryClient()
   const [searchTerm, setSearchTerm] = useState('')
+  const [orderedFrom, setOrderedFrom] = useState('')
+  const [orderedBefore, setOrderedBefore] = useState('')
   const [activeStatus, setActiveStatus] = useState<OrderTabFilter>('Active')
 
   // Modals & Drawers state
@@ -109,24 +116,31 @@ export function OrdersView({
   const [orderToCancel, setOrderToCancel] = useState<SalesOrderRecord | null>(null)
 
   // Real backend queries
-  const ordersQuery = useSalesOrders()
-  const { data: salesOrders = [], isLoading: isLoadingOrders } = ordersQuery
-  const { data: clients = [] } = useClients()
-  const productsQuery = useProducts()
+  const ordersQuery = useSalesOrdersPage({ statuses: activeStatus === 'Active' ? ['DRAFT', 'CONFIRMED', 'PARTIALLY_DELIVERED'] : activeStatus === 'Completed' ? ['DELIVERED'] : ['CANCELLED'], q: searchTerm.trim() || undefined, orderedFrom: orderedFrom ? new Date(orderedFrom).toISOString() : undefined, orderedBefore: orderedBefore ? new Date(orderedBefore).toISOString() : undefined })
+  const salesOrders = ordersQuery.items
+  const isLoadingOrders = ordersQuery.isFetching
+  const editingOrderQuery = useSalesOrderById(editingOrderId)
+  const selectedDetail = useSalesOrderById(isDetailDrawerOpen ? selectedOrderRecord?.id : undefined)
+  const baseClients = useMemo<Client[]>(() => [], [])
+  const productsQuery = useRecordsById<InventoryItemResponse>('/inventory-items', [...salesOrders, ...[selectedDetail.data, editingOrderQuery.data, selectedOrderRecord].filter((order): order is SalesOrderRecord => !!order)].flatMap(order => order.items.map(item => item.inventoryItemId)))
   const { data: products = [] } = productsQuery
-  const { data: warehouses = [] } = useWarehouses()
   const stockQuery = useStockItems()
   const { data: stockItems = [] } = stockQuery
-  const { data: vehicles = [] } = useDeliveryVehicles({ includeInactive: 'true' })
-  const { data: employees = [] } = useEmployees({ includeInactive: 'true' })
-  const { data: outgoingDeliveries = [] } = useOutgoingDeliveries()
+  const deliveryQueries = useQueries({ queries: [...new Set([...salesOrders.map(order => order.id), selectedOrderRecord?.id].filter((id): id is number => !!id))].map(id => ({ queryKey: ['outgoing-deliveries', 'for-order', id], queryFn: ({ signal }) => fetchOutgoingDeliveriesApi({ salesOrderId: id }, signal) })) })
+  const outgoingDeliveries = [...new Map(deliveryQueries.flatMap(query => query.data ?? []).map(delivery => [delivery.id, delivery])).values()]
+  const { data: runs } = useRecordsById<DeliveryRunRecord>('/delivery-runs', outgoingDeliveries.map(delivery => delivery.runId))
+  const { data: vehicles } = useRecordsById<DeliveryVehicle>('/delivery-vehicles', runs.map(run => run.deliveryVehicleId))
+  const { data: employees } = useRecordsById<Employee>('/employees', runs.map(run => run.driverEmployeeId))
+  const { data: warehouses } = useRecordsById<Warehouse>('/warehouses', outgoingDeliveries.flatMap(delivery => [delivery.warehouseId, ...delivery.items.map(item => item.stockItem?.warehouseId)]))
+
+  const pageClients = useQueries({ queries: [...new Set([...salesOrders.map((order) => order.clientId), ...(selectedOrderRecord ? [selectedOrderRecord.clientId] : [])])].filter((id) => !baseClients.some((client) => client.id === id)).map((id) => ({ queryKey: ['clients', 'id', id], queryFn: () => fetchClientByIdApi(id) })) })
+  const clients = useMemo(() => [...baseClients, ...pageClients.flatMap((query) => query.data ? [query.data] : [])], [baseClients, pageClients])
 
   // Mutations
   const createOrderMutation = useCreateSalesOrder({ notifySuccess: false })
   const confirmOrderMutation = useConfirmSalesOrder()
   const cancelOrderMutation = useCancelSalesOrder()
   const updateDraftMutation = useUpdateSalesOrderDraft()
-  const editingOrderQuery = useSalesOrderById(editingOrderId)
 
   const { user, isAdmin, isManager } = useAuth()
   const canManage = isAdmin || isManager
@@ -136,62 +150,15 @@ export function OrdersView({
   const clientMap = useMemo(() => new Map(clients.map((c) => [c.id, c])), [clients])
   const productMap = useMemo(() => new Map(products.map((p) => [p.id, p])), [products])
 
+
   // Sync selectedOrderRecord if the list updates
   const activeSelectedOrder = useMemo(() => {
     if (!selectedOrderRecord) return null
+    if (selectedDetail.data?.id === selectedOrderRecord.id) return selectedDetail.data
     return salesOrders.find((o) => o.id === selectedOrderRecord.id) || selectedOrderRecord
-  }, [salesOrders, selectedOrderRecord])
+  }, [salesOrders, selectedOrderRecord, selectedDetail.data])
 
-  // Live tab counters
-  const statusCount = (status: OrderTabFilter) => {
-    if (status === 'Active') {
-      return salesOrders.filter((o) =>
-        ['DRAFT', 'CONFIRMED', 'PARTIALLY_DELIVERED'].includes(o.status),
-      ).length
-    }
-    if (status === 'Completed') {
-      return salesOrders.filter((o) => o.status === 'DELIVERED').length
-    }
-    if (status === 'Cancelled') {
-      return salesOrders.filter((o) => o.status === 'CANCELLED').length
-    }
-    return 0
-  }
-
-  // Filter orders by active tab and search
-  const filteredOrders = useMemo(() => {
-    return salesOrders.filter((order) => {
-      let matchesTab = false
-      if (activeStatus === 'Active') {
-        matchesTab = ['DRAFT', 'CONFIRMED', 'PARTIALLY_DELIVERED'].includes(order.status)
-      } else if (activeStatus === 'Completed') {
-        matchesTab = order.status === 'DELIVERED'
-      } else if (activeStatus === 'Cancelled') {
-        matchesTab = order.status === 'CANCELLED'
-      }
-
-      if (!matchesTab) return false
-
-      if (!searchTerm.trim()) return true
-      const term = searchTerm.toLowerCase().trim()
-      const client = clientMap.get(order.clientId)
-      const clientName = client?.name.toLowerCase() || ''
-      const orderNo = order.orderNumber.toLowerCase()
-      const address = order.deliveryAddress?.toLowerCase() ?? ''
-
-      const hasMatchingProduct = (order.items || []).some((item) => {
-        const prod = productMap.get(item.inventoryItemId)
-        return prod?.name.toLowerCase().includes(term) || false
-      })
-
-      return (
-        orderNo.includes(term) ||
-        clientName.includes(term) ||
-        address.includes(term) ||
-        hasMatchingProduct
-      )
-    })
-  }, [salesOrders, activeStatus, searchTerm, clientMap, productMap])
+  const filteredOrders = salesOrders
 
   // Return the saved identity so the composer can confirm or retry that exact draft.
   const handleSaveOrder = async (
@@ -488,21 +455,18 @@ export function OrdersView({
           {
             value: 'Active',
             label: 'Active Orders',
-            count: statusCount('Active'),
             icon: <CheckCircle2 className="size-3.5" />,
             accent: 'green',
           },
           {
             value: 'Completed',
             label: 'Completed Orders',
-            count: statusCount('Completed'),
             icon: <CheckCircle2 className="size-3.5" />,
             accent: 'blue',
           },
           {
             value: 'Cancelled',
             label: 'Cancelled Orders',
-            count: statusCount('Cancelled'),
             icon: <XCircle className="size-3.5" />,
             accent: 'red',
           },
@@ -535,6 +499,11 @@ export function OrdersView({
         </Button>
       </PageToolbar>
 
+      <div className="flex flex-wrap gap-3" aria-label="Ordered date filters">
+        <div className="space-y-1"><Label htmlFor="so-ordered-from">Ordered from (inclusive)</Label><Input id="so-ordered-from" type="datetime-local" value={orderedFrom} onChange={(event) => setOrderedFrom(event.target.value)} className="h-9 w-auto" /></div>
+        <div className="space-y-1"><Label htmlFor="so-ordered-before">Ordered before (exclusive)</Label><Input id="so-ordered-before" type="datetime-local" value={orderedBefore} onChange={(event) => setOrderedBefore(event.target.value)} className="h-9 w-auto" /></div>
+      </div>
+      <p className="text-xs text-muted-foreground">Search covers order number, customer name and external reference. Results use the backend order.</p>
       {/* Orders Table */}
       {ordersQuery.isError ? (
         <Alert variant="destructive">
@@ -544,7 +513,7 @@ export function OrdersView({
               variant="outline"
               size="sm"
               className="ml-2"
-              onClick={() => void ordersQuery.refetch()}
+              onClick={() => void ordersQuery.reload()}
               disabled={ordersQuery.isFetching}
             >
               {ordersQuery.isFetching ? 'Retrying...' : 'Retry'}
@@ -559,8 +528,7 @@ export function OrdersView({
           getRowKey={({ order }) => order.id}
           isLoading
           loadingMessage="Loading sales orders..."
-          pageSize={10}
-          pageSizeOptions={[10, 25, 50, 100]}
+          pagination={false}
           tableClassName="table-fixed min-w-[760px] lg:min-w-[960px]"
         />
       ) : filteredOrders.length === 0 ? (
@@ -574,7 +542,7 @@ export function OrdersView({
             </span>
             <p className="text-xs text-muted-foreground mt-1 max-w-xs">
               {searchTerm.trim()
-                ? 'Try searching with a different order number, customer name, or item.'
+                ? 'Try searching with a different order number, customer name, or external reference.'
                 : activeStatus === 'Active'
                   ? 'Click "Create Sales Order" to record your first customer purchase!'
                   : 'Orders moved into this status will appear here.'}
@@ -587,13 +555,14 @@ export function OrdersView({
           data={orderRows}
           columns={salesOrderColumns}
           getRowKey={({ order }) => order.id}
-          pageSize={10}
-          pageSizeOptions={[10, 25, 50, 100]}
+          pagination={false}
 
           onRowClick={({ order }) => openOrderDetails(order)}
           tableClassName="table-fixed min-w-[760px] lg:min-w-[960px]"
         />
       )}
+
+      <CursorPageControls {...ordersQuery} />
 
       {orderToCancel && (
         <SalesOrderCancelModal
@@ -640,6 +609,7 @@ export function OrdersView({
         canManage &&
         (editingOrderQuery.data ? (
           <OrderModal
+            remoteSelectors
             key={editingOrderId}
             open
             draftOrder={editingOrderQuery.data}

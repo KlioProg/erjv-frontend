@@ -1,9 +1,10 @@
+import { useResourcePage } from '@/lib/use-cursor-page'
+import { CursorPageControls } from '@/components/ui/CursorPageControls'
 import { PageHeader, PageToolbar } from '@/components/ui/ManagementPage'
 import { useState } from 'react'
 import {
   Plus,
   Briefcase,
-  Archive,
   RotateCcw,
   CheckCircle2,
   Search,
@@ -15,7 +16,6 @@ import { Spinner } from '@/components/ui/spinner'
 import { DataTable, type ColumnDef } from '@/components/ui/data-table'
 import { DataTableActions } from '@/components/ui/DataTableActions'
 import {
-  useAllJobs,
   useDeactivateJob,
   useReactivateJob,
   useEmployeesForJob,
@@ -72,11 +72,13 @@ function JobStaffCount({ jobId, isArchived }: { jobId: number; isArchived?: bool
 
 export function JobList() {
   const [activeTab, setActiveTab] = useState<'ACTIVE' | 'ARCHIVED'>('ACTIVE')
-  const { data: jobs = [], isLoading, isFetching, error, refetch } = useAllJobs()
   const deactivateMutation = useDeactivateJob({ onViewArchive: () => setActiveTab('ARCHIVED') })
   const reactivateMutation = useReactivateJob()
 
   const [searchTerm, setSearchTerm] = useState('')
+  const jobsQuery = useResourcePage<Job>('/jobs', { includeInactive: activeTab === 'ACTIVE' ? 'false' : 'only', q: searchTerm.trim() || undefined })
+  const jobs = jobsQuery.items
+  const { isFetching: isLoading, isFetching, error, reload: refetch } = jobsQuery
   const [selectedJob, setSelectedJob] = useState<Job | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [jobToDeactivate, setJobToDeactivate] = useState<Job | null>(null)
@@ -85,13 +87,7 @@ export function JobList() {
   const archivedJobs = jobs.filter((j) => j.isActive === false)
   const currentJobList = activeTab === 'ACTIVE' ? activeJobs : archivedJobs
 
-  const filteredJobList = currentJobList.filter((j) => {
-    const term = searchTerm.toLowerCase()
-    return (
-      j.name.toLowerCase().includes(term) ||
-      (j.description && j.description.toLowerCase().includes(term))
-    )
-  })
+  const filteredJobList = currentJobList
 
   const handleCreate = () => {
     setSelectedJob(null)
@@ -124,7 +120,7 @@ export function JobList() {
       id: 'name',
       header: 'Position',
       accessorKey: 'name',
-      sortable: true,
+      sortable: false,
       className: 'min-w-48 font-medium',
       cell: ({ row }) => (
         <div className="flex min-w-0 items-center gap-2">
@@ -137,7 +133,7 @@ export function JobList() {
       id: 'description',
       header: 'Description',
       accessorKey: 'description',
-      sortable: true,
+      sortable: false,
       sortKey: (job) => job.description || '',
       className: 'min-w-64 max-w-xl text-muted-foreground',
       cell: ({ row }) => (
@@ -191,9 +187,9 @@ export function JobList() {
         activeTab={activeTab}
         onTabChange={setActiveTab}
         activeLabel="Active Positions"
-        activeCount={activeJobs.length}
+
         archivedLabel="Archived Positions"
-        archivedCount={archivedJobs.length}
+
         activeIcon={<Briefcase className="size-3.5" />}
         bannerDescription="Showing deactivated job positions. Role definitions and previous staff assignments are safely preserved and can be reactivated anytime."
       />
@@ -204,7 +200,7 @@ export function JobList() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
           <Input
             aria-label="Search job positions"
-            placeholder="Search positions by title or duties..."
+            placeholder="Search position name..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-9"
@@ -240,6 +236,8 @@ export function JobList() {
         </div>
       ) : (
         <DataTable
+          pagination={false}
+          manualSorting
           appearance="management"
           data={filteredJobList}
           columns={jobColumns}
@@ -261,22 +259,9 @@ export function JobList() {
                 {searchTerm
                   ? `No positions matched "${searchTerm}". Try a different keyword.`
                   : activeTab === 'ACTIVE'
-                    ? archivedJobs.length > 0
-                      ? `All positions are archived (${archivedJobs.length} total).`
-                      : 'Create a job position to define roles such as Cashier or Manager.'
+                    ? 'Create a job position to define roles such as Cashier or Manager.'
                     : 'Archived job positions can be restored at any time.'}
               </p>
-              {!searchTerm && activeTab === 'ACTIVE' && archivedJobs.length > 0 && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setActiveTab('ARCHIVED')}
-                  className="mt-3 gap-2"
-                >
-                  <Archive aria-hidden="true" className="size-3.5 text-status-warning-foreground" />
-                  View Archived Positions ({archivedJobs.length})
-                </Button>
-              )}
             </div>
           }
           rowClassName={(job) => (job.isActive === false ? 'bg-muted/10 opacity-75' : '')}
@@ -284,6 +269,7 @@ export function JobList() {
         />
       )}
 
+      <CursorPageControls {...jobsQuery} label="Job" />
       <JobModal job={selectedJob} open={isModalOpen} onClose={() => setIsModalOpen(false)} />
 
       <ConfirmDeleteModal

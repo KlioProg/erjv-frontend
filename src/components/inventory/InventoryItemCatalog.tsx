@@ -1,4 +1,9 @@
-import { useCursorLookup } from '@/lib/use-cursor-lookup'
+import { useRecordsById } from '@/lib/use-records-by-id'
+import { useStockItemByPair } from '@/features/logistics/stock-items.hooks'
+import type { StockItemWithWarehouse } from '@/features/logistics/stock-items.types'
+import type { Warehouse } from '@/features/logistics/warehouses.types'
+import { useResourcePage } from '@/lib/use-cursor-page'
+import { CursorPageControls } from '@/components/ui/CursorPageControls'
 import { StockPagingControls } from '@/components/inventory/StockPagingControls'
 import {
   DataTableExpandedSection,
@@ -13,7 +18,6 @@ import {
   filterStockWarnings,
   stockCondition,
   stockConditionForItem,
-  stockConditionRank,
   type InventoryNavigationTarget,
   type InventoryWarningTarget,
   type StockWarningFilter,
@@ -45,7 +49,6 @@ import {
 import { useStockItems } from '@/features/logistics/stock-items.hooks'
 import {
   buildCatalogStockMap,
-  filterCatalogProducts,
 } from '@/features/products/products.catalog.utils'
 import { useAuth } from '@/features/auth/AuthContext'
 import type { InventoryItemResponse } from '@/features/products/products.types'
@@ -91,10 +94,10 @@ export function InventoryItemCatalog({
   const [internalActiveTab, setInternalActiveTab] = useState<'ACTIVE' | 'ARCHIVED'>('ACTIVE')
   const activeTab = controlledActiveTab ?? internalActiveTab
   const [searchTerm, setSearchTerm] = useState('')
-  const productsQuery = useCursorLookup<InventoryItemResponse>('/inventory-items', {
+  const productsQuery = useResourcePage<InventoryItemResponse>('/inventory-items', {
     includeInactive: activeTab === 'ARCHIVED' ? 'only' : 'false',
     ...(searchTerm.trim() ? { q: searchTerm.trim() } : {}),
-  })
+  }, true, warningScope)
   const focusedProductQuery = useProduct(focusTarget?.productId ?? 0)
   const allProducts = useMemo(() => {
     const items = productsQuery.items
@@ -123,7 +126,7 @@ export function InventoryItemCatalog({
     () => new Set(focusTarget ? [focusTarget.productId] : []),
   )
   const [selectedPage, setSelectedPage] = useState<number | null>(null)
-  const [pageSize, setPageSize] = useState(10)
+  const pageSize = productsQuery.pageSize
   const focusApplied = useRef(false)
 
   // Modals state
@@ -174,24 +177,7 @@ export function InventoryItemCatalog({
     [warningLocations],
   )
 
-  const filteredProducts = useMemo(
-    () =>
-      [...filterCatalogProducts(currentList, searchTerm)]
-        .filter((product) => !warningScope || warningProductIds.has(product.id))
-        .sort((a, b) => {
-          const quantity = (id: number) =>
-            stockComplete
-              ? (productStockMap.get(id)?.totalCents ?? (productStockMap.has(id) ? null : 0n))
-              : null
-          return (
-            stockConditionRank[stockCondition(quantity(a.id))] -
-              stockConditionRank[stockCondition(quantity(b.id))] ||
-            a.name.localeCompare(b.name) ||
-            a.id - b.id
-          )
-        }),
-    [currentList, searchTerm, productStockMap, warningScope, warningProductIds, stockComplete],
-  )
+  const filteredProducts = currentList.filter((product) => !warningScope || warningProductIds.has(product.id))
 
   const handleCreateProduct = () => {
     setSelectedProductForEdit(null)
@@ -216,7 +202,7 @@ export function InventoryItemCatalog({
   }
 
   const isLoading =
-    productsQuery.isLoading ||
+    productsQuery.isFetching ||
     Boolean(focusTarget && focusedProductQuery.isLoading) ||
     stockQuery.isLoading ||
     Boolean(warningScope && warehousesQuery.isLoading)
@@ -264,7 +250,7 @@ export function InventoryItemCatalog({
       id: 'name',
       header: 'Product',
       width: '40%',
-      sortable: true,
+      sortable: false,
       sortKey: 'name',
       cell: ({ row }) => {
         return (
@@ -310,7 +296,7 @@ export function InventoryItemCatalog({
       className: 'hidden lg:table-cell',
       headerClassName: 'hidden lg:table-cell',
       align: 'right',
-      sortable: true,
+      sortable: false,
       sortKey: 'unitPrice',
       cell: ({ row }) => <InventoryWholesalePrice product={row} canEdit={isAdmin || isManager} />,
     },
@@ -324,7 +310,7 @@ export function InventoryItemCatalog({
       ),
       width: '14%',
       align: 'center',
-      sortable: true,
+      sortable: false,
       sortKey: (row) =>
         stockSortKey(
           stockComplete
@@ -380,7 +366,7 @@ export function InventoryItemCatalog({
       ),
       width: '16%',
       align: 'center',
-      sortable: true,
+      sortable: false,
       sortKey: (row) => (stockComplete ? (productStockMap.get(row.id)?.warehouseCount ?? 0) : null),
       cell: ({ row }) => {
         const warehouseCount = productStockMap.get(row.id)?.warehouseCount ?? 0
@@ -427,101 +413,10 @@ export function InventoryItemCatalog({
       : []),
   ]
 
-  const renderProductLocations = (product: InventoryItemResponse) => {
-    const stockData = productStockMap.get(product.id)
-    if ((!warningScope && !expandedProductIds.has(product.id)) || !stockData?.allocations.length)
-      return null
-
-    return (
-      <DataTableExpandedSection
-        id={`inventory-locations-${product.id}`}
-        title="Stock by location"
-        ariaLabel={`Stock by location for ${String(product.name ?? 'product')}`}
-      >
-        <div className="divide-y divide-border">
-          {[...stockData.allocations]
-            .filter(
-              (stock) =>
-                !warningScope ||
-                warningLocations.some(
-                  (warning) =>
-                    warning.productId === product.id && warning.warehouseId === stock.warehouseId,
-                ),
-            )
-            .sort((a, b) =>
-              String(a.warehouse?.name ?? '').localeCompare(String(b.warehouse?.name ?? '')),
-            )
-            .map((stock) => {
-              const quarantined = parseStockCents(stock.quarantinedQuantity)
-              return (
-                <div
-                  key={stock.id}
-                  id={`inventory-location-${product.id}-${stock.warehouseId}`}
-                  tabIndex={-1}
-                  aria-label={`Stock location ${stock.warehouse?.name || `Warehouse #${stock.warehouseId}`} for ${product.name}`}
-                  className={cn(
-                    'grid min-h-11 min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                    stockConditionForItem(stock) === 'OUT' &&
-                      product.isActive &&
-                      'bg-destructive/5',
-                    focusTarget?.productId === product.id &&
-                      focusTarget.warehouseId === stock.warehouseId &&
-                      'ring-2 ring-ring',
-                  )}
-                >
-                  <div className="flex min-w-0 flex-col gap-0.5">
-                    <div className="flex min-w-0 items-center gap-2">
-                      <WarehouseIcon className="size-4 shrink-0 text-muted-foreground" />
-                      <OverflowValue
-                        value={stock.warehouse?.name || `Warehouse #${stock.warehouseId}`}
-                        onActivate={
-                          onOpenWarehouse ? () => onOpenWarehouse(stock.warehouseId) : undefined
-                        }
-                        className="h-auto min-h-8 whitespace-normal p-0 text-left text-sm font-medium [overflow-wrap:anywhere] pointer-coarse:min-h-11"
-                      />
-                    </div>
-                    {quarantined !== null && quarantined > 0n && (
-                      <span className="pl-6 text-xs text-status-warning-foreground [overflow-wrap:anywhere]">
-                        {formatStockCents(quarantined)} {formatProductUnit(product.unit, 'units')}{' '}
-                        quarantined
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex min-w-0 items-center gap-2 sm:gap-3">
-                    <div className="flex w-24 min-w-0 flex-col items-end gap-0.5 sm:w-28">
-                      <div className="flex max-w-full items-center justify-end gap-1.5">
-                        {product.isActive && (
-                          <StockIndicator
-                            condition={stockConditionForItem(stock)}
-                            label={`${stockConditionForItem(stock) === 'LOW' ? 'Low stock' : 'Out of stock'} at ${stock.warehouse?.name || `Warehouse #${stock.warehouseId}`}`}
-                          />
-                        )}
-                        <span className="min-w-0 text-right text-sm font-medium tabular-nums [overflow-wrap:anywhere]">
-                          {formatStockCents(availableStockCents(stock))}{' '}
-                          {formatProductUnit(product.unit, 'units')}
-                        </span>
-                      </div>
-                      <span className="text-[11px] text-muted-foreground">Available</span>
-                    </div>
-                    {onOpenWarehouse && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => onOpenWarehouse(stock.warehouseId)}
-                        aria-label={`View inventory in ${String(stock.warehouse?.name ?? 'warehouse')}`}
-                        className="h-8 shrink-0 gap-1 px-2 text-[13px] text-primary-text pointer-coarse:min-h-11"
-                      >
-                        View <ArrowRight className="size-3.5" />
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              )
-            })}
-        </div>
-      </DataTableExpandedSection>
-    )
-  }
+  const renderProductLocations = (product: InventoryItemResponse) =>
+    warningScope || expandedProductIds.has(product.id)
+      ? <ProductLocations product={product} warningScope={warningScope} warningLocations={warningLocations} focusTarget={focusTarget} onOpenWarehouse={onOpenWarehouse} />
+      : null
 
   return (
     <div className="flex flex-col gap-4">
@@ -532,9 +427,9 @@ export function InventoryItemCatalog({
             activeTab={activeTab}
             onTabChange={handleTabChange}
             activeLabel="Active"
-            activeCount={activeProducts.length}
+
             archivedLabel="Archived"
-            archivedCount={archivedProducts.length}
+
             activeIcon={<Package className="size-3.5" />}
             bannerDescription="Showing deactivated catalog items. Pricing history and warehouse stock linkages are preserved and can be reactivated anytime."
           />
@@ -546,6 +441,7 @@ export function InventoryItemCatalog({
 
       {warningScope && (
         <section aria-label="Stock warning filters" className="flex flex-wrap items-center gap-2">
+          <p className="w-full text-xs text-muted-foreground">Warning filters apply to this product page and loaded stock records.</p>
           <Select
             value={warningScope.warningFilter}
             onValueChange={(value) => {
@@ -682,21 +578,7 @@ export function InventoryItemCatalog({
           </Button>
         </p>
       )}
-      <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground">
-        <p>
-          {productsQuery.items.length} loaded {activeTab === 'ARCHIVED' ? 'archived' : 'active'}{' '}
-          products. Tab counts describe loaded records.
-        </p>
-        {productsQuery.hasNextPage && (
-          <Button
-            variant="outline"
-            disabled={productsQuery.isFetching}
-            onClick={() => void productsQuery.fetchNextPage()}
-          >
-            Load more products
-          </Button>
-        )}
-      </div>
+      <CursorPageControls {...productsQuery} label="Product" />
       <StockPagingControls {...stockQuery} />
       {/* Reusable DataTable Component */}
       {!productsQuery.isError &&
@@ -726,12 +608,8 @@ export function InventoryItemCatalog({
             renderExpandedRow={renderProductLocations}
             isLoading={isLoading}
             loadingMessage="Loading inventory catalog items..."
-            pagination={true}
-            page={page}
-            onPageChange={setSelectedPage}
-            pageSize={pageSize}
-            onPageSizeChange={setPageSize}
-            pageSizeOptions={[10, 25, 50, 100]}
+            pagination={false}
+            manualSorting
             tableClassName="table-fixed w-full"
             rowClassName={(row) => {
               const total = stockComplete
@@ -778,4 +656,123 @@ export function InventoryItemCatalog({
       />
     </div>
   )
+}
+
+function ProductLocations({ product, warningScope, warningLocations, focusTarget, onOpenWarehouse }: {
+  product: InventoryItemResponse
+  warningScope: InventoryWarningTarget | null
+  warningLocations: ReturnType<typeof buildStockWarnings>
+  focusTarget?: InventoryNavigationTarget & { productId: number }
+  onOpenWarehouse?: (id: number) => void
+}) {
+  const query = useResourcePage<StockItemWithWarehouse>(`/stock-items/inventory-items/${product.id}`)
+  const pair = useStockItemByPair(focusTarget?.productId === product.id ? product.id : undefined, focusTarget?.warehouseId)
+  const targetWarehouses = useRecordsById<Warehouse>('/warehouses', [pair.data?.warehouseId])
+  const selected = pair.data && targetWarehouses.data[0] ? { ...pair.data, warehouse: targetWarehouses.data[0] } : undefined
+  const allocations = selected && !query.items.some(item => item.id === selected.id) ? [...query.items, selected] : query.items
+  const appliedFocus = useRef(false)
+  useEffect(() => {
+    if (appliedFocus.current || focusTarget?.productId !== product.id || query.isFetching) return
+    const element = document.getElementById(`inventory-location-${product.id}-${focusTarget.warehouseId}`)
+    if (!element) return
+    const frame = requestAnimationFrame(() => {
+      element.focus({ preventScroll: true })
+      element.scrollIntoView({ block: 'center', behavior: 'instant' })
+      appliedFocus.current = true
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [focusTarget, product.id, query.isFetching, query.data, pair.data, targetWarehouses.data])
+  return (
+      <>
+      <DataTableExpandedSection
+        id={`inventory-locations-${product.id}`}
+        title="Stock by location"
+        ariaLabel={`Stock by location for ${String(product.name ?? 'product')}`}
+        isLoading={query.isFetching}
+        isEmpty={!query.isFetching && !query.isError && allocations.length === 0}
+        emptyContent="No stock records at this location."
+        errorContent={query.isError ? <p role="alert">Stock locations could not be loaded. <Button variant="link" onClick={() => void query.reload()}>Retry locations</Button></p> : undefined}
+      >
+        <div className="divide-y divide-border">
+          {allocations
+            .filter(
+              (stock) =>
+                !warningScope ||
+                warningLocations.some(
+                  (warning) =>
+                    warning.productId === product.id && warning.warehouseId === stock.warehouseId,
+                ),
+            )
+            .map((stock) => {
+              const quarantined = parseStockCents(stock.quarantinedQuantity)
+              return (
+                <div
+                  key={stock.id}
+                  id={`inventory-location-${product.id}-${stock.warehouseId}`}
+                  tabIndex={-1}
+                  aria-label={`Stock location ${stock.warehouse?.name || `Warehouse #${stock.warehouseId}`} for ${product.name}`}
+                  className={cn(
+                    'grid min-h-11 min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                    stockConditionForItem(stock) === 'OUT' &&
+                      product.isActive &&
+                      'bg-destructive/5',
+                    focusTarget?.productId === product.id &&
+                      focusTarget.warehouseId === stock.warehouseId &&
+                      'ring-2 ring-ring',
+                  )}
+                >
+                  <div className="flex min-w-0 flex-col gap-0.5">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <WarehouseIcon className="size-4 shrink-0 text-muted-foreground" />
+                      <OverflowValue
+                        value={stock.warehouse?.name || `Warehouse #${stock.warehouseId}`}
+                        onActivate={
+                          onOpenWarehouse ? () => onOpenWarehouse(stock.warehouseId) : undefined
+                        }
+                        className="h-auto min-h-8 whitespace-normal p-0 text-left text-sm font-medium [overflow-wrap:anywhere] pointer-coarse:min-h-11"
+                      />
+                    </div>
+                    {quarantined !== null && quarantined > 0n && (
+                      <span className="pl-6 text-xs text-status-warning-foreground [overflow-wrap:anywhere]">
+                        {formatStockCents(quarantined)} {formatProductUnit(product.unit, 'units')}{' '}
+                        quarantined
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+                    <div className="flex w-24 min-w-0 flex-col items-end gap-0.5 sm:w-28">
+                      <div className="flex max-w-full items-center justify-end gap-1.5">
+                        {product.isActive && (
+                          <StockIndicator
+                            condition={stockConditionForItem(stock)}
+                            label={`${stockConditionForItem(stock) === 'LOW' ? 'Low stock' : 'Out of stock'} at ${stock.warehouse?.name || `Warehouse #${stock.warehouseId}`}`}
+                          />
+                        )}
+                        <span className="min-w-0 text-right text-sm font-medium tabular-nums [overflow-wrap:anywhere]">
+                          {formatStockCents(availableStockCents(stock))}{' '}
+                          {formatProductUnit(product.unit, 'units')}
+                        </span>
+                      </div>
+                      <span className="text-[11px] text-muted-foreground">Available</span>
+                    </div>
+                    {onOpenWarehouse && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => onOpenWarehouse(stock.warehouseId)}
+                        aria-label={`View inventory in ${String(stock.warehouse?.name ?? 'warehouse')}`}
+                        className="h-8 shrink-0 gap-1 px-2 text-[13px] text-primary-text pointer-coarse:min-h-11"
+                      >
+                        View <ArrowRight className="size-3.5" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+        </div>
+      </DataTableExpandedSection>
+      <CursorPageControls {...query} label="Stock location" />
+      </>
+    )
 }

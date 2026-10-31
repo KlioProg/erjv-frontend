@@ -51,7 +51,7 @@ beforeEach(() => {
           ? { ...warehouse, isActive: !archived }
           : url === '/warehouses'
             ? { items: [{ ...warehouse, isActive: !archived }], nextCursor: null }
-            : /^\/(sales-orders|purchase-orders|incoming-deliveries|outgoing-deliveries|stock-items|employees)$/.test(
+            : /^\/(sales-orders|purchase-orders|incoming-deliveries|outgoing-deliveries|stock-items|employees|suppliers)$/.test(
                   url,
                 ) || url.startsWith('/stock-items/warehouses/')
               ? { items: [], nextCursor: null }

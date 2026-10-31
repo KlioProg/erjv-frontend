@@ -1,12 +1,12 @@
 import { apiClient, getApiError } from './api-client'
 
 export type CursorParams = { limit?: number; cursor?: string }
-type CursorPage<T> = { items: T[]; nextCursor: string | null }
+export type CursorPage<T> = { items: T[]; nextCursor: string | null }
 
-/** Existing tables and selectors require the complete list before deriving counts or capacity. */
+/** Complete scoped aggregates and legacy reference consumers; tables use fetchCursorPage. */
 export async function fetchCursorList<T>(
   path: string,
-  filter: CursorParams = {},
+  filter: CursorParams & Record<string, unknown> = {},
   signal?: AbortSignal,
 ): Promise<T[]> {
   const { cursor: initialCursor, limit = 50, ...filters } = filter
@@ -22,6 +22,7 @@ export async function fetchCursorList<T>(
       const { data } = await apiClient.get<CursorPage<T>>(path, {
         params: { ...filters, limit, ...(cursor !== undefined ? { cursor } : {}) },
         signal,
+        paramsSerializer: { indexes: null },
       })
       if (
         !Array.isArray(data?.items) ||
@@ -51,4 +52,14 @@ export async function fetchCursorList<T>(
       throw error
     }
   }
+}
+
+/** One backend page for screens with explicit navigation. */
+export async function fetchCursorPage<T extends { id: number }>(path: string, filter: CursorParams & Record<string, unknown> = {}, signal?: AbortSignal): Promise<CursorPage<T>> {
+  const { limit = 50, cursor, ...filters } = filter
+  if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw Error('Page size must be between 1 and 100.')
+  const { data } = await apiClient.get<CursorPage<T>>(path, { params: { ...filters, limit, ...(cursor ? { cursor } : {}) }, paramsSerializer: { indexes: null }, signal })
+  if (!Array.isArray(data?.items) || !(data.nextCursor === null || typeof data.nextCursor === 'string' && data.nextCursor.length > 0 && data.nextCursor !== cursor)) throw Error('The server returned an invalid page. Reload results before continuing.')
+  if (data.items.some((item) => !Number.isSafeInteger(item?.id) || item.id < 1)) throw Error('The server returned an invalid record. Reload results before continuing.')
+  return { ...data, items: [...new Map(data.items.map((item) => [item.id, item])).values()] }
 }

@@ -696,9 +696,10 @@ it('loads subsequent quarantine lot pages into the canonical table', async () =>
     </QueryClientProvider>,
   )
   await screen.findByText('2.00')
-  fireEvent.click(await screen.findByRole('button', { name: 'Load more quarantine lots' }))
+  fireEvent.click(await screen.findByRole('button', { name: 'Next' }))
   await screen.findByText('0.75')
-  expect(screen.getAllByRole('button', { name: 'Review & Resolve' })).toHaveLength(2)
+  expect(screen.getAllByRole('button', { name: 'Review & Resolve' })).toHaveLength(1)
+  expect(screen.queryByText('2.00')).toBeNull()
 })
 
 it('resolves off-page stock by ID and preserves revision-aware partial release', async () => {

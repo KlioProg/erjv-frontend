@@ -76,7 +76,7 @@ it.each(lookups)(
 )
 
 it.each(lookups)('handles an empty lookup response safely for %s', async (name, lookup) => {
-  const data = name === 'customer search' ? [] : null
+  const data = name === 'customer search' ? { items: [], nextCursor: null } : null
   apiClient.defaults.adapter = async (config) => ({
     config,
     status: 200,
@@ -86,7 +86,7 @@ it.each(lookups)('handles an empty lookup response safely for %s', async (name, 
   })
   if (name === 'stock item' || name === 'stock pair')
     await expect(lookup()).rejects.toThrow(/balance could not be verified/)
-  else await expect(lookup()).resolves.toEqual(data)
+  else await expect(lookup()).resolves.toEqual(name === 'customer search' ? [] : data)
 })
 
 const creations = [

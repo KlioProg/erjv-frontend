@@ -9,9 +9,9 @@ export interface ArchiveTabNavProps {
   activeTab: ArchiveTabType
   onTabChange: (tab: ArchiveTabType) => void
   activeLabel: string
-  activeCount: number
+  activeCount?: number
   archivedLabel?: string
-  archivedCount: number
+  archivedCount?: number
   activeIcon?: React.ReactNode
   archivedIcon?: React.ReactNode
   showBanner?: boolean
@@ -50,7 +50,7 @@ export function ArchiveTabNav({
         <div className="flex flex-wrap items-center justify-between gap-2 text-xs leading-5 text-muted-foreground">
           <p className="min-w-0 flex-1">
             {bannerDescription ||
-              `Showing ${archivedCount} archived record${archivedCount === 1 ? '' : 's'}. Use Reactivate to return a record to the active view.`}
+              `Showing ${archivedCount === undefined ? '' : `${archivedCount} `}archived record${archivedCount === 1 ? '' : 's'}. Use Reactivate to return a record to the active view.`}
           </p>
           <Button
             type="button"

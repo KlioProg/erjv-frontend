@@ -1,9 +1,9 @@
-import { apiClient, extractArray, type FetchParams } from '@/lib/api-client'
+import { fetchCursorList } from '@/lib/cursor-pagination'
+import { apiClient, type FetchParams } from '@/lib/api-client'
 import type { CreateSupplierPayload, Supplier, UpdateSupplierPayload } from './suppliers.types'
 
 export async function fetchSuppliersApi(params?: FetchParams): Promise<Supplier[]> {
-  const response = await apiClient.get('/suppliers', { params })
-  return extractArray<Supplier>(response.data)
+  return fetchCursorList<Supplier>('/suppliers', params)
 }
 
 export async function fetchSupplierByIdApi(id: number): Promise<Supplier | null> {

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router'
@@ -79,12 +79,13 @@ it.each(['incoming', 'outgoing'] as const)(
       },
     })
     expect(screen.getByText('1 loaded deliveries')).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: `Load more ${direction} deliveries` }))
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
     await screen.findByText(`${direction === 'incoming' ? 'IN' : 'OUT'}-2`)
     expect(deliveryRequests()).toHaveLength(2)
     expect(deliveryRequests()[1].params.cursor).toBe(`${direction}-page-2`)
-    expect(screen.getByText('2 loaded deliveries')).toBeTruthy()
-    expect(screen.queryByRole('button', { name: `Load more ${direction} deliveries` })).toBeNull()
+    expect(screen.getByText('1 loaded deliveries')).toBeTruthy()
+    expect(screen.queryByText(`${direction === 'incoming' ? 'IN' : 'OUT'}-1`)).toBeNull()
+    expect(screen.getByRole('button', { name: 'Next' }).hasAttribute('disabled')).toBe(true)
   },
 )
 
@@ -99,18 +100,20 @@ it('keeps incoming and outgoing history pagination independent', async () => {
   expect(
     deliveryRequests().find(({ url }) => url === '/outgoing-deliveries')?.params.statuses,
   ).toEqual(['RECONCILED', 'CANCELLED'])
-  fireEvent.click(screen.getByRole('button', { name: 'Load more incoming deliveries' }))
+  fireEvent.click(within(screen.getByRole('navigation', { name: 'Incoming delivery pages' })).getByRole('button', { name: 'Next' }))
   await screen.findByText('IN-2')
   expect(deliveryRequests().filter(({ url }) => url === '/outgoing-deliveries')).toHaveLength(1)
-  fireEvent.click(screen.getByRole('button', { name: 'Load more outgoing deliveries' }))
+  fireEvent.click(within(screen.getByRole('navigation', { name: 'Outgoing delivery pages' })).getByRole('button', { name: 'Next' }))
   await screen.findByText('OUT-2')
-  expect(screen.getByText('4 loaded deliveries')).toBeTruthy()
+  expect(screen.getByText('2 loaded deliveries')).toBeTruthy()
+  expect(screen.queryByText('IN-1')).toBeNull()
+  expect(screen.queryByText('OUT-1')).toBeNull()
 })
 
 it('starts a fresh first page for server text and status filters', async () => {
   mount('incoming')
   await screen.findByText('IN-1')
-  fireEvent.click(screen.getByRole('button', { name: 'Load more incoming deliveries' }))
+  fireEvent.click(within(screen.getByRole('navigation', { name: 'Incoming delivery pages' })).getByRole('button', { name: 'Next' }))
   await screen.findByText('IN-2')
   fireEvent.change(screen.getByRole('textbox', { name: 'Search deliveries' }), {
     target: { value: 'supplier reference' },
@@ -134,7 +137,7 @@ it('starts a fresh first page for server text and status filters', async () => {
   )
 })
 
-it('keeps loaded deliveries when a later page fails and restarts pagination on retry', async () => {
+it('hides stale actions when a later page fails and restarts pagination on retry', async () => {
   const adapter = getAdapter(apiClient.defaults.adapter)
   let fail = true
   apiClient.defaults.adapter = async (config) => {
@@ -144,16 +147,14 @@ it('keeps loaded deliveries when a later page fails and restarts pagination on r
   }
   mount('incoming')
   await screen.findByText('IN-1')
-  fireEvent.click(screen.getByRole('button', { name: 'Load more incoming deliveries' }))
+  fireEvent.click(within(screen.getByRole('navigation', { name: 'Incoming delivery pages' })).getByRole('button', { name: 'Next' }))
   await screen.findByRole('alert')
-  expect(screen.getByText('IN-1')).toBeTruthy()
-  expect(
-    screen.queryByText('Delivery records are unavailable until the request succeeds.'),
-  ).toBeNull()
+  expect(screen.queryByText('IN-1')).toBeNull()
+  expect(screen.getByText('Delivery records are unavailable until the request succeeds.')).toBeTruthy()
   fail = false
   fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
   await waitFor(() => expect(screen.queryByRole('alert')).toBeNull())
   expect(deliveryRequests().at(-1)?.params.cursor).toBeUndefined()
-  fireEvent.click(screen.getByRole('button', { name: 'Load more incoming deliveries' }))
+  fireEvent.click(within(screen.getByRole('navigation', { name: 'Incoming delivery pages' })).getByRole('button', { name: 'Next' }))
   await screen.findByText('IN-2')
 })

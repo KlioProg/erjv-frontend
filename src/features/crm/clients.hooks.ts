@@ -1,9 +1,12 @@
+import { useCursorPage } from '@/lib/use-cursor-page'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import {
   createClientApi,
   deactivateClientApi,
   fetchClientsApi,
+  fetchClientsPageApi,
+  type ClientPageFilter,
   reactivateClientApi,
   searchClientsByNameApi,
   updateClientDetailsApi,
@@ -12,6 +15,10 @@ import type { Client, CreateClientPayload, UpdateClientDetailsPayload } from './
 import { getErrorMessage, type FetchParams } from '@/lib/api-client'
 
 export const CLIENTS_QUERY_KEY = ['clients'] as const
+
+export function useClientsPage(filter: ClientPageFilter = {}) {
+  return useCursorPage('clients', filter, fetchClientsPageApi)
+}
 
 export function useClients(params?: FetchParams) {
   return useQuery({

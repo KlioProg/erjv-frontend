@@ -1,5 +1,7 @@
+import { CursorLookup } from '@/components/ui/CursorLookup'
+import type { Employee } from '@/features/staffing/staffing.types'
 import { useState, type FormEvent } from 'react'
-import { UserPlus, Mail, Lock, Eye, EyeOff, Shield, UserCheck } from 'lucide-react'
+import { UserPlus, Mail, Lock, Eye, EyeOff, Shield } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -21,7 +23,7 @@ import {
 } from '@/components/ui/select'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Spinner } from '@/components/ui/spinner'
-import { useRegisterUser, useEmployees, useUsers } from '@/features/staffing/staffing.hooks'
+import { useRegisterUser, useUsers } from '@/features/staffing/staffing.hooks'
 import { USER_ROLES, type UserRole } from '@/features/auth/roles'
 import { getErrorMessage } from '@/lib/api-client'
 
@@ -53,7 +55,6 @@ type RegisterUserModalProps = {
 
 export function RegisterUserModal({ open, onClose }: RegisterUserModalProps) {
   const registerMutation = useRegisterUser()
-  const { data: employees = [] } = useEmployees()
   const { data: existingUsers = [] } = useUsers({ includeInactive: 'true' })
 
   const [email, setEmail] = useState('')
@@ -67,9 +68,6 @@ export function RegisterUserModal({ open, onClose }: RegisterUserModalProps) {
   const [errorMsg, setErrorMsg] = useState('')
 
   const selectedRole = registrationRoles.find((option) => option.value === role)
-
-  // Filter employees who do not yet have a linked user account
-  const unlinkedEmployees = employees.filter((e) => !e.userId && e.isActive)
 
   const handleClose = () => {
     if (registerMutation.isPending) return
@@ -228,57 +226,11 @@ export function RegisterUserModal({ open, onClose }: RegisterUserModalProps) {
           </div>
 
           {/* Link to Existing Employee (Optional) */}
-          {unlinkedEmployees.length > 0 && (
-            <div className="flex min-w-0 flex-col gap-2">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <Label htmlFor="link-employee" className="text-ui font-medium text-foreground">
-                  Link to Staff Profile (Optional)
-                </Label>
-                <span className="text-xs text-muted-foreground">
-                  {unlinkedEmployees.length} unlinked profile
-                  {unlinkedEmployees.length === 1 ? '' : 's'}
-                </span>
-              </div>
-              <Select
-                value={selectedEmployeeId}
-                onValueChange={setSelectedEmployeeId}
-                disabled={registerMutation.isPending}
-              >
-                <SelectTrigger
-                  id="link-employee"
-                  className="h-auto min-h-10 min-w-0 gap-2 text-left [&>span]:min-w-0 [&>span]:line-clamp-none [&_span]:whitespace-normal [&_span]:overflow-visible [&_span]:text-clip [&>svg]:shrink-0"
-                >
-                  <SelectValue placeholder="Select staff profile (optional)" />
-                </SelectTrigger>
-                <SelectContent className={dropdownLayout} collisionPadding={16}>
-                  <SelectGroup>
-                    <SelectItem value="none" className="py-2">
-                      <span className="text-muted-foreground italic">
-                        None (Standalone Account)
-                      </span>
-                    </SelectItem>
-                    {unlinkedEmployees.map((emp) => (
-                      <SelectItem
-                        key={emp.id}
-                        value={String(emp.id)}
-                        className="min-w-0 py-2 [&>span:last-child]:min-w-0"
-                      >
-                        <div className="flex min-w-0 items-start gap-2 whitespace-normal wrap-anywhere">
-                          <UserCheck className="size-3.5 text-status-success-foreground shrink-0" />
-                          <span className="min-w-0">
-                            {emp.firstName} {emp.lastName}
-                          </span>
-                          <span className="shrink-0 text-xs text-muted-foreground">
-                            (Staff #{emp.id})
-                          </span>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            </div>
-          )}
+          <div className="flex min-w-0 flex-col gap-2">
+            <Label htmlFor="link-employee">Link to Staff Profile (Optional)</Label>
+            <CursorLookup<Employee> id="link-employee" path="/employees" filter={{ includeInactive: 'false' }} value={selectedEmployeeId === 'none' ? '' : selectedEmployeeId} onChange={id => setSelectedEmployeeId(id)} label="Staff profile" getLabel={employee => `${employee.firstName} ${employee.lastName}`} accept={employee => employee.isActive && !employee.userId} disabled={registerMutation.isPending} />
+            {selectedEmployeeId !== 'none' && <Button type="button" variant="ghost" size="sm" onClick={() => setSelectedEmployeeId('none')}>Do not link a staff profile</Button>}
+          </div>
 
           {/* Password */}
           <div className="flex min-w-0 flex-col gap-2">

@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, expect, it, vi } from 'vitest'
 import userEvent from '@testing-library/user-event'
-import { AxiosError } from 'axios'
+import { AxiosError, getAdapter } from 'axios'
 import { apiClient } from '@/lib/api-client'
 import { StockConditionReportModal } from './StockConditionReportModal'
 import type { StockItemWithRelations } from '@/features/logistics/stock-items.types'
@@ -32,7 +32,19 @@ afterEach(() => {
   apiClient.defaults.adapter = originalAdapter
   sessionStorage.clear()
 })
-function cacheWarehouses(client: QueryClient) {
+function cacheWarehouses(client: QueryClient, rows = [stock, { ...stock, id: 40, warehouseId: 20, warehouse: { id: 20, name: 'Second Warehouse' } }]) {
+  const delegate = getAdapter(apiClient.defaults.adapter)
+  apiClient.defaults.adapter = async config => {
+    if (config.method !== 'get') return delegate(config)
+    const q = config.params?.q?.toLowerCase() ?? ''
+    const data = config.url === '/warehouses'
+      ? { items: [{ id: 2, name: 'Main Warehouse', isActive: true }, { id: 20, name: 'Second Warehouse', isActive: true }, { id: 30, name: 'Empty Warehouse', isActive: true }].filter(row => row.name.toLowerCase().includes(q)), nextCursor: null }
+      : config.url?.startsWith('/stock-items/warehouses/')
+        ? { items: rows.filter(row => row.warehouseId === Number(config.url!.split('/').at(-1)) && row.inventoryItem.name.toLowerCase().includes(q)), nextCursor: null }
+        : config.url?.startsWith('/warehouses/') ? rows.find(row => row.warehouseId === Number(config.url!.split('/').at(-1)))?.warehouse
+        : rows.find(row => row.id === Number(config.url!.split('/').at(-1)))
+    return { config, status: 200, statusText: '', headers: {}, data }
+  }
   client.setQueryDefaults(['warehouses'], { staleTime: Infinity })
   client.setQueryData(
     ['warehouses', 'true'],
@@ -55,7 +67,7 @@ function setup(stockRows = [stock], initialStockItemId: number | null = 4) {
     'outgoing-deliveries',
   ])
     client.setQueryData([key], [stock])
-  cacheWarehouses(client)
+  cacheWarehouses(client, stockRows)
   const close = vi.fn()
   const element = (
     <QueryClientProvider client={client}>
@@ -253,7 +265,7 @@ it('requires warehouse, product, valid quantity, reason and confirmation before 
   setup([stock], null)
   const button = screen.getByRole('button', { name: 'Report Stock Condition' })
   expect(screen.getByRole('button', { name: 'Product' }).matches(':disabled')).toBe(true)
-  expect(screen.getByText('Select warehouse')).toBeTruthy()
+  expect(screen.getByText('Choose warehouse')).toBeTruthy()
   expect(button.hasAttribute('disabled')).toBe(true)
   const user = userEvent.setup()
   await user.click(screen.getByRole('button', { name: 'Warehouse' }))
@@ -307,7 +319,7 @@ it('clears the product and confirmation on warehouse change and revalidates reta
   const user = userEvent.setup()
   await user.click(screen.getByRole('button', { name: 'Warehouse' }))
   await user.click(screen.getByRole('menuitem', { name: 'Second Warehouse' }))
-  expect(screen.getByText('Select product in warehouse')).toBeTruthy()
+  expect(screen.getByText('Choose product')).toBeTruthy()
   expect(
     (
       screen.getByLabelText(
@@ -338,10 +350,9 @@ it('shows a clear empty warehouse state without enabling the product or submissi
   const user = userEvent.setup()
   await user.click(screen.getByRole('button', { name: 'Warehouse' }))
   await user.click(screen.getByRole('menuitem', { name: 'Empty Warehouse' }))
-  expect(screen.getByRole('status').textContent).toBe(
-    'No stock records available in this warehouse',
-  )
-  expect(screen.getByRole('button', { name: 'Product' }).matches(':disabled')).toBe(true)
+  await user.click(screen.getByRole('button', { name: 'Product' }))
+  expect(await screen.findByText('No matching results.')).toBeTruthy()
+  await user.keyboard('{Escape}')
   expect(
     screen.getByRole('button', { name: 'Report Stock Condition' }).hasAttribute('disabled'),
   ).toBe(true)
@@ -365,11 +376,13 @@ it('supports keyboard search and selection for warehouse and product', async () 
   screen.getByRole('button', { name: 'Warehouse' }).focus()
   await user.keyboard('{Enter}')
   await user.type(screen.getByRole('searchbox'), 'Main')
+  await screen.findByRole('menuitem', { name: 'Main Warehouse' })
   await user.keyboard('{ArrowDown}{Enter}')
   expect(screen.getByRole('button', { name: 'Warehouse' }).textContent).toContain('Main Warehouse')
   screen.getByRole('button', { name: 'Product' }).focus()
   await user.keyboard('{Enter}')
   await user.type(screen.getByRole('searchbox'), 'Rice')
+  await screen.findByRole('menuitem', { name: /Rice/ })
   await user.keyboard('{ArrowDown}{Enter}')
   expect(screen.getByText('12 kg available')).toBeTruthy()
 })

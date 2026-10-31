@@ -1,3 +1,5 @@
+import { useResourcePage } from '@/lib/use-cursor-page'
+import { CursorPageControls } from '@/components/ui/CursorPageControls'
 import { useState, type FormEvent } from 'react'
 import { useSearchParams } from 'react-router'
 import { useAuth } from '@/features/auth/AuthContext'
@@ -13,7 +15,7 @@ import { CursorLookup } from '@/components/ui/CursorLookup'
 import { DataTable, type ColumnDef } from '@/components/ui/data-table'
 import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal'
 import { getApiError, getErrorMessage } from '@/lib/api-client'
-import { useDeliveryRuns, useDeliveryRunById, useCreateDeliveryRun, useUpdateDeliveryRunDraft,
+import { useDeliveryRunById, useCreateDeliveryRun, useUpdateDeliveryRunDraft,
   useChangeRunMembers, useReopenRunMember, useCancelRunMember, useCancelDeliveryRun } from '@/features/logistics/delivery-runs.hooks'
 import type { DeliveryRunRecord, DeliveryRunStatus, DeliveryRunMember } from '@/features/logistics/delivery-runs.types'
 import type { OutgoingDeliveryRecord } from '@/features/logistics/outgoing-deliveries.types'
@@ -33,8 +35,8 @@ export function DeliveryRunsHub() {
   const [creating, setCreating] = useState(false)
   const [q, setQ] = useState('')
   const [status, setStatus] = useState('ALL')
-  const query = useDeliveryRuns({ ...(q.trim() ? { q: q.trim() } : {}), ...(status !== 'ALL' ? { statuses: [status as DeliveryRunStatus] } : {}) })
-  const runs = [...new Map(query.data?.pages.flatMap((page) => page.items).map((run) => [run.id, run]) ?? []).values()]
+  const query = useResourcePage<DeliveryRunRecord>('/delivery-runs', { ...(q.trim() ? { q: q.trim() } : {}), ...(status !== 'ALL' ? { statuses: [status as DeliveryRunStatus] } : {}) })
+  const runs = query.items
   const select = (id?: number) => setParams(id ? { run: String(id) } : {})
   const columns: ColumnDef<DeliveryRunRecord>[] = [
     { id: 'run', header: 'Run', cell: ({ row }) => <Button variant="link" onClick={() => select(row.id)}>{row.runNumber}</Button> },
@@ -51,9 +53,9 @@ export function DeliveryRunsHub() {
       </SelectContent></Select>
       {(isAdmin || isManager) && <Button onClick={() => setCreating(true)}>Create Delivery Run</Button>}
     </PageToolbar>
-    {query.isError && <Alert variant="destructive"><AlertDescription>{getErrorMessage(query.error)} <Button variant="link" onClick={() => void query.refetch()}>Refresh runs</Button></AlertDescription></Alert>}
-    <DataTable data={runs} columns={columns} isLoading={query.isPending} pagination={false} manualSorting getRowKey={(run) => run.id} emptyContent="No delivery runs match these filters." />
-    {query.hasNextPage && <Button variant="outline" disabled={query.isFetching} onClick={() => void query.fetchNextPage()}>Load more runs</Button>}
+    {query.isError && <Alert variant="destructive"><AlertDescription>{getErrorMessage(query.error)} <Button variant="link" onClick={() => void query.reload()}>Refresh runs</Button></AlertDescription></Alert>}
+    <DataTable data={runs} columns={columns} isLoading={query.isFetching} pagination={false} manualSorting getRowKey={(run) => run.id} emptyContent="No delivery runs match these filters." />
+    <CursorPageControls {...query} label="Run" />
     {creating && <RunEditor onClose={() => setCreating(false)} onSaved={(run) => { setCreating(false); select(run.id) }} />}
     {selectedId && <RunDetails key={selectedId} id={selectedId} onClose={() => select()} />}
   </div>

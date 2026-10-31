@@ -12,8 +12,8 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { SearchableDropdown } from '@/components/ui/SearchableDropdown'
-import { OverflowValue } from '@/components/ui/OverflowValue'
+import { CursorLookup } from '@/components/ui/CursorLookup'
+import { useStockMetadata } from '@/features/logistics/use-stock-metadata'
 import {
   Select,
   SelectContent,
@@ -24,7 +24,6 @@ import {
 } from '@/components/ui/select'
 import { useAuth } from '@/features/auth/AuthContext'
 import { useManualQuarantineTag } from '@/features/logistics/quarantine.hooks'
-import { useAllWarehouses } from '@/features/logistics/warehouses.hooks'
 import { formatStockCents, parseStockCents } from '@/features/logistics/stock-display'
 import { decimalString } from '@/features/logistics/purchase-pricing'
 import type {
@@ -99,19 +98,14 @@ export function StockConditionReportModal({
   const [error, setError] = useState('')
   const inFlight = useRef(false)
   const mutation = useManualQuarantineTag()
-  const warehouseQuery = useAllWarehouses()
-  const warehouses = [
-    ...new Map(
-      [
-        ...stocks.map((row) => ({ id: row.warehouseId, name: row.warehouse.name })),
-        ...(warehouseQuery.data ?? []).map(({ id, name }) => ({ id, name })),
-      ].map((row) => [row.id, row]),
-    ).values(),
-  ]
-  const warehouseStocks = stocks.filter((row) => String(row.warehouseId) === warehouseId)
-  const stock = warehouseStocks.find((candidate) => candidate.id === Number(stockId))
+  const suppliedStock = stocks.find(row => row.id === Number(stockId))
+  const selectedStock = useStockMetadata(!suppliedStock && stockId ? Number(stockId) : undefined)
+  const candidate = suppliedStock ?? selectedStock.data
+  const resolvedWarehouseId = warehouseId || (candidate ? String(candidate.warehouseId) : '')
+  const stock = candidate && String(candidate.warehouseId) === resolvedWarehouseId ? candidate : undefined
+  const inactive = stock && (('isActive' in stock.inventoryItem && stock.inventoryItem.isActive === false) || ('isActive' in stock.warehouse && stock.warehouse.isActive === false))
   const available =
-    stock && !stocksLoading && !stocksError ? parseStockCents(stock.availableQuantity) : null
+    stock && !inactive && !selectedStock.isError && !selectedStock.isFetching && !stocksLoading && !stocksError ? parseStockCents(stock.availableQuantity) : null
   const unit = stock?.inventoryItem.unit?.trim()
   const amount = parseStockCents(quantity)
   const quantityError = !quantity.trim()
@@ -240,68 +234,34 @@ export function StockConditionReportModal({
             <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="flex min-w-0 flex-col gap-2">
                 <Label htmlFor="condition-warehouse">Warehouse</Label>
-                <SearchableDropdown
-                  id="condition-warehouse"
-                  options={warehouses}
-                  value={warehouseId}
-                  onValueChange={(value) => {
-                    if (value === warehouseId) return
+                <CursorLookup<{ id: number; name: string }>
+                  id="condition-warehouse" path="/warehouses" filter={{ includeInactive: 'false' }} value={resolvedWarehouseId}
+                  onChange={(value) => {
+                    if (value === resolvedWarehouseId) return
                     setWarehouseId(value)
                     setStockId('')
                     setConfirmed(false)
                     setError('')
                   }}
-                  getOptionValue={(row) => String(row.id)}
-                  getOptionLabel={(row) => row.name}
-                  renderOption={(row) => <OverflowValue value={row.name} />}
-                  placeholder="Select warehouse"
-                  searchPlaceholder="Search warehouses"
-                  emptyMessage="No warehouses available."
-                  ariaLabel="Warehouse"
+                  getLabel={row => row.name} selectedLabel={stock?.warehouse.name} label="Warehouse" ariaLabel="Warehouse"
+                  disabled={mutation.isPending || !!pendingReport || !canReport}
                 />
               </div>
               <fieldset
-                disabled={!warehouseId || !warehouseStocks.length || stocksLoading || stocksError}
+                disabled={!resolvedWarehouseId || stocksLoading || stocksError}
                 className="flex min-w-0 flex-col gap-2"
               >
                 <Label htmlFor="condition-stock">Product</Label>
-                <SearchableDropdown
-                  id="condition-stock"
-                  options={warehouseStocks}
-                  value={stockId}
-                  onValueChange={(value) => {
-                    setStockId(value)
-                    setConfirmed(false)
-                    setError('')
-                  }}
-                  getOptionValue={(row) => String(row.id)}
-                  getOptionLabel={productStockLabel}
-                  renderOption={(row) => <OverflowValue value={productStockLabel(row)} />}
-                  placeholder="Select product in warehouse"
-                  searchPlaceholder="Search products"
-                  emptyMessage="No stock records available in this warehouse"
-                  ariaLabel="Product"
+                <CursorLookup<StockItemWithRelations>
+                  key={resolvedWarehouseId} id="condition-stock" path={`/stock-items/warehouses/${resolvedWarehouseId}`}
+                  value={stockId} onChange={(value) => { setStockId(value); setConfirmed(false); setError('') }}
+                  getLabel={productStockLabel} selectedLabel={stock ? productStockLabel(stock) : undefined}
+                  label="Product" ariaLabel="Product" disabled={!resolvedWarehouseId || mutation.isPending || !!pendingReport || !canReport}
                 />
               </fieldset>
             </div>
-            {warehouseId && !warehouseStocks.length && !stocksLoading && !stocksError && (
-              <p role="status" className="text-xs text-muted-foreground">
-                No stock records available in this warehouse
-              </p>
-            )}
-            {warehouseQuery.isError && (
-              <p className="text-xs text-muted-foreground">
-                The full warehouse list could not be loaded.{' '}
-                <Button
-                  type="button"
-                  variant="link"
-                  size="sm"
-                  onClick={() => void warehouseQuery.refetch()}
-                >
-                  Retry warehouses
-                </Button>
-              </p>
-            )}
+            {inactive && <p role="alert">The selected product or warehouse is inactive. Choose an active stock record.</p>}
+            {selectedStock.isError && <p role="alert">Selected stock record unavailable. <Button type="button" variant="link" onClick={() => void selectedStock.refetch()}>Retry selected stock</Button></p>}
             <div className="flex flex-col gap-2">
               <Label htmlFor="condition-kind">Condition</Label>
               <Select

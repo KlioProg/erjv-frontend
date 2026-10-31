@@ -9,7 +9,6 @@ import {
   Calendar,
   ShieldCheck,
   Users,
-  Archive,
   RotateCcw,
   AlertCircle,
 } from 'lucide-react'
@@ -23,7 +22,8 @@ import {
   useDeactivateEmployee,
   useReactivateEmployee,
 } from '@/features/staffing/staffing.hooks'
-import { useCursorLookup } from '@/lib/use-cursor-lookup'
+import { useResourcePage } from '@/lib/use-cursor-page'
+import { CursorPageControls } from '@/components/ui/CursorPageControls'
 import type { Employee } from '@/features/staffing/staffing.types'
 import { EmployeeModal } from './EmployeeModal'
 import { EmployeePositionSelector } from './EmployeePositionSelector'
@@ -36,11 +36,11 @@ export function EmployeeList() {
   })
   const reactivateMutation = useReactivateEmployee()
   const [searchQuery, setSearchQuery] = useState('')
-  const employeeQuery = useCursorLookup<Employee>('/employees', {
+  const employeeQuery = useResourcePage<Employee>('/employees', {
     includeInactive: activeTab === 'ARCHIVED' ? 'only' : 'false',
     ...(searchQuery.trim() ? { q: searchQuery.trim() } : {}),
   })
-  const { isLoading, isFetching, error, refetch } = employeeQuery
+  const { isFetching: isLoading, isFetching, error, reload: refetch } = employeeQuery
   const allEmployees = employeeQuery.items
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -50,13 +50,7 @@ export function EmployeeList() {
   const archivedEmployees = allEmployees.filter((emp) => emp.isActive === false)
   const currentEmployees = activeTab === 'ACTIVE' ? activeEmployees : archivedEmployees
 
-  const filteredEmployees = currentEmployees.filter((emp) => {
-    const fullName = `${emp.firstName} ${emp.lastName}`.toLowerCase()
-    const email = (emp.email || '').toLowerCase()
-    const phone = (emp.phone || '').toLowerCase()
-    const q = searchQuery.toLowerCase()
-    return fullName.includes(q) || email.includes(q) || phone.includes(q)
-  })
+  const filteredEmployees = currentEmployees
 
   const handleCreate = () => {
     setSelectedEmployee(null)
@@ -252,9 +246,9 @@ export function EmployeeList() {
         activeTab={activeTab}
         onTabChange={setActiveTab}
         activeLabel="Active Staff"
-        activeCount={activeEmployees.length}
+
         archivedLabel="Archived Staff"
-        archivedCount={archivedEmployees.length}
+
         activeIcon={<Users className="size-3.5" />}
         bannerDescription="Showing deactivated staff profiles. Historical assignments and user credentials are preserved and can be reactivated at any time."
       />
@@ -279,11 +273,13 @@ export function EmployeeList() {
         )}
       </PageToolbar>
 
-      <p className="text-xs text-muted-foreground">Counts reflect loaded results. Search or load more staff to expand this view.</p>
+      <p className="text-xs text-muted-foreground">Search matches first name, last name, or email. Results use server ordering.</p>
       {/* Employees Table Card */}
       <div className="min-w-0">
         {isLoading ? (
           <DataTable
+            pagination={false}
+            manualSorting
             appearance="management"
             data={filteredEmployees}
             columns={employeeColumns}
@@ -323,26 +319,15 @@ export function EmployeeList() {
                 {searchQuery
                   ? 'Try adjusting your search criteria.'
                   : activeTab === 'ACTIVE'
-                    ? archivedEmployees.length > 0
-                      ? `All staff records in this view are currently archived (${archivedEmployees.length} total).`
-                      : 'Click "Register Employee" above to add your first staff member.'
+                    ? 'Click "Register Employee" above to add your first staff member.'
                     : 'Archived staff profiles will appear here and can be reactivated at any time.'}
               </p>
-              {!searchQuery && activeTab === 'ACTIVE' && archivedEmployees.length > 0 && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setActiveTab('ARCHIVED')}
-                  className="mt-3 gap-2"
-                >
-                  <Archive className="size-3.5 text-status-warning-foreground" />
-                  View Archived Staff ({archivedEmployees.length})
-                </Button>
-              )}
             </div>
           </div>
         ) : (
           <DataTable
+            pagination={false}
+            manualSorting
             appearance="management"
             data={filteredEmployees}
             columns={employeeColumns}
@@ -354,8 +339,7 @@ export function EmployeeList() {
         )}
       </div>
 
-      {employeeQuery.hasNextPage && <Button variant="outline" disabled={isFetching}
-        onClick={() => void employeeQuery.fetchNextPage()}>Load more staff</Button>}
+      <CursorPageControls {...employeeQuery} label="Employee" />
       {/* Registration & Edit Modal */}
       <EmployeeModal
         employee={selectedEmployee}

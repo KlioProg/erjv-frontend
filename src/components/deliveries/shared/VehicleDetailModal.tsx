@@ -18,7 +18,8 @@ import {
 } from '@/components/ui/select'
 import type { DeliveryVehicle } from '@/features/logistics/delivery-vehicles.types'
 import type { DeliveryRunRecord } from '@/features/logistics/delivery-runs.types'
-import { useCursorLookup } from '@/lib/use-cursor-lookup'
+import { useResourcePage } from '@/lib/use-cursor-page'
+import { CursorPageControls } from '@/components/ui/CursorPageControls'
 import { getErrorMessage } from '@/lib/api-client'
 import {
   getVehicleAssignments,
@@ -41,7 +42,7 @@ export function VehicleDetailModal({
   onViewRun: (id: number) => void
 }) {
   const [historyStatus, setHistoryStatus] = useState('ALL')
-  const query = useCursorLookup<DeliveryRunRecord>('/delivery-runs', {
+  const query = useResourcePage<DeliveryRunRecord>('/delivery-runs', {
     deliveryVehicleId: viewVehicle?.id,
     ...(historyStatus !== 'ALL' ? { statuses: [historyStatus] } : {}),
   }, open && !!viewVehicle)
@@ -113,7 +114,9 @@ export function VehicleDetailModal({
             <p className="text-xs text-muted-foreground">Counts reflect loaded runs matching this filter.</p>
             {query.isError && <p role="alert">{getErrorMessage(query.error)} <Button variant="link" onClick={() => void query.reload()}>Reload runs</Button></p>}
             <DataTable
-              isLoading={query.isLoading}
+              pagination={false}
+              manualSorting
+              isLoading={query.isFetching}
               data={trips}
               getRowKey={(delivery) => delivery.id}
               tableClassName="min-w-[640px]"
@@ -122,7 +125,7 @@ export function VehicleDetailModal({
                   id: 'reference',
                   header: 'Reference',
                   accessorKey: 'runNumber',
-                  sortable: true,
+                  sortable: false,
                 },
                 {
                   id: 'members',
@@ -155,8 +158,7 @@ export function VehicleDetailModal({
                 </p>
               }
             />
-            {query.hasNextPage && <Button variant="outline" disabled={query.isFetching}
-              onClick={() => void query.fetchNextPage()}>Load more runs</Button>}
+            <CursorPageControls {...query} label="Run" />
           </>
         )}
       </DialogContent>

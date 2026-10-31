@@ -217,7 +217,7 @@ it('handles a genuinely empty quarantine list', async () => {
 
 it('does not invent missing product or warehouse context or allow an unidentified stock resolution', async () => {
   const { posts } = mount({ missingStock: true })
-  await screen.findByText('Stock details unavailable')
+  await screen.findByText('Stock #7 unavailable')
   await openLot()
   expect(screen.getByText(/Product, warehouse, or unit details are unavailable/)).toBeTruthy()
   expect(screen.getByRole('button', { name: /^Release to/ }).matches(':disabled')).toBe(true)

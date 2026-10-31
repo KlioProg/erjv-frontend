@@ -1,9 +1,17 @@
-import { apiClient, extractArray, type FetchParams } from '@/lib/api-client'
+import { fetchCursorList } from '@/lib/cursor-pagination'
+import { apiClient, type FetchParams } from '@/lib/api-client'
+import { fetchCursorPage, type CursorParams } from '@/lib/cursor-pagination'
 import type { Client, CreateClientPayload, UpdateClientDetailsPayload } from './clients.types'
 
+export type ClientPageFilter = FetchParams & CursorParams & { q?: string }
+
+export function fetchClientsPageApi(filter: ClientPageFilter = {}, signal?: AbortSignal) {
+  const { q, includeInactive, limit, cursor } = filter
+  return fetchCursorPage<Client>('/clients', { q, includeInactive, limit, cursor }, signal)
+}
+
 export async function fetchClientsApi(params?: FetchParams): Promise<Client[]> {
-  const response = await apiClient.get('/clients', { params })
-  return extractArray<Client>(response.data)
+  return fetchCursorList<Client>('/clients', params)
 }
 
 export async function fetchClientByIdApi(id: number): Promise<Client | null> {
@@ -12,8 +20,7 @@ export async function fetchClientByIdApi(id: number): Promise<Client | null> {
 }
 
 export async function searchClientsByNameApi(name: string): Promise<Client[]> {
-  const response = await apiClient.get(`/clients/search/${encodeURIComponent(name.trim())}`)
-  return extractArray<Client>(response.data)
+  return fetchCursorList<Client>('/clients', { q: name.trim(), includeInactive: 'true' })
 }
 
 export async function createClientApi(payload: CreateClientPayload): Promise<Client> {

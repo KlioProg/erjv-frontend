@@ -1,4 +1,5 @@
-import { apiClient, extractArray, type FetchParams } from '@/lib/api-client'
+import { fetchCursorList } from '@/lib/cursor-pagination'
+import { apiClient, type FetchParams } from '@/lib/api-client'
 import type {
   CreateWarehousePayload,
   UpdateWarehouseDetailsPayload,
@@ -6,8 +7,7 @@ import type {
 } from './warehouses.types'
 
 export async function fetchWarehousesApi(params?: FetchParams): Promise<Warehouse[]> {
-  const response = await apiClient.get('/warehouses', { params })
-  return extractArray<Warehouse>(response.data)
+  return fetchCursorList<Warehouse>('/warehouses', params)
 }
 
 export async function fetchWarehouseByNameApi(name: string): Promise<Warehouse | null> {

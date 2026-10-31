@@ -417,7 +417,7 @@ function OutgoingPlanningForm({
                     Stock Source / Warehouse <span className="text-primary">*</span>
                   </Label>
                   <CursorLookup<Warehouse>
-                    id="delivery-warehouse" path="/warehouses" filter={{ isActive: true }}
+                    id="delivery-warehouse" path="/warehouses" filter={{ includeInactive: 'false' }}
                     label="warehouse" ariaLabel="Stock Source / Warehouse"
                     value={form.warehouseId} onChange={form.changeWarehouse}
                     getLabel={(warehouse) => warehouse.name} selectedLabel={form.warehouse?.name}

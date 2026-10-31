@@ -180,7 +180,7 @@ beforeEach(() => {
             : 'LOW'
       data = malformedSave ? { id } : row
     }
-    if (method === 'get' && (url === '/stock-items' || url === '/inventory-items' || url === '/warehouses' || url.startsWith('/stock-items/warehouses/'))) data = { items: data, nextCursor: null }
+    if (method === 'get' && (url === '/stock-items' || url === '/inventory-items' || url === '/warehouses' || url.startsWith('/stock-items/warehouses/'))) { const rows = data as unknown[]; const limit = config.params?.limit ?? 50; const offset = Number(config.params?.cursor ?? 0); data = { items: rows.slice(offset, offset + limit), nextCursor: offset + limit < rows.length ? String(offset + limit) : null } }
     return { config, data: structuredClone(data), status: 200, statusText: 'OK', headers: {} }
   }
 })
@@ -198,6 +198,7 @@ it('opens from the Inventory heading without replacing product filters or the pr
   expect(screen.getByRole('button', { name: 'Quarantined Stock' })).toBeTruthy()
   await user.click(screen.getByRole('button', { name: 'Stock Alert Settings' }))
   const dialog = screen.getByRole('dialog', { name: 'Stock Alert Settings' })
+  await within(dialog).findByDisplayValue('5.25')
   expect(
     within(dialog)
       .getAllByRole('columnheader')
@@ -426,9 +427,13 @@ it('retains drafts across pagination and keeps long product labels as text in ex
   expect(screen.getByText(longName.trim()).classList.contains('truncate')).toBe(true)
   expect(document.querySelector('script')).toBeNull()
   fireEvent.change(input(longName), { target: { value: '18.25' } })
-  await user.click(screen.getByRole('button', { name: 'Next Page' }))
+  await user.click(screen.getByRole('combobox', { name: 'Stock records per page' }))
+  await user.click(screen.getByRole('option', { name: '10' }))
+  await screen.findByRole('textbox', { name: `Reorder threshold for ${longName}` })
+  await user.click(screen.getByRole('button', { name: 'Next' }))
   expect(screen.queryByRole('textbox', { name: `Reorder threshold for ${longName}` })).toBeNull()
-  await user.click(screen.getByRole('button', { name: 'Previous Page' }))
+  await user.click(screen.getByRole('button', { name: 'Previous' }))
+  await screen.findByRole('textbox', { name: `Reorder threshold for ${longName}` })
   expect(input(longName).value).toBe('18.25')
   expect(patches()).toHaveLength(0)
 })

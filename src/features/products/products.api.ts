@@ -1,4 +1,5 @@
-import { apiClient, extractArray, type FetchParams } from '@/lib/api-client'
+import { fetchCursorList } from '@/lib/cursor-pagination'
+import { apiClient, type FetchParams } from '@/lib/api-client'
 import { parseStockCents } from '@/features/logistics/stock-display'
 import { decimalString } from '@/lib/order-amounts'
 import type {
@@ -15,8 +16,7 @@ function priceValue(value: number | string) {
 }
 
 export async function fetchProductsApi(params?: FetchParams): Promise<InventoryItemResponse[]> {
-  const response = await apiClient.get('/inventory-items', { params })
-  return extractArray<InventoryItemResponse>(response.data)
+  return fetchCursorList<InventoryItemResponse>('/inventory-items', params)
 }
 
 export async function fetchProductByIdApi(id: number): Promise<InventoryItemResponse | null> {

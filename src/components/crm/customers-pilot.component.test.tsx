@@ -26,27 +26,33 @@ beforeEach(() => {
     ) {
       throw new Error('Network Error')
     }
-    return {
-      config,
-      headers: {},
-      status: 200,
-      statusText: 'OK',
-      data: config.url?.includes('/search/')
-        ? archivedMatch
-          ? [{ id: 2, name: 'Archived Buyer', address: 'Davao City', isActive: false }]
-          : []
-        : [
-            {
-              id: 1,
-              name: 'Davao Trading',
-              address: 'Davao City',
-              contactPerson: 'Juan Cruz',
-              phone: null,
-              email: null,
-              isActive: true,
-            },
-          ],
-    }
+    const records = config.params?.q && config.params?.includeInactive === 'true'
+      ? archivedMatch
+        ? [{ id: 2, name: 'Archived Buyer', address: 'Davao City', isActive: false }]
+        : []
+      : [
+          {
+            id: 1,
+            name: 'Davao Trading',
+            address: 'Davao City',
+            contactPerson: 'Juan Cruz',
+            phone: null,
+            email: null,
+            isActive: true,
+          },
+        ]
+    const data =
+      config.method === 'get' && config.url === '/clients'
+        ? {
+            items: records.filter(
+              (record) =>
+                !config.params?.q ||
+                record.name.toLowerCase().includes(config.params.q.toLowerCase()),
+            ),
+            nextCursor: null,
+          }
+        : records
+    return { config, headers: {}, status: 200, statusText: 'OK', data }
   }
 })
 

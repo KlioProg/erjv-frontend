@@ -1,3 +1,6 @@
+import { useCursorLookup } from '@/lib/use-cursor-lookup'
+import type { Job } from '@/features/staffing/staffing.types'
+import { Input } from '@/components/ui/input'
 import { useState } from 'react'
 import { Briefcase, ChevronDown, RotateCcw } from 'lucide-react'
 import { toast } from 'sonner'
@@ -14,7 +17,6 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Spinner } from '@/components/ui/spinner'
 import {
-  useAllJobs,
   useEmployeeJobs,
   useReplaceEmployeeJobs,
 } from '@/features/staffing/staffing.hooks'
@@ -32,12 +34,9 @@ export function EmployeePositionSelector({
   employeeName,
   canEdit,
 }: EmployeePositionSelectorProps) {
-  const {
-    data: jobs = [],
-    isLoading: isLoadingJobs,
-    isError: hasJobsError,
-    refetch: refetchJobs,
-  } = useAllJobs()
+  const [search, setSearch] = useState('')
+  const jobsQuery = useCursorLookup<Job>('/jobs', { includeInactive: 'true', q: search.trim() || undefined })
+  const { isLoading: isLoadingJobs, isError: hasJobsError, reload: refetchJobs } = jobsQuery
   const {
     data: assignments = [],
     isLoading: isLoadingAssignments,
@@ -47,6 +46,7 @@ export function EmployeePositionSelector({
   const replaceJobsMutation = useReplaceEmployeeJobs()
   const [isSaving, setIsSaving] = useState(false)
 
+  const jobs = [...new Map([...jobsQuery.items, ...assignments.map(assignment => ({ ...assignment.job, isActive: jobsQuery.items.find(job => job.id === assignment.jobId)?.isActive ?? false }))].map(job => [job.id, job])).values()]
   const assignedJobIds = assignments.map((assignment) => assignment.jobId)
   const isLoading = isLoadingJobs || isLoadingAssignments
   const hasError = hasJobsError || hasAssignmentsError
@@ -152,6 +152,7 @@ export function EmployeePositionSelector({
             {employeeName} · Select multiple positions
           </span>
         </DropdownMenuLabel>
+        <Input aria-label="Search job positions" placeholder="Search position name..." value={search} onChange={event => setSearch(event.target.value)} onKeyDown={event => event.stopPropagation()} />
         <DropdownMenuSeparator />
         {jobs.length === 0 ? (
           <DropdownMenuLabel className="font-normal text-muted-foreground">
@@ -183,6 +184,7 @@ export function EmployeePositionSelector({
             })}
           </DropdownMenuGroup>
         )}
+        {jobsQuery.hasNextPage && <Button type="button" size="sm" variant="outline" disabled={jobsQuery.isFetching} onClick={() => void jobsQuery.fetchNextPage()}>Load more positions</Button>}
       </DropdownMenuContent>
     </DropdownMenu>
   )

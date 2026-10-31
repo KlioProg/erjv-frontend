@@ -193,6 +193,7 @@ beforeEach(() => {
       )
     }
     if (method === 'get' && url === '/outgoing-deliveries' && config.params?.q === 'unmatched query') data = []
+    if (method === 'get' && url === '/outgoing-deliveries' && config.params?.warehouseId) data = (data as OutgoingDeliveryRecord[]).filter(delivery => delivery.warehouseId === config.params.warehouseId)
     if (
       method === 'get' &&
       Array.isArray(data)
@@ -982,5 +983,5 @@ it('loads later order and warehouse pages, searches on the server, and validates
   expect(lookupReads.some(({ url, params }) => url === '/sales-orders' && params.cursor === 'orders-next')).toBe(true)
   expect(lookupReads.some(({ url, params }) => url === '/sales-orders' && params.q === '0002')).toBe(true)
   expect(lookupReads.filter(({ url }) => url === '/sales-orders').every(({ params }) => JSON.stringify(params.statuses) === JSON.stringify(['CONFIRMED', 'PARTIALLY_DELIVERED']))).toBe(true)
-  expect(lookupReads.filter(({ url }) => url === '/warehouses').every(({ params }) => params.isActive === true)).toBe(true)
+  expect(lookupReads.filter(({ url }) => url === '/warehouses').every(({ params }) => params.includeInactive === 'false')).toBe(true)
 })

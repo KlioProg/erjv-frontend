@@ -1,3 +1,6 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { apiClient } from '@/lib/api-client'
+import { afterEach } from 'vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, expect, it, vi } from 'vitest'
@@ -12,11 +15,19 @@ vi.mock('@/features/staffing/staffing.hooks', () => ({
   useUsers: () => ({ data: [] }),
 }))
 
-beforeEach(() => mutateAsync.mockReset())
+const originalAdapter = apiClient.defaults.adapter
+beforeEach(() => {
+  mutateAsync.mockReset()
+  apiClient.defaults.adapter = async config => ({ config, status: 200, statusText: '', headers: {}, data: { items: [{ id: 7, firstName: 'Alexandra'.repeat(8), lastName: 'Rivera', isActive: true }], nextCursor: null } })
+})
+afterEach(() => { apiClient.defaults.adapter = originalAdapter })
+function mount(onClose = vi.fn()) {
+  return render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><RegisterUserModal open onClose={onClose} /></QueryClientProvider>)
+}
 
 it('keeps descriptions outside the collapsed role trigger and preserves keyboard selection', async () => {
   const user = userEvent.setup()
-  render(<RegisterUserModal open onClose={vi.fn()} />)
+  mount()
   const trigger = screen.getByRole('combobox', { name: 'System Role & Permissions' })
   expect(trigger.textContent).toBe('STAFF (Restricted)')
   expect(document.getElementById(trigger.getAttribute('aria-describedby')!)?.textContent).toBe(
@@ -40,7 +51,7 @@ it('keeps descriptions outside the collapsed role trigger and preserves keyboard
 it('preserves password validation and the registration payload with staff linking', async () => {
   const user = userEvent.setup()
   const onClose = vi.fn()
-  render(<RegisterUserModal open onClose={onClose} />)
+  mount(onClose)
   fireEvent.change(screen.getByLabelText('Work Email Address'), {
     target: { value: 'staff@example.com' },
   })
@@ -50,8 +61,8 @@ it('preserves password validation and the registration payload with staff linkin
   expect(screen.getByRole('alert').textContent).toContain('Passwords do not match.')
   expect(mutateAsync).not.toHaveBeenCalled()
   fireEvent.change(screen.getByLabelText('Confirm Password'), { target: { value: 'password123' } })
-  screen.getByRole('combobox', { name: /Link to Staff Profile/ }).focus()
-  await user.keyboard('{ArrowDown}{End}{Enter}')
+  await user.click(screen.getByRole('button', { name: 'Choose staff profile' }))
+  await user.click(await screen.findByRole('menuitem', { name: /Alexandra/ }))
   await user.click(screen.getByRole('button', { name: 'Register Account' }))
   expect(mutateAsync).toHaveBeenCalledWith({
     email: 'staff@example.com',

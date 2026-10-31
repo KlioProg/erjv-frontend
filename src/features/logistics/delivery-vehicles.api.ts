@@ -1,4 +1,5 @@
-import { apiClient, extractArray, type FetchParams } from '@/lib/api-client'
+import { fetchCursorList } from '@/lib/cursor-pagination'
+import { apiClient, type FetchParams } from '@/lib/api-client'
 import { parseStockCents } from './stock-display'
 import { decimalString } from './purchase-pricing'
 import type {
@@ -9,13 +10,11 @@ import type {
 } from './delivery-vehicles.types'
 
 export async function fetchDeliveryVehiclesApi(params?: FetchParams): Promise<DeliveryVehicle[]> {
-  const response = await apiClient.get('/delivery-vehicles', { params })
-  return extractArray<DeliveryVehicle>(response.data)
+  return fetchCursorList<DeliveryVehicle>('/delivery-vehicles', params)
 }
 
 export async function fetchAvailableVehiclesApi(): Promise<DeliveryVehicle[]> {
-  const response = await apiClient.get('/delivery-vehicles/available')
-  return extractArray<DeliveryVehicle>(response.data)
+  return fetchCursorList<DeliveryVehicle>('/delivery-vehicles/available')
 }
 
 export async function fetchVehicleByIdApi(id: number): Promise<DeliveryVehicle | null> {

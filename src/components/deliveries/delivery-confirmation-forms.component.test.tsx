@@ -133,6 +133,7 @@ beforeEach(() => {
     else if (config.url === '/inventory-items/5') data = { id: 5, name: 'Rice', variety: 'Jasmine', unit: 'kg', isActive: true, unitPrice: '10.00' }
     else if (config.url === '/warehouses/3') data = { id: 3, name: 'Main', isActive: true }
     else if (config.url === '/clients/2') data = { id: 2, name: 'Test Customer' }
+    else if (config.url === '/suppliers/4') data = { id: 4, name: 'Test Supplier' }
     else if (config.url === '/suppliers') data = [{ id: 4, name: 'Test Supplier' }]
     else if (config.url === '/clients') data = [{ id: 2, name: 'Test Customer' }]
     else if (config.url === '/warehouses') data = [{ id: 3, name: 'Main' }]

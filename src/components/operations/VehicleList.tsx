@@ -34,8 +34,10 @@ import {
   useReactivateVehicle,
   useUpdateVehicleStatus,
 } from '@/features/logistics/delivery-vehicles.hooks'
-import { useCursorLookup } from '@/lib/use-cursor-lookup'
-import { useDeliveryRuns } from '@/features/logistics/delivery-runs.hooks'
+import { useResourcePage } from '@/lib/use-cursor-page'
+import { CursorPageControls } from '@/components/ui/CursorPageControls'
+import { useRecordsById } from '@/lib/use-records-by-id'
+import type { DeliveryRunRecord } from '@/features/logistics/delivery-runs.types'
 import { useNavigate } from 'react-router'
 import { ROUTES } from '@/routes'
 import { useAuth } from '@/features/auth/AuthContext'
@@ -65,13 +67,13 @@ export function VehicleList() {
   const [viewVehicleId, setViewVehicleId] = useState<number | null>(null)
   const navigate = useNavigate()
   const [archiveId, setArchiveId] = useState<number | null>(null)
-  const vehicleQuery = useCursorLookup<DeliveryVehicle>('/delivery-vehicles', {
+  const vehicleQuery = useResourcePage<DeliveryVehicle>('/delivery-vehicles', {
     includeInactive: activeTab === 'ARCHIVED' ? 'only' : 'false',
     ...(search.trim() ? { q: search.trim() } : {}),
-  })
+  }, true, statusFilter)
   const vehicles = vehicleQuery.items
-  const deliveryQuery = useDeliveryRuns({ statuses: ['DISPATCHED'] })
-  const deliveries = deliveryQuery.data?.pages.flatMap((page) => page.items) ?? []
+  const deliveryQuery = useRecordsById<DeliveryRunRecord>('/delivery-runs', vehicles.map(vehicle => vehicle.activeRunId))
+  const deliveries = deliveryQuery.data
   const deactivate = useDeactivateVehicle({ onViewArchive: () => setActiveTab('ARCHIVED') })
   const reactivate = useReactivateVehicle()
   const updateStatus = useUpdateVehicleStatus()
@@ -94,15 +96,7 @@ export function VehicleList() {
   const active = rows.filter((row) => row.vehicle.isActive)
   const archived = rows.filter((row) => !row.vehicle.isActive)
   const filtered = (activeTab === 'ACTIVE' ? active : archived).filter(
-    (row) =>
-      (activeTab === 'ARCHIVED' || statusFilter === 'ALL' || row.status === statusFilter) &&
-      [
-        row.vehicle.plateNumber,
-        row.vehicle.model || '',
-        row.vehicle.vehicleType,
-        row.assignment,
-        row.driver,
-      ].some((value) => value.toLowerCase().includes(search.trim().toLowerCase())),
+    (row) => activeTab === 'ARCHIVED' || statusFilter === 'ALL' || row.status === statusFilter,
   )
   const viewVehicle = vehicles.find((vehicle) => vehicle.id === viewVehicleId)
   const archiveVehicle = vehicles.find((vehicle) => vehicle.id === archiveId)
@@ -122,7 +116,7 @@ export function VehicleList() {
       id: 'vehicle',
       header: 'Vehicle',
       accessorFn: (row) => row.vehicle.model || row.vehicle.vehicleType,
-      sortable: true,
+      sortable: false,
       cell: ({ row }) => (
         <div className="flex flex-col gap-1">
           <span className="font-medium">{row.vehicle.model || row.vehicle.vehicleType}</span>
@@ -138,21 +132,21 @@ export function VehicleList() {
       id: 'plate',
       header: 'Plate Number',
       accessorFn: (row) => row.vehicle.plateNumber,
-      sortable: true,
+      sortable: false,
       cell: ({ row }) => <span className="font-medium">{row.vehicle.plateNumber}</span>,
     },
     {
       id: 'type',
       header: 'Vehicle Type',
       accessorFn: (row) => row.vehicle.vehicleType,
-      sortable: true,
+      sortable: false,
     },
-    { id: 'condition', header: 'Condition', accessorKey: 'condition', sortable: true },
+    { id: 'condition', header: 'Condition', accessorKey: 'condition', sortable: false },
     {
       id: 'status',
       header: 'Availability / Status',
       accessorKey: 'status',
-      sortable: true,
+      sortable: false,
       cell: ({ row }) =>
         row.status === 'ARCHIVED' ? (
           <Badge variant="outline">Archived</Badge>
@@ -311,13 +305,13 @@ export function VehicleList() {
         activeTab={activeTab}
         onTabChange={setActiveTab}
         activeLabel="Active Vehicles"
-        activeCount={active.length}
+
         archivedLabel="Archived Vehicles"
-        archivedCount={archived.length}
+
         activeIcon={<Truck className="size-3.5" />}
         bannerDescription="Archived ERJV vehicles remain linked to their historical deliveries and can be restored."
       />
-      <p className="text-xs text-muted-foreground">Counts and assignments below reflect loaded results. Search or load more vehicles to expand this view.</p>
+      <p className="text-xs text-muted-foreground">Status filters apply to the current page. Search matches plate, model, or vehicle type.</p>
       <dl
         aria-label="Fleet status overview"
         className="grid grid-cols-2 gap-3 rounded-lg border border-border bg-secondary/40 p-3 sm:grid-cols-3 lg:grid-cols-5"
@@ -382,7 +376,7 @@ export function VehicleList() {
               variant="link"
               size="sm"
               onClick={() => {
-                void vehicleQuery.refetch()
+                void vehicleQuery.reload()
                 void deliveryQuery.refetch()
               }}
             >
@@ -392,11 +386,13 @@ export function VehicleList() {
         </Alert>
       )}
       <DataTable
+            pagination={false}
+            manualSorting
         appearance="management"
         data={filtered}
         columns={columns}
         getRowKey={(row) => row.vehicle.id}
-        isLoading={vehicleQuery.isLoading || deliveryQuery.isLoading}
+        isLoading={vehicleQuery.isFetching || deliveryQuery.isLoading}
         tableClassName="min-w-[900px]"
         emptyContent={
           <div className="flex flex-col items-center gap-2 py-10 text-center">
@@ -408,8 +404,7 @@ export function VehicleList() {
           </div>
         }
       />
-      {vehicleQuery.hasNextPage && <Button variant="outline" disabled={vehicleQuery.isFetching}
-        onClick={() => void vehicleQuery.fetchNextPage()}>Load more vehicles</Button>}
+      <CursorPageControls {...vehicleQuery} label="Vehicle" />
       <VehicleModal
         vehicle={vehicles.find((vehicle) => vehicle.id === editVehicleId) || null}
         open={isModalOpen}

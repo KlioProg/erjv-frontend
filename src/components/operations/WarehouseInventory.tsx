@@ -1,4 +1,5 @@
-import { StockPagingControls } from '@/components/inventory/StockPagingControls'
+import { CursorPageControls } from '@/components/ui/CursorPageControls'
+import { useResourcePage } from '@/lib/use-cursor-page'
 import { formatProductUnit } from '@/lib/product-unit'
 import { useMemo, useState } from 'react'
 import {
@@ -17,12 +18,11 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { DataTable, type ColumnDef } from '@/components/ui/data-table'
 import { OverflowValue } from '@/components/ui/OverflowValue'
-import { useWarehouseStock } from '@/features/logistics/stock-items.hooks'
 import { formatStockCents, parseStockCents, stockSortKey } from '@/features/logistics/stock-display'
 import type { StockItemWithInventoryItem } from '@/features/logistics/stock-items.types'
 import type { Warehouse } from '@/features/logistics/warehouses.types'
 import { getErrorMessage } from '@/lib/api-client'
-import { stockConditionForItem, stockConditionRank } from '@/features/logistics/stock-warnings'
+import { stockConditionForItem } from '@/features/logistics/stock-warnings'
 import { StockIndicator } from '@/components/inventory/StockIndicator'
 import { cn } from '@/lib/utils'
 import { StockConditionReportModal } from '@/components/inventory/StockConditionReportModal'
@@ -43,28 +43,22 @@ export function WarehouseInventory({
   warehouse: Warehouse
   onBack: () => void
 }) {
-  const stockQuery = useWarehouseStock(warehouse.id)
   const { isAdmin, isManager, isStaff } = useAuth()
   const [reportOpen, setReportOpen] = useState(false)
   const [thresholdStock, setThresholdStock] = useState<StockItemWithInventoryItem | null>(null)
   const [search, setSearch] = useState('')
+  const stockQuery = useResourcePage<StockItemWithInventoryItem>(`/stock-items/warehouses/${warehouse.id}`, { q: search.trim() || undefined })
   const rows = useMemo<StockRow[]>(
     () =>
-      (stockQuery.data ?? [])
+      (stockQuery.items ?? [])
         .map((stock) => ({
           stock,
           quantityCents: parseStockCents(stock.onHandQuantity),
           availableCents: parseStockCents(stock.availableQuantity),
           quarantinedCents: parseStockCents(stock.quarantinedQuantity),
         }))
-        .sort(
-          (a, b) =>
-            stockConditionRank[stockConditionForItem(a.stock)] -
-              stockConditionRank[stockConditionForItem(b.stock)] ||
-            (a.stock.inventoryItem?.name ?? '').localeCompare(b.stock.inventoryItem?.name ?? '') ||
-            a.stock.id - b.stock.id,
-        ),
-    [stockQuery.data],
+,
+    [stockQuery.items],
   )
   const filteredRows = useMemo(() => {
     const term = search.trim().toLowerCase()
@@ -77,9 +71,9 @@ export function WarehouseInventory({
       : rows
   }, [rows, search])
   const summaryMetrics = [
-    { label: stockQuery.hasNextPage ? 'Loaded stock records' : 'Stock records', value: rows.length.toLocaleString(), unit: 'records', icon: Boxes },
+    { label: (stockQuery.hasNext || stockQuery.hasPrevious) ? 'Loaded stock records' : 'Stock records on page', value: rows.length.toLocaleString(), unit: 'records', icon: Boxes },
     {
-      label: stockQuery.hasNextPage ? 'Loaded products' : 'Products',
+      label: (stockQuery.hasNext || stockQuery.hasPrevious) ? 'Loaded products' : 'Products on page',
       value: new Set(rows.map((row) => row.stock.inventoryItemId)).size.toLocaleString(),
       unit: 'products',
       icon: Package,
@@ -92,7 +86,7 @@ export function WarehouseInventory({
         id: 'product',
         header: 'Product',
         width: '36%',
-        sortable: true,
+        sortable: false,
         sortKey: (row) => row.stock.inventoryItem?.name ?? '',
         cell: ({ row }) => (
           <div
@@ -128,7 +122,7 @@ export function WarehouseInventory({
         header: 'Physical',
         width: '18%',
         align: 'right',
-        sortable: true,
+        sortable: false,
         sortKey: (row) => stockSortKey(row.quantityCents),
         cell: ({ row }) => (
           <OverflowValue
@@ -144,7 +138,7 @@ export function WarehouseInventory({
         header: 'Available',
         width: '22%',
         align: 'right',
-        sortable: true,
+        sortable: false,
         sortKey: (row) => stockSortKey(row.availableCents),
         cell: ({ row }) => {
           const condition = stockConditionForItem(row.stock)
@@ -177,7 +171,7 @@ export function WarehouseInventory({
         header: 'Quarantined',
         width: '24%',
         align: 'right',
-        sortable: true,
+        sortable: false,
         sortKey: (row) => stockSortKey(row.quarantinedCents),
         cell: ({ row }) =>
           row.quarantinedCents !== null && row.quarantinedCents > 0n ? (
@@ -312,6 +306,8 @@ export function WarehouseInventory({
           </div>
         ) : (
           <DataTable
+            pagination={false}
+            manualSorting
             data={filteredRows}
             columns={columns}
             getRowKey={(row) => row.stock.id}
@@ -323,13 +319,13 @@ export function WarehouseInventory({
                   ? 'bg-status-warning/50 hover:bg-status-warning'
                   : ''
             }}
-            isLoading={stockQuery.isLoading}
+            isLoading={stockQuery.isFetching}
             loadingMessage="Loading warehouse inventory..."
             emptyContent={
               <div className="px-4 py-12 text-center text-xs text-muted-foreground">
                 {search
                   ? 'No products match your search.'
-                  : stockQuery.hasNextPage ? 'No stock records loaded. Load more stock records to continue.' : 'No stock records for this warehouse yet.'}
+                  : (stockQuery.hasNext || stockQuery.hasPrevious) ? 'No stock records loaded. Load more stock records to continue.' : 'No stock records for this warehouse yet.'}
               </div>
             }
             pageSizeOptions={[10, 25, 50, 100]}
@@ -338,12 +334,12 @@ export function WarehouseInventory({
           />
         )}
       </section>
-      <StockPagingControls {...stockQuery} />
+      <CursorPageControls {...stockQuery} label="Stock record" />
       {reportOpen && (
         <StockConditionReportModal
           open
           onClose={() => setReportOpen(false)}
-          stocks={(stockQuery.data ?? []).map((stock) => ({ ...stock, warehouse }))}
+          stocks={(stockQuery.items ?? []).map((stock) => ({ ...stock, warehouse }))}
           stocksLoading={stockQuery.isLoading}
           stocksError={stockQuery.isError}
         />

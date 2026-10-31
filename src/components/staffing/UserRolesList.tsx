@@ -1,3 +1,5 @@
+import { useResourcePage } from '@/lib/use-cursor-page'
+import { CursorPageControls } from '@/components/ui/CursorPageControls'
 import { PageHeader, PageToolbar } from '@/components/ui/ManagementPage'
 import type { UserAccount } from '@/features/staffing/staffing.types'
 import { DataTable, type ColumnDef } from '@/components/ui/data-table'
@@ -103,7 +105,9 @@ RoleBadgeDisplay.displayName = 'RoleBadgeDisplay'
 
 export function UserRolesList() {
   const { isAdmin, user: currentUser, syncUser } = useAuth()
-  const { data: users = [], isLoading, isFetching, error, refetch } = useAllUsers()
+  const accountGuard = useAllUsers()
+  const allAccounts = accountGuard.data ?? []
+  const accountGuardReady = Boolean(accountGuard.data) && !accountGuard.isFetching && !accountGuard.isError
 
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false)
   const [activeTab, setActiveTab] = useState<'ACTIVE' | 'ARCHIVED'>('ACTIVE')
@@ -114,22 +118,21 @@ export function UserRolesList() {
   const updateRoleMutation = useUpdateUserRole()
 
   const [searchQuery, setSearchQuery] = useState('')
+  const usersQuery = useResourcePage<UserAccount>('/users', { includeInactive: activeTab === 'ACTIVE' ? 'false' : 'only', q: searchQuery.trim() || undefined })
+  const users = usersQuery.items
+  const { isFetching: isLoading, isFetching, error, reload: refetch } = usersQuery
   const [updatingId, setUpdatingId] = useState<number | null>(null)
   const [userToDeactivate, setUserToDeactivate] = useState<(typeof users)[0] | null>(null)
 
   const activeUsers = users.filter((u) => u.isActive !== false)
   const archivedUsers = users.filter((u) => u.isActive === false)
   const lastAdminId =
-    activeUsers.filter((u) => u.role === USER_ROLES.ADMIN).length === 1
-      ? activeUsers.find((u) => u.role === USER_ROLES.ADMIN)?.id
+    allAccounts.filter((u) => u.isActive && u.role === USER_ROLES.ADMIN).length === 1
+      ? allAccounts.find((u) => u.isActive && u.role === USER_ROLES.ADMIN)?.id
       : undefined
   const currentUsers = activeTab === 'ACTIVE' ? activeUsers : archivedUsers
 
-  const filteredUsers = currentUsers.filter(
-    (u) =>
-      u.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (u.fullName && u.fullName.toLowerCase().includes(searchQuery.toLowerCase())),
-  )
+  const filteredUsers = currentUsers
 
   const getLinkedEmployee = (userId: number, email?: string) => {
     return employees.find(
@@ -184,7 +187,7 @@ export function UserRolesList() {
     const userRole = normalizeUserRole(u.role || (u as unknown as Record<string, unknown>).userRole)
     const isSelf = currentUser?.id === u.id
     const isSuperadmin = userRole === USER_ROLES.SUPERADMIN
-    const isLastAdmin = u.id === lastAdminId
+    const isLastAdmin = userRole === USER_ROLES.ADMIN && (!accountGuardReady || u.id === lastAdminId)
     switch (column) {
       case 'account':
         return (
@@ -405,9 +408,9 @@ export function UserRolesList() {
         activeTab={activeTab}
         onTabChange={setActiveTab}
         activeLabel="Active Accounts"
-        activeCount={activeUsers.length}
+
         archivedLabel="Archived Accounts"
-        archivedCount={archivedUsers.length}
+
         activeIcon={<Shield className="size-3.5" />}
         bannerDescription="Showing deactivated user accounts. Archived accounts cannot access POS or operations until reactivated."
       />
@@ -418,7 +421,7 @@ export function UserRolesList() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
           <Input
             aria-label="Search user accounts"
-            placeholder="Search accounts by name or email..."
+            placeholder="Search accounts by email..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-9"
@@ -449,6 +452,8 @@ export function UserRolesList() {
       <div className="min-w-0">
         {isLoading ? (
           <DataTable
+            pagination={false}
+            manualSorting
             appearance="management"
             data={filteredUsers}
             columns={userColumns}
@@ -524,6 +529,8 @@ export function UserRolesList() {
           </div>
         ) : (
           <DataTable
+            pagination={false}
+            manualSorting
             appearance="management"
             data={filteredUsers}
             columns={userColumns}
@@ -554,6 +561,7 @@ export function UserRolesList() {
       />
 
       {/* Register User Modal (Admin Only) */}
+      <CursorPageControls {...usersQuery} label="User" />
       <RegisterUserModal open={isRegisterModalOpen} onClose={() => setIsRegisterModalOpen(false)} />
     </div>
   )

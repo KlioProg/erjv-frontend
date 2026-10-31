@@ -48,7 +48,7 @@ export function DeliveryTable({
       id: 'reference',
       header: 'Delivery #',
       accessorKey: 'reference',
-      sortable: true,
+      sortable: false,
       cell: ({ row }) => (
         <Button
           variant="link"
@@ -64,7 +64,7 @@ export function DeliveryTable({
       id: 'order',
       header: 'Related Order',
       accessorKey: 'relatedOrder',
-      sortable: true,
+      sortable: false,
       cell: ({ row }) => (
         <div className="flex flex-col gap-1 py-1">
           <span className="font-medium">{row.relatedOrder}</span>
@@ -77,7 +77,7 @@ export function DeliveryTable({
       header:
         view === 'incoming' ? 'Supplier' : view === 'outgoing' ? 'Customer' : 'Customer / Supplier',
       accessorKey: 'party',
-      sortable: true,
+      sortable: false,
       cell: ({ row }) => (
         <div className="flex flex-col gap-1 py-1">
           <span>{row.party}</span>
@@ -91,12 +91,12 @@ export function DeliveryTable({
       ),
     },
     ...(view === 'history'
-      ? [{ id: 'type', header: 'Direction', accessorKey: 'type' as const, sortable: true }]
+      ? [{ id: 'type', header: 'Direction', accessorKey: 'type' as const, sortable: false }]
       : []),
     {
       id: 'date',
       header: 'Schedule',
-      sortable: true,
+      sortable: false,
       sortKey: (row) => (row.date ? new Date(row.date).getTime() || 0 : 0),
       cell: ({ row }) => {
         const schedule = formatDeliverySchedule(
@@ -116,7 +116,7 @@ export function DeliveryTable({
       id: 'status',
       header: 'Status',
       accessorKey: 'status',
-      sortable: true,
+      sortable: false,
       cell: ({ row }) =>
         row.type === 'Incoming' ? (
           <IncomingDeliveryStatusBadge status={row.record.status} />
@@ -168,6 +168,8 @@ export function DeliveryTable({
   ]
   return (
     <DataTable
+      pagination={false}
+      manualSorting
       appearance="management"
       data={rows}
       columns={columns}

@@ -73,20 +73,23 @@ const surfaces = [
 ]
 it.each(surfaces)(
   'loads additional $resource pages on demand without changing stock paging',
-  async ({ resource, path, name, element }) => {
+  async ({ path, name, element }) => {
     mount(element())
     await screen.findByText(`${name} 1`)
     expect(requests.filter(({ url, params }) => url === path && params.limit === 50)).toHaveLength(
       1,
     )
     expect(screen.queryByText(`${name} 2`)).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: `Load more ${resource}` }))
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
     await screen.findByText(`${name} 2`)
     expect(requests).toContainEqual({
       url: path,
       params: { includeInactive: 'false', limit: 50, cursor: 'page-2' },
     })
-    expect(screen.queryByRole('button', { name: `Load more ${resource}` })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Next' }).hasAttribute('disabled')).toBe(true)
+    expect(screen.queryByText(`${name} 1`)).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Previous' }))
+    await screen.findByText(`${name} 1`)
     expect(requests.filter(({ url }) => url === '/stock-items')).toHaveLength(1)
   },
 )

@@ -260,8 +260,11 @@ beforeEach(() => {
             id: 1,
             warehouseId: 1,
             inventoryItemId: 1,
-            quantity: '20.00',
-            reservedQuantity: '1.25',
+            revision: 1,
+            onHandQuantity: '20.00',
+            inTransitQuantity: '0.00',
+            quarantinedQuantity: '0.00',
+            availableQuantity: '20.00',
             ...stamps,
           },
         ],
@@ -274,6 +277,7 @@ beforeEach(() => {
       }
       data =
         collections[url] ??
+        (Array.isArray(collections['/' + url.split('/')[1]]) ? (collections['/' + url.split('/')[1]] as { id: number }[]).find(record => record.id === Number(url.split('/')[2])) : undefined) ??
         (url === '/warehouses/1' ? (collections['/warehouses'] as { id: number }[])[0] : undefined) ??
         (url === '/inventory-items/1' ? (collections['/inventory-items'] as { id: number }[])[0] : undefined) ??
         sales.find((item) => url === `/sales-orders/${item.id}`) ??
@@ -400,7 +404,7 @@ beforeEach(() => {
     }
     if (
       method === 'get' &&
-      /^\/(sales-orders|purchase-orders|incoming-deliveries|outgoing-deliveries|warehouses)$/.test(url)
+      /^\/(sales-orders|purchase-orders|incoming-deliveries|outgoing-deliveries|warehouses|clients|suppliers|inventory-items|stock-items)$/.test(url)
     )
       data = { items: data, nextCursor: null }
     return { data, config, headers: {}, status: 200, statusText: 'OK' }
@@ -1364,4 +1368,46 @@ it('preserves a created incoming draft when scheduling fails and prevents duplic
   expect(incoming.find((delivery) => delivery.id === 91)?.status).toBe('DRAFT')
   expect(await screen.findByRole('button', { name: 'Schedule IN-91' })).toBeTruthy()
   expect(requests.filter((request) => request.url === '/incoming-deliveries/91/schedule')).toHaveLength(1)
+})
+
+
+it('waits for referenced supplier and product metadata before exporting a purchase order', async () => {
+  purchases[0].status = 'CONFIRMED'
+  const base = getAdapter(apiClient.defaults.adapter)
+  let release!: () => void
+  const metadataGate = new Promise<void>(resolve => { release = resolve })
+  apiClient.defaults.adapter = async config => {
+    if (config.url === '/suppliers/2' || config.url === '/inventory-items/1') await metadataGate
+    return base(config)
+  }
+  const user = userEvent.setup()
+  mount(<PurchasesView />)
+  await user.click(await screen.findByRole('button', { name: 'More actions for PO-TEST' }))
+  await user.click(screen.getByRole('menuitem', { name: 'Print / Download Purchase Order' }))
+  expect(exportPurchaseReceiptPdf).not.toHaveBeenCalled()
+  await act(async () => { release() })
+  await waitFor(() => expect(exportPurchaseReceiptPdf).toHaveBeenCalledWith(
+    expect.objectContaining({ id: 2, status: 'CONFIRMED' }),
+    expect.objectContaining({ id: 2, name: 'Test Supplier' }),
+    [expect.objectContaining({ id: 1, name: 'Test Mango' })],
+  ))
+  expect(mutations()).toHaveLength(0)
+})
+
+it('does not export a purchase order with an unresolved referenced product', async () => {
+  purchases[0].status = 'CONFIRMED'
+  const base = getAdapter(apiClient.defaults.adapter)
+  const errorToast = vi.spyOn(toast, 'error').mockReturnValue('export-error')
+  apiClient.defaults.adapter = async config => {
+    const response = await base(config)
+    if (config.url === '/inventory-items/1') response.data = null
+    return response
+  }
+  const user = userEvent.setup()
+  mount(<PurchasesView />)
+  await user.click(await screen.findByRole('button', { name: 'More actions for PO-TEST' }))
+  await user.click(screen.getByRole('menuitem', { name: 'Print / Download Purchase Order' }))
+  await waitFor(() => expect(errorToast).toHaveBeenCalledWith(expect.stringContaining('Product details are unavailable')))
+  expect(exportPurchaseReceiptPdf).not.toHaveBeenCalled()
+  expect(mutations()).toHaveLength(0)
 })

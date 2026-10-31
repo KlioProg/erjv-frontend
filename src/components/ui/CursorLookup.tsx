@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { apiClient } from '@/lib/api-client'
 import { SearchableDropdown } from './SearchableDropdown'
 import { Button } from './button'
 import { getErrorMessage } from '@/lib/api-client'
@@ -36,16 +38,53 @@ export function CursorLookup<T extends { id: number }>({
   error?: string
 }) {
   const [q, setQ] = useState('')
-  const query = useCursorLookup<T>(path, { ...filter, ...(q.trim() ? { q: q.trim() } : {}) })
+  const [open, setOpen] = useState(false)
+  const [remembered, setRemembered] = useState<T>()
+  const query = useCursorLookup<T>(
+    path,
+    { ...filter, ...(q.trim() ? { q: q.trim() } : {}) },
+    open && !disabled,
+  )
+  const local =
+    query.items.find((record) => String(record.id) === value) ??
+    (String(remembered?.id) === value ? remembered : undefined)
+  const resource = path.split('/')[1]
+  const selected = useQuery({
+    queryKey: [
+      ['employees', 'users', 'jobs'].includes(resource)
+        ? 'staffing'
+        : resource === 'inventory-items'
+          ? 'products'
+          : resource,
+      'lookup-selected',
+      resource,
+      value,
+    ],
+    enabled: Boolean(value && !local && !selectedLabel),
+    retry: false,
+    queryFn: async ({ signal }) => {
+      const { data } = await apiClient.get<T>(`/${resource}/${value}`, { signal })
+      if (String(data?.id) !== value) throw Error('The selected record is no longer available.')
+      return data
+    },
+  })
+  const selectedRecord = local ?? selected.data
   return (
     <SearchableDropdown
       id={id}
       options={accept ? query.items.filter(accept) : query.items}
       value={value}
-      onValueChange={onChange}
+      onValueChange={(id, record) => {
+        setRemembered(record)
+        onChange(id, record)
+      }}
       getOptionValue={(record) => String(record.id)}
       getOptionLabel={getLabel}
-      selectedLabel={value ? (selectedLabel ?? `Selected #${value}`) : undefined}
+      selectedLabel={
+        value
+          ? (selectedLabel ?? (selectedRecord ? getLabel(selectedRecord) : `Selected #${value}`))
+          : undefined
+      }
       className={className}
       placeholder={`Choose ${label.toLowerCase()}`}
       searchPlaceholder={searchPlaceholder ?? `Search ${label.toLowerCase()}`}
@@ -54,8 +93,22 @@ export function CursorLookup<T extends { id: number }>({
       error={error}
       disabled={disabled}
       onSearchChange={setQ}
+      onOpenChange={setOpen}
       footer={
         <div className="flex flex-wrap items-center gap-2 border-t pt-2 text-xs">
+          {selected.isError && (
+            <p role="alert">
+              Selected record unavailable.{' '}
+              <Button
+                type="button"
+                variant="link"
+                size="sm"
+                onClick={() => void selected.refetch()}
+              >
+                Retry selected record
+              </Button>
+            </p>
+          )}
           {query.isError && <p role="alert">{getErrorMessage(query.error)}</p>}
           {query.isError && (
             <Button type="button" size="sm" variant="outline" onClick={() => void query.reload()}>

@@ -1,4 +1,4 @@
-import { fetchCursorList } from '@/lib/cursor-pagination'
+import { fetchCursorList, fetchCursorPage } from '@/lib/cursor-pagination'
 import { apiClient, requireRevision } from '@/lib/api-client'
 import { serializeLineDiscount } from '@/lib/order-line-pricing'
 import type {
@@ -97,4 +97,9 @@ export async function confirmPurchaseOrderApi(id: number, expectedRevision: numb
 export async function cancelPurchaseOrderApi(id: number, expectedRevision: number): Promise<PurchaseOrderRecord> {
   const { data } = await apiClient.patch<PurchaseOrderRecord>(`/purchase-orders/${id}/cancel`, { expectedRevision: requireRevision(expectedRevision) })
   return data
+}
+
+export function fetchPurchaseOrdersPageApi(filter: PurchaseOrderFilter = {}, signal?: AbortSignal) {
+  const { status, statuses, q, limit, cursor, orderedFrom, orderedBefore, expectedFrom, expectedBefore, supplierId } = filter
+  return fetchCursorPage<PurchaseOrderRecord>('/purchase-orders', { limit, cursor, statuses: status ? [status] : statuses, q, orderedFrom, orderedBefore, expectedFrom, expectedBefore, supplierId }, signal)
 }

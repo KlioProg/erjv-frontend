@@ -13,12 +13,13 @@ import { Spinner } from '@/components/ui/spinner'
 import { DataTable, type ColumnDef } from '@/components/ui/data-table'
 import { useDeliveryRunById } from '@/features/logistics/delivery-runs.hooks'
 import { useOutgoingDeliveryById } from '@/features/logistics/outgoing-deliveries.hooks'
-import { useAllWarehouses } from '@/features/logistics/warehouses.hooks'
-import { useDeliveryVehicles } from '@/features/logistics/delivery-vehicles.hooks'
-import { useEmployees } from '@/features/staffing/staffing.hooks'
-import { useSalesOrders } from '@/features/crm/sales-orders.hooks'
-import { useAllClients } from '@/features/crm/clients.hooks'
-import { useAllProducts } from '@/features/products/products.hooks'
+import { useRecordsById } from '@/lib/use-records-by-id'
+import type { Warehouse } from '@/features/logistics/warehouses.types'
+import type { DeliveryVehicle } from '@/features/logistics/delivery-vehicles.types'
+import type { Employee } from '@/features/staffing/staffing.types'
+import type { SalesOrderRecord } from '@/features/crm/sales-orders.types'
+import type { Client } from '@/features/crm/clients.types'
+import type { InventoryItemResponse } from '@/features/products/products.types'
 import type { OutgoingDeliveryItemRecord } from '@/features/logistics/outgoing-deliveries.types'
 import { getErrorMessage } from '@/lib/api-client'
 import { DeliveryStatusBadge } from './DeliveryStatusBadge'
@@ -33,20 +34,20 @@ interface DeliveryDetailModalProps {
 
 export function DeliveryDetailModal({ deliveryId, open, onClose }: DeliveryDetailModalProps) {
   const deliveryQuery = useOutgoingDeliveryById(deliveryId || undefined)
-  const warehousesQuery = useAllWarehouses()
-  const vehiclesQuery = useDeliveryVehicles({ includeInactive: 'true' })
-  const employeesQuery = useEmployees({ includeInactive: 'true' })
-  const ordersQuery = useSalesOrders()
-  const clientsQuery = useAllClients()
-  const productsQuery = useAllProducts()
   const delivery = deliveryQuery.data
   const runQuery = useDeliveryRunById(delivery?.runId ?? undefined)
   const run = runQuery.data
-  const warehouses = warehousesQuery.data ?? []
-  const vehicle = vehiclesQuery.data?.find((v) => v.id === run?.deliveryVehicleId)
-  const driver = employeesQuery.data?.find((e) => e.id === run?.driverEmployeeId)
-  const order = ordersQuery.data?.find((o) => o.id === delivery?.salesOrderId)
-  const client = clientsQuery.data?.find((c) => c.id === order?.clientId)
+  const warehousesQuery = useRecordsById<Warehouse>('/warehouses', [delivery?.warehouseId, ...(delivery?.items ?? []).map(item => item.stockItem?.warehouseId)])
+  const vehiclesQuery = useRecordsById<DeliveryVehicle>('/delivery-vehicles', [run?.deliveryVehicleId])
+  const employeesQuery = useRecordsById<Employee>('/employees', [run?.driverEmployeeId])
+  const ordersQuery = useRecordsById<SalesOrderRecord>('/sales-orders', [delivery?.salesOrderId])
+  const order = ordersQuery.data[0]
+  const clientsQuery = useRecordsById<Client>('/clients', [order?.clientId])
+  const productsQuery = useRecordsById<InventoryItemResponse>('/inventory-items', (order?.items ?? []).map(item => item.inventoryItemId))
+  const warehouses = warehousesQuery.data
+  const vehicle = vehiclesQuery.data[0]
+  const driver = employeesQuery.data[0]
+  const client = clientsQuery.data[0]
   const referenceQueries = [
     warehousesQuery,
     vehiclesQuery,

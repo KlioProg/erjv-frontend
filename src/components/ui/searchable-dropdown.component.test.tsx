@@ -186,3 +186,18 @@ it('honors disabled and loading states without exposing selectable options', asy
   view.rerender(<SearchableDropdown {...props} disabled />)
   expect(screen.queryByRole('menu')).toBeNull()
 })
+
+
+it('keeps validation and overflow tooltip descriptions associated with the same trigger', async () => {
+  vi.spyOn(HTMLElement.prototype, 'scrollWidth', 'get').mockReturnValue(240)
+  vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(100)
+  const user = userEvent.setup()
+  render(<SearchableDropdown options={['Long selected value']} value="Long selected value" onValueChange={vi.fn()} getOptionValue={value => value} getOptionLabel={value => value} placeholder="Choose" searchPlaceholder="Search" emptyMessage="Empty" ariaLabel="Record" error="Review this record" />)
+  await user.tab()
+  const trigger = screen.getByRole('button', { name: 'Record' })
+  const descriptions = trigger.getAttribute('aria-describedby')?.split(' ')
+  expect(descriptions).toContain(screen.getByRole('alert').id)
+  expect(descriptions).toContain(screen.getByRole('tooltip').id)
+  await user.keyboard('{Escape}')
+  expect(trigger.getAttribute('aria-describedby')).toBe(screen.getByRole('alert').id)
+})

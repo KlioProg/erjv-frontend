@@ -1,3 +1,6 @@
+import { useStockMetadata } from '@/features/logistics/use-stock-metadata'
+import { useResourcePage } from '@/lib/use-cursor-page'
+import { CursorPageControls } from '@/components/ui/CursorPageControls'
 import { useState } from 'react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -13,7 +16,6 @@ import {
 import { SearchableDropdown } from '@/components/ui/SearchableDropdown'
 import { DataTable, type ColumnDef } from '@/components/ui/data-table'
 import { DataTableActions } from '@/components/ui/DataTableActions'
-import { useQuarantineLots } from '@/features/logistics/quarantine.hooks'
 import { useStockItems } from '@/features/logistics/stock-items.hooks'
 import type { QuarantineCondition, QuarantineLot } from '@/features/logistics/quarantine.types'
 import { getErrorMessage } from '@/lib/api-client'
@@ -26,13 +28,14 @@ export function QuarantinedStock({ stockItemId }: { stockItemId?: number } = {})
   const [condition, setCondition] = useState<QuarantineCondition | 'ALL'>('ALL')
   const [openOnly, setOpenOnly] = useState(true)
   const [selected, setSelected] = useState<QuarantineLot>()
-  const query = useQuarantineLots({
+  const query = useResourcePage<QuarantineLot>('/stock-items/quarantine-lots', {
     ...(stockId !== 'ALL' ? { stockItemId: Number(stockId) } : {}),
     ...(condition !== 'ALL' ? { condition } : {}),
     openOnly,
   })
+  const selectedStock = useStockMetadata(stockId !== 'ALL' && !stocks.items.some(item => item.id === Number(stockId)) ? Number(stockId) : undefined)
   function stockLabel(id: number) {
-    const stock = stocks.data?.find((candidate) => candidate.id === id)
+    const stock = stocks.data?.find((candidate) => candidate.id === id) ?? (selectedStock.data?.id === id ? selectedStock.data : undefined)
     return stock
       ? `${stock.inventoryItem.name} — ${stock.warehouse.name}`
       : 'Stock details unavailable'
@@ -41,11 +44,11 @@ export function QuarantinedStock({ stockItemId }: { stockItemId?: number } = {})
     {
       id: 'stock',
       header: 'Product / Warehouse',
-      cell: ({ row }) => stockLabel(row.stockItemId),
-      sortable: true,
+      cell: ({ row }) => <QuarantineStockLabel id={row.stockItemId} label={stocks.items.some(stock => stock.id === row.stockItemId) ? stockLabel(row.stockItemId) : undefined} />,
+      sortable: false,
       sortKey: (row) => stockLabel(row.stockItemId),
     },
-    { id: 'condition', header: 'Current condition', accessorKey: 'condition', sortable: true },
+    { id: 'condition', header: 'Current condition', accessorKey: 'condition', sortable: false },
     { id: 'reported', header: 'Originally reported', accessorKey: 'reportedCondition' },
     { id: 'source', header: 'Source', cell: ({ row }) => row.sourceKind.replaceAll('_', ' ') },
     {
@@ -82,6 +85,7 @@ export function QuarantinedStock({ stockItemId }: { stockItemId?: number } = {})
                 </Button>
               ) : undefined
             }
+            selectedLabel={stockId === 'ALL' ? undefined : stockLabel(Number(stockId))}
             value={stockId}
             onValueChange={setStockId}
             options={[
@@ -94,7 +98,7 @@ export function QuarantinedStock({ stockItemId }: { stockItemId?: number } = {})
             getOptionValue={(option) => option.value}
             getOptionLabel={(option) => option.label}
             placeholder="All stock records"
-            searchPlaceholder="Search product or warehouse"
+            searchPlaceholder="Search product name"
             emptyMessage="No matching stock records"
             ariaLabel="Filter quarantine by stock record"
           />
@@ -156,22 +160,16 @@ export function QuarantinedStock({ stockItemId }: { stockItemId?: number } = {})
         </Alert>
       ) : (
         <DataTable
+        pagination={false}
+        manualSorting
           data={query.items}
           columns={columns}
           getRowKey={(lot) => lot.id}
-          isLoading={query.isLoading}
+          isLoading={query.isFetching}
           emptyContent="No quarantine lots match these filters."
         />
       )}
-      {query.hasNextPage && (
-        <Button
-          variant="outline"
-          disabled={query.isFetching}
-          onClick={() => void query.fetchNextPage()}
-        >
-          Load more quarantine lots
-        </Button>
-      )}
+      <CursorPageControls {...query} label="Quarantine lot" />
       {selected && (
         <QuarantineLotDialog
           key={selected.id}
@@ -182,4 +180,9 @@ export function QuarantinedStock({ stockItemId }: { stockItemId?: number } = {})
       )}
     </section>
   )
+}
+
+function QuarantineStockLabel({ id, label }: { id: number; label?: string }) {
+  const query = useStockMetadata(label ? undefined : id)
+  return <>{label ?? (query.data ? `${query.data.inventoryItem.name} - ${query.data.warehouse.name}` : query.isError ? `Stock #${id} unavailable` : `Loading stock #${id}...`)}</>
 }

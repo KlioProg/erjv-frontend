@@ -1,9 +1,18 @@
+import type { DeliveryRunRecord } from '@/features/logistics/delivery-runs.types'
+import type { DeliveryVehicle } from '@/features/logistics/delivery-vehicles.types'
+import type { Employee } from '@/features/staffing/staffing.types'
+import { useRecordsById } from '@/lib/use-records-by-id'
+import type { PurchaseOrderRecord } from '@/features/logistics/purchase-orders.types'
+import type { SalesOrderRecord } from '@/features/crm/sales-orders.types'
+import type { Supplier } from '@/features/logistics/suppliers.types'
+import type { Client } from '@/features/crm/clients.types'
+import type { InventoryItemResponse } from '@/features/products/products.types'
 import { PageHeader, PageToolbar } from '@/components/ui/ManagementPage'
 import { IncomingDeliveryDetailModal } from './shared/IncomingDeliveryDetailModal'
 import {
   buildDeliveryRows,
-  deliveryNeedsAttention,
   localDeliveryDay,
+  deliveryNeedsAttention,
   DELIVERY_STATUS_LABELS,
   deliveryBelongsToView,
   getDeliveryActions,
@@ -42,16 +51,11 @@ import {
   useCancelOutgoingDelivery,
   useReopenOutgoingDelivery,
 } from '@/features/logistics/outgoing-deliveries.hooks'
-import { useAllDeliveryVehicles } from '@/features/logistics/delivery-vehicles.hooks'
-import { useSalesOrders, useSalesOrderById } from '@/features/crm/sales-orders.hooks'
-import { useClients } from '@/features/crm/clients.hooks'
-import { usePurchaseOrders, usePurchaseOrderById } from '@/features/logistics/purchase-orders.hooks'
+import { useSalesOrderById } from '@/features/crm/sales-orders.hooks'
+import { usePurchaseOrderById } from '@/features/logistics/purchase-orders.hooks'
 import { fetchIncomingDeliveriesApi } from '@/features/logistics/incoming-deliveries.api'
 import { fetchOutgoingDeliveriesApi } from '@/features/logistics/outgoing-deliveries.api'
-import { useSuppliers } from '@/features/logistics/suppliers.hooks'
 import { useAllWarehouses } from '@/features/logistics/warehouses.hooks'
-import { useAllProducts } from '@/features/products/products.hooks'
-import { useEmployees } from '@/features/staffing/staffing.hooks'
 import { useStockItems } from '@/features/logistics/stock-items.hooks'
 import type { PurchaseOrderStatus } from '@/features/logistics/purchase-orders.types'
 import type { CreateIncomingDeliveryPayload } from '@/features/logistics/incoming-deliveries.types'
@@ -62,7 +66,8 @@ import { CompleteDeliveryModal } from './shared/CompleteDeliveryModal'
 import { DeliveryDetailModal } from './shared/DeliveryDetailModal'
 import type { OutgoingDeliveryRecord } from '@/features/logistics/outgoing-deliveries.types'
 import { getErrorMessage } from '@/lib/api-client'
-import { useCursorLookup } from '@/lib/use-cursor-lookup'
+import { useResourcePage } from '@/lib/use-cursor-page'
+import { CursorPageControls } from '@/components/ui/CursorPageControls'
 import type { IncomingDeliveryRecord } from '@/features/logistics/incoming-deliveries.types'
 
 // Older callers retain their navigation hints; outgoing aliases share the active view.
@@ -160,34 +165,40 @@ export function DeliveriesHub({
     view !== 'incoming' &&
     (view !== 'history' || type !== 'Incoming') &&
     (status === 'ALL' || outgoingStatuses.includes(status))
-  const incomingQuery = useCursorLookup<IncomingDeliveryRecord>(
+  const incomingQuery = useResourcePage<IncomingDeliveryRecord>(
     '/incoming-deliveries',
     {
       statuses: status !== 'ALL' && incomingStatuses.includes(status) ? [status] : incomingStatuses,
+      ...(orderScope !== null ? { purchaseOrderId: orderScope } : {}),
       ...(search.trim() ? { q: search.trim() } : {}),
+      ...(warehouseId !== 'ALL' ? { warehouseId: Number(warehouseId) } : {}),
+      ...(fromDate ? { scheduledFrom: new Date(`${fromDate}T00:00:00`).toISOString() } : {}),
+      ...(toDate ? { scheduledBefore: (() => { const boundary = new Date(`${toDate}T00:00:00`); boundary.setDate(boundary.getDate() + 1); return boundary.toISOString() })() } : {}),
     },
     incomingEnabled,
   )
-  const outgoingQuery = useCursorLookup<OutgoingDeliveryRecord>(
+  const outgoingQuery = useResourcePage<OutgoingDeliveryRecord>(
     '/outgoing-deliveries',
     {
       statuses: status !== 'ALL' && outgoingStatuses.includes(status) ? [status] : outgoingStatuses,
+      ...(orderScope !== null ? { salesOrderId: orderScope } : {}),
       ...(search.trim() ? { q: search.trim() } : {}),
+      ...(warehouseId !== 'ALL' ? { warehouseId: Number(warehouseId) } : {}),
     },
     outgoingEnabled,
+    [fromDate, toDate],
   )
   const incoming = incomingQuery.items
   const outgoing = outgoingQuery.items
-  const canLoadIncoming = incomingEnabled && incomingQuery.hasNextPage
-  const canLoadOutgoing = outgoingEnabled && outgoingQuery.hasNextPage
-  const { data: purchaseOrders = [] } = usePurchaseOrders()
-  const { data: salesOrders = [] } = useSalesOrders()
-  const { data: suppliers = [] } = useSuppliers({ includeInactive: 'true' })
-  const { data: clients = [] } = useClients({ includeInactive: 'true' })
+  const { data: purchaseOrders } = useRecordsById<PurchaseOrderRecord>('/purchase-orders', [...incoming.map(delivery => delivery.purchaseOrderId), viewOrder?.type === 'Incoming' ? viewOrder.id : undefined])
+  const { data: salesOrders } = useRecordsById<SalesOrderRecord>('/sales-orders', [...outgoing.map(delivery => delivery.salesOrderId), viewOrder?.type === 'Outgoing' ? viewOrder.id : undefined])
+  const { data: suppliers } = useRecordsById<Supplier>('/suppliers', purchaseOrders.map(order => order.supplierId))
+  const { data: clients } = useRecordsById<Client>('/clients', salesOrders.map(order => order.clientId))
   const { data: warehouses = [] } = useAllWarehouses()
-  const { data: vehicles = [] } = useAllDeliveryVehicles()
-  const { data: employees = [] } = useEmployees({ includeInactive: 'true' })
-  const { data: products = [] } = useAllProducts()
+  const { data: runs } = useRecordsById<DeliveryRunRecord>('/delivery-runs', outgoing.map(delivery => delivery.runId))
+  const { data: vehicles } = useRecordsById<DeliveryVehicle>('/delivery-vehicles', runs.map(run => run.deliveryVehicleId))
+  const { data: employees } = useRecordsById<Employee>('/employees', runs.map(run => run.driverEmployeeId))
+  const { data: products } = useRecordsById<InventoryItemResponse>('/inventory-items', [...purchaseOrders.flatMap(order => order.items.map(item => item.inventoryItemId)), ...salesOrders.flatMap(order => order.items.map(item => item.inventoryItemId))])
   const { data: stockItems = [] } = useStockItems()
   const createIncoming = useCreateIncomingDelivery()
   const scheduleIncoming = useScheduleIncomingDelivery()
@@ -200,7 +211,7 @@ export function DeliveriesHub({
   const hasDeliveryError =
     (incomingEnabled && incomingQuery.isError) || (outgoingEnabled && outgoingQuery.isError)
   const isLoadingDeliveries =
-    (incomingEnabled && incomingQuery.isLoading) || (outgoingEnabled && outgoingQuery.isLoading)
+    (incomingEnabled && incomingQuery.isFetching) || (outgoingEnabled && outgoingQuery.isFetching)
   const isFetchingDeliveries =
     (incomingEnabled && incomingQuery.isFetching) || (outgoingEnabled && outgoingQuery.isFetching)
   const rows = buildDeliveryRows({
@@ -218,18 +229,12 @@ export function DeliveriesHub({
     if (!deliveryBelongsToView(row, view)) return false
     if (view === 'history' && type !== 'ALL' && row.type !== type) return false
     if (status !== 'ALL' && row.status !== status) return false
-    if (warehouseId !== 'ALL') {
-      const selectedWarehouseId = Number(warehouseId)
-      const matchesWarehouse =
-        row.type === 'Incoming' || row.record.warehouseId != null
-          ? row.record.warehouseId === selectedWarehouseId
-          : row.record.items.some((item) => item.stockItem?.warehouseId === selectedWarehouseId)
-      if (!matchesWarehouse) return false
-    }
     if (orderScope !== null && row.orderId !== orderScope) return false
-    const day = localDeliveryDay(row.date)
-    if (fromDate && (!day || day < fromDate)) return false
-    if (toDate && (!day || day > toDate)) return false
+    if (row.type === 'Outgoing') {
+      const day = localDeliveryDay(row.date)
+      if (fromDate && (!day || day < fromDate)) return false
+      if (toDate && (!day || day > toDate)) return false
+    }
     return true
   })
   const viewRow = rows.find((row) => row.type === 'Incoming' && row.record.id === viewIncomingId)
@@ -371,11 +376,6 @@ export function DeliveriesHub({
                 <Button
                   size="sm"
                   variant="default"
-                  disabled={
-                    !purchaseOrders.some((order) =>
-                      ['CONFIRMED', 'PARTIALLY_RECEIVED'].includes(order.status),
-                    )
-                  }
                   onClick={() => setCreateType('Incoming')}
                 >
                   <ArrowDownToLine data-icon="inline-start" />
@@ -385,11 +385,6 @@ export function DeliveriesHub({
               {view === 'outgoing' && (
                 <Button
                   size="sm"
-                  disabled={
-                    !salesOrders.some((order) =>
-                      ['CONFIRMED', 'PARTIALLY_DELIVERED'].includes(order.status),
-                    )
-                  }
                   onClick={() => setCreateType('Outgoing')}
                 >
                   <Plus data-icon="inline-start" />
@@ -464,6 +459,7 @@ export function DeliveriesHub({
           />
         )}
       </div>
+      {outgoingEnabled && <p className="text-xs text-muted-foreground">Outgoing date filters apply to the current page; the backend does not support outgoing date filtering.</p>}
       {orderScope !== null && (
         <p className="text-xs text-muted-foreground">
           {view === 'incoming' ? 'Incoming' : 'Outgoing'} deliveries for{' '}
@@ -558,32 +554,8 @@ export function DeliveriesHub({
           onAction={handleAction}
         />
       )}
-      <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground">
-        <p>
-          Warehouse and date filters apply to loaded deliveries. Load more to include additional
-          matches.
-        </p>
-        <div className="flex flex-wrap gap-2">
-          {canLoadIncoming && (
-            <Button
-              variant="outline"
-              disabled={incomingQuery.isFetching}
-              onClick={() => void incomingQuery.fetchNextPage()}
-            >
-              Load more incoming deliveries
-            </Button>
-          )}
-          {canLoadOutgoing && (
-            <Button
-              variant="outline"
-              disabled={outgoingQuery.isFetching}
-              onClick={() => void outgoingQuery.fetchNextPage()}
-            >
-              Load more outgoing deliveries
-            </Button>
-          )}
-        </div>
-      </div>
+      {incomingEnabled && <CursorPageControls {...incomingQuery} label="Incoming delivery" />}
+      {outgoingEnabled && <CursorPageControls {...outgoingQuery} label="Outgoing delivery" />}
       {canManage && createType === 'Incoming' && (
         <ScheduleIncomingDeliveryModal
           key={orderScope ?? 'incoming'}

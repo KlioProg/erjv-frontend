@@ -167,14 +167,16 @@ beforeEach(() => {
     const url = config.url || ''
     requests.push({ url, method: config.method || 'get', params: config.params || {} })
     if (url === '/outgoing-deliveries/10' && deliveryGate) await deliveryGate
-    if (failedUrl === url)
+    const base = '/' + url.split('/')[1]
+    if (failedUrl === url || failedUrl === base)
       throw {
         isAxiosError: true,
         response: { status: 503, data: { message: 'Delivery lookup unavailable' } },
       }
-    if (url !== '/outgoing-deliveries/10' && !(url in records))
+    const reference = Array.isArray(records[base]) ? records[base].find((record: { id: number }) => record.id === Number(url.split('/')[2])) : undefined
+    if (url !== '/outgoing-deliveries/10' && !(url in records) && !Array.isArray(records[base]))
       throw new Error(`Unexpected request ${url}`)
-    let data = url === '/outgoing-deliveries/10' ? delivery : records[url]
+    let data = url === '/outgoing-deliveries/10' ? delivery : records[url] ?? reference ?? null
     if (Array.isArray(data) && config.params?.includeInactive !== 'true') {
       data = data.filter((record) => record.isActive !== false)
     }
@@ -252,15 +254,9 @@ describe('outgoing delivery details', () => {
       expect(within(table).getByText(text)).toBeTruthy()
     }
     expect(within(dialog).getByText(/Keep the cargo dry/).textContent).toBe(delivery.notes)
-    const archivedRoutes = [
-      '/warehouses',
-      '/delivery-vehicles',
-      '/employees',
-      '/clients',
-      '/inventory-items',
-    ]
-    for (const url of archivedRoutes)
-      expect(requests.find((request) => request.url === url)?.params.includeInactive).toBe('true')
+    for (const url of ['/warehouses/3', '/delivery-vehicles/4', '/employees/5', '/clients/6', '/inventory-items/2'])
+      expect(requests.some(request => request.url === url)).toBe(true)
+    expect(requests.some(request => ['/warehouses', '/delivery-vehicles', '/employees', '/clients', '/inventory-items'].includes(request.url))).toBe(false)
     expect(requests.every((request) => request.method === 'get')).toBe(true)
     await user.click(within(dialog).getAllByRole('button', { name: 'Close' })[0])
     expect(onClose).toHaveBeenCalledOnce()
@@ -295,7 +291,7 @@ describe('outgoing delivery details', () => {
     await user.click(screen.getByRole('button', { name: 'Retry linked details' }))
     await screen.findByText(productName)
     await waitFor(() => expect(screen.queryByRole('alert')).toBeNull())
-    expect(requests.filter((request) => request.url === '/inventory-items')).toHaveLength(2)
+    expect(requests.filter((request) => request.url === '/inventory-items/2')).toHaveLength(2)
     expect(requests.filter((request) => request.url === '/outgoing-deliveries/10')).toHaveLength(1)
   })
 

@@ -173,7 +173,7 @@ beforeEach(() => {
     requests.push({ method, url, body })
     let data: unknown = []
     if (method === 'get') {
-      if ((url === '/stock-items' || url.startsWith('/stock-items/warehouses/')) && failStock)
+      if ((url === '/stock-items' || url.startsWith('/stock-items/warehouses/') || url.startsWith('/stock-items/inventory-items/')) && failStock)
         throw {
           isAxiosError: true,
           response: { status: 503, data: { message: 'Stock unavailable' } },
@@ -204,6 +204,9 @@ beforeEach(() => {
                 : /^\/inventory-items\/\d+$/.test(url)
                   ? products.find((p) => p.id === Number(url.split('/')[2]))
                   : []
+      if (url.startsWith('/stock-items/inventory-items/')) data = stocks.filter(row => row.inventoryItemId === Number(url.split('/')[3])).map(stockResponse)
+      if (url.startsWith('/stock-items/pair/')) data = stocks.find(row => row.inventoryItemId === Number(url.split('/')[3]) && row.warehouseId === Number(url.split('/')[4]))
+      if (/^\/warehouses\/\d+$/.test(url)) data = warehouses.find(row => row.id === Number(url.split('/')[2]))
     } else if (
       url === '/incoming-deliveries/1/complete' ||
       url === '/delivery-runs/1/deliveries/1/reconcile'
@@ -256,9 +259,9 @@ beforeEach(() => {
       (url === '/stock-items' ||
         url === '/inventory-items' ||
         url === '/warehouses' ||
-        url.startsWith('/stock-items/warehouses/'))
+        url.startsWith('/stock-items/warehouses/') || url.startsWith('/stock-items/inventory-items/'))
     )
-      data = { items: data, nextCursor: null }
+      { const rows = (data as { inventoryItem?: { name: string } }[]).filter(row => !config.params?.q || !url.startsWith('/stock-items') || row.inventoryItem?.name.toLowerCase().includes(config.params.q.toLowerCase())); const limit = config.params?.limit ?? 50; const offset = Number(config.params?.cursor ?? 0); data = { items: rows.slice(offset, offset + limit), nextCursor: offset + limit < rows.length ? String(offset + limit) : null } }
     return { data: structuredClone(data), config, headers: {}, status: 200, statusText: 'OK' }
   }
 })
@@ -514,7 +517,7 @@ describe('inventory and global stock warnings', () => {
     expect(screen.queryByRole('button', { name: /Edit wholesale price/ })).toBeNull()
   })
 
-  it('prioritizes empty warehouse stock without inventing low-stock thresholds', async () => {
+  it('preserves backend warehouse stock ordering without inventing low-stock thresholds', async () => {
     const user = userEvent.setup()
     const onBack = vi.fn()
     products = [
@@ -539,27 +542,21 @@ describe('inventory and global stock warnings', () => {
     const visibleRows = () => within(table).getAllByRole('row').slice(1)
     expect(within(table).getAllByRole('columnheader')).toHaveLength(4)
     expect(screen.queryByRole('columnheader', { name: 'Status' })).toBeNull()
-    expect(visibleRows()).toHaveLength(10)
-    expect(
-      visibleRows()
-        .slice(0, 4)
-        .map(
-          (row) => within(row).getByText(/^(Zulu Empty|Alpha Healthy|Healthy [01])$/).textContent,
-        ),
-    ).toEqual(['Zulu Empty', 'Alpha Healthy', 'Healthy 0', 'Healthy 1'])
+    expect(visibleRows()).toHaveLength(16)
+    expect(visibleRows().slice(0, 4).map(row => within(row).getAllByRole('cell')[0].textContent)).toEqual(['Alpha Healthysacks', 'Zulu Emptysacks', 'Yield Lowsacks', 'Omega Fractionalsacks'])
     expect(screen.getByRole('img', { name: 'Out of stock: Zulu Empty in Store' })).toBeTruthy()
     expect(screen.queryByRole('img', { name: /Low stock:/ })).toBeNull()
-    expect(within(visibleRows()[1]).getAllByText('20.01')).toHaveLength(2)
+    expect(within(visibleRows()[0]).getAllByText('20.01')).toHaveLength(2)
     expect(within(visibleRows()[3]).queryByRole('img')).toBeNull()
     expect(screen.queryByText('In Stock')).toBeNull()
 
     const search = screen.getByRole('textbox', { name: 'Search warehouse products' })
     await user.type(search, 'Delta Unknown')
-    expect(visibleRows()).toHaveLength(1)
-    expect(within(visibleRows()[0]).queryByRole('img')).toBeNull()
+    await waitFor(() => expect(within(screen.getByRole('table')).getAllByRole('row')).toHaveLength(2))
+    expect(within(screen.getByRole('table')).queryByRole('img')).toBeNull()
     await user.clear(search)
-    await user.click(within(table).getByRole('button', { name: 'Product' }))
-    expect(within(visibleRows()[0]).getByText('Alpha Healthy')).toBeTruthy()
+    await screen.findByText('Alpha Healthy')
+    expect(screen.queryByRole('button', { name: 'Product' })).toBeNull()
     await user.click(screen.getByRole('button', { name: 'Back to Warehouses' }))
     expect(onBack).toHaveBeenCalledOnce()
   })
@@ -637,18 +634,17 @@ describe('inventory and global stock warnings', () => {
         .map((cell) => cell.textContent),
     ).toEqual(['10', '—', '—'])
     const summary = screen.getByRole('region', { name: 'Warehouse stock summary' })
-    expect(within(summary).getByText('Stock records')).toBeTruthy()
+    expect(within(summary).getByText('Stock records on page')).toBeTruthy()
     expect(within(summary).getAllByText('3')).toHaveLength(2)
     expect(within(summary).queryByText('units')).toBeNull()
     expect(within(summary).queryByText('Total stock')).toBeNull()
-    const user = userEvent.setup()
-    await user.click(within(table).getByRole('button', { name: 'Available' }))
+    expect(within(table).queryByRole('button', { name: 'Available' })).toBeNull()
     expect(
       within(table)
         .getAllByRole('row')
         .slice(1)
         .map((row) => within(row).getAllByRole('cell')[2].textContent),
-    ).toEqual(['0', '42.25', '—'])
+    ).toEqual(['42.25', '0', '—'])
   })
 
   it('registers and edits products through the existing services and refreshes the table', async () => {
@@ -714,20 +710,20 @@ describe('inventory and global stock warnings', () => {
     expect(auth.logout).toHaveBeenCalledOnce()
   })
 
-  it('respects chosen sorting and searches and expands individual warehouse shortages', async () => {
+  it('preserves backend order, searches and expands individual warehouse shortages', async () => {
     const user = userEvent.setup()
     const openWarehouse = vi.fn()
     mount(<InventoryHub onOpenWarehouse={openWarehouse} />)
     await screen.findByText('Alpha Empty')
-    await user.click(screen.getByRole('button', { name: 'Product' }))
-    expect(screen.getAllByRole('row')[3].textContent).toContain('Delta Unknown')
+    expect(screen.queryByRole('button', { name: 'Product' })).toBeNull()
+    expect(screen.getAllByRole('row')[1].textContent).toContain('Alpha Empty')
     await user.type(screen.getByRole('textbox', { name: 'Search inventory' }), 'Beta')
     await user.click(screen.getByRole('button', { name: 'Show stock by location for Beta Mixed' }))
     const locations = within(
       screen.getByRole('region', { name: 'Stock by location for Beta Mixed' }),
     )
     expect(locations.queryByText(/^(Total:|Product total)/)).toBeNull()
-    expect(locations.getByRole('img', { name: 'Out of stock at Store' })).toBeTruthy()
+    expect(await locations.findByRole('img', { name: 'Out of stock at Store' })).toBeTruthy()
     expect(locations.queryByRole('img', { name: /Main Warehouse/ })).toBeNull()
     await user.click(locations.getByRole('button', { name: 'View inventory in Store' }))
     expect(openWarehouse).toHaveBeenCalledWith(1)
@@ -756,9 +752,9 @@ describe('inventory and global stock warnings', () => {
     await waitFor(() => expect(alert.getAttribute('data-disabled')).toBeNull())
     await user.click(alert)
     const region = await screen.findByRole('region', { name: 'Stock by location for Product 15' })
-    expect(within(region).getByRole('img', { name: 'Out of stock at Store' })).toBeTruthy()
+    expect(await within(region).findByRole('img', { name: 'Out of stock at Store' })).toBeTruthy()
     await waitFor(() => expect(document.activeElement?.id).toBe('inventory-location-15-1'))
-    expect(screen.queryByText('Product 01')).toBeNull()
+    expect(screen.getByText('Product 01')).toBeTruthy()
     expect(
       screen.getByRole('button', { name: 'Stock notifications, 1 unresolved warnings' }),
     ).toBeTruthy()
@@ -899,35 +895,33 @@ describe('warehouse product expansion', () => {
     const user = userEvent.setup()
     const adapter = apiClient.defaults.adapter as import('axios').AxiosAdapter
     apiClient.defaults.adapter = async (config) => {
-      if (config.url === '/warehouses')
-        return {
-          data: Array.from({ length: 12 }, (_, index) =>
-            location(index + 1, `Warehouse ${String(index + 1).padStart(2, '0')}`),
-          ).reverse(),
-          status: 200,
-          statusText: 'OK',
-          headers: {},
-          config,
-        }
+      if (config.url === '/warehouses') {
+        const matches = Array.from({ length: 12 }, (_, index) => location(index + 1, `Warehouse ${String(index + 1).padStart(2, '0')}`)).filter(row => !config.params?.q || row.name.includes(config.params.q))
+        const offset = Number(config.params?.cursor ?? 0), limit = config.params?.limit ?? 50
+        return { data: { items: matches.slice(offset, offset + limit), nextCursor: offset + limit < matches.length ? String(offset + limit) : null }, status: 200, statusText: 'OK', headers: {}, config }
+      }
       return adapter(config)
     }
     mount(<WarehouseList onOpenWarehouse={vi.fn()} />)
     await screen.findByRole('button', { name: 'Show products for Warehouse 12' })
     const table = screen.getByRole('table')
-    await user.click(screen.getByRole('button', { name: 'Warehouse' }))
+    expect(screen.queryByRole('button', { name: 'Warehouse' })).toBeNull()
+    await user.click(screen.getByRole('combobox', { name: 'Warehouses per page' }))
+    await user.click(screen.getByRole('option', { name: '10' }))
+    await screen.findByRole('button', { name: 'Show products for Warehouse 01' })
     expect(within(table).getAllByRole('row')[1].textContent).toContain('Warehouse 01')
     await user.click(screen.getByRole('button', { name: 'Show products for Warehouse 01' }))
     const region = await screen.findByRole('region', { name: 'Products at Warehouse 01' })
     await within(region).findByText('Alpha Empty')
-    await user.click(screen.getByRole('button', { name: 'Next Page' }))
+    await user.click(within(screen.getByRole('navigation', { name: 'Warehouse pages' })).getByRole('button', { name: 'Next' }))
     expect(screen.queryByRole('region', { name: 'Products at Warehouse 01' })).toBeNull()
-    expect(screen.getByRole('button', { name: 'Show products for Warehouse 11' })).toBeTruthy()
-    await user.click(screen.getByRole('button', { name: 'Previous Page' }))
+    expect(await screen.findByRole('button', { name: 'Show products for Warehouse 11' })).toBeTruthy()
+    await user.click(within(screen.getByRole('navigation', { name: 'Warehouse pages' })).getByRole('button', { name: 'Previous' }))
     expect(await screen.findByRole('region', { name: 'Products at Warehouse 01' })).toBeTruthy()
     const search = screen.getByRole('textbox', { name: 'Search warehouses' })
     await user.type(search, 'Warehouse 02')
     expect(screen.queryByRole('region', { name: 'Products at Warehouse 01' })).toBeNull()
-    expect(screen.getByRole('button', { name: 'Show products for Warehouse 02' })).toBeTruthy()
+    expect(await screen.findByRole('button', { name: 'Show products for Warehouse 02' })).toBeTruthy()
     await user.clear(search)
     expect(await screen.findByRole('region', { name: 'Products at Warehouse 01' })).toBeTruthy()
   })
@@ -939,7 +933,7 @@ describe('warehouse product expansion', () => {
     const openWarehouse = vi.fn()
     mount(<WarehouseList onOpenWarehouse={openWarehouse} />)
     const store = await screen.findByRole('button', { name: 'Show products for Store' })
-    expect(requests.some((r) => r.url.startsWith('/stock-items/warehouses/'))).toBe(false)
+    expect(requests.some((r) => r.url.startsWith('/stock-items/warehouses/') || r.url.startsWith('/stock-items/inventory-items/'))).toBe(false)
     store.focus()
     await user.keyboard('{Enter}')
     const region = await screen.findByRole('region', { name: 'Products at Store' })
@@ -1008,7 +1002,7 @@ it('shows available location stock without zero quarantine details and preserves
   const user = userEvent.setup()
   await user.click(await screen.findByRole('button', { name: 'Show stock by location for Rice' }))
   const section = screen.getByRole('region', { name: 'Stock by location for Rice' })
-  expect(within(section).getByText('42 kg')).toBeTruthy()
+  expect(await within(section).findByText('42 kg')).toBeTruthy()
   expect(within(section).getByText('Available')).toBeTruthy()
   expect(section.textContent).not.toMatch(/quarantined|damaged|spoiled|;|\(/i)
   await user.click(within(section).getByRole('button', { name: 'View inventory in Store' }))
@@ -1029,7 +1023,7 @@ it('keeps backend available stock prominent and shows only a positive quarantine
   const user = userEvent.setup()
   await user.click(await screen.findByRole('button', { name: 'Show stock by location for Rice' }))
   const section = screen.getByRole('region', { name: 'Stock by location for Rice' })
-  expect(within(section).getByText('42.25 kg')).toBeTruthy()
+  expect(await within(section).findByText('42.25 kg')).toBeTruthy()
   expect(within(section).getByText('8 kg quarantined')).toBeTruthy()
   expect(section.textContent).not.toMatch(/50.25|damaged|spoiled|;|\(/i)
   expect(within(section).getByRole('button', { name: 'View inventory in Store' })).toBeTruthy()
@@ -1081,8 +1075,8 @@ it('makes product status primary and returns from quarantine to the selected arc
   expect(screen.queryByText('Products & Stock')).toBeNull()
   const active = screen.getByRole('button', { name: /^Active/ })
   const archived = screen.getByRole('button', { name: /^Archived/ })
-  expect(within(active).getByText('4')).toBeTruthy()
-  expect(within(archived).getByText('1')).toBeTruthy()
+  expect(active.textContent?.trim()).toBe('Active')
+  expect(archived.textContent?.trim()).toBe('Archived')
   const quarantine = screen.getByRole('button', { name: 'Quarantined Stock' })
   expect(quarantine.className).not.toContain('bg-primary-contrast')
   await user.click(archived)

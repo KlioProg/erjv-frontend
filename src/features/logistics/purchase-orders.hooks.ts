@@ -1,3 +1,4 @@
+import { useCursorPage } from '@/lib/use-cursor-page'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import {
@@ -7,6 +8,7 @@ import {
   fetchPurchaseOrderByIdApi,
   fetchPurchaseOrderByNumberApi,
   fetchPurchaseOrdersApi,
+  fetchPurchaseOrdersPageApi,
   updatePurchaseOrderDraftApi,
 } from './purchase-orders.api'
 import type {
@@ -76,6 +78,7 @@ export function useConfirmPurchaseOrder() {
       return order
     },
     onSuccess: (order, { id }) => {
+      queryClient.setQueryData([...PURCHASE_ORDERS_QUERY_KEY, 'id', order.id], order)
       void queryClient.invalidateQueries({ queryKey: PURCHASE_ORDERS_QUERY_KEY })
       if (order.id === id && order.status === 'CONFIRMED')
         toast.success('Order confirmed', {
@@ -127,4 +130,8 @@ export function useCancelPurchaseOrder() {
       toast.error(getErrorMessage(err))
     },
   })
+}
+
+export function usePurchaseOrdersPage(filter: PurchaseOrderFilter = {}, enabled = true) {
+  return useCursorPage('purchase-orders', filter, fetchPurchaseOrdersPageApi, enabled)
 }

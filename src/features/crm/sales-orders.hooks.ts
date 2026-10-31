@@ -1,3 +1,4 @@
+import { useCursorPage } from '@/lib/use-cursor-page'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import {
@@ -7,6 +8,7 @@ import {
   fetchSalesOrderByIdApi,
   fetchSalesOrderByNumberApi,
   fetchSalesOrdersApi,
+  fetchSalesOrdersPageApi,
   updateSalesOrderDraftApi,
   isStaleSalesOrderRevision,
 } from './sales-orders.api'
@@ -70,6 +72,7 @@ export function useConfirmSalesOrder() {
     retry: false,
     mutationFn: ({ id, expectedRevision }: { id: number; expectedRevision: number }) => confirmSalesOrderApi(id, expectedRevision),
     onSuccess: (order, { id }) => {
+      queryClient.setQueryData([...SALES_ORDERS_QUERY_KEY, 'id', order.id], order)
       void queryClient.invalidateQueries({ queryKey: SALES_ORDERS_QUERY_KEY })
       void queryClient.invalidateQueries({ queryKey: STOCK_ITEMS_QUERY_KEY })
       if (order.id === id && order.status === 'CONFIRMED')
@@ -113,6 +116,7 @@ export function useCancelSalesOrder() {
     retry: false,
     mutationFn: ({ id, expectedRevision }: { id: number; expectedRevision: number }) => cancelSalesOrderApi(id, expectedRevision),
     onSuccess: (order) => {
+      queryClient.setQueryData([...SALES_ORDERS_QUERY_KEY, 'id', order.id], order)
       void queryClient.invalidateQueries({ queryKey: SALES_ORDERS_QUERY_KEY })
       void queryClient.invalidateQueries({ queryKey: STOCK_ITEMS_QUERY_KEY })
       toast.info(`Sales Order "${order.orderNumber}" cancelled`)
@@ -124,4 +128,8 @@ export function useCancelSalesOrder() {
       toast.error(getErrorMessage(err))
     },
   })
+}
+
+export function useSalesOrdersPage(filter: SalesOrderFilter = {}, enabled = true) {
+  return useCursorPage('sales-orders', filter, fetchSalesOrdersPageApi, enabled)
 }

@@ -1,3 +1,4 @@
+import { fetchCursorList } from '@/lib/cursor-pagination'
 import { apiClient, extractArray, type FetchParams } from '@/lib/api-client'
 import type { CursorParams } from '@/lib/cursor-pagination'
 import type { LookupPage } from '@/lib/use-cursor-lookup'
@@ -18,8 +19,7 @@ import type {
 // ===================== EMPLOYEES =====================
 
 export async function fetchEmployeesApi(params?: FetchParams): Promise<Employee[]> {
-  const response = await apiClient.get('/employees', { params })
-  return extractArray<Employee>(response.data)
+  return fetchCursorList<Employee>('/employees', params)
 }
 
 export type EmployeeFilter = FetchParams & CursorParams & {
@@ -115,8 +115,7 @@ export async function reactivateEmployeeApi(id: number): Promise<Employee> {
 // ===================== JOBS =====================
 
 export async function fetchJobsApi(params?: FetchParams): Promise<Job[]> {
-  const response = await apiClient.get('/jobs', { params })
-  return extractArray<Job>(response.data)
+  return fetchCursorList<Job>('/jobs', params)
 }
 
 export async function fetchJobByIdApi(id: number): Promise<Job | null> {
@@ -222,8 +221,7 @@ export async function replaceEmployeeJobsApi(employeeId: number, jobIds: number[
 // ===================== USERS =====================
 
 export async function fetchUsersApi(params?: FetchParams): Promise<UserAccount[]> {
-  const response = await apiClient.get('/users', { params })
-  const users = extractArray<UserAccount>(response.data)
+  const users = await fetchCursorList<UserAccount>('/users', params)
   return users
 }
 

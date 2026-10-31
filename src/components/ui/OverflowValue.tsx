@@ -11,6 +11,7 @@ type OverflowValueProps = {
   tooltipSuffix?: string
   showFullValueOnHover?: boolean
   onActivate?: () => void
+  describedBy?: string
   asChild?: boolean
   children?: ReactNode
 }
@@ -23,6 +24,7 @@ export function OverflowValue({
   tooltipSuffix,
   showFullValueOnHover = false,
   onActivate,
+  describedBy,
   asChild = false,
   children,
 }: OverflowValueProps) {
@@ -81,7 +83,7 @@ export function OverflowValue({
   }
 
   const common = {
-    'aria-describedby': open ? id : undefined,
+    'aria-describedby': [describedBy, open ? id : undefined].filter(Boolean).join(' ') || undefined,
     onPointerEnter: show,
     onPointerLeave: () => {
       if (document.activeElement !== ref.current) setOpen(false)

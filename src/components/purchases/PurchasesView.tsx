@@ -1,3 +1,13 @@
+import { fetchProductByIdApi } from '@/features/products/products.api'
+import type { InventoryItemResponse } from '@/features/products/products.types'
+import type { Warehouse } from '@/features/logistics/warehouses.types'
+import { useRecordsById } from '@/lib/use-records-by-id'
+import { fetchIncomingDeliveriesApi } from '@/features/logistics/incoming-deliveries.api'
+import { useResourcePage } from '@/lib/use-cursor-page'
+import { useQueries, useQuery } from '@tanstack/react-query'
+import { fetchSupplierByIdApi } from '@/features/logistics/suppliers.api'
+import { CursorPageControls } from '@/components/ui/CursorPageControls'
+import { Label } from '@/components/ui/label'
 import { PageHeader, PageToolbar } from '@/components/ui/ManagementPage'
 import { toast } from 'sonner'
 import { useState, useMemo, useRef, type MouseEvent } from 'react'
@@ -29,11 +39,11 @@ import { PurchaseModal } from './PurchaseModal'
 import { PurchaseOrderDetailModal } from './PurchaseOrderDetailModal'
 import { SupplierModal } from './SupplierModal'
 import { useAuth } from '@/features/auth/AuthContext'
-import { useProducts } from '@/features/products/products.hooks'
 import { useStockItems } from '@/features/logistics/stock-items.hooks'
 import { getErrorMessage } from '@/lib/api-client'
 import {
-  usePurchaseOrders,
+  usePurchaseOrdersPage,
+  usePurchaseOrderById,
   useCreatePurchaseOrder,
   useConfirmPurchaseOrder,
   useCancelPurchaseOrder,
@@ -41,7 +51,6 @@ import {
 } from '@/features/logistics/purchase-orders.hooks'
 import { fetchPurchaseOrderByIdApi } from '@/features/logistics/purchase-orders.api'
 import {
-  useSuppliers,
   useCreateSupplier,
   useUpdateSupplier,
   useDeleteSupplier,
@@ -52,8 +61,6 @@ import type {
   CreatePurchaseOrderPayload,
   UpdatePurchaseOrderDraftPayload,
 } from '@/features/logistics/purchase-orders.types'
-import { useWarehouses } from '@/features/logistics/warehouses.hooks'
-import { useIncomingDeliveries } from '@/features/logistics/incoming-deliveries.hooks'
 import { DataTable, type ColumnDef } from '@/components/ui/data-table'
 import { OverflowValue } from '@/components/ui/OverflowValue'
 import { DataTableActions } from '@/components/ui/DataTableActions'
@@ -91,6 +98,8 @@ export function PurchasesView({
   onNavigateToDeliveries,
 }: PurchasesViewProps = {}) {
   const [searchTerm, setSearchTerm] = useState('')
+  const [orderedFrom, setOrderedFrom] = useState('')
+  const [orderedBefore, setOrderedBefore] = useState('')
   const [activeStatus, setActiveStatus] = useState<PurchaseTabFilter>('Active')
   const [supplierView, setSupplierView] = useState<'ACTIVE' | 'ARCHIVED'>('ACTIVE')
 
@@ -109,19 +118,27 @@ export function PurchasesView({
   const processedBy = user?.fullName || user?.email || 'Current User'
 
   // Data queries
-  const ordersQuery = usePurchaseOrders()
-  const { data: purchaseOrders = [], isLoading: isLoadingPOs } = ordersQuery
-  const suppliersQuery = useSuppliers({
-    includeInactive: 'true',
-  })
-  const { data: suppliers = [], isLoading: isLoadingSuppliers } = suppliersQuery
+  const ordersQuery = usePurchaseOrdersPage({ statuses: activeStatus === 'Active' ? ['DRAFT', 'CONFIRMED', 'PARTIALLY_RECEIVED'] : activeStatus === 'Completed' ? ['RECEIVED'] : ['CANCELLED'], q: searchTerm.trim() || undefined, orderedFrom: orderedFrom ? new Date(orderedFrom).toISOString() : undefined, orderedBefore: orderedBefore ? new Date(orderedBefore).toISOString() : undefined }, section === 'orders')
+  const purchaseOrders = ordersQuery.items
+  const isLoadingPOs = ordersQuery.isFetching
+  const selectedDetail = usePurchaseOrderById(selectedOrderId ?? undefined)
+  const suppliersQuery = useResourcePage<Supplier>('/suppliers', {
+    includeInactive: supplierView === 'ACTIVE' ? 'false' : 'only',
+    q: section === 'suppliers' ? searchTerm.trim() || undefined : undefined,
+  }, section === 'suppliers')
+  const baseSuppliers = suppliersQuery.items
+  const isLoadingSuppliers = suppliersQuery.isFetching
   const stockQuery = useStockItems()
   const { data: stockItems = [] } = stockQuery
-  const productsQuery = useProducts()
+  const productsQuery = useRecordsById<InventoryItemResponse>('/inventory-items', [...purchaseOrders, ...[editingOrder, selectedDetail.data].filter((order): order is PurchaseOrderRecord => !!order)].flatMap(order => order.items.map(item => item.inventoryItemId)))
   const { data: products = [] } = productsQuery
-  const { data: warehouses = [] } = useWarehouses()
-  const { data: incomingDeliveries = [] } = useIncomingDeliveries()
-  const selectedOrder = purchaseOrders.find((order) => order.id === selectedOrderId)
+  const selectedDeliveries = useQuery({ queryKey: ['incoming-deliveries', 'for-order', selectedOrderId], enabled: !!selectedOrderId, queryFn: ({ signal }) => fetchIncomingDeliveriesApi({ purchaseOrderId: selectedOrderId! }, signal) })
+  const incomingDeliveries = selectedDeliveries.data ?? []
+  const { data: warehouses } = useRecordsById<Warehouse>('/warehouses', incomingDeliveries.map(delivery => delivery.warehouseId))
+  const selectedOrder = selectedDetail.data ?? purchaseOrders.find((order) => order.id === selectedOrderId)
+
+  const pageSuppliers = useQueries({ queries: [...new Set([...purchaseOrders.flatMap((order) => order.supplierId === null ? [] : [order.supplierId]), ...(selectedOrder?.supplierId ? [selectedOrder.supplierId] : [])])].filter((id) => !baseSuppliers.some((supplier) => supplier.id === id)).map((id) => ({ queryKey: ['suppliers', 'id', id], queryFn: () => fetchSupplierByIdApi(id) })) })
+  const suppliers = useMemo(() => [...baseSuppliers, ...pageSuppliers.flatMap((query) => query.data ? [query.data] : [])], [baseSuppliers, pageSuppliers])
 
   // Mutations
   const createPOMutation = useCreatePurchaseOrder({ notifySuccess: false })
@@ -166,10 +183,20 @@ export function PurchasesView({
       toast.error('Purchase order could not be found. Refresh the list and try again.')
       return
     }
-    if (order.status === 'CANCELLED') return
-    const supplier = order.supplierId == null ? undefined : supplierMap.get(order.supplierId)
-    if (!exportPurchaseReceiptPdf(order, supplier, products)) {
-      toast.error('The purchase order document could not be downloaded. Try again.')
+    if (!['CONFIRMED', 'PARTIALLY_RECEIVED', 'RECEIVED'].includes(order.status)) return
+    try {
+      const supplier = order.supplierId == null ? undefined : supplierMap.get(order.supplierId) ?? await fetchSupplierByIdApi(order.supplierId)
+      if (order.supplierId != null && supplier?.id !== order.supplierId)
+        throw Error('Supplier details are unavailable. Reload before exporting this purchase order.')
+      const documentProducts = await Promise.all([...new Set(order.items.map(item => item.inventoryItemId))].map(async id => {
+        const product = products.find(product => product.id === id) ?? await fetchProductByIdApi(id)
+        if (product?.id !== id) throw Error('Product details are unavailable. Reload before exporting this purchase order.')
+        return product
+      }))
+      if (!exportPurchaseReceiptPdf(order, supplier ?? undefined, documentProducts))
+        toast.error('The purchase order document could not be downloaded. Try again.')
+    } catch (error) {
+      toast.error(getErrorMessage(error))
     }
   }
 
@@ -188,68 +215,9 @@ export function PurchasesView({
     setSelectedOrderId(row.po.id)
   }
 
-  const statusCount = (status: PurchaseTabFilter) => {
-    if (status === 'Active') {
-      return purchaseOrders.filter((po) =>
-        ['DRAFT', 'CONFIRMED', 'PARTIALLY_RECEIVED'].includes(po.status),
-      ).length
-    }
-    if (status === 'Completed') {
-      return purchaseOrders.filter((po) => po.status === 'RECEIVED').length
-    }
-    if (status === 'Cancelled') {
-      return purchaseOrders.filter((po) => po.status === 'CANCELLED').length
-    }
-    return 0
-  }
+  const filteredOrders = purchaseOrders
 
-  const filteredOrders = useMemo(() => {
-    return purchaseOrders.filter((po) => {
-      let matchesStatus = false
-      if (activeStatus === 'Active') {
-        matchesStatus = ['DRAFT', 'CONFIRMED', 'PARTIALLY_RECEIVED'].includes(po.status)
-      } else if (activeStatus === 'Completed') {
-        matchesStatus = po.status === 'RECEIVED'
-      } else if (activeStatus === 'Cancelled') {
-        matchesStatus = po.status === 'CANCELLED'
-      }
-
-      if (!matchesStatus) return false
-
-      if (!searchTerm.trim()) return true
-      const q = searchTerm.toLowerCase().trim()
-      const supplier = po.supplierId == null ? undefined : supplierMap.get(po.supplierId)
-      const supplierName = supplier?.name?.toLowerCase() || ''
-      const orderNo = po.orderNumber.toLowerCase()
-      const extRef = po.externalReference?.toLowerCase() || ''
-
-      return orderNo.includes(q) || supplierName.includes(q) || extRef.includes(q)
-    })
-  }, [purchaseOrders, activeStatus, searchTerm, supplierMap])
-
-  const activeSuppliers = useMemo(
-    () => suppliers.filter((supplier) => supplier.isActive !== false),
-    [suppliers],
-  )
-  const archivedSuppliers = useMemo(
-    () => suppliers.filter((supplier) => supplier.isActive === false),
-    [suppliers],
-  )
-
-  const filteredSuppliers = useMemo(() => {
-    const visibleSuppliers = supplierView === 'ACTIVE' ? activeSuppliers : archivedSuppliers
-    if (!searchTerm.trim()) return visibleSuppliers
-    const q = searchTerm.toLowerCase().trim()
-    return visibleSuppliers.filter(
-      (s) =>
-        s.name.toLowerCase().includes(q) ||
-        s.code.toLowerCase().includes(q) ||
-        s.contactPerson?.toLowerCase().includes(q) ||
-        s.phone?.toLowerCase().includes(q) ||
-        s.email?.toLowerCase().includes(q) ||
-        s.address?.toLowerCase().includes(q),
-    )
-  }, [activeSuppliers, archivedSuppliers, supplierView, searchTerm])
+  const filteredSuppliers = suppliersQuery.items
 
   const handleCreatePO = async (
     payload: CreatePurchaseOrderPayload,
@@ -508,7 +476,7 @@ export function PurchasesView({
       id: 'supplier-0',
       header: 'Code',
       width: '12%',
-      sortable: true,
+      sortable: false,
       sortKey: 'code',
       className: 'text-sm font-medium text-foreground',
       cell: ({ row: supplier }) => <>{supplier.code}</>,
@@ -517,7 +485,7 @@ export function PurchasesView({
       id: 'supplier-1',
       header: 'Company Name',
       width: '22%',
-      sortable: true,
+      sortable: false,
       sortKey: 'name',
       className: 'text-sm font-medium text-foreground',
       cell: ({ row: supplier }) => <OverflowValue value={supplier.name} />,
@@ -526,7 +494,7 @@ export function PurchasesView({
       id: 'supplier-2',
       header: 'Contact Person',
       width: '15%',
-      sortable: true,
+      sortable: false,
       sortKey: (supplier) => supplier.contactPerson || '',
       className: 'text-sm text-foreground',
       cell: ({ row: supplier }) => <>{supplier.contactPerson || '—'}</>,
@@ -549,7 +517,7 @@ export function PurchasesView({
       id: 'supplier-4',
       header: 'Address',
       width: '20%',
-      sortable: true,
+      sortable: false,
       sortKey: (supplier) => supplier.address || '',
       className: 'text-sm text-foreground max-w-[280px]',
       cell: ({ row: supplier }) => <OverflowValue value={supplier.address} />,
@@ -597,21 +565,18 @@ export function PurchasesView({
               {
                 value: 'Active',
                 label: 'Active Orders',
-                count: statusCount('Active'),
                 icon: <Clock className="size-3.5" />,
                 accent: 'green',
               },
               {
                 value: 'Completed',
                 label: 'Received Orders',
-                count: statusCount('Completed'),
                 icon: <CheckCircle2 className="size-3.5" />,
                 accent: 'blue',
               },
               {
                 value: 'Cancelled',
                 label: 'Cancelled Orders',
-                count: statusCount('Cancelled'),
                 icon: <XCircle className="size-3.5" />,
                 accent: 'red',
               },
@@ -640,6 +605,10 @@ export function PurchasesView({
             </Button>
           </PageToolbar>
 
+          <div className="flex flex-wrap gap-3" aria-label="Ordered date filters">
+            <div className="space-y-1"><Label htmlFor="po-ordered-from">Ordered from (inclusive)</Label><Input id="po-ordered-from" type="datetime-local" value={orderedFrom} onChange={(event) => setOrderedFrom(event.target.value)} className="h-9 w-auto" /></div>
+            <div className="space-y-1"><Label htmlFor="po-ordered-before">Ordered before (exclusive)</Label><Input id="po-ordered-before" type="datetime-local" value={orderedBefore} onChange={(event) => setOrderedBefore(event.target.value)} className="h-9 w-auto" /></div>
+          </div>
           {ordersQuery.isError ? (
             <Alert variant="destructive">
               <AlertDescription>
@@ -648,7 +617,7 @@ export function PurchasesView({
                   variant="outline"
                   size="sm"
                   className="ml-2"
-                  onClick={() => void ordersQuery.refetch()}
+                  onClick={() => void ordersQuery.reload()}
                   disabled={ordersQuery.isFetching}
                 >
                   {ordersQuery.isFetching ? 'Retrying...' : 'Retry'}
@@ -664,8 +633,7 @@ export function PurchasesView({
               onRowClick={handleOrderRowClick}
               isLoading
               loadingMessage="Loading purchase orders..."
-              pageSize={10}
-              pageSizeOptions={[10, 25, 50, 100]}
+              pagination={false}
               tableClassName="table-fixed min-w-[1040px] xl:min-w-[1120px]"
             />
           ) : filteredOrders.length === 0 ? (
@@ -693,11 +661,11 @@ export function PurchasesView({
               columns={orderColumns}
               getRowKey={({ po }) => po.id}
               onRowClick={handleOrderRowClick}
-              pageSize={10}
-              pageSizeOptions={[10, 25, 50, 100]}
+              pagination={false}
               tableClassName="table-fixed min-w-[1040px] xl:min-w-[1120px]"
             />
           )}
+          <CursorPageControls {...ordersQuery} />
         </div>
       ) : (
         <div className="flex min-w-0 flex-col gap-4">
@@ -708,9 +676,9 @@ export function PurchasesView({
             activeTab={supplierView}
             onTabChange={setSupplierView}
             activeLabel="Active Suppliers"
-            activeCount={activeSuppliers.length}
+
             archivedLabel="Archived Suppliers"
-            archivedCount={archivedSuppliers.length}
+
             activeIcon={<Building2 className="size-3.5" />}
             bannerDescription="Archived suppliers remain in past purchase orders and receiving records. Restore them to use them in new orders."
           />
@@ -719,7 +687,7 @@ export function PurchasesView({
               <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 aria-label="Search suppliers"
-                placeholder="Search suppliers..."
+                placeholder="Search supplier name or code..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-9 h-9 text-ui"
@@ -746,7 +714,7 @@ export function PurchasesView({
                   variant="outline"
                   size="sm"
                   className="ml-2"
-                  onClick={() => void suppliersQuery.refetch()}
+                  onClick={() => void suppliersQuery.reload()}
                   disabled={suppliersQuery.isFetching}
                 >
                   {suppliersQuery.isFetching ? 'Retrying...' : 'Retry'}
@@ -757,6 +725,8 @@ export function PurchasesView({
             <DataTable
               appearance="management"
               data={filteredSuppliers}
+              pagination={false}
+              manualSorting
               columns={supplierColumns}
               getRowKey={(supplier) => supplier.id}
               isLoading={isLoadingSuppliers}
@@ -784,6 +754,7 @@ export function PurchasesView({
               }
             />
           )}
+          <CursorPageControls {...suppliersQuery} label="Supplier" />
         </div>
       )}
 
@@ -815,7 +786,7 @@ export function PurchasesView({
 
       {(isPurchaseModalOpen || editingOrder) && canManage && (
         <PurchaseModal
-          remoteSelectors={!editingOrder}
+          remoteSelectors
           key={editingOrder?.id ?? 'new-purchase-order'}
           open
           onClose={() => {

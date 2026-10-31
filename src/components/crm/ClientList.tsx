@@ -1,13 +1,14 @@
+import { CursorPageControls } from '@/components/ui/CursorPageControls'
 import { PageHeader, PageToolbar } from '@/components/ui/ManagementPage'
 import { useState } from 'react'
-import { Archive, Plus, Search, Users } from 'lucide-react'
+import { Plus, Search, Users } from 'lucide-react'
 import { ArchiveTabNav } from '@/components/ui/ArchiveTabNav'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { DataTable, type ColumnDef } from '@/components/ui/data-table'
 import { DataTableActions } from '@/components/ui/DataTableActions'
 import {
-  useAllClients,
+  useClientsPage,
   useDeactivateClient,
   useReactivateClient,
 } from '@/features/crm/clients.hooks'
@@ -22,7 +23,6 @@ import './customers-pilot.css'
 
 export function ClientList() {
   const [activeTab, setActiveTab] = useState<'ACTIVE' | 'ARCHIVED'>('ACTIVE')
-  const { data: allClients = [], isLoading, isError, error, refetch } = useAllClients()
   const deactivateMutation = useDeactivateClient({ onViewArchive: () => setActiveTab('ARCHIVED') })
   const reactivateMutation = useReactivateClient()
   const { isAdmin, isManager } = useAuth()
@@ -32,18 +32,12 @@ export function ClientList() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [clientToDeactivate, setClientToDeactivate] = useState<Client | null>(null)
 
-  const activeClients = allClients.filter((client) => client.isActive !== false)
-  const archivedClients = allClients.filter((client) => client.isActive === false)
-  const currentClientList = activeTab === 'ACTIVE' ? activeClients : archivedClients
-  const query = searchTerm.trim().toLowerCase()
-  const filteredClients = currentClientList.filter(
-    (client) =>
-      String(client.name ?? '').toLowerCase().includes(query) ||
-      String(client.address ?? '').toLowerCase().includes(query) ||
-      client.contactPerson?.toLowerCase().includes(query) ||
-      client.phone?.includes(searchTerm.trim()) ||
-      client.email?.toLowerCase().includes(query),
-  )
+  const query = searchTerm.trim()
+  const clientsQuery = useClientsPage({
+    q: query || undefined,
+    includeInactive: activeTab === 'ACTIVE' ? 'false' : 'only',
+  })
+  const { isError, error } = clientsQuery
 
   const handleCreate = () => {
     setSelectedClient(null)
@@ -67,7 +61,6 @@ export function ClientList() {
       id: 'customer-id',
       header: 'Customer ID',
       accessorKey: 'id',
-      sortable: true,
       width: 112,
       className: 'min-w-28 tabular-nums text-muted-foreground customer-secondary',
       headerClassName: 'whitespace-nowrap',
@@ -77,7 +70,6 @@ export function ClientList() {
       id: 'customer-name',
       header: 'Customer Name',
       accessorKey: 'name',
-      sortable: true,
       className: 'min-w-[220px] max-w-[280px] font-medium text-foreground',
       cell: ({ row }) => <OverflowValue value={row.name} />,
     },
@@ -136,9 +128,7 @@ export function ClientList() {
         activeTab={activeTab}
         onTabChange={setActiveTab}
         activeLabel="Active Customers"
-        activeCount={activeClients.length}
         archivedLabel="Archived Customers"
-        archivedCount={archivedClients.length}
         activeIcon={<Users className="size-3.5" />}
         showBanner={false}
         className="customer-filters"
@@ -148,7 +138,7 @@ export function ClientList() {
           <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             aria-label="Search customers"
-            placeholder="Search name, contact or address..."
+            placeholder="Search customer name..."
             value={searchTerm}
             onChange={(event) => setSearchTerm(event.target.value)}
             className="h-9 pl-9"
@@ -176,7 +166,7 @@ export function ClientList() {
             variant="outline"
             size="sm"
             className="mt-3"
-            onClick={() => void refetch()}
+            onClick={() => void clientsQuery.reload()}
           >
             Try again
           </Button>
@@ -185,10 +175,11 @@ export function ClientList() {
         <DataTable
           appearance="management"
           className="customer-table"
-          data={filteredClients}
+          data={clientsQuery.items}
+          pagination={false}
           columns={customerColumns}
           getRowKey={(client) => client.id}
-          isLoading={isLoading}
+          isLoading={clientsQuery.isFetching}
           loadingMessage="Loading customers..."
           tableClassName="min-w-[960px]"
           emptyContent={
@@ -205,9 +196,7 @@ export function ClientList() {
                 {query
                   ? 'No customer accounts match your search filter.'
                   : activeTab === 'ACTIVE'
-                    ? archivedClients.length > 0
-                      ? `All customer profiles are currently archived (${archivedClients.length} total).`
-                      : 'Register commercial buyers and supermarket customers to manage wholesale accounts.'
+                    ? 'Register commercial buyers and supermarket customers to manage wholesale accounts.'
                     : 'Archived customer profiles will appear here and can be reactivated at any time.'}
               </p>
               {query && (
@@ -221,27 +210,18 @@ export function ClientList() {
                   Clear search
                 </Button>
               )}
-              {!query && activeTab === 'ACTIVE' && archivedClients.length > 0 && (
-                <Button
-                  onClick={() => setActiveTab('ARCHIVED')}
-                  size="sm"
-                  variant="outline"
-                  className="mt-3"
-                >
-                  <Archive data-icon="inline-start" />
-                  View Archived Customers ({archivedClients.length})
-                </Button>
-              )}
-              {!query && activeTab === 'ACTIVE' && archivedClients.length === 0 && canManage && (
+              {!query && activeTab === 'ACTIVE' && canManage && (
                 <Button onClick={handleCreate} size="sm" variant="outline" className="mt-4">
                   <Plus data-icon="inline-start" />
-                  Register First Customer
+                  Register New Customer
                 </Button>
               )}
             </div>
           }
         />
       )}
+
+      <CursorPageControls {...clientsQuery} label="Customer" />
 
       <ClientModal
         client={selectedClient}
