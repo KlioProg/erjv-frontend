@@ -1,0 +1,209 @@
+{
+  "node_count": 1630,
+  "unverified_node_count": 0,
+  "raw_edge_count": 8921,
+  "non_object_edges": 0,
+  "missing_endpoint_edges": 0,
+  "dangling_endpoint_edges": 118,
+  "external_reference_edges": 576,
+  "self_loop_edges": 0,
+  "valid_candidate_edges": 8227,
+  "exact_duplicate_edges": 0,
+  "directed_unique_endpoint_pairs": 7987,
+  "directed_same_endpoint_collapsed_edges": 240,
+  "undirected_unique_endpoint_pairs": 7987,
+  "undirected_same_endpoint_collapsed_edges": 240,
+  "same_endpoint_group_count": 237,
+  "relation_variant_groups": 222,
+  "source_file_variant_groups": 0,
+  "source_location_variant_groups": 18,
+  "context_variant_groups": 3,
+  "post_build_graph_type": "Graph",
+  "post_build_node_count": 1668,
+  "post_build_edge_count": 8676,
+  "post_build_error": "",
+  "producer_suppression": {
+    "path": "C:\\Users\\My PC\\AppData\\Roaming\\uv\\tools\\graphifyy\\Lib\\site-packages\\graphify\\extract.py",
+    "total_sites": 12,
+    "sites": [
+      {
+        "line": 1829,
+        "name": "seen_ids",
+        "tuple_arity": 0,
+        "sample": "seen_ids = {n[\"id\"] for n in nodes}"
+      },
+      {
+        "line": 2393,
+        "name": "seen_ids",
+        "tuple_arity": 0,
+        "sample": "seen_ids = {n[\"id\"] for n in nodes}"
+      },
+      {
+        "line": 2395,
+        "name": "seen_doc_refs",
+        "tuple_arity": 0,
+        "sample": "seen_doc_refs: set[str] = set()"
+      },
+      {
+        "line": 3062,
+        "name": "seen_ids",
+        "tuple_arity": 0,
+        "sample": "seen_ids: set[str] = {n[\"id\"] for n in nodes}"
+      },
+      {
+        "line": 3209,
+        "name": "seen_ids",
+        "tuple_arity": 0,
+        "sample": "seen_ids = {n.get(\"id\") for n in nodes}"
+      },
+      {
+        "line": 4350,
+        "name": "seen_keys",
+        "tuple_arity": 0,
+        "sample": "seen_keys: set[tuple] = set()"
+      },
+      {
+        "line": 4536,
+        "name": "seen_keys",
+        "tuple_arity": 0,
+        "sample": "seen_keys: set[tuple] = set()"
+      },
+      {
+        "line": 7947,
+        "name": "seen_ids",
+        "tuple_arity": 0,
+        "sample": "seen_ids: set[str] = set()"
+      },
+      {
+        "line": 8055,
+        "name": "seen_ids",
+        "tuple_arity": 0,
+        "sample": "seen_ids: set[str] = set()"
+      },
+      {
+        "line": 8134,
+        "name": "seen_ids",
+        "tuple_arity": 0,
+        "sample": "seen_ids: set[str] = set()"
+      },
+      {
+        "line": 8659,
+        "name": "seen_ids",
+        "tuple_arity": 0,
+        "sample": "seen_ids: set[str] = set()"
+      },
+      {
+        "line": 8660,
+        "name": "seen_edges",
+        "tuple_arity": 4,
+        "sample": "seen_edges: set[tuple[str, str, str, str | None]] = set()"
+      }
+    ],
+    "error": ""
+  },
+  "examples": [
+    {
+      "source": "components_orders_ordermodal",
+      "target": "features_crm_sales_order_entry_types",
+      "edge_count": 3,
+      "relations": [
+        "imports_from",
+        "re_exports"
+      ],
+      "source_files": [
+        "components/orders/OrderModal.tsx"
+      ],
+      "source_locations": [
+        "L24",
+        "L37"
+      ],
+      "contexts": [
+        "export",
+        "import",
+        "re-export"
+      ]
+    },
+    {
+      "source": "components_purchases_purchasemodal",
+      "target": "features_logistics_purchase_order_entry_types",
+      "edge_count": 3,
+      "relations": [
+        "imports_from",
+        "re_exports"
+      ],
+      "source_files": [
+        "components/purchases/PurchaseModal.tsx"
+      ],
+      "source_locations": [
+        "L31",
+        "L42"
+      ],
+      "contexts": [
+        "export",
+        "import",
+        "re-export"
+      ]
+    },
+    {
+      "source": "features_auth_auth_types",
+      "target": "features_auth_roles",
+      "edge_count": 3,
+      "relations": [
+        "imports_from",
+        "re_exports"
+      ],
+      "source_files": [
+        "features/auth/auth.types.ts"
+      ],
+      "source_locations": [
+        "L1",
+        "L2"
+      ],
+      "contexts": [
+        "export",
+        "import",
+        "re-export"
+      ]
+    },
+    {
+      "source": "components_crm_customer_pagination_component_test",
+      "target": "components_crm_customer_pagination_component_test_mount",
+      "edge_count": 2,
+      "relations": [
+        "calls",
+        "contains"
+      ],
+      "source_files": [
+        "components/crm/customer-pagination.component.test.tsx"
+      ],
+      "source_locations": [
+        "L100",
+        "L17"
+      ],
+      "contexts": [
+        "",
+        "call"
+      ]
+    },
+    {
+      "source": "components_crm_customer_pagination_component_test",
+      "target": "components_crm_customer_pagination_component_test_previous",
+      "edge_count": 2,
+      "relations": [
+        "calls",
+        "contains"
+      ],
+      "source_files": [
+        "components/crm/customer-pagination.component.test.tsx"
+      ],
+      "source_locations": [
+        "L103",
+        "L96"
+      ],
+      "contexts": [
+        "",
+        "call"
+      ]
+    }
+  ]
+}
