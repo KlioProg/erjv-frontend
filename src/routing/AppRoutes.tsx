@@ -1,3 +1,4 @@
+import { FinancialReportsPage } from '@/components/financial-reports/FinancialReportsPage'
 import { Navigate, Route, Routes } from 'react-router'
 import { MainDashboard } from '@/components/dashboard/MainDashboard'
 import { ClientList } from '@/components/crm/ClientList'
@@ -14,6 +15,7 @@ import {
   PurchasesRoute,
   SalesOrdersRoute,
   StaffingAccess,
+  FinancialReportsAccess,
   WarehousesRoute,
 } from './DashboardPages'
 import { ROUTES } from '@/routes'
@@ -38,6 +40,9 @@ export function AppRoutes() {
         <Route path="deliveries/outgoing" element={<DeliveriesRoute view="outgoing" />} />
         <Route path="deliveries/history" element={<DeliveriesRoute view="history" />} />
         <Route path="deliveries/runs" element={<DeliveryRunsHub />} />
+        <Route element={<FinancialReportsAccess />}>
+          <Route path="financial-reports" element={<FinancialReportsPage />} />
+        </Route>
         <Route element={<StaffingAccess />}>
           <Route path="staff-directory" element={<EmployeeList />} />
           <Route path="job-positions" element={<JobList />} />

@@ -14,6 +14,7 @@ export const NAV_ITEM_KEYS = [
   'jobs',
   'users',
   'orders',
+  'financial-reports',
 ] as const
 
 export type NavItemKey = (typeof NAV_ITEM_KEYS)[number]
@@ -24,6 +25,7 @@ export function isNavItemKey(value: string | undefined): value is NavItemKey {
 
 export const ROUTES = {
   home: '/',
+  financialReports: '/financial-reports',
   customers: '/customers',
   salesOrders: '/sales-orders',
   suppliers: '/suppliers',
@@ -41,6 +43,7 @@ export const ROUTES = {
 } as const
 
 const SCREEN_ROUTES: Record<Exclude<NavItemKey, 'deliveries'>, string> = {
+  'financial-reports': ROUTES.financialReports,
   clients: ROUTES.customers,
   orders: ROUTES.salesOrders,
   suppliers: ROUTES.suppliers,

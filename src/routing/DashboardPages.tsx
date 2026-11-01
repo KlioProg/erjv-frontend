@@ -99,3 +99,8 @@ export function DashboardNotFound() {
     </div>
   )
 }
+
+export function FinancialReportsAccess() {
+  const { isAdmin, isManager } = useAuth()
+  return isAdmin || isManager ? <Outlet /> : <Navigate replace to={ROUTES.home} />
+}

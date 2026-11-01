@@ -1,0 +1,674 @@
+[
+  {
+    "id": "sales-empty-overview",
+    "request": {
+      "method": "GET",
+      "path": "/financial-reports/sales",
+      "query": {
+        "from": "2026-10-01T00:00:00+08:00",
+        "before": "2026-10-03T00:00:00+08:00",
+        "groupBy": "none"
+      }
+    },
+    "status": 200,
+    "body": {
+      "period": {
+        "from": "2026-09-30T16:00:00.000Z",
+        "before": "2026-10-02T16:00:00.000Z",
+        "businessTimezone": "Asia/Manila",
+        "asOf": "2026-10-03T00:00:00.000Z"
+      },
+      "basis": "RECONCILED_DELIVERIES",
+      "totals": {
+        "subtotalAmount": "0.00",
+        "discountAmount": "0.00",
+        "taxableAmount": "0.00",
+        "taxAmount": "0.00",
+        "totalAmount": "0.00",
+        "eventCount": 0,
+        "orderCount": 0,
+        "partyCount": 0,
+        "quantitiesByUnit": {}
+      },
+      "rows": [],
+      "nextCursor": null
+    },
+    "expectedBehavior": "Show zero totals and overview grouping guidance; empty rows do not imply a failed report."
+  },
+  {
+    "id": "purchases-overview",
+    "request": {
+      "method": "GET",
+      "path": "/financial-reports/purchases",
+      "query": {
+        "from": "2026-10-01T00:00:00+08:00",
+        "before": "2026-10-03T00:00:00+08:00",
+        "groupBy": "none"
+      }
+    },
+    "status": 200,
+    "body": {
+      "period": {
+        "from": "2026-09-30T16:00:00.000Z",
+        "before": "2026-10-02T16:00:00.000Z",
+        "businessTimezone": "Asia/Manila",
+        "asOf": "2026-10-03T00:00:00.000Z"
+      },
+      "basis": "ACCEPTED_PURCHASES",
+      "totals": {
+        "subtotalAmount": "150.00",
+        "discountAmount": "0.00",
+        "taxableAmount": "150.00",
+        "taxAmount": "0.00",
+        "totalAmount": "150.00",
+        "eventCount": 1,
+        "orderCount": 1,
+        "partyCount": 1,
+        "quantitiesByUnit": {
+          "piece": {
+            "quantity": "3.00",
+            "returnedDamagedQuantity": "0.00",
+            "missingQuantity": "0.00"
+          }
+        }
+      },
+      "rows": [],
+      "nextCursor": null
+    },
+    "expectedBehavior": "Accepted purchases basis; show peso amounts; quantities have no currency symbol."
+  },
+  {
+    "id": "sales-items-page-1",
+    "request": {
+      "method": "GET",
+      "path": "/financial-reports/sales",
+      "query": {
+        "from": "2026-10-01T00:00:00+08:00",
+        "before": "2026-10-03T00:00:00+08:00",
+        "groupBy": "item",
+        "limit": 1
+      }
+    },
+    "status": 200,
+    "body": {
+      "period": {
+        "from": "2026-09-30T16:00:00.000Z",
+        "before": "2026-10-02T16:00:00.000Z",
+        "businessTimezone": "Asia/Manila",
+        "asOf": "2026-10-03T00:00:00.000Z"
+      },
+      "basis": "RECONCILED_DELIVERIES",
+      "totals": {
+        "subtotalAmount": "300.00",
+        "discountAmount": "0.00",
+        "taxableAmount": "300.00",
+        "taxAmount": "0.00",
+        "totalAmount": "300.00",
+        "eventCount": 2,
+        "orderCount": 2,
+        "partyCount": 2,
+        "quantitiesByUnit": {
+          "piece": {
+            "quantity": "3.00",
+            "returnedDamagedQuantity": "0.00",
+            "missingQuantity": "0.00"
+          }
+        }
+      },
+      "rows": [
+        {
+          "key": "101",
+          "name": "Sample Item A",
+          "unit": "piece",
+          "subtotalAmount": "200.00",
+          "discountAmount": "0.00",
+          "taxableAmount": "200.00",
+          "taxAmount": "0.00",
+          "totalAmount": "200.00",
+          "eventCount": 1,
+          "orderCount": 1,
+          "partyCount": 1,
+          "quantitiesByUnit": {
+            "piece": {
+              "quantity": "2.00",
+              "returnedDamagedQuantity": "0.00",
+              "missingQuantity": "0.00"
+            }
+          }
+        }
+      ],
+      "nextCursor": "fixture-only-sales-items-page-2"
+    },
+    "expectedBehavior": "Full totals 300.00 despite visible row 200.00; Next enabled."
+  },
+  {
+    "id": "sales-items-page-2",
+    "request": {
+      "method": "GET",
+      "path": "/financial-reports/sales",
+      "query": {
+        "from": "2026-10-01T00:00:00+08:00",
+        "before": "2026-10-03T00:00:00+08:00",
+        "groupBy": "item",
+        "limit": 1,
+        "cursor": "fixture-only-sales-items-page-2"
+      }
+    },
+    "status": 200,
+    "body": {
+      "period": {
+        "from": "2026-09-30T16:00:00.000Z",
+        "before": "2026-10-02T16:00:00.000Z",
+        "businessTimezone": "Asia/Manila",
+        "asOf": "2026-10-03T00:00:00.000Z"
+      },
+      "basis": "RECONCILED_DELIVERIES",
+      "totals": {
+        "subtotalAmount": "300.00",
+        "discountAmount": "0.00",
+        "taxableAmount": "300.00",
+        "taxAmount": "0.00",
+        "totalAmount": "300.00",
+        "eventCount": 2,
+        "orderCount": 2,
+        "partyCount": 2,
+        "quantitiesByUnit": {
+          "piece": {
+            "quantity": "3.00",
+            "returnedDamagedQuantity": "0.00",
+            "missingQuantity": "0.00"
+          }
+        }
+      },
+      "rows": [
+        {
+          "key": "102",
+          "name": "Sample Item B",
+          "unit": "piece",
+          "subtotalAmount": "100.00",
+          "discountAmount": "0.00",
+          "taxableAmount": "100.00",
+          "taxAmount": "0.00",
+          "totalAmount": "100.00",
+          "eventCount": 1,
+          "orderCount": 1,
+          "partyCount": 1,
+          "quantitiesByUnit": {
+            "piece": {
+              "quantity": "1.00",
+              "returnedDamagedQuantity": "0.00",
+              "missingQuantity": "0.00"
+            }
+          }
+        }
+      ],
+      "nextCursor": null
+    },
+    "expectedBehavior": "Same totals and asOf; Next disabled; Previous returns cached page one."
+  },
+  {
+    "id": "sales-trend-zero-bucket",
+    "request": {
+      "method": "GET",
+      "path": "/financial-reports/sales",
+      "query": {
+        "from": "2026-10-01T00:00:00+08:00",
+        "before": "2026-10-03T00:00:00+08:00",
+        "groupBy": "day"
+      }
+    },
+    "status": 200,
+    "body": {
+      "period": {
+        "from": "2026-09-30T16:00:00.000Z",
+        "before": "2026-10-02T16:00:00.000Z",
+        "businessTimezone": "Asia/Manila",
+        "asOf": "2026-10-03T00:00:00.000Z"
+      },
+      "basis": "RECONCILED_DELIVERIES",
+      "totals": {
+        "subtotalAmount": "100.00",
+        "discountAmount": "0.00",
+        "taxableAmount": "100.00",
+        "taxAmount": "0.00",
+        "totalAmount": "100.00",
+        "eventCount": 1,
+        "orderCount": 1,
+        "partyCount": 1,
+        "quantitiesByUnit": {
+          "piece": {
+            "quantity": "1.00",
+            "returnedDamagedQuantity": "0.00",
+            "missingQuantity": "0.00"
+          }
+        }
+      },
+      "rows": [
+        {
+          "key": "2026-10-01",
+          "subtotalAmount": "0.00",
+          "discountAmount": "0.00",
+          "taxableAmount": "0.00",
+          "taxAmount": "0.00",
+          "totalAmount": "0.00",
+          "eventCount": 0,
+          "orderCount": 0,
+          "partyCount": 0,
+          "quantitiesByUnit": {}
+        },
+        {
+          "key": "2026-10-02",
+          "subtotalAmount": "100.00",
+          "discountAmount": "0.00",
+          "taxableAmount": "100.00",
+          "taxAmount": "0.00",
+          "totalAmount": "100.00",
+          "eventCount": 1,
+          "orderCount": 1,
+          "partyCount": 1,
+          "quantitiesByUnit": {
+            "piece": {
+              "quantity": "1.00",
+              "returnedDamagedQuantity": "0.00",
+              "missingQuantity": "0.00"
+            }
+          }
+        }
+      ],
+      "nextCursor": null
+    },
+    "expectedBehavior": "Preserve chronological order and empty day bucket; do not send cursor/limit."
+  },
+  {
+    "id": "profit-partial-coverage",
+    "request": {
+      "method": "GET",
+      "path": "/financial-reports/gross-profit-estimate",
+      "query": {
+        "from": "2026-10-01T00:00:00+08:00",
+        "before": "2026-10-03T00:00:00+08:00",
+        "groupBy": "none"
+      }
+    },
+    "status": 200,
+    "body": {
+      "period": {
+        "from": "2026-09-30T16:00:00.000Z",
+        "before": "2026-10-02T16:00:00.000Z",
+        "businessTimezone": "Asia/Manila",
+        "asOf": "2026-10-03T00:00:00.000Z"
+      },
+      "basis": "RECONCILED_DELIVERIES",
+      "totals": {
+        "subtotalAmount": "300.00",
+        "discountAmount": "0.00",
+        "taxableAmount": "300.00",
+        "taxAmount": "0.00",
+        "totalAmount": "300.00",
+        "eventCount": 2,
+        "orderCount": 2,
+        "partyCount": 2,
+        "quantitiesByUnit": {
+          "piece": {
+            "quantity": "3.00",
+            "returnedDamagedQuantity": "0.00",
+            "missingQuantity": "0.00"
+          }
+        },
+        "costedTaxableSalesValue": "200.00",
+        "estimatedAcquisitionCost": "150.00",
+        "estimatedGrossProfitAmount": "50.00",
+        "estimatedGrossMarginPercent": "25.00",
+        "uncostedTaxableSalesValue": "100.00",
+        "uncostedQuantityByUnit": {
+          "piece": "1.00"
+        },
+        "costCoveragePercent": "66.67",
+        "costingMethod": "MOVING_WEIGHTED_AVERAGE_ESTIMATE"
+      },
+      "rows": [],
+      "nextCursor": null,
+      "costingMethod": "MOVING_WEIGHTED_AVERAGE_ESTIMATE"
+    },
+    "expectedBehavior": "Estimated profit 50.00 uses costed subset; show 66.67% coverage and uncosted values."
+  },
+  {
+    "id": "profit-negative",
+    "request": {
+      "method": "GET",
+      "path": "/financial-reports/gross-profit-estimate",
+      "query": {
+        "from": "2026-10-01T00:00:00+08:00",
+        "before": "2026-10-03T00:00:00+08:00",
+        "groupBy": "none"
+      }
+    },
+    "status": 200,
+    "body": {
+      "period": {
+        "from": "2026-09-30T16:00:00.000Z",
+        "before": "2026-10-02T16:00:00.000Z",
+        "businessTimezone": "Asia/Manila",
+        "asOf": "2026-10-03T00:00:00.000Z"
+      },
+      "basis": "RECONCILED_DELIVERIES",
+      "totals": {
+        "subtotalAmount": "100.00",
+        "discountAmount": "0.00",
+        "taxableAmount": "100.00",
+        "taxAmount": "0.00",
+        "totalAmount": "100.00",
+        "eventCount": 1,
+        "orderCount": 1,
+        "partyCount": 1,
+        "quantitiesByUnit": {
+          "piece": {
+            "quantity": "1.00",
+            "returnedDamagedQuantity": "0.00",
+            "missingQuantity": "0.00"
+          }
+        },
+        "costedTaxableSalesValue": "100.00",
+        "estimatedAcquisitionCost": "125.00",
+        "estimatedGrossProfitAmount": "-25.00",
+        "estimatedGrossMarginPercent": "-25.00",
+        "uncostedTaxableSalesValue": "0.00",
+        "uncostedQuantityByUnit": {},
+        "costCoveragePercent": "100.00",
+        "costingMethod": "MOVING_WEIGHTED_AVERAGE_ESTIMATE"
+      },
+      "rows": [],
+      "nextCursor": null,
+      "costingMethod": "MOVING_WEIGHTED_AVERAGE_ESTIMATE"
+    },
+    "expectedBehavior": "Render -\u00e2\u201a\u00b125.00 and -25.00%; do not clamp negatives."
+  },
+  {
+    "id": "profit-empty-null-percentages",
+    "request": {
+      "method": "GET",
+      "path": "/financial-reports/gross-profit-estimate",
+      "query": {
+        "from": "2026-10-01T00:00:00+08:00",
+        "before": "2026-10-03T00:00:00+08:00",
+        "groupBy": "none"
+      }
+    },
+    "status": 200,
+    "body": {
+      "period": {
+        "from": "2026-09-30T16:00:00.000Z",
+        "before": "2026-10-02T16:00:00.000Z",
+        "businessTimezone": "Asia/Manila",
+        "asOf": "2026-10-03T00:00:00.000Z"
+      },
+      "basis": "RECONCILED_DELIVERIES",
+      "totals": {
+        "subtotalAmount": "0.00",
+        "discountAmount": "0.00",
+        "taxableAmount": "0.00",
+        "taxAmount": "0.00",
+        "totalAmount": "0.00",
+        "eventCount": 0,
+        "orderCount": 0,
+        "partyCount": 0,
+        "quantitiesByUnit": {},
+        "costedTaxableSalesValue": "0.00",
+        "estimatedAcquisitionCost": "0.00",
+        "estimatedGrossProfitAmount": "0.00",
+        "estimatedGrossMarginPercent": null,
+        "uncostedTaxableSalesValue": "0.00",
+        "uncostedQuantityByUnit": {},
+        "costCoveragePercent": null,
+        "costingMethod": "MOVING_WEIGHTED_AVERAGE_ESTIMATE"
+      },
+      "rows": [],
+      "nextCursor": null,
+      "costingMethod": "MOVING_WEIGHTED_AVERAGE_ESTIMATE"
+    },
+    "expectedBehavior": "Margin and coverage unavailable, not zero percent."
+  },
+  {
+    "id": "profit-free-uncosted-goods",
+    "request": {
+      "method": "GET",
+      "path": "/financial-reports/gross-profit-estimate",
+      "query": {
+        "from": "2026-10-01T00:00:00+08:00",
+        "before": "2026-10-03T00:00:00+08:00",
+        "groupBy": "none"
+      }
+    },
+    "status": 200,
+    "body": {
+      "period": {
+        "from": "2026-09-30T16:00:00.000Z",
+        "before": "2026-10-02T16:00:00.000Z",
+        "businessTimezone": "Asia/Manila",
+        "asOf": "2026-10-03T00:00:00.000Z"
+      },
+      "basis": "RECONCILED_DELIVERIES",
+      "totals": {
+        "subtotalAmount": "0.00",
+        "discountAmount": "0.00",
+        "taxableAmount": "0.00",
+        "taxAmount": "0.00",
+        "totalAmount": "0.00",
+        "eventCount": 0,
+        "orderCount": 0,
+        "partyCount": 0,
+        "quantitiesByUnit": {
+          "piece": {
+            "quantity": "1.00",
+            "returnedDamagedQuantity": "0.00",
+            "missingQuantity": "0.00"
+          }
+        },
+        "costedTaxableSalesValue": "0.00",
+        "estimatedAcquisitionCost": "0.00",
+        "estimatedGrossProfitAmount": "0.00",
+        "estimatedGrossMarginPercent": null,
+        "uncostedTaxableSalesValue": "0.00",
+        "uncostedQuantityByUnit": {
+          "piece": "1.00"
+        },
+        "costCoveragePercent": null,
+        "costingMethod": "MOVING_WEIGHTED_AVERAGE_ESTIMATE"
+      },
+      "rows": [],
+      "nextCursor": null,
+      "costingMethod": "MOVING_WEIGHTED_AVERAGE_ESTIMATE"
+    },
+    "expectedBehavior": "Zero financial counts/value can coexist with physical quantity; warn about missing cost based on quantities too."
+  },
+  {
+    "id": "sales-large-exact-money",
+    "request": {
+      "method": "GET",
+      "path": "/financial-reports/sales",
+      "query": {
+        "from": "2026-10-01T00:00:00+08:00",
+        "before": "2026-10-03T00:00:00+08:00",
+        "groupBy": "none"
+      }
+    },
+    "status": 200,
+    "body": {
+      "period": {
+        "from": "2026-09-30T16:00:00.000Z",
+        "before": "2026-10-02T16:00:00.000Z",
+        "businessTimezone": "Asia/Manila",
+        "asOf": "2026-10-03T00:00:00.000Z"
+      },
+      "basis": "RECONCILED_DELIVERIES",
+      "totals": {
+        "subtotalAmount": "12345678901234567890.12",
+        "discountAmount": "0.00",
+        "taxableAmount": "12345678901234567890.12",
+        "taxAmount": "0.00",
+        "totalAmount": "12345678901234567890.12",
+        "eventCount": 1,
+        "orderCount": 1,
+        "partyCount": 1,
+        "quantitiesByUnit": {
+          "piece": {
+            "quantity": "1.00",
+            "returnedDamagedQuantity": "0.00",
+            "missingQuantity": "0.00"
+          }
+        }
+      },
+      "rows": [],
+      "nextCursor": null
+    },
+    "expectedBehavior": "Exact display \u00e2\u201a\u00b112,345,678,901,234,567,890.12; never convert to Number."
+  },
+  {
+    "id": "profit-source-data-conflict",
+    "request": {
+      "method": "GET",
+      "path": "/financial-reports/gross-profit-estimate",
+      "query": {
+        "from": "2026-10-01T00:00:00+08:00",
+        "before": "2026-10-03T00:00:00+08:00",
+        "groupBy": "none"
+      }
+    },
+    "status": 409,
+    "body": {
+      "type": "/problems/report-source-data-invalid",
+      "title": "Report source data invalid",
+      "status": 409,
+      "detail": "Source data is inconsistent.",
+      "code": "REPORT_SOURCE_DATA_INVALID",
+      "source": {
+        "type": "INCOMING_DELIVERY_ITEM",
+        "id": "42"
+      }
+    },
+    "expectedBehavior": "Show source context and no fabricated zero report."
+  },
+  {
+    "id": "sales-invalid-cursor",
+    "request": {
+      "method": "GET",
+      "path": "/financial-reports/sales",
+      "query": {
+        "from": "2026-10-01T00:00:00+08:00",
+        "before": "2026-10-03T00:00:00+08:00",
+        "groupBy": "item",
+        "limit": 1,
+        "cursor": "invalid-fixture-cursor"
+      }
+    },
+    "status": 400,
+    "body": {
+      "type": "/problems/invalid-cursor",
+      "title": "Invalid cursor",
+      "status": 400,
+      "detail": "Invalid cursor",
+      "code": "INVALID_CURSOR"
+    },
+    "expectedBehavior": "Show Restart report, preserve filters, restart at page one."
+  },
+  {
+    "id": "sales-snapshot-mismatch",
+    "request": {
+      "method": "GET",
+      "path": "/financial-reports/sales",
+      "query": {
+        "from": "2026-10-01T00:00:00+08:00",
+        "before": "2026-10-03T00:00:00+08:00",
+        "groupBy": "item",
+        "limit": 1,
+        "cursor": "fixture-only-sales-items-page-2"
+      }
+    },
+    "status": 200,
+    "body": {
+      "period": {
+        "from": "2026-09-30T16:00:00.000Z",
+        "before": "2026-10-02T16:00:00.000Z",
+        "businessTimezone": "Asia/Manila",
+        "asOf": "2026-10-03T01:00:00.000Z"
+      },
+      "basis": "RECONCILED_DELIVERIES",
+      "totals": {
+        "subtotalAmount": "300.00",
+        "discountAmount": "0.00",
+        "taxableAmount": "300.00",
+        "taxAmount": "0.00",
+        "totalAmount": "300.00",
+        "eventCount": 2,
+        "orderCount": 2,
+        "partyCount": 2,
+        "quantitiesByUnit": {
+          "piece": {
+            "quantity": "3.00",
+            "returnedDamagedQuantity": "0.00",
+            "missingQuantity": "0.00"
+          }
+        }
+      },
+      "rows": [
+        {
+          "key": "102",
+          "name": "Sample Item B",
+          "unit": "piece",
+          "subtotalAmount": "100.00",
+          "discountAmount": "0.00",
+          "taxableAmount": "100.00",
+          "taxAmount": "0.00",
+          "totalAmount": "100.00",
+          "eventCount": 1,
+          "orderCount": 1,
+          "partyCount": 1,
+          "quantitiesByUnit": {
+            "piece": {
+              "quantity": "1.00",
+              "returnedDamagedQuantity": "0.00",
+              "missingQuantity": "0.00"
+            }
+          }
+        }
+      ],
+      "nextCursor": null
+    },
+    "expectedBehavior": "Intentional inconsistent continuation: reject with restart guidance."
+  },
+  {
+    "id": "sales-malformed-response",
+    "request": {
+      "method": "GET",
+      "path": "/financial-reports/sales",
+      "query": {
+        "from": "2026-10-01T00:00:00+08:00",
+        "before": "2026-10-03T00:00:00+08:00",
+        "groupBy": "none"
+      }
+    },
+    "status": 200,
+    "body": {
+      "period": {
+        "from": "2026-09-30T16:00:00.000Z",
+        "before": "2026-10-02T16:00:00.000Z",
+        "businessTimezone": "Asia/Manila",
+        "asOf": "2026-10-03T00:00:00.000Z"
+      },
+      "basis": "RECONCILED_DELIVERIES",
+      "totals": {
+        "subtotalAmount": "0.00",
+        "discountAmount": "0.00",
+        "taxableAmount": "0.00",
+        "taxAmount": "0.00",
+        "eventCount": 0,
+        "orderCount": 0,
+        "partyCount": 0,
+        "quantitiesByUnit": {}
+      },
+      "rows": [],
+      "nextCursor": null
+    },
+    "expectedBehavior": "Intentional malformed body: show incomplete-response error, not zero total."
+  }
+]

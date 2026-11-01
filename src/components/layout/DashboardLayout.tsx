@@ -52,6 +52,7 @@ type NavGroup = {
     label: string
     icon: React.ComponentType<{ className?: string }>
     requiresStaffAccess?: boolean
+    requiresReportAccess?: boolean
   }[]
 }
 
@@ -77,6 +78,17 @@ const NAV_GROUPS: NavGroup[] = [
       { key: 'warehouses', label: 'Warehouses', icon: WarehouseIcon },
       { key: 'deliveries', label: 'Deliveries', icon: MapPinned },
       { key: 'fleet', label: 'Vehicles', icon: Truck },
+    ],
+  },
+  {
+    title: 'Reports',
+    items: [
+      {
+        key: 'financial-reports',
+        label: 'Financial Reports',
+        icon: ReceiptText,
+        requiresReportAccess: true,
+      },
     ],
   },
   {
@@ -133,17 +145,21 @@ export function DashboardLayout({
   // Staffing pages are available to admins and managers.
   const visibleGroups = NAV_GROUPS.map((group) => ({
     ...group,
-    items: group.items.filter((item) => !item.requiresStaffAccess || isAdmin || isManager),
+    items: group.items.filter(
+      (item) => (!item.requiresStaffAccess && !item.requiresReportAccess) || isAdmin || isManager,
+    ),
   })).filter((group) => group.items.length > 0)
 
   const deliveryView =
-    currentScreen === 'delivery-runs' ? 'runs' : currentScreen === 'incoming-deliveries'
-      ? 'incoming'
-      : currentScreen === 'delivery-history'
-        ? 'history'
-        : currentScreen === 'outgoing-deliveries' || currentScreen === 'deliveries'
-          ? 'outgoing'
-          : null
+    currentScreen === 'delivery-runs'
+      ? 'runs'
+      : currentScreen === 'incoming-deliveries'
+        ? 'incoming'
+        : currentScreen === 'delivery-history'
+          ? 'history'
+          : currentScreen === 'outgoing-deliveries' || currentScreen === 'deliveries'
+            ? 'outgoing'
+            : null
   // Determine current section info
   const currentGroup = NAV_GROUPS.find((g) =>
     g.items.some((item) => item.key === (deliveryView ? 'deliveries' : currentScreen)),
