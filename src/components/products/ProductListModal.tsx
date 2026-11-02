@@ -14,7 +14,7 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useResourcePage } from '@/lib/use-cursor-page'
-import { CursorPageControls } from '@/components/ui/CursorPageControls'
+import { DataTableFooter } from '@/components/ui/DataTableFooter'
 import { InventoryItemModal } from '../operations/InventoryItemModal'
 import type { InventoryItemResponse } from '@/features/products/products.types'
 
@@ -169,7 +169,7 @@ export function ProductListModal({ open, onClose }: ProductListModalProps) {
               />
             )}
           </div>
-          <CursorPageControls {...query} label="Product" />
+          <DataTableFooter {...query} rowCount={query.items.length} label="Product" />
         </DialogContent>
       </Dialog>
 

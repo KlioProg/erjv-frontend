@@ -1,4 +1,4 @@
-import { CursorPageControls } from '@/components/ui/CursorPageControls'
+import { DataTableFooter, DataTableFrame } from '@/components/ui/DataTableFooter'
 import { PageHeader, PageToolbar } from '@/components/ui/ManagementPage'
 import { useState } from 'react'
 import { Plus, Search, Users } from 'lucide-react'
@@ -157,6 +157,7 @@ export function ClientList() {
           use it again.
         </p>
       )}
+      <DataTableFrame>
       {isError ? (
         <Alert variant="destructive">
           <AlertTitle>Could not load customers</AlertTitle>
@@ -221,7 +222,8 @@ export function ClientList() {
         />
       )}
 
-      <CursorPageControls {...clientsQuery} label="Customer" />
+      <DataTableFooter {...clientsQuery} rowCount={clientsQuery.items.length} label="Customer" />
+      </DataTableFrame>
 
       <ClientModal
         client={selectedClient}

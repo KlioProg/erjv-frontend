@@ -1,4 +1,5 @@
 import { useResourcePage } from '@/lib/use-cursor-page'
+import { DeliveryHeaderFilter } from './DeliveryHeaderFilter'
 import { DeliveryTableToolbar, DeliveryPageFooter } from './DeliveryTableToolbar'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useSearchParams } from 'react-router'
@@ -137,15 +138,14 @@ export function DeliveryRunsHub() {
         }
       : {}),
   })
-  const activeFilterCount = [
-    !!q.trim(),
-    status !== 'ALL',
-    !!warehouseFilter,
-    !!driverFilter,
-    !!vehicleFilter,
-    !!scheduledFrom,
-    !!scheduledThrough,
-  ].filter(Boolean).length
+  const hasFilters =
+    !!q.trim() ||
+    status !== 'ALL' ||
+    !!warehouseFilter ||
+    !!driverFilter ||
+    !!vehicleFilter ||
+    !!scheduledFrom ||
+    !!scheduledThrough
   const clearFilters = () => {
     setQ('')
     setStatus('ALL')
@@ -177,6 +177,128 @@ export function DeliveryRunsHub() {
         : run.status === 'COMPLETED'
           ? 'Run completed · review member outcomes'
           : 'Cancelled'
+  const filterHeaders = {
+    warehouse: (
+      <DeliveryHeaderFilter
+        label="Warehouse"
+        active={!!warehouseFilter}
+        onClear={() => setWarehouseFilter('')}
+      >
+        <Label htmlFor="run-filter-warehouse">Warehouse</Label>
+        <CursorLookup<NamedRecord>
+          id="run-filter-warehouse"
+          path="/warehouses"
+          filter={{ includeInactive: 'true' }}
+          value={warehouseFilter}
+          label="Warehouse"
+          getLabel={(warehouse) => warehouse.name}
+          onChange={setWarehouseFilter}
+        />
+      </DeliveryHeaderFilter>
+    ),
+    crew: (
+      <DeliveryHeaderFilter
+        label="Driver / Vehicle"
+        active={!!driverFilter || !!vehicleFilter}
+        onClear={() => {
+          setDriverFilter('')
+          setVehicleFilter('')
+        }}
+      >
+        <div className="grid gap-1.5">
+          <div className="flex items-center justify-between">
+            <Label htmlFor="run-filter-driver">Driver</Label>
+            {driverFilter && (
+              <Button variant="ghost" size="sm" onClick={() => setDriverFilter('')}>
+                Clear driver
+              </Button>
+            )}
+          </div>
+          <CursorLookup<DriverRecord>
+            id="run-filter-driver"
+            path="/employees"
+            filter={{ includeInactive: 'true' }}
+            value={driverFilter}
+            label="Driver"
+            getLabel={(driver) => driver.firstName + ' ' + driver.lastName}
+            onChange={setDriverFilter}
+          />
+        </div>
+        <div className="grid gap-1.5">
+          <div className="flex items-center justify-between">
+            <Label htmlFor="run-filter-vehicle">Vehicle</Label>
+            {vehicleFilter && (
+              <Button variant="ghost" size="sm" onClick={() => setVehicleFilter('')}>
+                Clear vehicle
+              </Button>
+            )}
+          </div>
+          <CursorLookup<VehicleRecord>
+            id="run-filter-vehicle"
+            path="/delivery-vehicles"
+            filter={{ includeInactive: 'true' }}
+            value={vehicleFilter}
+            label="Vehicle"
+            getLabel={(vehicle) => vehicle.plateNumber}
+            onChange={setVehicleFilter}
+          />
+        </div>
+      </DeliveryHeaderFilter>
+    ),
+    departure: (
+      <DeliveryHeaderFilter
+        label="Scheduled departure"
+        active={!!scheduledFrom || !!scheduledThrough}
+        onClear={() => {
+          setScheduledFrom('')
+          setScheduledThrough('')
+        }}
+      >
+        <div className="grid gap-1.5">
+          <Label htmlFor="run-filter-from">Departure from</Label>
+          <Input
+            id="run-filter-from"
+            type="date"
+            value={scheduledFrom}
+            onChange={(event) => setScheduledFrom(event.target.value)}
+          />
+        </div>
+        <div className="grid gap-1.5">
+          <Label htmlFor="run-filter-through">Departure through</Label>
+          <Input
+            id="run-filter-through"
+            type="date"
+            value={scheduledThrough}
+            min={scheduledFrom || undefined}
+            onChange={(event) => setScheduledThrough(event.target.value)}
+          />
+        </div>
+        <p className="text-xs text-muted-foreground">Scheduled departure dates use Asia/Manila.</p>
+      </DeliveryHeaderFilter>
+    ),
+    status: (
+      <DeliveryHeaderFilter
+        label="Status"
+        active={status !== 'ALL'}
+        onClear={() => setStatus('ALL')}
+      >
+        <Label htmlFor="run-status-filter">Run status</Label>
+        <Select value={status} onValueChange={setStatus}>
+          <SelectTrigger id="run-status-filter">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="ALL">All statuses</SelectItem>
+            {statuses.map((value) => (
+              <SelectItem key={value} value={value}>
+                {RUN_STATUS_LABELS[value]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </DeliveryHeaderFilter>
+    ),
+  }
   const columns: ColumnDef<DeliveryRunRecord>[] = [
     {
       id: 'run',
@@ -191,17 +313,13 @@ export function DeliveryRunsHub() {
       ),
     },
     {
-      header: 'Warehouse',
+      header: filterHeaders.warehouse,
       accessorKey: 'warehouseId',
-      className: 'hidden md:table-cell',
-      headerClassName: 'hidden md:table-cell',
       cell: ({ row }) => names.warehouse(row.warehouseId),
     },
     {
       id: 'crew',
-      header: 'Driver / Vehicle',
-      className: 'hidden lg:table-cell',
-      headerClassName: 'hidden lg:table-cell',
+      header: filterHeaders.crew,
       cell: ({ row }) => (
         <div>
           {names.driver(row.driverEmployeeId)}
@@ -211,9 +329,7 @@ export function DeliveryRunsHub() {
     },
     {
       id: 'departure',
-      header: 'Scheduled departure',
-      className: 'hidden xl:table-cell',
-      headerClassName: 'hidden xl:table-cell',
+      header: filterHeaders.departure,
       cell: ({ row }) => dateText(row.scheduledDepartureAt),
     },
     {
@@ -225,10 +341,8 @@ export function DeliveryRunsHub() {
         `${row.deliveries.filter((member) => member.status === 'RECONCILED').length} / ${row.deliveries.length} reconciled`,
     },
     {
-      header: 'Status',
+      header: filterHeaders.status,
       accessorKey: 'status',
-      className: 'hidden sm:table-cell',
-      headerClassName: 'hidden sm:table-cell',
       cell: ({ row }) => <Badge variant="outline">{RUN_STATUS_LABELS[row.status]}</Badge>,
     },
     {
@@ -248,15 +362,27 @@ export function DeliveryRunsHub() {
     },
   ]
   return (
-    <div className="flex min-w-0 flex-col gap-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <PageHeader description="Group customer deliveries, review departure loads, then reconcile each delivery after dispatch.">
-          Delivery Runs
-        </PageHeader>
-        {(isAdmin || isManager) && (
-          <Button onClick={() => setCreating(true)}>Create Delivery Run</Button>
+    <div className="flex min-w-0 flex-col gap-4">
+      <PageHeader description="Group customer deliveries, review departure loads, then reconcile each delivery after dispatch.">
+        Delivery Runs
+      </PageHeader>
+      <DeliveryTableToolbar
+        search={q}
+        onSearch={setQ}
+        searchLabel="Search delivery runs"
+        placeholder="Search delivery run..."
+      >
+        {hasFilters && (
+          <Button variant="ghost" size="sm" onClick={clearFilters}>
+            Clear filters
+          </Button>
         )}
-      </div>
+        {(isAdmin || isManager) && (
+          <Button size="sm" onClick={() => setCreating(true)}>
+            Create Delivery Run
+          </Button>
+        )}
+      </DeliveryTableToolbar>
       {invalidLink && (
         <Alert variant="destructive">
           <AlertDescription>
@@ -268,112 +394,6 @@ export function DeliveryRunsHub() {
         </Alert>
       )}
       <div data-delivery-table className="min-w-0 overflow-hidden rounded-lg border bg-card">
-        <DeliveryTableToolbar
-          search={q}
-          onSearch={setQ}
-          searchLabel="Search delivery runs"
-          placeholder="Search delivery run"
-          activeCount={activeFilterCount}
-          onClear={clearFilters}
-          primaryFilter={
-            <Select value={status} onValueChange={setStatus}>
-              <SelectTrigger className="h-10 min-w-40" aria-label="Run status">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ALL">All statuses</SelectItem>
-                {statuses.map((value) => (
-                  <SelectItem key={value} value={value}>
-                    {RUN_STATUS_LABELS[value]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          }
-          filters={
-            <>
-              <div className="grid gap-1.5">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="run-filter-warehouse">Warehouse</Label>
-                  {warehouseFilter && (
-                    <Button variant="ghost" size="sm" onClick={() => setWarehouseFilter('')}>
-                      Clear warehouse
-                    </Button>
-                  )}
-                </div>
-                <CursorLookup<NamedRecord>
-                  id="run-filter-warehouse"
-                  path="/warehouses"
-                  filter={{ includeInactive: 'true' }}
-                  value={warehouseFilter}
-                  label="Warehouse"
-                  getLabel={(warehouse) => warehouse.name}
-                  onChange={setWarehouseFilter}
-                />
-              </div>
-              <div className="grid gap-1.5">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="run-filter-driver">Driver</Label>
-                  {driverFilter && (
-                    <Button variant="ghost" size="sm" onClick={() => setDriverFilter('')}>
-                      Clear driver
-                    </Button>
-                  )}
-                </div>
-                <CursorLookup<DriverRecord>
-                  id="run-filter-driver"
-                  path="/employees"
-                  filter={{ includeInactive: 'true' }}
-                  value={driverFilter}
-                  label="Driver"
-                  getLabel={(driver) => `${driver.firstName} ${driver.lastName}`}
-                  onChange={setDriverFilter}
-                />
-              </div>
-              <div className="grid gap-1.5">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="run-filter-vehicle">Vehicle</Label>
-                  {vehicleFilter && (
-                    <Button variant="ghost" size="sm" onClick={() => setVehicleFilter('')}>
-                      Clear vehicle
-                    </Button>
-                  )}
-                </div>
-                <CursorLookup<VehicleRecord>
-                  id="run-filter-vehicle"
-                  path="/delivery-vehicles"
-                  filter={{ includeInactive: 'true' }}
-                  value={vehicleFilter}
-                  label="Vehicle"
-                  getLabel={(vehicle) => vehicle.plateNumber}
-                  onChange={setVehicleFilter}
-                />
-              </div>
-              <div className="grid gap-1.5">
-                <Label htmlFor="run-filter-from">Departure from</Label>
-                <Input
-                  id="run-filter-from"
-                  type="date"
-                  value={scheduledFrom}
-                  onChange={(event) => setScheduledFrom(event.target.value)}
-                />
-              </div>
-              <div className="grid gap-1.5">
-                <Label htmlFor="run-filter-through">Departure through</Label>
-                <Input
-                  id="run-filter-through"
-                  type="date"
-                  value={scheduledThrough}
-                  min={scheduledFrom || undefined}
-                  onChange={(event) => setScheduledThrough(event.target.value)}
-                />
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Scheduled departure dates use Asia/Manila.
-              </p>
-            </>
-          }
-        />
         {query.isError && (
           <Alert variant="destructive">
             <AlertDescription>
@@ -390,6 +410,7 @@ export function DeliveryRunsHub() {
           <DataTable
             className="rounded-none border-0"
             appearance="management"
+            retainHeaders
             data={runs}
             columns={columns}
             isLoading={query.isFetching}
@@ -440,7 +461,6 @@ export function DeliveryRunsHub() {
     </div>
   )
 }
-
 function RunEditor({
   run,
   initialDelivery,

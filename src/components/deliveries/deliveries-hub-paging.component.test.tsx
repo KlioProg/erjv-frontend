@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router'
@@ -7,13 +7,13 @@ import { getAdapter } from 'axios'
 import { apiClient } from '@/lib/api-client'
 import { DeliveriesHub } from './DeliveriesHub'
 
-vi.mock('@/features/auth/AuthContext', () => ({
-  useAuth: () => ({ isAdmin: false, isManager: false }),
-}))
+const auth = vi.hoisted(() => ({ isAdmin: false, isManager: false }))
+vi.mock('@/features/auth/AuthContext', () => ({ useAuth: () => auth }))
 const originalAdapter = apiClient.defaults.adapter
 let requests: { url: string; params: Record<string, unknown> }[]
 beforeEach(() => {
   requests = []
+  auth.isAdmin = false
   apiClient.defaults.adapter = async (config) => {
     const params = config.params ?? {}
     requests.push({ url: config.url!, params })
@@ -89,26 +89,28 @@ it.each(['incoming', 'outgoing'] as const)(
   },
 )
 
-it('keeps incoming and outgoing history pagination independent', async () => {
+it('loads bounded independent History sources into one accumulated table and one bottom action', async () => {
   mount('history')
   await screen.findByText('IN-1')
   await screen.findByText('OUT-1')
   expect(deliveryRequests()).toHaveLength(2)
-  expect(
-    deliveryRequests().find(({ url }) => url === '/incoming-deliveries')?.params.statuses,
-  ).toEqual(['COMPLETED', 'CANCELLED'])
-  expect(
-    deliveryRequests().find(({ url }) => url === '/outgoing-deliveries')?.params.statuses,
-  ).toEqual(['RECONCILED', 'CANCELLED'])
-  fireEvent.click(within(screen.getByRole('navigation', { name: 'Incoming delivery pages' })).getByRole('button', { name: 'Next page' }))
+  expect(deliveryRequests().find(read => read.url === '/incoming-deliveries')?.params.statuses).toEqual(['COMPLETED', 'CANCELLED'])
+  expect(deliveryRequests().find(read => read.url === '/outgoing-deliveries')?.params.statuses).toEqual(['RECONCILED', 'CANCELLED'])
+  expect(screen.getAllByRole('navigation')).toHaveLength(1)
+  expect(screen.getByRole('navigation', { name: 'Delivery history loading' }).hasAttribute('data-table-footer')).toBe(true)
+  expect(screen.queryByRole('combobox', { name: 'Rows per page' })).toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: 'Load more history' }))
   await screen.findByText('IN-2')
-  expect(deliveryRequests().filter(({ url }) => url === '/outgoing-deliveries')).toHaveLength(1)
-  fireEvent.click(within(screen.getByRole('navigation', { name: 'Outgoing delivery pages' })).getByRole('button', { name: 'Next page' }))
   await screen.findByText('OUT-2')
-  expect(within(screen.getByRole('region', { name: 'Incoming history' })).getByText('IN-2')).toBeTruthy()
-  expect(within(screen.getByRole('region', { name: 'Outgoing history' })).getByText('OUT-2')).toBeTruthy()
-  expect(screen.queryByText('IN-1')).toBeNull()
-  expect(screen.queryByText('OUT-1')).toBeNull()
+  expect(deliveryRequests()).toHaveLength(4)
+  expect(deliveryRequests().filter(read => read.params.cursor).map(read => read.params.cursor)).toEqual(expect.arrayContaining(['incoming-page-2', 'outgoing-page-2']))
+  expect(deliveryRequests().every(read => read.params.limit === 50)).toBe(true)
+  expect(screen.getByText('IN-1')).toBeTruthy()
+  expect(screen.getByText('OUT-1')).toBeTruthy()
+  expect(screen.getByText('4 loaded deliveries')).toBeTruthy()
+  expect(screen.getAllByRole('table')).toHaveLength(1)
+  expect(screen.getByRole('button', { name: 'Load more history' }).hasAttribute('disabled')).toBe(true)
+  expect(screen.queryByText(/Page .* of/)).toBeNull()
 })
 
 it('starts a fresh first page for server text and status filters', async () => {
@@ -127,6 +129,7 @@ it('starts a fresh first page for server text and status filters', async () => {
   })
   expect(screen.queryByText('IN-2')).toBeNull()
   const user = userEvent.setup()
+  await user.click(screen.getByRole('button', { name: 'Filter by status' }))
   await user.click(screen.getByRole('combobox', { name: 'Status' }))
   await user.click(screen.getByRole('option', { name: 'Awaiting Receipt' }))
   await waitFor(() =>
@@ -138,35 +141,38 @@ it('starts a fresh first page for server text and status filters', async () => {
   )
 })
 
-it('integrates filters with the table, resets cursors and keeps panel selection stable', async () => {
+it('keeps search outside the table and column filters stable through cursor resets', async () => {
   mount('outgoing')
   const user = userEvent.setup()
   await screen.findByText('OUT-1')
   await user.click(screen.getByRole('button', { name: 'Next page' }))
   await screen.findByText('OUT-2')
   const search = screen.getByRole('textbox', { name: 'Search deliveries' })
-  const frame = search.closest('[data-delivery-table]')!
-  expect(within(frame as HTMLElement).getByRole('table')).toBeTruthy()
+  expect(search.closest('[data-delivery-table]')).toBeNull()
+  const frame = screen.getByRole('table').closest('[data-delivery-table]')!
+  expect(frame).toBeTruthy()
   expect(screen.queryByText(/More filters/)).toBeNull()
-  await user.click(screen.getByRole('button', { name: 'Filters' }))
+  await user.click(screen.getByRole('button', { name: 'Filter by run assignment' }))
   await user.click(screen.getByRole('checkbox', { name: 'Unassigned deliveries only' }))
   await waitFor(() => expect(deliveryRequests().at(-1)?.params).toMatchObject({ unassigned: 'true' }))
   expect(deliveryRequests().at(-1)?.params.cursor).toBeUndefined()
   expect(screen.getByRole('checkbox', { name: 'Unassigned deliveries only' }).getAttribute('data-state')).toBe('checked')
   await user.keyboard('{Escape}')
-  expect(document.activeElement?.textContent).toContain('Filters')
-  expect(screen.getByRole('button', { name: /^Filters/ }).textContent).toContain('1')
+  expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Filter by run assignment' }))
+  expect(screen.getByRole('button', { name: 'Filter by run assignment' }).getAttribute('data-active')).toBe('true')
   await user.click(screen.getByRole('button', { name: 'Clear filters' }))
   expect(screen.queryByRole('button', { name: 'Clear filters' })).toBeNull()
 })
 
-it('hides single-page pagination without implying a global total', async () => {
+it('keeps single-page pagination without implying a global total', async () => {
   mount('incoming')
   await screen.findByText('IN-1')
   fireEvent.change(screen.getByRole('textbox', { name: 'Search deliveries' }), { target: { value: 'one' } })
   await screen.findByText('IN-one')
   expect(screen.getByText('1 delivery on this page')).toBeTruthy()
-  expect(screen.queryByRole('navigation', { name: 'Incoming delivery pages' })).toBeNull()
+  expect(screen.getByRole('navigation', { name: 'Incoming delivery pages' })).toBeTruthy()
+  expect(screen.getByRole('button', { name: 'Previous page' }).hasAttribute('disabled')).toBe(true)
+  expect(screen.getByRole('button', { name: 'Next page' }).hasAttribute('disabled')).toBe(true)
 })
 
 it('hides stale actions when a later page fails and restarts pagination on retry', async () => {
@@ -189,4 +195,277 @@ it('hides stale actions when a later page fails and restarts pagination on retry
   expect(deliveryRequests().at(-1)?.params.cursor).toBeUndefined()
   fireEvent.click(within(screen.getByRole('navigation', { name: 'Incoming delivery pages' })).getByRole('button', { name: 'Next page' }))
   await screen.findByText('IN-2')
+})
+
+it.each(['incoming', 'outgoing', 'history'] as const)('keeps %s search and creation outside the standalone table', async direction => {
+  auth.isAdmin = true
+  mount(direction)
+  await screen.findByText(direction === 'outgoing' ? 'OUT-1' : 'IN-1')
+  const table = screen.getByRole('table')
+  expect(screen.getByRole('textbox', { name: 'Search deliveries' }).closest('[data-delivery-table]')).toBeNull()
+  if (direction !== 'history') expect(screen.getByRole('button', { name: direction === 'incoming' ? 'Schedule Incoming' : 'Plan Outgoing' }).closest('[data-delivery-table]')).toBeNull()
+  else expect(screen.queryByRole('button', { name: 'Plan Outgoing' })).toBeNull()
+  expect(screen.queryByRole('button', { name: 'Filters' })).toBeNull()
+  const footer = screen.getAllByRole('navigation')[0]
+  expect(table.compareDocumentPosition(footer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  expect(table.closest('[data-delivery-table]')).toBe(footer.parentElement)
+})
+
+it('filters History direction using only the corresponding source and resets its cursor', async () => {
+  mount('history')
+  const user = userEvent.setup()
+  await screen.findByText('OUT-1')
+  await user.click(screen.getByRole('button', { name: 'Load more history' }))
+  await screen.findByText('IN-2')
+  const selector = within(screen.getByRole('group', { name: 'Delivery direction' }))
+  const selectDirection = (direction: string) => user.click(selector.getByRole('button', { name: direction }))
+  expect(selector.getByRole('button', { name: 'All Deliveries' }).getAttribute('aria-pressed')).toBe('true')
+  expect(screen.queryByRole('button', { name: 'Filter by direction' })).toBeNull()
+  expect(within(screen.getByRole('columnheader', { name: 'Direction' })).queryByRole('button')).toBeNull()
+  expect(screen.getByRole('button', { name: 'Filter by warehouse' })).toBeTruthy()
+  expect(screen.getByRole('button', { name: 'Filter by outcome' })).toBeTruthy()
+  const search = screen.getByRole('textbox', { name: 'Search deliveries' })
+  const group = screen.getByRole('group', { name: 'Delivery direction' })
+  expect(group.closest('[data-delivery-table]')).toBeNull()
+  const heading = screen.getByRole('heading', { name: 'Delivery History' })
+  expect(screen.getByText('Review completed and cancelled deliveries.')).toBeTruthy()
+  expect(heading.compareDocumentPosition(group) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  expect(group.compareDocumentPosition(search) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  expect(search.compareDocumentPosition(screen.getByRole('table')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  expect(search.getAttribute('placeholder')).toBe('Search delivery history...')
+  expect(group.closest('.management-toolbar')).toBeNull()
+  const outgoingReads = () => deliveryRequests().filter(({ url }) => url === '/outgoing-deliveries').length
+  const before = outgoingReads()
+  await selectDirection('Incoming')
+  await screen.findByText('IN-1')
+  expect(selector.getByRole('button', { name: 'Incoming' }).getAttribute('aria-pressed')).toBe('true')
+  expect(selector.getAllByRole('button', { pressed: true })).toHaveLength(1)
+  expect(screen.queryByText('OUT-1')).toBeNull()
+  expect(outgoingReads()).toBe(before)
+  expect(screen.queryByRole('navigation', { name: 'Outgoing delivery pages' })).toBeNull()
+  await selectDirection('Outgoing')
+  await screen.findByText('OUT-1')
+  expect(screen.queryByText('IN-1')).toBeNull()
+  expect(screen.getAllByRole('table')).toHaveLength(1)
+  await selectDirection('All Deliveries')
+  await screen.findByText('IN-1')
+  expect(screen.getByText('OUT-1')).toBeTruthy()
+  expect(screen.queryByText(/Page .* of/)).toBeNull()
+})
+
+it('applies and clears warehouse filtering on the server, including after an empty response', async () => {
+  const adapter = getAdapter(apiClient.defaults.adapter)
+  apiClient.defaults.adapter = async config => {
+    if (config.url === '/warehouses') return { config, status: 200, statusText: '', headers: {}, data: { items: [{ id: 1, name: 'Main', isActive: true }], nextCursor: null } }
+    const result = await adapter(config)
+    if (config.url === '/incoming-deliveries' && config.params.warehouseId) result.data = { items: [], nextCursor: null }
+    return result
+  }
+  mount('incoming')
+  const user = userEvent.setup()
+  await screen.findByText('IN-1')
+  await user.click(screen.getByRole('button', { name: 'Next page' }))
+  await screen.findByText('IN-2')
+  const trigger = screen.getByRole('button', { name: 'Filter by warehouse' })
+  await user.click(trigger)
+  await user.click(screen.getByRole('combobox', { name: 'Warehouse' }))
+  await user.click(screen.getByRole('option', { name: 'Main' }))
+  await waitFor(() => expect(deliveryRequests().at(-1)?.params).toMatchObject({ warehouseId: 1 }))
+  expect(deliveryRequests().at(-1)?.params.cursor).toBeUndefined()
+  expect(screen.getByRole('button', { name: 'Filter by warehouse' })).toBe(trigger)
+  expect(trigger.getAttribute('data-active')).toBe('true')
+  await user.click(screen.getByRole('button', { name: 'Clear warehouse' }))
+  await screen.findByText('IN-1')
+  expect(deliveryRequests().at(-1)?.params.warehouseId).toBeUndefined()
+})
+
+it('keeps healthy History records in the combined table when the other source fails', async () => {
+  const adapter = getAdapter(apiClient.defaults.adapter)
+  let fail = true
+  apiClient.defaults.adapter = async config => {
+    if (config.url === '/incoming-deliveries' && fail) throw Error('Incoming history unavailable')
+    return adapter(config)
+  }
+  mount('history')
+  await screen.findByText('OUT-1')
+  expect(screen.getAllByRole('table')).toHaveLength(1)
+  expect(screen.getByText('Some deliveries could not be loaded.')).toBeTruthy()
+  expect(within(screen.getByRole('navigation', { name: 'Delivery history loading' })).getByText(/Incoming history unavailable/)).toBeTruthy()
+  expect(screen.queryByText('No delivery history found')).toBeNull()
+  fail = false
+  await userEvent.click(screen.getByRole('button', { name: 'Retry history' }))
+  await screen.findByText('IN-1')
+  expect(screen.getByText('OUT-1')).toBeTruthy()
+})
+
+it('keeps History outcome filters within the terminal scope and describes only enabled sources', async () => {
+  mount('history')
+  const user = userEvent.setup()
+  await screen.findByText('OUT-1')
+  await user.click(screen.getByRole('button', { name: 'Filter by outcome' }))
+  await user.click(screen.getByRole('combobox', { name: 'Outcome' }))
+  await user.click(screen.getByRole('option', { name: 'Received' }))
+  await waitFor(() => expect(screen.queryByText('OUT-1')).toBeNull())
+  expect(await screen.findByText('IN-1')).toBeTruthy()
+  expect(deliveryRequests().at(-1)?.params).toMatchObject({ statuses: ['COMPLETED'] })
+  const before = deliveryRequests().length
+  await user.click(within(screen.getByRole('group', { name: 'Delivery direction' })).getByRole('button', { name: 'All Deliveries' }))
+  expect(screen.getByRole('button', { name: 'Filter by outcome' }).getAttribute('data-active')).toBe('true')
+  expect(deliveryRequests()).toHaveLength(before)
+  expect(screen.queryByText(/Showing the current incoming and outgoing pages/)).toBeNull()
+  expect(screen.queryByRole('navigation', { name: 'Outgoing delivery pages' })).toBeNull()
+})
+
+it('keeps server search, single-table pagination and exclusive selection for every History direction', async () => {
+  mount('history')
+  const user = userEvent.setup()
+  await screen.findByText('OUT-1')
+  const selector = within(screen.getByRole('group', { name: 'Delivery direction' }))
+  const search = screen.getByRole('textbox', { name: 'Search deliveries' })
+  let previousSearch = ''
+  for (const direction of ['All Deliveries', 'Incoming', 'Outgoing']) {
+    await user.click(selector.getByRole('button', { name: direction }))
+    expect((search as HTMLInputElement).value).toBe(previousSearch)
+    const term = 'reference-' + direction
+    fireEvent.change(search, { target: { value: term } })
+    const sources = direction === 'All Deliveries' ? ['IN', 'OUT'] : [direction === 'Incoming' ? 'IN' : 'OUT']
+    for (const prefix of sources) await screen.findByText(prefix + '-' + term)
+    expect(screen.getAllByRole('table')).toHaveLength(1)
+    expect(selector.getAllByRole('button', { pressed: true })).toHaveLength(1)
+    expect(selector.getByRole('button', { name: direction, pressed: true })).toBeTruthy()
+    const reads = deliveryRequests().filter(read => read.params.q === term)
+    expect(reads).toHaveLength(sources.length)
+    expect(reads.every(read => read.params.cursor === undefined)).toBe(true)
+    const table = screen.getByRole('table')
+    const footers = screen.getAllByRole('navigation')
+    expect(footers).toHaveLength(1)
+    for (const footer of footers) {
+      expect(table.compareDocumentPosition(footer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+      if (direction === 'All Deliveries') expect(within(footer).getByRole('button', { name: 'Load more history' }).hasAttribute('disabled')).toBe(true)
+      else {
+        expect(within(footer).getByText('Page 1')).toBeTruthy()
+        expect(within(footer).getByRole('button', { name: 'Next page' }).hasAttribute('disabled')).toBe(true)
+      }
+    }
+    previousSearch = term
+  }
+})
+
+it('retains the selected direction during loading and ignores a delayed response from the old direction', async () => {
+  const adapter = getAdapter(apiClient.defaults.adapter)
+  let releaseIncoming!: () => void, releaseOutgoing!: () => void
+  const incoming = new Promise<void>(resolve => { releaseIncoming = resolve })
+  const outgoing = new Promise<void>(resolve => { releaseOutgoing = resolve })
+  let incomingWaiting = false, outgoingWaiting = 0
+  apiClient.defaults.adapter = async config => {
+    if (config.params?.q === 'pending') {
+      if (config.url === '/incoming-deliveries') { incomingWaiting = true; await incoming }
+      if (config.url === '/outgoing-deliveries') { outgoingWaiting++; await outgoing }
+    }
+    return adapter(config)
+  }
+  mount('history')
+  const user = userEvent.setup()
+  await screen.findByText('OUT-1')
+  const selector = within(screen.getByRole('group', { name: 'Delivery direction' }))
+  fireEvent.change(screen.getByRole('textbox', { name: 'Search deliveries' }), { target: { value: 'pending' } })
+  try {
+    await waitFor(() => expect(incomingWaiting && outgoingWaiting > 0).toBe(true))
+    await user.click(selector.getByRole('button', { name: 'Outgoing' }))
+    await waitFor(() => expect(outgoingWaiting).toBe(2))
+    expect(selector.getByRole('button', { name: 'Outgoing', pressed: true })).toBeTruthy()
+    expect(screen.getByRole('combobox', { name: 'Rows per page' }).hasAttribute('disabled')).toBe(true)
+    await act(async () => { releaseOutgoing() })
+    await screen.findByText('OUT-pending')
+    await act(async () => { releaseIncoming() })
+    expect(screen.queryByText('IN-pending')).toBeNull()
+    expect(selector.getByRole('button', { name: 'Outgoing', pressed: true })).toBeTruthy()
+    expect(screen.getAllByRole('table')).toHaveLength(1)
+  } finally {
+    await act(async () => { releaseIncoming(); releaseOutgoing() })
+  }
+})
+
+it('keeps direction and search through empty results, failures and retry', async () => {
+  const adapter = getAdapter(apiClient.defaults.adapter)
+  let fail = true
+  apiClient.defaults.adapter = async config => {
+    if (config.url === '/outgoing-deliveries') {
+      if (config.params?.q === 'error' && fail) throw Error('History unavailable')
+      if (config.params?.q === 'empty') return { config, status: 200, statusText: '', headers: {}, data: { items: [], nextCursor: null } }
+    }
+    return adapter(config)
+  }
+  mount('history')
+  const user = userEvent.setup()
+  await screen.findByText('OUT-1')
+  const outgoing = within(screen.getByRole('group', { name: 'Delivery direction' })).getByRole('button', { name: 'Outgoing' })
+  await user.click(outgoing)
+  const search = screen.getByRole('textbox', { name: 'Search deliveries' })
+  fireEvent.change(search, { target: { value: 'empty' } })
+  await screen.findByText('No delivery history found')
+  expect(screen.getByRole('navigation', { name: 'Outgoing delivery pages' })).toBeTruthy()
+  expect(outgoing.getAttribute('aria-pressed')).toBe('true')
+  fireEvent.change(search, { target: { value: 'error' } })
+  await screen.findByText('Delivery records are unavailable until the request succeeds.')
+  expect(outgoing.getAttribute('aria-pressed')).toBe('true')
+  expect((search as HTMLInputElement).value).toBe('error')
+  expect(screen.queryByText('No delivery history found')).toBeNull()
+  expect(deliveryRequests().filter(read => read.params.q === 'error').every(read => read.url === '/outgoing-deliveries')).toBe(true)
+  fail = false
+  await user.click(screen.getByRole('button', { name: 'Retry' }))
+  await screen.findByText('OUT-error')
+  expect(outgoing.getAttribute('aria-pressed')).toBe('true')
+  expect(deliveryRequests().filter(read => read.params.q === 'error').every(read => read.url === '/outgoing-deliveries')).toBe(true)
+})
+
+it('retains loaded History during a source failure, retries that cursor, and advances only unfinished sources', async () => {
+  const adapter = getAdapter(apiClient.defaults.adapter)
+  let failIncoming = true
+  apiClient.defaults.adapter = async config => {
+    if (config.url === '/incoming-deliveries' && config.params?.cursor && failIncoming) {
+      requests.push({ url: config.url, params: config.params })
+      throw Error('Incoming page unavailable')
+    }
+    const result = await adapter(config)
+    if (config.url === '/incoming-deliveries' || config.url === '/outgoing-deliveries') {
+      const incoming = config.url === '/incoming-deliveries'
+      if (config.params?.cursor === 'outgoing-page-3') result.data = { items: [{ ...result.data.items[0], id: 3, deliveryNumber: 'OUT-3' }], nextCursor: null }
+      if (config.params?.cursor === 'outgoing-page-2') result.data.nextCursor = 'outgoing-page-3'
+      result.data.items = result.data.items.map((record: Record<string, unknown>) => ({ ...record, scheduledAt: incoming ? '2099-01-01T00:00:00Z' : null, completedAt: incoming ? '2026-11-02T00:00:00Z' : null, reconciledAt: incoming ? null : '2026-11-03T00:00:00Z' }))
+      result.data.items.push(result.data.items[0])
+    }
+    return result
+  }
+  mount('history')
+  const user = userEvent.setup()
+  await screen.findByText('IN-1')
+  await screen.findByText('OUT-1')
+  expect(screen.getAllByRole('button', { name: /^View delivery / })[0].textContent).toBe('OUT-1')
+  await user.click(screen.getByRole('button', { name: 'Load more history' }))
+  await screen.findByText('OUT-2')
+  await screen.findByRole('button', { name: 'Retry history' })
+  expect(screen.getByText('IN-1')).toBeTruthy()
+  expect(screen.getByText('OUT-1')).toBeTruthy()
+  expect(screen.getByText(/3 loaded deliveries/)).toBeTruthy()
+  const outgoingReads = () => deliveryRequests().filter(read => read.url === '/outgoing-deliveries').length
+  expect(outgoingReads()).toBe(2)
+  failIncoming = false
+  await user.click(screen.getByRole('button', { name: 'Retry history' }))
+  await screen.findByText('IN-2')
+  expect(outgoingReads()).toBe(2)
+  await user.click(screen.getByRole('button', { name: 'Load more history' }))
+  await screen.findByText('OUT-3')
+  expect(screen.getByText('5 loaded deliveries')).toBeTruthy()
+  expect(screen.getAllByRole('button', { name: /^View delivery / })).toHaveLength(5)
+  expect(deliveryRequests().filter(read => read.url === '/incoming-deliveries')).toHaveLength(3)
+  expect(outgoingReads()).toBe(3)
+  expect(screen.getAllByRole('navigation')).toHaveLength(1)
+  fireEvent.change(screen.getByRole('textbox', { name: 'Search deliveries' }), { target: { value: 'new' } })
+  await screen.findByText('IN-new')
+  await screen.findByText('OUT-new')
+  expect(screen.queryByText('IN-2')).toBeNull()
+  expect(screen.queryByText('OUT-3')).toBeNull()
+  expect(screen.getByText('2 loaded deliveries')).toBeTruthy()
+  expect(deliveryRequests().filter(read => read.params.q === 'new').every(read => !read.params.cursor)).toBe(true)
 })

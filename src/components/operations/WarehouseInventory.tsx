@@ -1,4 +1,4 @@
-import { CursorPageControls } from '@/components/ui/CursorPageControls'
+import { DataTableFooter } from '@/components/ui/DataTableFooter'
 import { useResourcePage } from '@/lib/use-cursor-page'
 import { formatProductUnit } from '@/lib/product-unit'
 import { useMemo, useState } from 'react'
@@ -333,8 +333,8 @@ export function WarehouseInventory({
             tableClassName="min-w-[480px] table-fixed w-full [&_tbody_tr]:h-14 [&_tbody_td]:py-2"
           />
         )}
+      <DataTableFooter {...stockQuery} rowCount={stockQuery.items.length} label="Stock record" />
       </section>
-      <CursorPageControls {...stockQuery} label="Stock record" />
       {reportOpen && (
         <StockConditionReportModal
           open

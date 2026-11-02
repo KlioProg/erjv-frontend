@@ -1,5 +1,5 @@
 import { useResourcePage } from '@/lib/use-cursor-page'
-import { CursorPageControls } from '@/components/ui/CursorPageControls'
+import { DataTableFooter, DataTableFrame } from '@/components/ui/DataTableFooter'
 import { PageHeader, PageToolbar } from '@/components/ui/ManagementPage'
 import { useState } from 'react'
 import {
@@ -215,6 +215,7 @@ export function JobList() {
         )}
       </PageToolbar>
 
+      <DataTableFrame>
       {error ? (
         <div className="flex flex-col items-center justify-center py-14 px-4 text-center">
           <AlertCircle className="mb-3 size-6 text-destructive" />
@@ -269,7 +270,8 @@ export function JobList() {
         />
       )}
 
-      <CursorPageControls {...jobsQuery} label="Job" />
+      <DataTableFooter {...jobsQuery} rowCount={jobsQuery.items.length} label="Job" />
+      </DataTableFrame>
       <JobModal job={selectedJob} open={isModalOpen} onClose={() => setIsModalOpen(false)} />
 
       <ConfirmDeleteModal

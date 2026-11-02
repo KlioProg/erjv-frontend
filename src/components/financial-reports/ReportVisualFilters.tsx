@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { ClipboardEvent } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { StatusTabNav } from '@/components/ui/StatusTabNav'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -94,23 +95,14 @@ export function ReportVisualFilters({
       aria-label="Financial report filters"
     >
       <div className="flex flex-wrap items-start gap-3">
-        <div
-          className="flex flex-wrap items-center gap-1 rounded-md bg-muted/50 p-1"
-          role="group"
-          aria-label="Time period"
-        >
-          {reportPeriods.map((period) => (
-            <Button
-              key={period.value}
-              type="button"
-              size="sm"
-              variant={value.period === period.value ? 'outline' : 'ghost'}
-              aria-pressed={value.period === period.value}
-              onClick={() => apply({ type: 'period', value: period.value }, true)}
-            >
-              {period.label}
-            </Button>
-          ))}
+        <div className="min-w-0 max-w-full" role="group" aria-label="Time period">
+          <StatusTabNav
+            activeTab={value.period}
+            tabs={reportPeriods}
+            onTabChange={(period) =>
+              apply({ type: 'period', value: period as ReportFilterState['period'] }, true)
+            }
+          />
         </div>
 
         <div className="min-w-0 flex-1 basis-60">

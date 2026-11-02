@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { CalendarCheck, Check, MoreHorizontal, PackageCheck, Send, X } from 'lucide-react'
 import { DataTable, type ColumnDef } from '@/components/ui/data-table'
 import { DataTableActions } from '@/components/ui/DataTableActions'
@@ -43,6 +44,7 @@ export function DeliveryTable({
   onAction,
   hasFilters = false,
   className,
+  headerFilters,
 }: {
   rows: DeliveryRow[]
   view: DeliveryView
@@ -54,6 +56,7 @@ export function DeliveryTable({
   onAction: (row: DeliveryRow, action: DeliveryAction) => void
   hasFilters?: boolean
   className?: string
+  headerFilters?: Partial<Record<'order' | 'date' | 'status', ReactNode>>
 }) {
   const columns: ColumnDef<DeliveryRow>[] = [
     {
@@ -86,13 +89,14 @@ export function DeliveryTable({
     {
       id: 'order',
       header:
-        view === 'incoming'
+        headerFilters?.order ??
+        (view === 'incoming'
           ? 'Purchase Order / Warehouse'
           : view === 'outgoing'
             ? 'Sales Order / Warehouse'
-            : 'Related Order',
-      className: 'hidden lg:table-cell',
-      headerClassName: 'hidden lg:table-cell',
+            : 'Related Order'),
+      className: headerFilters?.order ? undefined : 'hidden lg:table-cell',
+      headerClassName: headerFilters?.order ? undefined : 'hidden lg:table-cell',
       accessorKey: 'relatedOrder',
       sortable: false,
       cell: ({ row }) => (
@@ -123,21 +127,20 @@ export function DeliveryTable({
             header: 'Direction',
             accessorKey: 'type' as const,
             sortable: false,
-            className: 'hidden md:table-cell',
-            headerClassName: 'hidden md:table-cell',
           },
         ]
       : []),
     {
       id: 'date',
       header:
-        view === 'history'
+        headerFilters?.date ??
+        (view === 'history'
           ? 'Recorded event'
           : view === 'incoming'
             ? 'Scheduled / Expected Date'
-            : 'Run Assignment',
-      className: 'hidden lg:table-cell',
-      headerClassName: 'hidden lg:table-cell',
+            : 'Run Assignment'),
+      className: headerFilters?.date ? undefined : 'hidden lg:table-cell',
+      headerClassName: headerFilters?.date ? undefined : 'hidden lg:table-cell',
       sortable: false,
       sortKey: (row) => (row.date ? new Date(row.date).getTime() || 0 : 0),
       cell: ({ row }) => {
@@ -169,9 +172,9 @@ export function DeliveryTable({
     },
     {
       id: 'status',
-      header: view === 'history' ? 'Outcome' : 'Delivery Status',
-      className: 'hidden sm:table-cell',
-      headerClassName: 'hidden sm:table-cell',
+      header: headerFilters?.status ?? (view === 'history' ? 'Outcome' : 'Delivery Status'),
+      className: headerFilters?.status ? undefined : 'hidden sm:table-cell',
+      headerClassName: headerFilters?.status ? undefined : 'hidden sm:table-cell',
       accessorKey: 'status',
       sortable: false,
       cell: ({ row }) =>
@@ -263,9 +266,10 @@ export function DeliveryTable({
       columns={columns}
       getRowKey={(row) => row.key}
       isLoading={isLoading}
+      retainHeaders
       tableClassName="w-full"
       emptyContent={
-        <div className="py-10 text-center">
+        <div className="py-2 text-center">
           <p className="text-sm font-semibold">
             {view === 'outgoing'
               ? hasFilters

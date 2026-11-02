@@ -38,6 +38,8 @@ Follow higher-priority instructions and repository rules. These guidelines do no
 
 ## 3. Frontend Design System
 
+For new and touched frontend UI, follow [docs/UI_CONSISTENCY.md](docs/UI_CONSISTENCY.md). Preserve the existing rules below and established project tokens.
+
 Preserve the existing React, TypeScript, Tailwind CSS, and shadcn/ui architecture.
 
 **Approved visual direction:**

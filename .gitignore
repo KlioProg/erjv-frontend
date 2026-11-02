@@ -26,3 +26,7 @@ dist-ssr
 
 .codex
 docs
+# Version the canonical UI standard while keeping other local docs ignored.
+!/docs/
+/docs/*
+!/docs/UI_CONSISTENCY.md

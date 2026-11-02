@@ -1,10 +1,5 @@
 import { Fragment, useState, useMemo, type MouseEvent, type ReactNode } from 'react'
-import {
-  ArrowUpDown,
-  ArrowUp,
-  ArrowDown,
-  Package,
-} from 'lucide-react'
+import { ArrowUpDown, ArrowUp, ArrowDown, Package } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
   Table,
@@ -16,7 +11,7 @@ import {
 } from '@/components/ui/table'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { CursorPageControls } from '@/components/ui/CursorPageControls'
+import { DataTableFooter } from '@/components/ui/DataTableFooter'
 import { OverflowValue } from '@/components/ui/OverflowValue'
 
 export type ColumnAlign = 'left' | 'center' | 'right'
@@ -106,6 +101,9 @@ export interface DataTableProps<T> {
   // --- Loading & Empty State Props ---
   /** Indicates whether data is currently loading */
   isLoading?: boolean
+
+  /** Keep interactive column headers mounted through loading and empty results. */
+  retainHeaders?: boolean
 
   /** Accessible announcement for the loading state */
   loadingMessage?: ReactNode
@@ -244,6 +242,7 @@ export function DataTable<T>({
   onRowClick,
   renderExpandedRow,
   isLoading,
+  retainHeaders = false,
   loadingMessage = 'Loading records...',
   emptyContent,
   sortConfig: controlledSort,
@@ -369,8 +368,33 @@ export function DataTable<T>({
     return sortedData.slice(startIndex, endIndex)
   }, [manualPagination, pagination, sortedData, startIndex, endIndex])
 
+  const footer = pagination ? (
+    <DataTableFooter
+      summary={
+        !isLoading && totalRows > 0 ? (
+          <span>
+            Showing <span className="font-medium text-foreground">{startIndex + 1}</span> to{' '}
+            <span className="font-medium text-foreground">{endIndex}</span> of{' '}
+            <span className="font-medium text-foreground">{totalRows}</span> entries
+          </span>
+        ) : undefined
+      }
+      label="Row"
+      page={safeCurrentPage}
+      pageSize={activePageSize}
+      pageSizeOptions={pageSizeOptions}
+      setPageSize={handlePageSizeSelect}
+      hasPrevious={safeCurrentPage > 1}
+      hasNext={safeCurrentPage < totalPages}
+      previous={() => handlePageSelect(safeCurrentPage - 1)}
+      next={() => handlePageSelect(safeCurrentPage + 1)}
+      isFetching={!!isLoading}
+      isError={false}
+    />
+  ) : null
+
   // Loading View
-  if (isLoading) {
+  if (isLoading && !retainHeaders) {
     return (
       <div
         role="status"
@@ -444,13 +468,21 @@ export function DataTable<T>({
             </TableBody>
           </Table>
         </div>
+        {footer}
       </div>
     )
   }
 
   // Empty View
-  if (sortedData.length === 0) {
+  if (sortedData.length === 0 && !retainHeaders) {
     if (emptyContent) {
+      if (pagination)
+        return (
+          <div className={cn('rounded-lg border bg-card', className)}>
+            <div className="py-4">{emptyContent}</div>
+            {footer}
+          </div>
+        )
       return appearance === 'management' ? (
         <div className={cn('rounded-lg border bg-card py-4', className)}>{emptyContent}</div>
       ) : (
@@ -467,12 +499,14 @@ export function DataTable<T>({
             There are currently no items to display.
           </p>
         </CardContent>
+        {footer}
       </Card>
     )
   }
 
   return (
     <div
+      aria-busy={isLoading || undefined}
       className={cn(
         'ui-typography rounded-lg border border-border overflow-hidden bg-card flex flex-col',
         appearance === 'management' && 'management-table shadow-none',
@@ -565,95 +599,99 @@ export function DataTable<T>({
           </TableHeader>
 
           <TableBody>
-            {displayRows.map((row, rowIndex) => {
-              const rowKey = getRowKey
-                ? getRowKey(row, rowIndex)
-                : ((row as { id?: string | number })?.id ?? rowIndex)
-              const computedRowClass = rowClassName?.(row, rowIndex)
-              const expandedContent = renderExpandedRow?.(row, rowIndex)
+            {isLoading ? (
+              Array.from({ length: 7 }, (_, index) => (
+                <TableRow key={index} aria-hidden="true" className="h-12">
+                  {resolvedColumns.map((column) => (
+                    <TableCell key={column.resolvedId} className={column.className}>
+                      <Skeleton className="h-3.5 w-3/4" />
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))
+            ) : displayRows.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={resolvedColumns.length} className="py-6 text-center">
+                  {emptyContent ?? 'No records found.'}
+                </TableCell>
+              </TableRow>
+            ) : (
+              displayRows.map((row, rowIndex) => {
+                const rowKey = getRowKey
+                  ? getRowKey(row, rowIndex)
+                  : ((row as { id?: string | number })?.id ?? rowIndex)
+                const computedRowClass = rowClassName?.(row, rowIndex)
+                const expandedContent = renderExpandedRow?.(row, rowIndex)
 
-              return (
-                <Fragment key={rowKey}>
-                  <TableRow
-                    onClick={onRowClick ? (event) => onRowClick(row, rowIndex, event) : undefined}
-                    className={cn(
-                      'hover:bg-accent/70 focus-within:bg-accent/70 transition-colors duration-150',
-                      // The unlayered global border rule otherwise overrides Tailwind colors.
-                      appearance === 'subtle' && 'border-border/60! hover:bg-muted/40',
-                      onRowClick && 'cursor-pointer',
-                      computedRowClass,
-                    )}
-                  >
-                    {resolvedColumns.map((column) => {
-                      const alignClass = getAlignmentClass(column.align)
-                      const value = getCellValue(row, column)
-                      const widthStyle =
-                        column.width != null
-                          ? {
-                              width:
-                                typeof column.width === 'number'
-                                  ? `${column.width}px`
-                                  : column.width,
-                            }
-                          : undefined
+                return (
+                  <Fragment key={rowKey}>
+                    <TableRow
+                      onClick={onRowClick ? (event) => onRowClick(row, rowIndex, event) : undefined}
+                      className={cn(
+                        'hover:bg-accent/70 focus-within:bg-accent/70 transition-colors duration-150',
+                        // The unlayered global border rule otherwise overrides Tailwind colors.
+                        appearance === 'subtle' && 'border-border/60! hover:bg-muted/40',
+                        onRowClick && 'cursor-pointer',
+                        computedRowClass,
+                      )}
+                    >
+                      {resolvedColumns.map((column) => {
+                        const alignClass = getAlignmentClass(column.align)
+                        const value = getCellValue(row, column)
+                        const widthStyle =
+                          column.width != null
+                            ? {
+                                width:
+                                  typeof column.width === 'number'
+                                    ? `${column.width}px`
+                                    : column.width,
+                              }
+                            : undefined
 
-                      return (
-                        <TableCell
-                          key={column.resolvedId}
-                          style={widthStyle}
-                          className={cn(
-                            'text-sm text-foreground',
-                            appearance === 'subtle' && 'py-4',
-                            alignClass,
-                            column.className,
-                          )}
-                        >
-                          {column.cell ? (
-                            column.cell({ row, value, index: rowIndex })
-                          ) : (
-                            <OverflowValue value={value != null && typeof value !== 'object' ? value : null} />
-                          )}
-                        </TableCell>
-                      )
-                    })}
-                  </TableRow>
-                  {expandedContent && (
-                    <TableRow className="bg-muted/20 hover:bg-muted/20">
-                      <TableCell colSpan={resolvedColumns.length} className="p-0 align-top">
-                        {expandedContent}
-                      </TableCell>
+                        return (
+                          <TableCell
+                            key={column.resolvedId}
+                            style={widthStyle}
+                            className={cn(
+                              'text-sm text-foreground',
+                              appearance === 'subtle' && 'py-4',
+                              alignClass,
+                              column.className,
+                            )}
+                          >
+                            {column.cell ? (
+                              column.cell({ row, value, index: rowIndex })
+                            ) : (
+                              <OverflowValue
+                                value={value != null && typeof value !== 'object' ? value : null}
+                              />
+                            )}
+                          </TableCell>
+                        )
+                      })}
                     </TableRow>
-                  )}
-                </Fragment>
-              )
-            })}
+                    {expandedContent && (
+                      <TableRow className="bg-muted/20 hover:bg-muted/20">
+                        <TableCell colSpan={resolvedColumns.length} className="p-0 align-top">
+                          {expandedContent}
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </Fragment>
+                )
+              })
+            )}
           </TableBody>
         </Table>
       </div>
 
       {/* Pagination Footer */}
-      {pagination && totalRows > 0 && (
-        <div className="flex flex-wrap items-center justify-end gap-x-4 border-t bg-card px-4 text-xs tabular-nums">
-          <span className="mr-auto py-3 text-muted-foreground">
-            Showing <span className="font-medium text-foreground">{startIndex + 1}</span> to{' '}
-            <span className="font-medium text-foreground">{endIndex}</span> of{' '}
-            <span className="font-medium text-foreground">{totalRows}</span> entries
-          </span>
-          <CursorPageControls
-            label="Row"
-            page={safeCurrentPage}
-            pageSize={activePageSize}
-            pageSizeOptions={pageSizeOptions}
-            setPageSize={handlePageSizeSelect}
-            hasPrevious={safeCurrentPage > 1}
-            hasNext={safeCurrentPage < totalPages}
-            previous={() => handlePageSelect(safeCurrentPage - 1)}
-            next={() => handlePageSelect(safeCurrentPage + 1)}
-            isFetching={false}
-            isError={false}
-          />
-        </div>
+      {isLoading && (
+        <span role="status" className="sr-only">
+          {loadingMessage}
+        </span>
       )}
+      {footer}
     </div>
   )
 }

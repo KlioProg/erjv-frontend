@@ -7,6 +7,7 @@ export function useCursorLookup<T extends { id: number }>(
   path: string,
   filter: Record<string, unknown> = {},
   enabled = true,
+  resetScope?: unknown,
 ) {
   const client = useQueryClient()
   const resource = path.split('/')[1]
@@ -19,6 +20,7 @@ export function useCursorLookup<T extends { id: number }>(
     'lookup',
     path,
     filter,
+    ...(resetScope === undefined ? [] : [resetScope]),
   ]
   const query = useInfiniteQuery({
     queryKey: key,

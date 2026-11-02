@@ -23,7 +23,7 @@ import {
   useReactivateEmployee,
 } from '@/features/staffing/staffing.hooks'
 import { useResourcePage } from '@/lib/use-cursor-page'
-import { CursorPageControls } from '@/components/ui/CursorPageControls'
+import { DataTableFooter, DataTableFrame } from '@/components/ui/DataTableFooter'
 import type { Employee } from '@/features/staffing/staffing.types'
 import { EmployeeModal } from './EmployeeModal'
 import { EmployeePositionSelector } from './EmployeePositionSelector'
@@ -275,7 +275,7 @@ export function EmployeeList() {
 
       <p className="text-xs text-muted-foreground">Search matches first name, last name, or email. Results use server ordering.</p>
       {/* Employees Table Card */}
-      <div className="min-w-0">
+      <DataTableFrame>
         {isLoading ? (
           <DataTable
             pagination={false}
@@ -337,9 +337,8 @@ export function EmployeeList() {
             rowClassName={(row) => (row.isActive === false ? 'bg-muted/10 opacity-75' : '')}
           />
         )}
-      </div>
-
-      <CursorPageControls {...employeeQuery} label="Employee" />
+      <DataTableFooter {...employeeQuery} rowCount={employeeQuery.items.length} label="Employee" />
+      </DataTableFrame>
       {/* Registration & Edit Modal */}
       <EmployeeModal
         employee={selectedEmployee}

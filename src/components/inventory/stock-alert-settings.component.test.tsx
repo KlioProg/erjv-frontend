@@ -427,7 +427,7 @@ it('retains drafts across pagination and keeps long product labels as text in ex
   expect(screen.getByText(longName.trim()).classList.contains('truncate')).toBe(true)
   expect(document.querySelector('script')).toBeNull()
   fireEvent.change(input(longName), { target: { value: '18.25' } })
-  await user.click(screen.getByRole('combobox', { name: 'Stock records per page' }))
+  await user.click(screen.getByRole('combobox', { name: 'Rows per page' }))
   await user.click(screen.getByRole('option', { name: '10' }))
   await screen.findByRole('textbox', { name: `Reorder threshold for ${longName}` })
   await user.click(screen.getByRole('button', { name: 'Next page' }))

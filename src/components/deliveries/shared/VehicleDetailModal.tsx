@@ -19,7 +19,7 @@ import {
 import type { DeliveryVehicle } from '@/features/logistics/delivery-vehicles.types'
 import type { DeliveryRunRecord } from '@/features/logistics/delivery-runs.types'
 import { useResourcePage } from '@/lib/use-cursor-page'
-import { CursorPageControls } from '@/components/ui/CursorPageControls'
+import { DataTableFooter } from '@/components/ui/DataTableFooter'
 import { getErrorMessage } from '@/lib/api-client'
 import {
   getVehicleAssignments,
@@ -158,7 +158,7 @@ export function VehicleDetailModal({
                 </p>
               }
             />
-            <CursorPageControls {...query} label="Run" />
+            <DataTableFooter {...query} rowCount={query.items.length} label="Run" />
           </>
         )}
       </DialogContent>

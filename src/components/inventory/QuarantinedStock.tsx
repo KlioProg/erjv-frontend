@@ -1,6 +1,6 @@
 import { useStockMetadata } from '@/features/logistics/use-stock-metadata'
 import { useResourcePage } from '@/lib/use-cursor-page'
-import { CursorPageControls } from '@/components/ui/CursorPageControls'
+import { DataTableFooter, DataTableFrame } from '@/components/ui/DataTableFooter'
 import { useState } from 'react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -149,6 +149,7 @@ export function QuarantinedStock({ stockItemId }: { stockItemId?: number } = {})
           </AlertDescription>
         </Alert>
       )}
+      <DataTableFrame>
       {query.isError ? (
         <Alert variant="destructive">
           <AlertDescription>
@@ -169,7 +170,8 @@ export function QuarantinedStock({ stockItemId }: { stockItemId?: number } = {})
           emptyContent="No quarantine lots match these filters."
         />
       )}
-      <CursorPageControls {...query} label="Quarantine lot" />
+      <DataTableFooter {...query} rowCount={query.items.length} label="Quarantine lot" />
+      </DataTableFrame>
       {selected && (
         <QuarantineLotDialog
           key={selected.id}

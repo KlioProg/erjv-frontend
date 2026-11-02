@@ -1,4 +1,4 @@
-import { CursorPageControls } from '@/components/ui/CursorPageControls'
+import { DataTableFooter } from '@/components/ui/DataTableFooter'
 import { CursorLookup } from '@/components/ui/CursorLookup'
 import { useResourcePage } from '@/lib/use-cursor-page'
 import { useState } from 'react'
@@ -210,7 +210,7 @@ export function StockAlertSettings({ onClose }: { onClose: () => void }) {
               tableClassName="min-w-[600px] w-full table-fixed"
             />
           )}
-          {selectedId !== undefined && !pending && <CursorPageControls {...stock} label="Stock record" />}
+          {selectedId !== undefined && !pending && <DataTableFooter {...stock} rowCount={stock.items.length} label="Stock record" />}
           {!warehouses.isError && !stock.isError && (
             <Button
               variant="link"

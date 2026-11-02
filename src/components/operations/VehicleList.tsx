@@ -35,7 +35,7 @@ import {
   useUpdateVehicleStatus,
 } from '@/features/logistics/delivery-vehicles.hooks'
 import { useResourcePage } from '@/lib/use-cursor-page'
-import { CursorPageControls } from '@/components/ui/CursorPageControls'
+import { DataTableFooter, DataTableFrame } from '@/components/ui/DataTableFooter'
 import { useRecordsById } from '@/lib/use-records-by-id'
 import type { DeliveryRunRecord } from '@/features/logistics/delivery-runs.types'
 import { useNavigate } from 'react-router'
@@ -368,6 +368,7 @@ export function VehicleList() {
           </Button>
         )}
       </PageToolbar>
+      <DataTableFrame>
       {(vehicleQuery.isError || deliveryQuery.isError) && (
         <Alert variant="destructive">
           <AlertDescription>
@@ -404,7 +405,8 @@ export function VehicleList() {
           </div>
         }
       />
-      <CursorPageControls {...vehicleQuery} label="Vehicle" />
+      <DataTableFooter {...vehicleQuery} rowCount={vehicleQuery.items.length} label="Vehicle" />
+      </DataTableFrame>
       <VehicleModal
         vehicle={vehicles.find((vehicle) => vehicle.id === editVehicleId) || null}
         open={isModalOpen}

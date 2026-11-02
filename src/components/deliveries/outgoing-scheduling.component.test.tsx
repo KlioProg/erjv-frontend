@@ -874,13 +874,15 @@ it.each(['status', 'warehouse'])(
     const user = userEvent.setup()
     await screen.findByRole('button', { name: 'Plan Outgoing' })
     if (filter === 'status') {
+      await user.click(screen.getByRole('button', { name: 'Filter by status' }))
       await user.click(screen.getByRole('combobox', { name: 'Status' }))
       await user.click(screen.getByRole('option', { name: 'Draft' }))
+      await user.click(within(screen.getByRole('dialog', { name: 'Filter by status' })).getByRole('button', { name: 'Done' }))
     } else if (filter === 'warehouse') {
-      await user.click(screen.getByRole('button', { name: /^Filters/ }))
+      await user.click(screen.getByRole('button', { name: 'Filter by warehouse' }))
       await user.click(screen.getByRole('combobox', { name: 'Warehouse' }))
       await user.click(screen.getByRole('option', { name: 'Main Warehouse' }))
-      await user.click(within(screen.getByRole('dialog', { name: 'Filters' })).getByRole('button', { name: 'Done' }))
+      await user.click(within(screen.getByRole('dialog', { name: 'Filter by warehouse' })).getByRole('button', { name: 'Done' }))
     }
     await scheduleFromHub(user)
     await finishHubSchedule(user)

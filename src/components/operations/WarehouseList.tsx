@@ -1,5 +1,5 @@
 import { useResourcePage } from '@/lib/use-cursor-page'
-import { CursorPageControls } from '@/components/ui/CursorPageControls'
+import { DataTableFooter, DataTableFrame } from '@/components/ui/DataTableFooter'
 import { StockPagingControls } from '@/components/inventory/StockPagingControls'
 import { DataTableExpandToggle } from '@/components/ui/DataTableExpandedSection'
 import { PageHeader, PageOverview, PageToolbar } from '@/components/ui/ManagementPage'
@@ -327,8 +327,8 @@ export function WarehouseList({ onOpenWarehouse }: { onOpenWarehouse: (id: numbe
           </Button>
         )}
       </PageToolbar>
-      <CursorPageControls {...warehousesQuery} label="Warehouse" />
       <StockPagingControls {...stockQuery} />
+      <DataTableFrame>
       <DataTable
             pagination={false}
             manualSorting
@@ -354,6 +354,8 @@ export function WarehouseList({ onOpenWarehouse }: { onOpenWarehouse: (id: numbe
         pageSizeOptions={[10, 25, 50, 100]}
         tableClassName="table-fixed w-full"
       />
+      <DataTableFooter {...warehousesQuery} rowCount={warehousesQuery.items.length} label="Warehouse" />
+      </DataTableFrame>
       <WarehouseModal
         warehouse={editingWarehouse}
         open={isModalOpen}

@@ -190,9 +190,14 @@ it.each(['PO', 'SO'] as const)(
     await screen.findByText(`${kind}-1`)
     await userEvent.click(next())
     await screen.findByText(`${kind}-2`)
+    await userEvent.click(screen.getByRole('combobox', { name: 'Rows per page' }))
+    await userEvent.click(screen.getByRole('option', { name: '25' }))
+    await screen.findByText(`${kind}-1`)
     fireEvent.change(search(kind), { target: { value: 'remote' } })
-    await waitFor(() => expect(previous().hasAttribute('disabled')).toBe(true))
     await screen.findByText(`${kind}-2`)
+    expect(screen.getByText('Page 1')).toBeTruthy()
+    expect(previous().hasAttribute('disabled')).toBe(true)
+    expect(next().hasAttribute('disabled')).toBe(true)
     expect(
       reads
         .filter((read) => read.url === path && read.params.q === 'remote')
@@ -200,8 +205,6 @@ it.each(['PO', 'SO'] as const)(
     ).toBe(true)
     expect(screen.queryByLabelText('Ordered from (inclusive)')).toBeNull()
     expect(screen.queryByLabelText('Ordered before (exclusive)')).toBeNull()
-    await userEvent.click(screen.getByRole('combobox', { name: 'Orders per page' }))
-    await userEvent.click(screen.getByRole('option', { name: '25' }))
     await waitFor(() =>
       expect(reads.some((read) => read.url === path && read.params.limit === 25)).toBe(true),
     )
@@ -379,7 +382,7 @@ it.each(['PO', 'SO'] as const)(
     await screen.findByText(`${kind}-1`)
     await userEvent.click(next())
     await screen.findByText(`${kind}-2`)
-    await userEvent.click(screen.getByRole('combobox', { name: 'Orders per page' }))
+    await userEvent.click(screen.getByRole('combobox', { name: 'Rows per page' }))
     await userEvent.click(screen.getByRole('option', { name: '10' }))
     await screen.findByText(`${kind}-1`)
     expect(previous().hasAttribute('disabled')).toBe(true)
@@ -457,7 +460,7 @@ it.each(['PO', 'SO'] as const)(
     expect(screen.queryByLabelText('Ordered from (inclusive)')).toBeNull()
     expect(screen.queryByLabelText('Ordered before (exclusive)')).toBeNull()
     await userEvent.click(screen.getByRole('button', { name: kind === 'PO' ? 'Received Orders' : 'Completed Orders' }))
-    expect(previous().hasAttribute('disabled')).toBe(true)
+    await waitFor(() => expect(previous().hasAttribute('disabled')).toBe(true))
     await userEvent.click(screen.getByRole('button', { name: 'Active Orders' }))
     await screen.findByText(`${kind}-1`)
     expect(screen.getByText('Page 1')).toBeTruthy()

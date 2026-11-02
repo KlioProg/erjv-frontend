@@ -7,7 +7,7 @@ import type { DeliveryRunRecord } from '@/features/logistics/delivery-runs.types
 import { useRecordsById } from '@/lib/use-records-by-id'
 import { fetchOutgoingDeliveriesApi } from '@/features/logistics/outgoing-deliveries.api'
 import { fetchClientByIdApi } from '@/features/crm/clients.api'
-import { CursorPageControls } from '@/components/ui/CursorPageControls'
+import { DataTableFooter, DataTableFrame } from '@/components/ui/DataTableFooter'
 import { PageHeader, PageToolbar } from '@/components/ui/ManagementPage'
 import { SalesOrderCancelModal } from './SalesOrderCancelModal'
 import { useState, useMemo } from 'react'
@@ -497,6 +497,7 @@ export function OrdersView({
       </PageToolbar>
 
       {/* Orders Table */}
+      <DataTableFrame>
       {ordersQuery.isError ? (
         <Alert variant="destructive">
           <AlertDescription>
@@ -554,7 +555,8 @@ export function OrdersView({
         />
       )}
 
-      <CursorPageControls {...ordersQuery} />
+      <DataTableFooter {...ordersQuery} rowCount={ordersQuery.items.length} />
+      </DataTableFrame>
 
       {orderToCancel && (
         <SalesOrderCancelModal

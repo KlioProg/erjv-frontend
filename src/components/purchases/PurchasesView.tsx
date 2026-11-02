@@ -6,7 +6,7 @@ import { fetchIncomingDeliveriesApi } from '@/features/logistics/incoming-delive
 import { useResourcePage } from '@/lib/use-cursor-page'
 import { useQueries, useQuery } from '@tanstack/react-query'
 import { fetchSupplierByIdApi } from '@/features/logistics/suppliers.api'
-import { CursorPageControls } from '@/components/ui/CursorPageControls'
+import { DataTableFooter, DataTableFrame } from '@/components/ui/DataTableFooter'
 import { PageHeader, PageToolbar } from '@/components/ui/ManagementPage'
 import { toast } from 'sonner'
 import { useState, useMemo, useRef, type MouseEvent } from 'react'
@@ -602,6 +602,7 @@ export function PurchasesView({
             </Button>
           </PageToolbar>
 
+          <DataTableFrame>
           {ordersQuery.isError ? (
             <Alert variant="destructive">
               <AlertDescription>
@@ -658,7 +659,8 @@ export function PurchasesView({
               tableClassName="table-fixed min-w-[1040px] xl:min-w-[1120px]"
             />
           )}
-          <CursorPageControls {...ordersQuery} />
+          <DataTableFooter {...ordersQuery} rowCount={ordersQuery.items.length} />
+          </DataTableFrame>
         </div>
       ) : (
         <div className="flex min-w-0 flex-col gap-4">
@@ -699,6 +701,7 @@ export function PurchasesView({
             </Button>
           </PageToolbar>
 
+          <DataTableFrame>
           {suppliersQuery.isError ? (
             <Alert variant="destructive">
               <AlertDescription>
@@ -747,7 +750,8 @@ export function PurchasesView({
               }
             />
           )}
-          <CursorPageControls {...suppliersQuery} label="Supplier" />
+          <DataTableFooter {...suppliersQuery} rowCount={suppliersQuery.items.length} label="Supplier" />
+          </DataTableFrame>
         </div>
       )}
 

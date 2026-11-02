@@ -1,5 +1,5 @@
 import { useResourcePage } from '@/lib/use-cursor-page'
-import { CursorPageControls } from '@/components/ui/CursorPageControls'
+import { DataTableFooter, DataTableFrame } from '@/components/ui/DataTableFooter'
 import { PageHeader, PageToolbar } from '@/components/ui/ManagementPage'
 import type { UserAccount } from '@/features/staffing/staffing.types'
 import { DataTable, type ColumnDef } from '@/components/ui/data-table'
@@ -449,7 +449,7 @@ export function UserRolesList() {
       </PageToolbar>
 
       {/* Users Table */}
-      <div className="min-w-0">
+      <DataTableFrame>
         {isLoading ? (
           <DataTable
             pagination={false}
@@ -541,8 +541,8 @@ export function UserRolesList() {
             rowClassName={(row) => (row.isActive === false ? 'bg-muted/10 opacity-80' : '')}
           />
         )}
-      </div>
-
+      <DataTableFooter {...usersQuery} rowCount={usersQuery.items.length} label="User" />
+      </DataTableFrame>
       {/* Archive Account Confirmation Modal */}
       <ConfirmDeleteModal
         open={!!userToDeactivate}
@@ -561,7 +561,6 @@ export function UserRolesList() {
       />
 
       {/* Register User Modal (Admin Only) */}
-      <CursorPageControls {...usersQuery} label="User" />
       <RegisterUserModal open={isRegisterModalOpen} onClose={() => setIsRegisterModalOpen(false)} />
     </div>
   )

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { CursorLookup } from '@/components/ui/CursorLookup'
-import { CursorPageControls } from '@/components/ui/CursorPageControls'
+import { DataTableFooter } from '@/components/ui/DataTableFooter'
 import { DataTable, type ColumnDef } from '@/components/ui/data-table'
 import {
   DataTableExpandedSection,
@@ -360,7 +360,7 @@ function ReportBreakdown({
         }
       />
       {breakdown(groupBy) && hasPages ? (
-        <CursorPageControls {...query} label="Result" />
+        <DataTableFooter {...query} rowCount={result.rows.length} label="Result" />
       ) : (
         result.rows.length <= (breakdown(groupBy) ? query.pageSize : 10) && (
           <p className="text-sm text-muted-foreground">

@@ -212,7 +212,7 @@ describe('neutral master-data tables', () => {
     expect(within(table).getAllByRole('columnheader')).toHaveLength(6)
     expect(within(table).getAllByRole('row')).toHaveLength(17)
     expect(within(table).queryByRole('button', { name: 'Company Name' })).toBeNull()
-    await user.click(screen.getByRole('combobox', { name: 'Suppliers per page' }))
+    await user.click(screen.getByRole('combobox', { name: 'Rows per page' }))
     await user.click(screen.getByRole('option', { name: '10' }))
     await waitFor(() => expect(within(screen.getByRole('table')).getAllByRole('row')).toHaveLength(11))
     await user.click(screen.getByRole('button', { name: 'Next page' }))
@@ -324,4 +324,33 @@ describe('neutral master-data tables', () => {
     await user.click(within(row).getByRole('button', { name: 'Reactivate Profile' }))
     await waitFor(() => expect(records['/employees'][1].isActive).toBe(true))
   })
+})
+
+it.each([
+  { title: 'Customers', endpoint: '/clients', count: 1, label: 'Customer' },
+  { title: 'Suppliers', endpoint: '/suppliers', count: 3, label: 'Supplier' },
+])('keeps compact pagination below the $title table with $count records', async ({ title, endpoint, count, label }) => {
+  records[endpoint] = Array.from({ length: count }, (_, index) => ({ ...records[endpoint][0], id: index + 1, name: label + ' ' + (index + 1), isActive: true }))
+  const adapter = apiClient.defaults.adapter as import('axios').AxiosAdapter
+  let limit: number | undefined
+  apiClient.defaults.adapter = async config => {
+    if (config.url === endpoint) limit = config.params?.limit
+    return adapter(config)
+  }
+  mount(surfaces.find(surface => surface.title === title)!.ui())
+  await screen.findByText(label + ' 1')
+  const table = screen.getByRole('table')
+  const footer = screen.getByRole('navigation', { name: label + ' pages' })
+  expect(screen.getAllByRole('navigation')).toHaveLength(1)
+  expect(table.compareDocumentPosition(footer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  expect(table.closest('[data-table-frame]')).toBe(footer.parentElement)
+  const controls = within(footer)
+  expect(controls.getByText('Rows')).toBeTruthy()
+  expect(controls.getByText('Page 1')).toBeTruthy()
+  expect(controls.getByRole('button', { name: 'Previous page' }).hasAttribute('disabled')).toBe(true)
+  expect(controls.getByRole('button', { name: 'Next page' }).hasAttribute('disabled')).toBe(true)
+  expect(controls.getByRole('combobox', { name: 'Rows per page' }).textContent).toBe('50')
+  await userEvent.click(controls.getByRole('combobox', { name: 'Rows per page' }))
+  await userEvent.click(screen.getByRole('option', { name: '25' }))
+  await waitFor(() => expect(limit).toBe(25))
 })

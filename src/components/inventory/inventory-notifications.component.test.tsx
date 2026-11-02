@@ -271,6 +271,21 @@ afterEach(() => {
 })
 
 describe('inventory and global stock warnings', () => {
+  it('attaches product pagination directly below the inventory table', async () => {
+    products = Array.from({ length: 12 }, (_, index) =>
+      product(index + 1, `Product ${String(index + 1).padStart(2, '0')}`),
+    )
+    mount(<InventoryHub />)
+    await screen.findByText('Product 01')
+    const table = screen.getByRole('table')
+    const footer = screen.getByRole('navigation', { name: 'Product pages' })
+    expect(within(footer).getByText('Page 1')).toBeTruthy()
+    expect(within(footer).getByRole('button', { name: 'Next page' }).hasAttribute('disabled')).toBe(true)
+    expect(table.compareDocumentPosition(footer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(table.closest('[data-table-frame]')).toBe(footer.parentElement)
+    expect(screen.getAllByRole('combobox', { name: 'Rows per page' })).toHaveLength(1)
+  })
+
   it('lets keyboard users change the warehouse and return to warning categories', async () => {
     const user = userEvent.setup()
     mount(<StockNotifications onOpenInventory={vi.fn()} />)
@@ -904,11 +919,17 @@ describe('warehouse product expansion', () => {
     }
     mount(<WarehouseList onOpenWarehouse={vi.fn()} />)
     await screen.findByRole('button', { name: 'Show products for Warehouse 12' })
-    const table = screen.getByRole('table')
+    const firstFooter = within(screen.getByRole('navigation', { name: 'Warehouse pages' }))
+    expect(firstFooter.getByText('Page 1')).toBeTruthy()
+    expect(firstFooter.getByRole('button', { name: 'Next page' }).hasAttribute('disabled')).toBe(true)
     expect(screen.queryByRole('button', { name: 'Warehouse' })).toBeNull()
-    await user.click(screen.getByRole('combobox', { name: 'Warehouses per page' }))
+    await user.click(screen.getByRole('combobox', { name: 'Rows per page' }))
     await user.click(screen.getByRole('option', { name: '10' }))
     await screen.findByRole('button', { name: 'Show products for Warehouse 01' })
+    const table = screen.getByRole('table')
+    const footer = screen.getByRole('navigation', { name: 'Warehouse pages' })
+    expect(table.compareDocumentPosition(footer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(table.closest('[data-table-frame]')).toBe(footer.parentElement)
     expect(within(table).getAllByRole('row')[1].textContent).toContain('Warehouse 01')
     await user.click(screen.getByRole('button', { name: 'Show products for Warehouse 01' }))
     const region = await screen.findByRole('region', { name: 'Products at Warehouse 01' })

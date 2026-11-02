@@ -949,8 +949,8 @@ describe('order to delivery workflow', () => {
     expect(await screen.findByRole('button', { name: 'View delivery IN-23' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'View delivery OUT-7' })).toBeTruthy()
     expect(screen.queryByRole('button', { name: /Cancel Delivery/ })).toBeNull()
-    expect(screen.getByRole('region', { name: 'Incoming history' })).toBeTruthy()
-    expect(screen.getByRole('region', { name: 'Outgoing history' })).toBeTruthy()
+    expect(screen.getAllByRole('table')).toHaveLength(1)
+    expect(screen.queryByRole('region', { name: 'Incoming history' })).toBeNull()
   })
 
   it('confirms from the sales list with notification only and no automatic delivery', async () => {
@@ -1270,8 +1270,7 @@ describe('order to delivery workflow', () => {
     sales[0].status = 'DELIVERED'
     const user = userEvent.setup()
     mount(<DeliveriesHub initialTab="history" />)
-    const source = within(screen.getByRole('region', { name: 'Outgoing history' }))
-    await user.click((await source.findAllByRole('button', { name: /More actions for/ }))[0])
+    await user.click(await screen.findByRole('button', { name: 'More actions for OUT-7' }))
     await user.click(screen.getByRole('menuitem', { name: 'View order SO-TEST' }))
     const dialog = await screen.findByRole('dialog')
     expect(within(dialog).getByText('Test Customer')).toBeTruthy()
@@ -1285,8 +1284,7 @@ describe('order to delivery workflow', () => {
     purchases[0].status = 'RECEIVED'
     const user = userEvent.setup()
     mount(<DeliveriesHub initialTab="history" />)
-    const source = within(screen.getByRole('region', { name: 'Incoming history' }))
-    await user.click((await source.findAllByRole('button', { name: /More actions for/ }))[0])
+    await user.click(await screen.findByRole('button', { name: 'More actions for IN-23' }))
     await user.click(screen.getByRole('menuitem', { name: 'View order PO-TEST' }))
     const dialog = await screen.findByRole('dialog')
     expect(within(dialog).getByText('Test Supplier')).toBeTruthy()
@@ -1333,22 +1331,20 @@ it('keeps history filters keyboard accessible without pretending to filter compl
   const user = userEvent.setup()
   mount(<DeliveriesHub initialTab="history" />)
   await screen.findByRole('button', { name: 'View delivery OUT-7' })
-  const search = screen.getByRole('textbox', { name: 'Search deliveries' })
-  search.focus()
-  for (const control of [
-    screen.getByRole('combobox', { name: 'Direction' }),
-    screen.getByRole('button', { name: 'Filters' }),
-  ]) {
-    await user.tab()
-    expect(document.activeElement).toBe(control)
-  }
-  await user.click(screen.getByRole('button', { name: 'Filters' }))
-  expect(await screen.findByRole('combobox', { name: 'Outcome' })).toBeTruthy()
-  expect(screen.getByRole('combobox', { name: 'Warehouse' })).toBeTruthy()
-  await user.click(within(screen.getByRole('dialog', { name: 'Filters' })).getByRole('button', { name: 'Done' }))
+  const selector = within(screen.getByRole('group', { name: 'Delivery direction' }))
+  const direction = selector.getByRole('button', { name: 'Incoming' })
+  selector.getByRole('button', { name: 'All Deliveries' }).focus()
+  await user.tab()
+  expect(document.activeElement).toBe(direction)
+  await user.keyboard('{Enter}')
+  expect(direction.getAttribute('aria-pressed')).toBe('true')
+  expect(screen.queryByRole('button', { name: 'Filter by direction' })).toBeNull()
   expect(screen.queryByLabelText('Scheduled from')).toBeNull()
-  await user.click(screen.getByRole('combobox', { name: 'Direction' }))
-  await user.click(screen.getByRole('option', { name: 'Incoming' }))
+  expect(document.activeElement).toBe(direction)
+  await user.tab()
+  expect(document.activeElement).toBe(selector.getByRole('button', { name: 'Outgoing' }))
+  await user.tab()
+  expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Search deliveries' }))
   expect(screen.queryByRole('button', { name: 'View delivery OUT-7' })).toBeNull()
   await user.click(screen.getByRole('button', { name: 'Clear filters' }))
   expect(await screen.findByRole('button', { name: 'View delivery OUT-7' })).toBeTruthy()

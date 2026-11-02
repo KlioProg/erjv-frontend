@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { CursorPageControls } from './CursorPageControls'
+import { DataTableFooter } from './DataTableFooter'
 
 const controls = () => ({
   page: 2,
@@ -16,11 +17,17 @@ const controls = () => ({
 })
 
 describe('CursorPageControls', () => {
+  it('retains the compatibility export for the single shared footer presentation', () => {
+    expect(CursorPageControls).toBe(DataTableFooter)
+  })
   it('renders named icon buttons, announces the page and supports keyboard navigation', async () => {
     const user = userEvent.setup()
     const props = controls()
     render(<CursorPageControls {...props} />)
     expect(screen.getByText('Page 2')).toBeTruthy()
+    expect(screen.getByText('Rows')).toBeTruthy()
+    expect(screen.queryByText('Rows per page')).toBeNull()
+    expect(screen.getByRole('combobox', { name: 'Rows per page' })).toBeTruthy()
     const previous = screen.getByRole('button', { name: 'Previous page' })
     const next = screen.getByRole('button', { name: 'Next page' })
     for (const button of [previous, next]) {
@@ -65,9 +72,32 @@ describe('CursorPageControls', () => {
     const user = userEvent.setup()
     const props = controls()
     render(<CursorPageControls {...props} pageSizeOptions={[20, 50]} />)
-    await user.click(screen.getByRole('combobox', { name: 'Orders per page' }))
+    await user.click(screen.getByRole('combobox', { name: 'Rows per page' }))
     expect(screen.getAllByRole('option')).toHaveLength(2)
     await user.click(screen.getByRole('option', { name: '20' }))
     expect(props.setPageSize).toHaveBeenCalledWith(20)
+  })
+
+  it.each([0, 1, 3, 20])('keeps compact pagination and usable page sizes for a single page with %i rows', async (rowCount) => {
+    const props = { ...controls(), page: 1, hasPrevious: false, hasNext: false }
+    render(<DataTableFooter {...props} rowCount={rowCount} />)
+    expect(screen.getAllByRole('navigation')).toHaveLength(1)
+    expect(screen.getByText('Rows')).toBeTruthy()
+    expect(screen.getByText('Page 1')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Previous page' }).hasAttribute('disabled')).toBe(true)
+    expect(screen.getByRole('button', { name: 'Next page' }).hasAttribute('disabled')).toBe(true)
+    await userEvent.click(screen.getByRole('combobox', { name: 'Rows per page' }))
+    await userEvent.click(screen.getByRole('option', { name: '10' }))
+    expect(props.setPageSize).toHaveBeenCalledWith(10)
+  })
+
+  it('does not infer complete results during loading, errors, or unknown counts', () => {
+    const props = { ...controls(), page: 1, hasPrevious: false, hasNext: false }
+    const view = render(<DataTableFooter {...props} />)
+    expect(screen.getByText('Page 1')).toBeTruthy()
+    view.rerender(<DataTableFooter {...props} rowCount={0} isFetching />)
+    expect(screen.getByRole('combobox', { name: 'Rows per page' }).hasAttribute('disabled')).toBe(true)
+    view.rerender(<DataTableFooter {...props} rowCount={0} isError />)
+    expect(screen.getByRole('button', { name: 'Next page' }).hasAttribute('disabled')).toBe(true)
   })
 })

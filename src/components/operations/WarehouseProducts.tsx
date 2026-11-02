@@ -1,4 +1,4 @@
-import { CursorPageControls } from '@/components/ui/CursorPageControls'
+import { DataTableFooter } from '@/components/ui/DataTableFooter'
 import { useResourcePage } from '@/lib/use-cursor-page'
 import { DataTableExpandedSection } from '@/components/ui/DataTableExpandedSection'
 import { Button } from '@/components/ui/button'
@@ -115,7 +115,7 @@ export function WarehouseProducts({
         tableClassName="min-w-[760px] w-full table-fixed"
       />
     </DataTableExpandedSection>
-    <CursorPageControls {...stockQuery} label="Stock record" />
+    <DataTableFooter {...stockQuery} rowCount={stockQuery.items.length} label="Stock record" />
     </>
   )
 }

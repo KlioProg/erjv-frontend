@@ -3,7 +3,7 @@ import { useStockItemByPair } from '@/features/logistics/stock-items.hooks'
 import type { StockItemWithWarehouse } from '@/features/logistics/stock-items.types'
 import type { Warehouse } from '@/features/logistics/warehouses.types'
 import { useResourcePage } from '@/lib/use-cursor-page'
-import { CursorPageControls } from '@/components/ui/CursorPageControls'
+import { DataTableFooter, DataTableFrame } from '@/components/ui/DataTableFooter'
 import { StockPagingControls } from '@/components/inventory/StockPagingControls'
 import {
   DataTableExpandedSection,
@@ -578,9 +578,9 @@ export function InventoryItemCatalog({
           </Button>
         </p>
       )}
-      <CursorPageControls {...productsQuery} label="Product" />
       <StockPagingControls {...stockQuery} />
       {/* Reusable DataTable Component */}
+      <DataTableFrame>
       {!productsQuery.isError &&
         !stockQuery.isError &&
         !(warningScope && warehousesQuery.isError) && (
@@ -627,6 +627,8 @@ export function InventoryItemCatalog({
             }}
           />
         )}
+      <DataTableFooter {...productsQuery} rowCount={productsQuery.items.length} label="Product" />
+      </DataTableFrame>
 
       {/* Edit / Create Item Modal */}
       <InventoryItemModal
@@ -772,7 +774,7 @@ function ProductLocations({ product, warningScope, warningLocations, focusTarget
             })}
         </div>
       </DataTableExpandedSection>
-      <CursorPageControls {...query} label="Stock location" />
+      <DataTableFooter {...query} rowCount={query.items.length} label="Stock location" />
       </>
     )
 }
