@@ -378,30 +378,32 @@ export function DashboardLayout({
                 </Button>
               </DialogTrigger>
 
-              <nav
-                aria-label="Application breadcrumb"
-                className="flex min-w-0 flex-col select-none"
-              >
-                <div className="flex flex-wrap items-center gap-x-2 text-ui text-muted-foreground">
-                  {currentGroup && (
-                    <>
-                      <Link
-                        className="font-medium hover:text-foreground"
-                        to={routeForScreen(currentGroup.items[0].key)}
-                        onClick={handleNavigate}
-                      >
-                        {currentGroup.title}
-                      </Link>
-                      <span>/</span>
-                    </>
-                  )}
-                  <span aria-current="page" className="font-medium text-foreground">
-                    {deliveryView
-                      ? `Deliveries / ${deliveryView === 'incoming' ? 'Incoming' : deliveryView === 'outgoing' ? 'Outgoing' : deliveryView === 'runs' ? 'Runs' : 'History'}`
-                      : currentItem?.label}
-                  </span>
-                </div>
-              </nav>
+              {currentScreen !== 'dashboard' && (
+                <nav
+                  aria-label="Application breadcrumb"
+                  className="flex min-w-0 flex-col select-none"
+                >
+                  <div className="flex flex-wrap items-center gap-x-2 text-ui text-muted-foreground">
+                    {currentGroup && (
+                      <>
+                        <Link
+                          className="font-medium hover:text-foreground"
+                          to={routeForScreen(currentGroup.items[0].key)}
+                          onClick={handleNavigate}
+                        >
+                          {currentGroup.title}
+                        </Link>
+                        <span>/</span>
+                      </>
+                    )}
+                    <span aria-current="page" className="font-medium text-foreground">
+                      {deliveryView
+                        ? `Deliveries / ${deliveryView === 'incoming' ? 'Incoming' : deliveryView === 'outgoing' ? 'Outgoing' : deliveryView === 'runs' ? 'Runs' : 'History'}`
+                        : currentItem?.label}
+                    </span>
+                  </div>
+                </nav>
+              )}
             </div>
 
             <StockNotifications

@@ -86,6 +86,7 @@ it.each(staffing)(
     mount(path)
     await screen.findByRole('heading', { name: 'Dashboard' })
     expect(window.location.pathname).toBe('/')
+    expect(screen.queryByRole('navigation', { name: 'Application breadcrumb' })).toBeNull()
     const navigation = screen.getByRole('navigation', { name: 'Main navigation' })
     const firstLink = within(navigation).getAllByRole('link')[0]
     expect(firstLink.textContent).toBe('Dashboard')
@@ -230,8 +231,10 @@ it('offers a functional home link for unknown URLs', async () => {
 it('returns to Dashboard through the logo and keeps its navigation entry active', async () => {
   mount('/inventory')
   await screen.findByRole('heading', { name: 'Inventory' })
+  expect(screen.getByRole('navigation', { name: 'Application breadcrumb' })).toBeTruthy()
   await userEvent.setup().click(screen.getByRole('link', { name: 'Dashboard home' }))
   await screen.findByRole('heading', { name: 'Dashboard' })
   expect(window.location.pathname).toBe('/')
   expect(screen.getByRole('link', { name: 'Dashboard' }).getAttribute('aria-current')).toBe('page')
+  expect(screen.queryByRole('navigation', { name: 'Application breadcrumb' })).toBeNull()
 })

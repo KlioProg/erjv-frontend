@@ -25,6 +25,7 @@ let fail: string
 let financialFixture: string
 let stockStatus: string
 let separateReportTimes: boolean
+let extraOutgoing: boolean
 
 beforeEach(() => {
   requests = []
@@ -33,6 +34,7 @@ beforeEach(() => {
   financialFixture = 'sales-large-exact-money'
   stockStatus = 'OUT'
   separateReportTimes = false
+  extraOutgoing = false
   auth.isAdmin = true
   auth.isManager = auth.isStaff = false
   openInventory.mockClear()
@@ -104,7 +106,15 @@ beforeEach(() => {
         items: malformed
           ? [{ id: 5 }]
           : showTasks
-            ? [{ id: 5, deliveryNumber: 'OUT-5', status: 'READY', runId: null }]
+            ? [
+                { id: 5, deliveryNumber: 'OUT-5', status: 'READY', runId: null },
+                ...(extraOutgoing
+                  ? [
+                      { id: 50, deliveryNumber: 'OUT-50', status: 'READY', runId: null },
+                      { id: 51, deliveryNumber: 'OUT-51', status: 'READY', runId: null },
+                    ]
+                  : []),
+              ]
             : [],
         nextCursor: null,
       }
@@ -209,7 +219,7 @@ it('qualifies incomplete pages without fetching subsequent cursors or claiming a
   await screen.findByText(/Partial stock counts/)
   const deliveryStatus = screen.getByRole('region', { name: 'Delivery Status' })
   expect(
-    within(deliveryStatus).getByRole('link', { name: /Incoming deliveries/ }).textContent,
+    within(deliveryStatus).getByRole('link', { name: /Awaiting receipt/ }).textContent,
   ).toContain('Not verified')
   expect(screen.getByRole('button', { name: /Out of Stock/ }).textContent).toContain('Not verified')
   expect(screen.queryByText('Nothing needs attention.')).toBeNull()
@@ -268,7 +278,7 @@ it.each(['failed', 'malformed'])(
     if (kind === 'failed') fail = '/outgoing-deliveries'
     else malformed = true
     mount()
-    await screen.findByRole('button', { name: /Retry READY outgoing/ })
+    await screen.findByRole('button', { name: /Retry Ready to assign/ })
     expect(screen.queryByText('Nothing needs attention.')).toBeNull()
     expect(await screen.findByText('₱50.00')).toBeTruthy()
   },
@@ -286,6 +296,7 @@ it('shows accurate zero activity and refreshes all active dashboard sources', as
 })
 
 it('keeps finance usable while a delivery request is slow and cancels it on navigation', async () => {
+  showTasks = true
   const adapter = apiClient.defaults.adapter
   if (typeof adapter !== 'function') throw Error('Expected test adapter')
   let release!: () => void
@@ -303,9 +314,13 @@ it('keeps finance usable while a delivery request is slow and cancels it on navi
   const view = mount()
   await screen.findByText('₱50.00')
   expect(
-    within(screen.getByRole('region', { name: 'Delivery Status' })).getByText('Loading…'),
+    within(screen.getByRole('link', { name: /Awaiting receipt/ })).getByText('Loading…'),
   ).toBeTruthy()
   expect(screen.queryByText('Nothing needs attention.')).toBeNull()
+  const attention = screen.getByRole('region', { name: 'Needs Attention' })
+  expect(await within(attention).findByRole('link', { name: /OUT-5/ })).toBeTruthy()
+  expect(within(attention).getByText('Updating…')).toBeTruthy()
+  expect(within(attention).queryByText(/Checking for tasks/)).toBeNull()
   view.unmount()
   expect(deliverySignal?.aborted).toBe(true)
   release()
@@ -337,27 +352,53 @@ it('keeps definitions and distinct report times contextual while warnings stay v
   expect(screen.queryByText(/Asia\/Manila/)).toBeNull()
 })
 
-it('keeps a unified compact operations summary with meaningful actionable states', async () => {
+it('separates compact inventory, actionable tasks and delivery status without redundant labels', async () => {
   showTasks = true
   stockPartial = deliveryPartial = true
   mount()
-  const operations = screen.getByRole('region', { name: 'Operations' })
-  const attention = within(operations).getByRole('region', { name: 'Needs Attention' })
+  const attention = screen.getByRole('region', { name: 'Needs Attention' })
   await within(attention).findByRole('link', { name: /OUT-5/ })
-  expect(within(attention).getByText('Awaiting assignment')).toBeTruthy()
-  expect(within(attention).getByText('Overdue')).toBeTruthy()
+  expect(within(attention).getByText('Ready for run assignment')).toBeTruthy()
+  expect(within(attention).getByText('Overdue incoming · receiving required')).toBeTruthy()
   expect(within(attention).queryByText('Normal')).toBeNull()
   expect(screen.getByRole('button', { name: /Out of Stock/ }).textContent).toContain('1+')
-  const status = within(operations).getByRole('region', { name: 'Delivery Status' })
-  const incoming = within(status).getByRole('link', { name: /Incoming deliveries/ })
+  const status = screen.getByRole('region', { name: 'Delivery Status' })
+  const incoming = within(status).getByRole('link', { name: /Awaiting receipt/ })
   expect(incoming.textContent).toContain('1+')
   expect(incoming.getAttribute('href')).toBe('/deliveries/incoming')
   expect(
     within(status)
-      .getByRole('link', { name: /READY outgoing/ })
+      .getByRole('link', { name: /Ready to assign/ })
       .getAttribute('href'),
   ).toBe('/deliveries/outgoing')
   expect(within(status).queryByText(/Updated/)).toBeNull()
   expect(screen.queryByRole('heading', { name: 'Delivery Overview' })).toBeNull()
   expect(screen.queryByRole('heading', { name: 'Quick Actions' })).toBeNull()
+  expect(screen.queryByRole('region', { name: 'Operations' })).toBeNull()
+  const inventory = screen.getByRole('region', { name: 'Inventory Overview' })
+  expect(within(inventory).getByRole('button', { name: /Low Stock/ })).toBeTruthy()
+  expect(
+    within(inventory)
+      .getByRole('link', { name: /Active Warehouses/ })
+      .getAttribute('href'),
+  ).toBe('/warehouses')
+})
+
+it('initially shows four tasks and reveals more loaded records without extra requests', async () => {
+  showTasks = extraOutgoing = true
+  mount()
+  const attention = screen.getByRole('region', { name: 'Needs Attention' })
+  await within(attention).findByText('Showing 4 of 6 loaded tasks.')
+  expect(within(attention).getAllByRole('listitem')).toHaveLength(4)
+  expect(within(attention).queryByRole('link', { name: /OUT-50/ })).toBeNull()
+  const before = requests.length
+  await userEvent.setup().click(within(attention).getByRole('button', { name: 'Show more tasks' }))
+  expect(within(attention).getAllByRole('listitem')).toHaveLength(6)
+  expect(
+    within(attention)
+      .getByRole('link', { name: /OUT-50/ })
+      .getAttribute('href'),
+  ).toBe('/deliveries/outgoing')
+  expect(requests).toHaveLength(before)
+  expect(within(attention).queryByRole('button', { name: 'Show more tasks' })).toBeNull()
 })

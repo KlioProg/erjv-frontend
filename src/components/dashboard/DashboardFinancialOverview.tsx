@@ -18,7 +18,7 @@ const metrics: { kind: ReportKind; label: string; basis: string }[] = [
   {
     kind: 'gross-profit-estimate',
     label: 'Estimated Gross Profit',
-    basis: 'Acquisition-cost estimate',
+    basis: 'Based on recorded costs',
   },
 ]
 
@@ -96,7 +96,7 @@ export function DashboardFinancialOverview({ now }: { now: Date }) {
       </div>
       <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-1">
         {!reports['gross-profit-estimate'].isError && (
-          <div className="min-w-0 flex-1">
+          <div className="min-w-0 flex-1 [&_summary]:min-h-11">
             <ReportProfitNotice
               report={reports['gross-profit-estimate'].data}
               summaryLabel="How is this calculated?"

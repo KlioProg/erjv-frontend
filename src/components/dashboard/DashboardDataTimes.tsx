@@ -11,7 +11,7 @@ export function DashboardDataTimes({ label, sources }: { label: string; sources:
   }
   return (
     <details className="min-w-0 text-sm text-muted-foreground">
-      <summary className="min-h-11 cursor-pointer content-center rounded font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+      <summary className="min-h-11 cursor-pointer rounded py-3 font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
         {label}
       </summary>
       <p className="mb-2">Figures are reported separately. Times use the business timezone.</p>
