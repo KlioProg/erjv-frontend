@@ -115,7 +115,7 @@ function mount(ui: React.ReactNode) {
     queryClient,
   }
 }
-function mountDashboard(initialEntry = '/') {
+function mountDashboard(initialEntry = '/inventory') {
   function LocationControls() {
     const location = useLocation()
     const navigate = useNavigate()
@@ -794,16 +794,16 @@ describe('inventory and global stock warnings', () => {
     mountDashboard('/not-a-page')
     await screen.findByRole('heading', { name: 'Page not found' })
     await user.click(screen.getByRole('link', { name: 'Go to home' }))
-    await screen.findByRole('heading', { name: 'Inventory' })
-    expect(screen.getByTestId('route-location').textContent).toBe('/inventory')
+    await screen.findByRole('heading', { name: 'Dashboard' })
+    expect(screen.getByTestId('route-location').textContent).toBe('/')
   })
 
   it('redirects staff away from staffing URLs', async () => {
     auth.isAdmin = false
     auth.isStaff = true
     mountDashboard('/legacy/employees')
-    await screen.findByRole('heading', { name: 'Inventory' })
-    expect(screen.getByTestId('route-location').textContent).toBe('/inventory')
+    await screen.findByRole('heading', { name: 'Dashboard' })
+    expect(screen.getByTestId('route-location').textContent).toBe('/')
     expect(screen.queryByRole('heading', { name: 'Staff Directory' })).toBeNull()
   })
 

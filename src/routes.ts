@@ -1,4 +1,5 @@
 export const NAV_ITEM_KEYS = [
+  'dashboard',
   'inventory',
   'warehouses',
   'fleet',
@@ -43,6 +44,7 @@ export const ROUTES = {
 } as const
 
 const SCREEN_ROUTES: Record<Exclude<NavItemKey, 'deliveries'>, string> = {
+  dashboard: ROUTES.home,
   'financial-reports': ROUTES.financialReports,
   clients: ROUTES.customers,
   orders: ROUTES.salesOrders,
@@ -70,7 +72,7 @@ export function routeForScreen(screen: NavItemKey): string {
 }
 
 export function screenFromPath(pathname: string): NavItemKey | undefined {
-  const path = pathname.replace(/\/$/, '')
+  const path = pathname.replace(/\/$/, '') || '/'
   const screen = (Object.keys(SCREEN_ROUTES) as (keyof typeof SCREEN_ROUTES)[]).find(
     (key) => SCREEN_ROUTES[key] === path,
   )

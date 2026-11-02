@@ -14,6 +14,7 @@ export type DashboardOutletContext = {
   arrangeDelivery: boolean
   inventoryTarget?: InventoryNavigationTarget & { requestId: number }
   onOpenWarehouse: (id: number) => void
+  onOpenInventory: (target: InventoryNavigationTarget) => void
   onNavigateToPurchases: () => void
   onNavigateFromPurchaseToDeliveries: (purchaseOrderId?: number, arrange?: boolean) => void
   onNavigateFromSalesOrderToDeliveries: (
@@ -43,13 +44,11 @@ export function MainDashboard() {
     (InventoryNavigationTarget & { requestId: number }) | undefined
   >()
 
-  const { data: warehouses = [] } = useWarehouses()
+  const currentScreen = screenFromPath(location.pathname)
+  const { data: warehouses = [] } = useWarehouses(undefined, currentScreen === 'warehouses')
   const stockQuery = useStockItems()
   const stockItems = stockQuery.data
-  const { data: products = [] } = useProducts()
-
-
-  const currentScreen = screenFromPath(location.pathname)
+  const { data: products = [] } = useProducts(undefined, currentScreen === 'warehouses')
 
   const summary =
     currentScreen === 'warehouses'
@@ -112,6 +111,7 @@ export function MainDashboard() {
     deliverySalesOrderId,
     arrangeDelivery,
     inventoryTarget,
+    onOpenInventory,
     onOpenWarehouse: (id) => navigate(warehouseDetailsPath(id)),
     onNavigateToPurchases: () => navigateToScreen('purchases'),
     onNavigateFromPurchaseToDeliveries,

@@ -84,17 +84,24 @@ export function ReportSummaryCards({
   )
 }
 
-export function ReportProfitNotice({ report }: { report?: ReportResult }) {
+export function ReportProfitNotice({
+  report,
+  summaryLabel = 'How estimated gross profit is calculated',
+}: {
+  report?: ReportResult
+  summaryLabel?: string
+}) {
   const profit = report?.totals
   if (!profit) return null
   const hasUncosted =
+    (profit.costCoveragePercent != null && Number(profit.costCoveragePercent) < 100) ||
     profit.uncostedTaxableSalesValue !== '0.00' ||
     Object.values(profit.uncostedQuantityByUnit ?? {}).some((quantity) => Number(quantity) > 0)
   return (
     <div className="space-y-2 text-sm text-muted-foreground" role="note">
       <details>
         <summary className="min-h-9 cursor-pointer rounded py-1 font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-          How estimated gross profit is calculated
+          {summaryLabel}
         </summary>
         <div className="mt-2 space-y-1">
           <p>

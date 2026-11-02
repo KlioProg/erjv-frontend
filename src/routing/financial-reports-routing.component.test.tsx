@@ -6,6 +6,7 @@ import { routeForScreen, screenFromPath } from '@/routes'
 const auth = vi.hoisted(() => ({ isAdmin: true, isManager: false, isStaff: false }))
 vi.mock('@/features/auth/AuthContext', () => ({ useAuth: () => auth }))
 vi.mock('@/components/dashboard/MainDashboard', () => ({ MainDashboard: () => <Outlet context={{}} /> }))
+vi.mock('@/components/dashboard/DashboardPage', () => ({ DashboardPage: () => <h1>Dashboard landing</h1> }))
 vi.mock('@/components/financial-reports/FinancialReportsPage', () => ({
   FinancialReportsPage: () => <h1>Report feature</h1>,
 }))

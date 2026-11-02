@@ -33,7 +33,7 @@ beforeEach(() => {
                 createdAt: '2026-10-01',
                 updatedAt: '2026-10-01',
               }
-            : /^\/(sales-orders|purchase-orders|incoming-deliveries|outgoing-deliveries|warehouses|stock-items|inventory-items|employees|jobs|users)$/.test(config.url ?? '') ? { items: [], nextCursor: null } : [],
+            : /^\/(sales-orders|purchase-orders|incoming-deliveries|outgoing-deliveries|delivery-runs|warehouses|stock-items|inventory-items|employees|jobs|users)$/.test(config.url ?? '') ? { items: [], nextCursor: null } : [],
     }
   }
 })
@@ -84,8 +84,13 @@ it.each(staffing)(
   async (path, title) => {
     role = 'STAFF'
     mount(path)
-    await screen.findByRole('heading', { name: 'Inventory' })
-    expect(window.location.pathname).toBe('/inventory')
+    await screen.findByRole('heading', { name: 'Dashboard' })
+    expect(window.location.pathname).toBe('/')
+    const navigation = screen.getByRole('navigation', { name: 'Main navigation' })
+    const firstLink = within(navigation).getAllByRole('link')[0]
+    expect(firstLink.textContent).toBe('Dashboard')
+    expect(firstLink.getAttribute('aria-current')).toBe('page')
+    expect(requests.some((request) => request.includes('/financial-reports/'))).toBe(false)
     expect(screen.queryByRole('heading', { name: title })).toBeNull()
     expect(screen.queryByRole('link', { name: title })).toBeNull()
     expect(requests.some((request) => /^get \/(employees|jobs|users)/.test(request))).toBe(false)
@@ -106,12 +111,12 @@ it.each(['/', '/staff-directory', '/job-positions', '/user-roles'])(
 )
 
 it.each(['ADMIN', 'MANAGER', 'STAFF'] as const)(
-  'keeps the existing permitted Inventory landing page for %s',
+  'opens the Dashboard landing page for %s',
   async (value) => {
     role = value
     mount('/')
-    await screen.findByRole('heading', { name: 'Inventory' })
-    expect(window.location.pathname).toBe('/inventory')
+    await screen.findByRole('heading', { name: 'Dashboard' })
+    expect(window.location.pathname).toBe('/')
   },
 )
 
@@ -219,5 +224,14 @@ it('offers a functional home link for unknown URLs', async () => {
   mount('/unknown-route')
   await screen.findByRole('heading', { name: 'Page not found' })
   await userEvent.setup().click(screen.getByRole('link', { name: 'Go to home' }))
-  await waitFor(() => expect(window.location.pathname).toBe('/inventory'))
+  await waitFor(() => expect(window.location.pathname).toBe('/'))
+})
+
+it('returns to Dashboard through the logo and keeps its navigation entry active', async () => {
+  mount('/inventory')
+  await screen.findByRole('heading', { name: 'Inventory' })
+  await userEvent.setup().click(screen.getByRole('link', { name: 'Dashboard home' }))
+  await screen.findByRole('heading', { name: 'Dashboard' })
+  expect(window.location.pathname).toBe('/')
+  expect(screen.getByRole('link', { name: 'Dashboard' }).getAttribute('aria-current')).toBe('page')
 })

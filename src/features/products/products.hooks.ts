@@ -24,8 +24,9 @@ export const productKeys = {
 }
 
 // React Query hook to fetch the product list
-export function useProducts(params?: FetchParams) {
+export function useProducts(params?: FetchParams, enabled = true) {
   return useQuery({
+    enabled,
     queryKey: productKeys.lists(params?.includeInactive ?? 'false'),
     queryFn: () => fetchProductsApi(params),
   })

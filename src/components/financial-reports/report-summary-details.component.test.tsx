@@ -38,3 +38,14 @@ it('warns about positive uncosted quantity even with zero uncosted taxable sales
   expect(screen.getByRole('status').textContent).toContain('may be incomplete')
   expect(screen.getByText(/Cost coverage:/).textContent).toContain('0.00')
 })
+
+it('keeps incomplete coverage visible when the explanation is collapsed', () => {
+  const incomplete = structuredClone(report)
+  incomplete.totals.uncostedTaxableSalesValue = '0.00'
+  incomplete.totals.uncostedQuantityByUnit = {}
+  incomplete.totals.costCoveragePercent = '99.99'
+  render(<ReportProfitNotice report={incomplete} summaryLabel="How is this calculated?" />)
+  expect(screen.getByText('How is this calculated?').closest('details')!.open).toBe(false)
+  expect(screen.getByRole('status').textContent).toContain('may be incomplete')
+  expect(screen.getByRole('status').closest('details')).toBeNull()
+})

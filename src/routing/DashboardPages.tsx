@@ -1,5 +1,6 @@
 import { Link, Navigate, Outlet, useOutletContext, useParams } from 'react-router'
 import type { DashboardOutletContext } from '@/components/dashboard/MainDashboard'
+import { DashboardPage } from '@/components/dashboard/DashboardPage'
 import { InventoryHub } from '@/components/inventory/InventoryHub'
 import { WarehouseList } from '@/components/operations/WarehouseList'
 import { OrdersView } from '@/components/orders/OrdersView'
@@ -63,8 +64,7 @@ export function DeliveriesRoute({ view }: { view: DeliveryView }) {
 
 export function DefaultRoute() {
   const { isAdmin, isManager, isStaff } = useAuth()
-  // Inventory is the existing landing page for every recognized role.
-  if (isAdmin || isManager || isStaff) return <Navigate replace to={ROUTES.inventory} />
+  if (isAdmin || isManager || isStaff) return <DashboardPage />
   return (
     <Alert variant="destructive">
       <AlertDescription>

@@ -18,6 +18,7 @@ import {
   MapPinned,
   ReceiptText,
   ChartNoAxesCombined,
+  LayoutDashboard,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
@@ -58,6 +59,7 @@ type NavGroup = {
 }
 
 const NAV_GROUPS: NavGroup[] = [
+  { title: 'Overview', items: [{ key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard }] },
   {
     title: 'Sales',
     items: [
@@ -174,7 +176,17 @@ export function DashboardLayout({
       {/* Sidebar Header & Nav list */}
       <div className="flex flex-col min-h-0 flex-1">
         <div className="flex h-14 shrink-0 items-center justify-between px-5 border-b">
-          <ErjvPosLogo />
+          <Link
+            to="/"
+            aria-label="Dashboard home"
+            className="rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            onClick={() => {
+              onNavigate()
+              setIsMobileOpen(false)
+            }}
+          >
+            <ErjvPosLogo />
+          </Link>
           <Button
             variant="ghost"
             size="icon"

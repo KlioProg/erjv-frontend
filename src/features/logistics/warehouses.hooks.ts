@@ -18,8 +18,9 @@ import { getErrorMessage, type FetchParams } from '@/lib/api-client'
 
 export const WAREHOUSES_QUERY_KEY = ['warehouses'] as const
 
-export function useWarehouses(params?: FetchParams) {
+export function useWarehouses(params?: FetchParams, enabled = true) {
   return useQuery({
+    enabled,
     queryKey: [...WAREHOUSES_QUERY_KEY, params?.includeInactive ?? 'false'],
     queryFn: () => fetchWarehousesApi(params),
   })
