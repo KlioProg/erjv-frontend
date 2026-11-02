@@ -8,7 +8,6 @@ import { useRecordsById } from '@/lib/use-records-by-id'
 import { fetchOutgoingDeliveriesApi } from '@/features/logistics/outgoing-deliveries.api'
 import { fetchClientByIdApi } from '@/features/crm/clients.api'
 import { CursorPageControls } from '@/components/ui/CursorPageControls'
-import { Label } from '@/components/ui/label'
 import { PageHeader, PageToolbar } from '@/components/ui/ManagementPage'
 import { SalesOrderCancelModal } from './SalesOrderCancelModal'
 import { useState, useMemo } from 'react'
@@ -101,8 +100,6 @@ export function OrdersView({
 }: OrdersViewProps = {}) {
   const queryClient = useQueryClient()
   const [searchTerm, setSearchTerm] = useState('')
-  const [orderedFrom, setOrderedFrom] = useState('')
-  const [orderedBefore, setOrderedBefore] = useState('')
   const [activeStatus, setActiveStatus] = useState<OrderTabFilter>('Active')
 
   // Modals & Drawers state
@@ -116,7 +113,7 @@ export function OrdersView({
   const [orderToCancel, setOrderToCancel] = useState<SalesOrderRecord | null>(null)
 
   // Real backend queries
-  const ordersQuery = useSalesOrdersPage({ statuses: activeStatus === 'Active' ? ['DRAFT', 'CONFIRMED', 'PARTIALLY_DELIVERED'] : activeStatus === 'Completed' ? ['DELIVERED'] : ['CANCELLED'], q: searchTerm.trim() || undefined, orderedFrom: orderedFrom ? new Date(orderedFrom).toISOString() : undefined, orderedBefore: orderedBefore ? new Date(orderedBefore).toISOString() : undefined })
+  const ordersQuery = useSalesOrdersPage({ statuses: activeStatus === 'Active' ? ['DRAFT', 'CONFIRMED', 'PARTIALLY_DELIVERED'] : activeStatus === 'Completed' ? ['DELIVERED'] : ['CANCELLED'], q: searchTerm.trim() || undefined })
   const salesOrders = ordersQuery.items
   const isLoadingOrders = ordersQuery.isFetching
   const editingOrderQuery = useSalesOrderById(editingOrderId)
@@ -479,7 +476,7 @@ export function OrdersView({
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
           <Input
             aria-label="Search orders"
-            placeholder="Search order # or customer..."
+            placeholder="Search order number, customer, reference..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-9 h-9 text-ui"
@@ -499,11 +496,6 @@ export function OrdersView({
         </Button>
       </PageToolbar>
 
-      <div className="flex flex-wrap gap-3" aria-label="Ordered date filters">
-        <div className="space-y-1"><Label htmlFor="so-ordered-from">Ordered from (inclusive)</Label><Input id="so-ordered-from" type="datetime-local" value={orderedFrom} onChange={(event) => setOrderedFrom(event.target.value)} className="h-9 w-auto" /></div>
-        <div className="space-y-1"><Label htmlFor="so-ordered-before">Ordered before (exclusive)</Label><Input id="so-ordered-before" type="datetime-local" value={orderedBefore} onChange={(event) => setOrderedBefore(event.target.value)} className="h-9 w-auto" /></div>
-      </div>
-      <p className="text-xs text-muted-foreground">Search covers order number, customer name and external reference. Results use the backend order.</p>
       {/* Orders Table */}
       {ordersQuery.isError ? (
         <Alert variant="destructive">

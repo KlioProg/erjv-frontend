@@ -5,7 +5,28 @@ import {
   deliveryBelongsToView,
   formatDeliverySchedule,
   getDeliveryActions,
+  deliveryHistoryDate,
+  outgoingStatusLabel,
+  DELIVERY_STATUS_LABELS,
+  localDeliveryDay,
 } from './delivery-workflow.ts'
+
+test('friendly labels preserve backend states and distinguish actual run assignment', () => {
+  assert.equal(outgoingStatusLabel('READY', null), 'Ready to Assign')
+  assert.equal(outgoingStatusLabel('READY', 10), 'Assigned to Run')
+  assert.equal(outgoingStatusLabel('DISPATCHED', 10), 'In Transit')
+  assert.equal(outgoingStatusLabel('RECONCILED', 10), 'Completed')
+  assert.equal(DELIVERY_STATUS_LABELS.SCHEDULED, 'Awaiting Receipt')
+  assert.equal(DELIVERY_STATUS_LABELS.COMPLETED, 'Received')
+})
+
+test('history uses only recorded terminal events and dates follow the Manila business day', () => {
+  assert.equal(deliveryHistoryDate({ type: 'Incoming', status: 'COMPLETED', record: { completedAt: null, scheduledAt: '2026-10-11' } }), null)
+  assert.equal(deliveryHistoryDate({ type: 'Outgoing', status: 'RECONCILED', record: { reconciledAt: '2026-10-12T02:00:00Z', cancelledAt: null } }), '2026-10-12T02:00:00Z')
+  assert.equal(deliveryHistoryDate({ type: 'Incoming', status: 'CANCELLED', record: { cancelledAt: '2026-10-13T02:00:00Z', completedAt: null } }), '2026-10-13T02:00:00Z')
+  assert.equal(localDeliveryDay('2026-10-11T18:00:00Z'), '2026-10-12')
+  assert.match(formatDeliverySchedule('2026-10-11T18:00:00Z', true).date, /12 Oct 2026/)
+})
 import {
   deliveryQuantityError,
   remainingDeliveryQuantity,

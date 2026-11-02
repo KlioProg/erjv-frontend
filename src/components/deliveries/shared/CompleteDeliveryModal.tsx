@@ -1,5 +1,6 @@
 import { deliveryFormStyles } from './delivery-form.styles'
 import { useRef, useState } from 'react'
+import { toast } from 'sonner'
 import {
   Dialog,
   DialogContent,
@@ -194,6 +195,7 @@ export function CompleteDeliveryModal({
                 throw Error(
                   'The server did not confirm member reconciliation. Refresh and review before retrying.',
                 )
+              toast.success('Delivery reconciled.')
               onClose()
             } catch (cause) {
               const issues = getApiFieldErrors(cause)

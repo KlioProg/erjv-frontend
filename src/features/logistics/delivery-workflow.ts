@@ -27,12 +27,36 @@ export type DeliveryRow = {
 )
 export const DELIVERY_STATUS_LABELS: Record<string, string> = {
   DRAFT: 'Draft',
-  SCHEDULED: 'Scheduled',
-  READY: 'Ready',
-  RECONCILED: 'Reconciled',
+  SCHEDULED: 'Awaiting Receipt',
+  READY: 'Ready to Assign',
+  RECONCILED: 'Completed',
   DISPATCHED: 'In Transit',
-  COMPLETED: 'Received & Stocked',
+  COMPLETED: 'Received',
   CANCELLED: 'Cancelled',
+}
+
+export const RUN_STATUS_LABELS = {
+  DRAFT: 'Preparing',
+  DISPATCHED: 'In Transit',
+  COMPLETED: 'Completed',
+  CANCELLED: 'Cancelled',
+} as const
+
+export function outgoingStatusLabel(
+  status: OutgoingDeliveryRecord['status'],
+  runId?: number | null,
+) {
+  return status === 'READY' && runId != null
+    ? 'Assigned to Run'
+    : (DELIVERY_STATUS_LABELS[status] ?? status)
+}
+
+export function deliveryHistoryDate(row: DeliveryRow) {
+  return row.status === 'CANCELLED'
+    ? row.record.cancelledAt
+    : row.type === 'Incoming'
+      ? row.record.completedAt
+      : row.record.reconciledAt
 }
 export function buildDeliveryRows({
   incoming,
@@ -117,7 +141,9 @@ export function buildDeliveryRows({
 export function deliveryNeedsAttention(row: DeliveryRow, now: number): boolean {
   return (
     row.status === 'DRAFT' ||
-    (['SCHEDULED', 'READY', 'DISPATCHED'].includes(row.status) && !!row.date && new Date(row.date).getTime() < now)
+    (['SCHEDULED', 'READY', 'DISPATCHED'].includes(row.status) &&
+      !!row.date &&
+      new Date(row.date).getTime() < now)
   )
 }
 
@@ -125,15 +151,17 @@ export function localDeliveryDay(value: string | null): string {
   if (!value) return ''
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return ''
-  return [
-    date.getFullYear(),
-    String(date.getMonth() + 1).padStart(2, '0'),
-    String(date.getDate()).padStart(2, '0'),
-  ].join('-')
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Manila',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date)
 }
 
 export type DeliveryView = 'incoming' | 'outgoing' | 'history'
-export type DeliveryAction = 'schedule' | 'ready' | 'reopen' | 'run' | 'reconcile' | 'receive' | 'cancel'
+export type DeliveryAction =
+  'schedule' | 'ready' | 'reopen' | 'run' | 'reconcile' | 'receive' | 'cancel'
 
 export function deliveryBelongsToView(
   row: Pick<DeliveryRow, 'type' | 'status'>,
@@ -145,7 +173,10 @@ export function deliveryBelongsToView(
 
 // These mirror the inspected backend transitions; permissions remain separate.
 export function getDeliveryActions(
-  row: Pick<DeliveryRow, 'type' | 'status'> & { runId?: number | null; record?: IncomingDeliveryRecord | OutgoingDeliveryRecord },
+  row: Pick<DeliveryRow, 'type' | 'status'> & {
+    runId?: number | null
+    record?: IncomingDeliveryRecord | OutgoingDeliveryRecord
+  },
 ): DeliveryAction[] {
   if (row.type === 'Incoming') {
     if (row.status === 'DRAFT') return ['schedule', 'cancel']
@@ -153,7 +184,9 @@ export function getDeliveryActions(
   } else {
     if (row.status === 'DRAFT') return ['ready', 'cancel']
     if (row.status === 'READY')
-      return (row.runId ?? (row.record && 'runId' in row.record ? row.record.runId : null)) != null ? ['run'] : ['reopen', 'run', 'cancel']
+      return (row.runId ?? (row.record && 'runId' in row.record ? row.record.runId : null)) != null
+        ? ['run']
+        : ['reopen', 'run', 'cancel']
     if (row.status === 'DISPATCHED') return ['reconcile']
   }
   return []
@@ -164,13 +197,18 @@ export function formatDeliverySchedule(value: string | null, history: boolean, s
   if (!date || Number.isNaN(date.getTime())) return { date: 'Not scheduled', time: '', title: '' }
   return {
     date: date.toLocaleDateString('en-GB', {
+      timeZone: 'Asia/Manila',
       day: 'numeric',
       month: 'short',
       ...(history ? { year: 'numeric' as const } : {}),
     }),
     time: scheduled
-      ? date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+      ? date.toLocaleTimeString('en-US', {
+          timeZone: 'Asia/Manila',
+          hour: 'numeric',
+          minute: '2-digit',
+        })
       : 'Expected',
-    title: date.toLocaleString('en-GB'),
+    title: date.toLocaleString('en-GB', { timeZone: 'Asia/Manila' }),
   }
 }

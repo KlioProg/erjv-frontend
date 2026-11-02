@@ -184,7 +184,7 @@ it.each(['PO', 'SO'] as const)(
 )
 
 it.each(['PO', 'SO'] as const)(
-  '%s resets cursor on search, status, date and page-size changes',
+  '%s resets cursor on search, status and page-size changes without hidden date filters',
   async (kind) => {
     const { reads, path } = mount(kind)
     await screen.findByText(`${kind}-1`)
@@ -198,28 +198,8 @@ it.each(['PO', 'SO'] as const)(
         .filter((read) => read.url === path && read.params.q === 'remote')
         .every((read) => !read.params.cursor),
     ).toBe(true)
-    fireEvent.change(screen.getByLabelText('Ordered from (inclusive)'), {
-      target: { value: '2026-10-01T10:00' },
-    })
-    fireEvent.change(screen.getByLabelText('Ordered before (exclusive)'), {
-      target: { value: '2026-11-01T10:00' },
-    })
-    await waitFor(() =>
-      expect(
-        reads.some(
-          (read) => read.params.orderedBefore === new Date('2026-11-01T10:00').toISOString(),
-        ),
-      ).toBe(true),
-    )
-    expect(
-      reads
-        .filter((read) => read.params.orderedFrom)
-        .every(
-          (read) =>
-            !read.params.cursor &&
-            read.params.orderedFrom === new Date('2026-10-01T10:00').toISOString(),
-        ),
-    ).toBe(true)
+    expect(screen.queryByLabelText('Ordered from (inclusive)')).toBeNull()
+    expect(screen.queryByLabelText('Ordered before (exclusive)')).toBeNull()
     await userEvent.click(screen.getByRole('combobox', { name: 'Orders per page' }))
     await userEvent.click(screen.getByRole('option', { name: '25' }))
     await waitFor(() =>
@@ -238,6 +218,10 @@ it.each(['PO', 'SO'] as const)(
           (read) => !read.params.cursor && read.params.limit === 25 && read.params.q === 'remote',
         ),
     ).toBe(true)
+    for (const read of reads.filter((read) => read.url === path)) {
+      expect(read.params.orderedFrom).toBeUndefined()
+      expect(read.params.orderedBefore).toBeUndefined()
+    }
   },
 )
 
@@ -464,22 +448,26 @@ it.each(['PO', 'SO'] as const)(
 )
 
 it.each(['PO', 'SO'] as const)(
-  '%s starts at the first page when an ordered date changes on a later page',
+  '%s keeps status navigation and creation available without a date-filter row',
   async (kind) => {
     const setup = mount(kind)
     await screen.findByText(`${kind}-1`)
     await userEvent.click(next())
     await screen.findByText(`${kind}-2`)
-    fireEvent.change(screen.getByLabelText('Ordered from (inclusive)'), {
-      target: { value: '2026-10-01T10:00' },
-    })
+    expect(screen.queryByLabelText('Ordered from (inclusive)')).toBeNull()
+    expect(screen.queryByLabelText('Ordered before (exclusive)')).toBeNull()
+    await userEvent.click(screen.getByRole('button', { name: kind === 'PO' ? 'Received Orders' : 'Completed Orders' }))
+    expect(previous().hasAttribute('disabled')).toBe(true)
+    await userEvent.click(screen.getByRole('button', { name: 'Active Orders' }))
     await screen.findByText(`${kind}-1`)
     expect(screen.getByText('Page 1')).toBeTruthy()
     expect(
       setup.reads
-        .filter((read) => read.url === setup.path && read.params.orderedFrom)
-        .every((read) => !read.params.cursor),
+        .filter((read) => read.url === setup.path)
+        .every((read) => read.params.orderedFrom === undefined && read.params.orderedBefore === undefined),
     ).toBe(true)
+    await userEvent.click(screen.getByRole('button', { name: kind === 'PO' ? 'Create Purchase Order' : 'Create Sales Order' }))
+    expect(await screen.findByRole('dialog')).toBeTruthy()
   },
 )
 

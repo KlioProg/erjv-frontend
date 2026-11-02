@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { MemoryRouter } from 'react-router'
+import { MemoryRouter, useLocation } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { apiClient } from '@/lib/api-client'
 import { getAdapter } from 'axios'
@@ -706,7 +706,7 @@ describe('order to delivery workflow', () => {
     ]
     const user = userEvent.setup()
     mount(<DeliveriesHub initialTab="outgoing" />)
-    const schedule = await screen.findByRole('button', { name: 'Plan / Mark Ready OUT-5' })
+    const schedule = await screen.findByRole('button', { name: 'Continue Planning OUT-5' })
     expect(schedule.closest('tr')?.textContent).toContain('Test Warehouse')
     await user.click(schedule)
     const quantity = await screen.findByRole('textbox', {
@@ -923,6 +923,7 @@ describe('order to delivery workflow', () => {
       </MemoryRouter>,
     )
     expect(screen.getByRole('link', { name: 'Incoming' }).getAttribute('aria-current')).toBe('page')
+    expect(screen.getAllByRole('link').map((link) => link.textContent)).toEqual(['Incoming', 'Outgoing', 'Delivery Runs', 'History'])
     await user.click(screen.getByRole('button', { name: 'Deliveries' }))
     expect(screen.queryByRole('button', { name: 'Incoming' })).toBeNull()
     await user.keyboard('{Enter}')
@@ -942,13 +943,14 @@ describe('order to delivery workflow', () => {
     expect(screen.queryByRole('columnheader', { name: 'Type' })).toBeNull()
     expect(screen.queryByRole('tablist')).toBeNull()
     await user.click(nav.getByRole('link', { name: 'Outgoing' }))
-    expect(await screen.findByRole('button', { name: 'Manage Run OUT-6' })).toBeTruthy()
+    expect(await screen.findByRole('button', { name: 'Assign to Run OUT-6' })).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'View delivery OUT-7' })).toBeNull()
     await user.click(nav.getByRole('link', { name: 'History' }))
     expect(await screen.findByRole('button', { name: 'View delivery IN-23' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'View delivery OUT-7' })).toBeTruthy()
     expect(screen.queryByRole('button', { name: /Cancel Delivery/ })).toBeNull()
-    expect(screen.getAllByText('11 Oct 2026').length).toBe(4)
+    expect(screen.getByRole('region', { name: 'Incoming history' })).toBeTruthy()
+    expect(screen.getByRole('region', { name: 'Outgoing history' })).toBeTruthy()
   })
 
   it('confirms from the sales list with notification only and no automatic delivery', async () => {
@@ -1268,8 +1270,9 @@ describe('order to delivery workflow', () => {
     sales[0].status = 'DELIVERED'
     const user = userEvent.setup()
     mount(<DeliveriesHub initialTab="history" />)
-    const viewOrderButtons = await screen.findAllByRole('button', { name: 'View order SO-TEST' })
-    await user.click(viewOrderButtons[0])
+    const source = within(screen.getByRole('region', { name: 'Outgoing history' }))
+    await user.click((await source.findAllByRole('button', { name: /More actions for/ }))[0])
+    await user.click(screen.getByRole('menuitem', { name: 'View order SO-TEST' }))
     const dialog = await screen.findByRole('dialog')
     expect(within(dialog).getByText('Test Customer')).toBeTruthy()
     expect(within(dialog).getAllByText('Test Mango').length).toBeGreaterThan(0)
@@ -1282,7 +1285,9 @@ describe('order to delivery workflow', () => {
     purchases[0].status = 'RECEIVED'
     const user = userEvent.setup()
     mount(<DeliveriesHub initialTab="history" />)
-    await user.click((await screen.findAllByRole('button', { name: 'View order PO-TEST' }))[0])
+    const source = within(screen.getByRole('region', { name: 'Incoming history' }))
+    await user.click((await source.findAllByRole('button', { name: /More actions for/ }))[0])
+    await user.click(screen.getByRole('menuitem', { name: 'View order PO-TEST' }))
     const dialog = await screen.findByRole('dialog')
     expect(within(dialog).getByText('Test Supplier')).toBeTruthy()
     expect(within(dialog).getAllByText('Test Mango').length).toBeGreaterThan(0)
@@ -1324,32 +1329,39 @@ describe('order to delivery workflow', () => {
   })
 })
 
-it('keeps history search and filters in a logical keyboard order and preserves date reset', async () => {
+it('keeps history filters keyboard accessible without pretending to filter completion dates', async () => {
   const user = userEvent.setup()
   mount(<DeliveriesHub initialTab="history" />)
   await screen.findByRole('button', { name: 'View delivery OUT-7' })
   const search = screen.getByRole('textbox', { name: 'Search deliveries' })
   search.focus()
   for (const control of [
-    screen.getByRole('button', { name: 'Clear Filters' }),
-    screen.getByRole('combobox', { name: 'Status' }),
-    screen.getByRole('combobox', { name: 'Warehouse' }),
-    screen.getByLabelText('From Date'),
-    screen.getByLabelText('To Date'),
     screen.getByRole('combobox', { name: 'Direction' }),
+    screen.getByRole('button', { name: 'Filters' }),
   ]) {
     await user.tab()
     expect(document.activeElement).toBe(control)
   }
-  const from = screen.getByLabelText('From Date') as HTMLInputElement
-  const to = screen.getByLabelText('To Date') as HTMLInputElement
-  fireEvent.change(from, { target: { value: '2099-01-01' } })
-  expect(to.min).toBe('2099-01-01')
+  await user.click(screen.getByRole('button', { name: 'Filters' }))
+  expect(await screen.findByRole('combobox', { name: 'Outcome' })).toBeTruthy()
+  expect(screen.getByRole('combobox', { name: 'Warehouse' })).toBeTruthy()
+  await user.click(within(screen.getByRole('dialog', { name: 'Filters' })).getByRole('button', { name: 'Done' }))
+  expect(screen.queryByLabelText('Scheduled from')).toBeNull()
+  await user.click(screen.getByRole('combobox', { name: 'Direction' }))
+  await user.click(screen.getByRole('option', { name: 'Incoming' }))
   expect(screen.queryByRole('button', { name: 'View delivery OUT-7' })).toBeNull()
-  await user.click(screen.getByRole('button', { name: 'Clear Filters' }))
-  expect(from.value).toBe('')
-  expect(to.value).toBe('')
+  await user.click(screen.getByRole('button', { name: 'Clear filters' }))
   expect(await screen.findByRole('button', { name: 'View delivery OUT-7' })).toBeTruthy()
+})
+
+it.each([false, true])('preserves delivery context when opening run assignment (assigned: %s)', async (assigned) => {
+  outgoing = outgoing.map((delivery) => delivery.id === 6 ? { ...delivery, runId: assigned ? 12 : null } : delivery)
+  function Location() { const location = useLocation(); return <output data-testid="handoff-location">{location.pathname}{location.search}</output> }
+  mount(<><DeliveriesHub initialTab="outgoing" /><Location /></>)
+  const action = assigned ? 'Open Run OUT-6' : 'Assign to Run OUT-6'
+  await userEvent.setup().click(await screen.findByRole('button', { name: action }))
+  expect(screen.getByTestId('handoff-location').textContent).toBe(assigned ? '/deliveries/runs?run=12' : '/deliveries/runs?assign=6')
+  expect(mutations()).toHaveLength(0)
 })
 
 it('preserves a created incoming draft when scheduling fails and prevents duplicate creation', async () => {

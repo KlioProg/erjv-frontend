@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react'
+import { toast } from 'sonner'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '@/features/auth/AuthContext'
 import { fetchSalesOrderByIdApi } from '@/features/crm/sales-orders.api'
@@ -243,6 +244,7 @@ export function useOutgoingDispatch(runId: number, onSuccess: () => void) {
         saved.revision <= payload.expectedRevision
       )
         throw Error('The server did not confirm run departure. Refresh and review before retrying.')
+      toast.success('Run dispatched.')
       onSuccess()
     } catch (cause) {
       setNeedsRefresh(true)

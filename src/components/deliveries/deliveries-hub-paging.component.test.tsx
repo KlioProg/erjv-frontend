@@ -78,12 +78,12 @@ it.each(['incoming', 'outgoing'] as const)(
           direction === 'incoming' ? ['DRAFT', 'SCHEDULED'] : ['DRAFT', 'READY', 'DISPATCHED'],
       },
     })
-    expect(screen.getByText('1 loaded deliveries')).toBeTruthy()
+    expect(screen.getByText('1 delivery on this page')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Next page' }))
     await screen.findByText(`${direction === 'incoming' ? 'IN' : 'OUT'}-2`)
     expect(deliveryRequests()).toHaveLength(2)
     expect(deliveryRequests()[1].params.cursor).toBe(`${direction}-page-2`)
-    expect(screen.getByText('1 loaded deliveries')).toBeTruthy()
+    expect(screen.getByText('1 delivery on this page')).toBeTruthy()
     expect(screen.queryByText(`${direction === 'incoming' ? 'IN' : 'OUT'}-1`)).toBeNull()
     expect(screen.getByRole('button', { name: 'Next page' }).hasAttribute('disabled')).toBe(true)
   },
@@ -105,7 +105,8 @@ it('keeps incoming and outgoing history pagination independent', async () => {
   expect(deliveryRequests().filter(({ url }) => url === '/outgoing-deliveries')).toHaveLength(1)
   fireEvent.click(within(screen.getByRole('navigation', { name: 'Outgoing delivery pages' })).getByRole('button', { name: 'Next page' }))
   await screen.findByText('OUT-2')
-  expect(screen.getByText('2 loaded deliveries')).toBeTruthy()
+  expect(within(screen.getByRole('region', { name: 'Incoming history' })).getByText('IN-2')).toBeTruthy()
+  expect(within(screen.getByRole('region', { name: 'Outgoing history' })).getByText('OUT-2')).toBeTruthy()
   expect(screen.queryByText('IN-1')).toBeNull()
   expect(screen.queryByText('OUT-1')).toBeNull()
 })
@@ -127,7 +128,7 @@ it('starts a fresh first page for server text and status filters', async () => {
   expect(screen.queryByText('IN-2')).toBeNull()
   const user = userEvent.setup()
   await user.click(screen.getByRole('combobox', { name: 'Status' }))
-  await user.click(screen.getByRole('option', { name: 'Scheduled' }))
+  await user.click(screen.getByRole('option', { name: 'Awaiting Receipt' }))
   await waitFor(() =>
     expect(deliveryRequests().at(-1)?.params).toEqual({
       statuses: ['SCHEDULED'],
@@ -135,6 +136,37 @@ it('starts a fresh first page for server text and status filters', async () => {
       limit: 50,
     }),
   )
+})
+
+it('integrates filters with the table, resets cursors and keeps panel selection stable', async () => {
+  mount('outgoing')
+  const user = userEvent.setup()
+  await screen.findByText('OUT-1')
+  await user.click(screen.getByRole('button', { name: 'Next page' }))
+  await screen.findByText('OUT-2')
+  const search = screen.getByRole('textbox', { name: 'Search deliveries' })
+  const frame = search.closest('[data-delivery-table]')!
+  expect(within(frame as HTMLElement).getByRole('table')).toBeTruthy()
+  expect(screen.queryByText(/More filters/)).toBeNull()
+  await user.click(screen.getByRole('button', { name: 'Filters' }))
+  await user.click(screen.getByRole('checkbox', { name: 'Unassigned deliveries only' }))
+  await waitFor(() => expect(deliveryRequests().at(-1)?.params).toMatchObject({ unassigned: 'true' }))
+  expect(deliveryRequests().at(-1)?.params.cursor).toBeUndefined()
+  expect(screen.getByRole('checkbox', { name: 'Unassigned deliveries only' }).getAttribute('data-state')).toBe('checked')
+  await user.keyboard('{Escape}')
+  expect(document.activeElement?.textContent).toContain('Filters')
+  expect(screen.getByRole('button', { name: /^Filters/ }).textContent).toContain('1')
+  await user.click(screen.getByRole('button', { name: 'Clear filters' }))
+  expect(screen.queryByRole('button', { name: 'Clear filters' })).toBeNull()
+})
+
+it('hides single-page pagination without implying a global total', async () => {
+  mount('incoming')
+  await screen.findByText('IN-1')
+  fireEvent.change(screen.getByRole('textbox', { name: 'Search deliveries' }), { target: { value: 'one' } })
+  await screen.findByText('IN-one')
+  expect(screen.getByText('1 delivery on this page')).toBeTruthy()
+  expect(screen.queryByRole('navigation', { name: 'Incoming delivery pages' })).toBeNull()
 })
 
 it('hides stale actions when a later page fails and restarts pagination on retry', async () => {

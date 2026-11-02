@@ -8,8 +8,8 @@ import { routeForScreen } from '@/routes'
 const links: { view: DeliveryView | 'runs'; label: string }[] = [
   { view: 'incoming', label: 'Incoming' },
   { view: 'outgoing', label: 'Outgoing' },
+  { view: 'runs', label: 'Delivery Runs' },
   { view: 'history', label: 'History' },
-  { view: 'runs', label: 'Runs' },
 ]
 
 export function DeliveryNavigation({
@@ -57,11 +57,13 @@ export function DeliveryNavigation({
           <NavLink
             key={link.view}
             to={routeForScreen(
-              link.view === 'runs' ? 'delivery-runs' : link.view === 'incoming'
-                ? 'incoming-deliveries'
-                : link.view === 'history'
-                  ? 'delivery-history'
-                  : 'outgoing-deliveries',
+              link.view === 'runs'
+                ? 'delivery-runs'
+                : link.view === 'incoming'
+                  ? 'incoming-deliveries'
+                  : link.view === 'history'
+                    ? 'delivery-history'
+                    : 'outgoing-deliveries',
             )}
             end
             onClick={() => onSelect(link.view)}

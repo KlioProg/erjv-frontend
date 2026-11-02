@@ -22,6 +22,7 @@ export function CursorLookup<T extends { id: number }>({
   searchPlaceholder,
   className,
   error,
+  emptyMessage,
 }: {
   id: string
   path: string
@@ -38,6 +39,7 @@ export function CursorLookup<T extends { id: number }>({
   searchPlaceholder?: string
   className?: string
   error?: string
+  emptyMessage?: string
 }) {
   const [q, setQ] = useState('')
   const [open, setOpen] = useState(false)
@@ -91,7 +93,13 @@ export function CursorLookup<T extends { id: number }>({
       className={className}
       placeholder={`Choose ${label.toLowerCase()}`}
       searchPlaceholder={searchPlaceholder ?? `Search ${label.toLowerCase()}`}
-      emptyMessage={query.isPending ? 'Loading results…' : 'No matching results.'}
+      emptyMessage={
+        query.isError
+          ? 'Unable to load records.'
+          : query.isPending
+            ? 'Loading results…'
+            : (emptyMessage ?? 'No matching results.')
+      }
       ariaLabel={ariaLabel ?? `Choose ${label.toLowerCase()}`}
       error={error}
       disabled={disabled}

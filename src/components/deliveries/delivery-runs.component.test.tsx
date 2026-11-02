@@ -9,12 +9,14 @@ import { DeliveryRunsHub } from './DeliveryRunsHub'
 import type { DeliveryRunRecord } from '@/features/logistics/delivery-runs.types'
 import type { OutgoingDeliveryRecord } from '@/features/logistics/outgoing-deliveries.types'
 
-vi.mock('@/features/auth/AuthContext', () => ({ useAuth: () => ({ isAdmin: true, isManager: false, isStaff: false }) }))
+const auth = vi.hoisted(() => ({ isAdmin: true, isManager: false, isStaff: false }))
+vi.mock('@/features/auth/AuthContext', () => ({ useAuth: () => auth }))
 const original = apiClient.defaults.adapter
 let run: DeliveryRunRecord
 let deliveries: OutgoingDeliveryRecord[]
 let requests: { url: string; method: string; body: Record<string, unknown>; params: Record<string, unknown> }[]
 beforeEach(() => {
+  auth.isAdmin = true; auth.isManager = false; auth.isStaff = false
   requests = []
   deliveries = [8, 9, 10].map((id) => ({ id, deliveryNumber: `OUT-${id}`, revision: 3, status: 'READY', warehouseId: id === 10 ? 3 : 2, runId: null, salesOrderId: id + 3, plannedItems: [], items: [], notes: null, reconciledAt: null, reconciledByUserId: null, fulfillmentOutcome: null, hasDamage: false, hasMissing: false, cancelledAt: null, createdAt: '', updatedAt: '' }))
   run = { id: 1, runNumber: 'RUN-1', revision: 4, status: 'DRAFT', warehouseId: 2, driverEmployeeId: null, deliveryVehicleId: null,
@@ -29,7 +31,11 @@ beforeEach(() => {
       if (config.url === '/delivery-runs') data = { items: [run], nextCursor: null }
       if (config.url === '/delivery-runs/1') data = structuredClone(run)
       if (config.url === '/warehouses') data = { items: [{ id: 2, name: 'Main', isActive: true }, { id: 3, name: 'Other', isActive: true }], nextCursor: null }
+      if (config.url === '/warehouses/2') data = { id: 2, name: 'Main', isActive: true }
       if (config.url === '/employees') data = { items: [{ id: 3, firstName: 'Ana', lastName: 'Cruz', canDrive: true, isActive: true }], nextCursor: null }
+      if (config.url === '/employees/3') data = { id: 3, firstName: 'Ana', lastName: 'Cruz', canDrive: true, isActive: true }
+      if (config.url === '/delivery-vehicles') data = { items: [{ id: 4, plateNumber: 'ABC-123' }], nextCursor: null }
+      if (config.url === '/delivery-vehicles/4') data = { id: 4, plateNumber: 'ABC-123' }
       if (config.url === '/delivery-vehicles/available') data = { items: [{ id: 4, plateNumber: 'ABC-123', capacityKg: '1000.00', isAvailable: true, operationalStatus: 'SERVICEABLE' }], nextCursor: null }
       if (config.url === '/outgoing-deliveries') {
         const matches = deliveries.filter((delivery) => delivery.warehouseId === config.params.warehouseId && delivery.runId === null && delivery.status === 'READY' && (!config.params.q || delivery.deliveryNumber.includes(config.params.q)))
@@ -55,12 +61,179 @@ beforeEach(() => {
   }
 })
 afterEach(() => { apiClient.defaults.adapter = original })
-function mount(selected = true) {
+function mount(selected: boolean | string = true) {
+  function Location() { const location = useLocation(); return <output data-testid="run-location">{location.search}</output> }
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
-  render(<QueryClientProvider client={client}><MemoryRouter initialEntries={[`/deliveries/runs${selected ? '?run=1' : ''}`]}><DeliveryRunsHub /></MemoryRouter></QueryClientProvider>)
+  render(<QueryClientProvider client={client}><MemoryRouter initialEntries={[`/deliveries/runs${typeof selected === 'string' ? selected : selected ? '?run=1' : ''}`]}><DeliveryRunsHub /><Location /></MemoryRouter></QueryClientProvider>)
   return client
 }
 const writes = () => requests.filter((request) => request.method !== 'get')
+
+it('reviews an incoming assignment context and confirms membership without automatic writes', async () => {
+  mount('?assign=8&keep=yes')
+  const user = userEvent.setup()
+  const assignment = within(await screen.findByRole('dialog', { name: 'Assign Delivery' }))
+  await assignment.findByText('OUT-8 · Sales Order #11')
+  expect(writes()).toHaveLength(0)
+  expect(assignment.queryByRole('button', { name: 'Assign Delivery' })).toBeNull()
+  expect(assignment.queryByRole('button', { name: /Refresh/ })).toBeNull()
+  await user.click(assignment.getByRole('button', { name: 'Use Existing Run' }))
+  await user.click(assignment.getByRole('button', { name: 'Choose run' }))
+  await user.click(await screen.findByRole('menuitem', { name: 'RUN-1 · Main · 1 delivery assigned' }))
+  await waitFor(() => expect(assignment.getByRole('button', { name: 'Assign Delivery' }).hasAttribute('disabled')).toBe(false))
+  const confirm = assignment.getByRole('button', { name: 'Assign Delivery' })
+  fireEvent.click(confirm)
+  fireEvent.click(confirm)
+  await waitFor(() => expect(writes()).toHaveLength(1))
+  expect(writes()[0]).toMatchObject({ url: '/delivery-runs/1/deliveries', body: { expectedRevision: 4, add: [{ deliveryId: 8, expectedRevision: 3 }] } })
+  await screen.findByRole('dialog', { name: 'RUN-1' })
+  const params = new URLSearchParams(screen.getByTestId('run-location').textContent!)
+  expect(params.get('keep')).toBe('yes')
+  expect(params.get('run')).toBe('1')
+  expect(params.has('assign')).toBe(false)
+  expect(run.deliveries.map((member) => member.id)).toContain(8)
+  expect(writes().some((request) => request.url.endsWith('/dispatch'))).toBe(false)
+})
+
+it('preserves a handoff delivery when creating a new run and waits for explicit save', async () => {
+  mount('?assign=8')
+  const user = userEvent.setup()
+  await user.click(await screen.findByRole('button', { name: 'Create New Run' }))
+  const editor = within(await screen.findByRole('dialog', { name: 'Create Delivery Run' }))
+  await editor.findByText('OUT-8')
+  expect(writes()).toHaveLength(0)
+  await waitFor(() => expect(editor.getByRole('button', { name: 'Save Run' }).hasAttribute('disabled')).toBe(false))
+  await user.click(editor.getByRole('button', { name: 'Save Run' }))
+  await waitFor(() => expect(writes()).toHaveLength(1))
+  expect(writes()[0]).toMatchObject({ method: 'post', url: '/delivery-runs', body: { warehouseId: 2, deliveries: [{ deliveryId: 8, expectedRevision: 3 }] } })
+})
+
+it('returns to the choice step with keyboard focus and preserves a selected run', async () => {
+  mount('?assign=8')
+  const user = userEvent.setup()
+  await user.click(await screen.findByRole('button', { name: 'Use Existing Run' }))
+  await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Choose run' })))
+  await user.click(screen.getByRole('button', { name: 'Choose run' }))
+  await user.click(await screen.findByRole('menuitem', { name: 'RUN-1 · Main · 1 delivery assigned' }))
+  await user.click(screen.getByRole('button', { name: 'Back' }))
+  expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Use Existing Run' }))
+  await user.click(screen.getByRole('button', { name: 'Use Existing Run' }))
+  expect(screen.getByRole('button', { name: 'Choose run' }).textContent).toContain('RUN-1')
+  expect(screen.getByText('OUT-8 · Sales Order #11')).toBeTruthy()
+  expect(writes()).toHaveLength(0)
+})
+
+it('applies supported run filters on the server without making writes', async () => {
+  mount(false)
+  const user = userEvent.setup()
+  await screen.findByRole('button', { name: 'RUN-1' })
+  expect(screen.queryByRole('button', { name: 'Clear filters' })).toBeNull()
+  await user.click(screen.getByRole('button', { name: 'Filters' }))
+  await user.click(screen.getByRole('button', { name: 'Choose warehouse' }))
+  await user.click(await screen.findByRole('menuitem', { name: 'Main' }))
+  await user.click(screen.getByRole('button', { name: 'Choose driver' }))
+  await user.click(await screen.findByRole('menuitem', { name: 'Ana Cruz' }))
+  await user.click(screen.getByRole('button', { name: 'Choose vehicle' }))
+  await user.click(await screen.findByRole('menuitem', { name: 'ABC-123' }))
+  fireEvent.change(screen.getByLabelText('Departure from'), { target: { value: '2026-11-01' } })
+  fireEvent.change(screen.getByLabelText('Departure through'), { target: { value: '2026-11-03' } })
+  await user.click(within(screen.getByRole('dialog', { name: 'Filters' })).getByRole('button', { name: 'Done' }))
+  await waitFor(() => expect(requests.filter((request) => request.url === '/delivery-runs' && request.method === 'get').at(-1)?.params).toMatchObject({ warehouseId: 2, driverEmployeeId: 3, deliveryVehicleId: 4, scheduledFrom: '2026-10-31T16:00:00.000Z', scheduledBefore: '2026-11-03T16:00:00.000Z' }))
+  await user.click(screen.getByRole('button', { name: /^Filters/ }))
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Choose driver' }).textContent).toContain('Ana Cruz'))
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Choose vehicle' }).textContent).toContain('ABC-123'))
+  await user.click(within(screen.getByRole('dialog', { name: 'Filters' })).getByRole('button', { name: 'Done' }))
+  await user.click(screen.getByRole('button', { name: 'Clear filters' }))
+  await waitFor(() => expect(screen.queryByRole('button', { name: 'Clear filters' })).toBeNull())
+  expect(writes()).toHaveLength(0)
+})
+
+it('rejects an invalid assignment deep link without mounting a stalled editor', async () => {
+  mount('?assign=-8')
+  await screen.findByText(/does not contain a valid record ID/)
+  expect(screen.queryByRole('dialog')).toBeNull()
+  expect(requests.some((request) => request.url === '/outgoing-deliveries/-8')).toBe(false)
+  expect(writes()).toHaveLength(0)
+})
+
+it('offers review rather than a nonexistent reconciliation when no run members are outstanding', async () => {
+  run = { ...run, status: 'DISPATCHED', deliveries: run.deliveries.map((member) => ({ ...member, status: 'RECONCILED' })) }
+  mount(false)
+  await screen.findByRole('button', { name: 'View Details' })
+  expect(screen.queryByRole('button', { name: 'Reconcile Deliveries' })).toBeNull()
+  expect(writes()).toHaveLength(0)
+})
+
+it('blocks a changed assignment revision until the user refreshes and reviews', async () => {
+  mount('?assign=8')
+  const user = userEvent.setup()
+  await user.click(await screen.findByRole('button', { name: 'Use Existing Run' }))
+  await user.click(await screen.findByRole('button', { name: 'Choose run' }))
+  await user.click(await screen.findByRole('menuitem', { name: 'RUN-1 · Main · 1 delivery assigned' }))
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Assign Delivery' }).hasAttribute('disabled')).toBe(false))
+  run = { ...run, revision: 5 }
+  await user.click(screen.getByRole('button', { name: 'Assign Delivery' }))
+  await screen.findByText(/The delivery or run changed/)
+  expect(writes()).toHaveLength(0)
+  expect(screen.getByRole('button', { name: 'Assign Delivery' }).hasAttribute('disabled')).toBe(true)
+  await user.click(screen.getByRole('button', { name: 'Refresh to review' }))
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Assign Delivery' }).hasAttribute('disabled')).toBe(false))
+  await user.click(screen.getByRole('button', { name: 'Assign Delivery' }))
+  await waitFor(() => expect(writes()).toHaveLength(1))
+  expect(writes()[0].body.expectedRevision).toBe(5)
+})
+
+it('does not allow staff assignment writes', async () => {
+  auth.isAdmin = false; auth.isStaff = true
+  mount('?assign=8')
+  await screen.findByText(/Only administrators and managers can assign/)
+  expect(screen.queryByRole('button', { name: 'Assign Delivery' })).toBeNull()
+  expect(requests.some((request) => request.url === '/outgoing-deliveries/8')).toBe(false)
+  expect(writes()).toHaveLength(0)
+})
+
+it('excludes preparing runs from another warehouse from the assignment picker', async () => {
+  run = { ...run, warehouseId: 3 }
+  mount('?assign=8')
+  const user = userEvent.setup()
+  await user.click(await screen.findByRole('button', { name: 'Use Existing Run' }))
+  await user.click(await screen.findByRole('button', { name: 'Choose run' }))
+  await screen.findByText('No eligible runs on this page. Create a new run or check another page.')
+  expect(screen.queryByRole('menuitem', { name: /RUN-1/ })).toBeNull()
+  await user.keyboard('{Escape}')
+  expect(screen.queryByRole('button', { name: 'Assign Delivery' })).toBeNull()
+  expect(writes()).toHaveLength(0)
+})
+
+it('keeps an already assigned delivery read-only and opens its run', async () => {
+  deliveries[0] = { ...deliveries[0], runId: 1 }
+  mount('?assign=8')
+  const user = userEvent.setup()
+  await user.click(await screen.findByRole('button', { name: 'Open Run' }))
+  await screen.findByRole('dialog', { name: 'RUN-1' })
+  expect(writes()).toHaveLength(0)
+})
+
+it('preserves assignment review after an ambiguous response and prevents blind resubmission', async () => {
+  const adapter = apiClient.defaults.adapter as AxiosAdapter
+  apiClient.defaults.adapter = async (config) => {
+    const response = await adapter(config)
+    return config.method === 'patch' && config.url === '/delivery-runs/1/deliveries' ? { ...response, data: { ...response.data, deliveries: [] } } : response
+  }
+  mount('?assign=8')
+  const user = userEvent.setup()
+  await user.click(await screen.findByRole('button', { name: 'Use Existing Run' }))
+  await user.click(await screen.findByRole('button', { name: 'Choose run' }))
+  await user.click(await screen.findByRole('menuitem', { name: 'RUN-1 · Main · 1 delivery assigned' }))
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Assign Delivery' }).hasAttribute('disabled')).toBe(false))
+  await user.click(screen.getByRole('button', { name: 'Assign Delivery' }))
+  await screen.findByText(/Assignment was not confirmed/)
+  expect(writes()).toHaveLength(1)
+  expect(screen.queryByRole('button', { name: 'Assign Delivery' })).toBeNull()
+  await user.click(screen.getByRole('button', { name: 'Open run for review' }))
+  await screen.findByRole('dialog', { name: 'RUN-1' })
+  expect(writes()).toHaveLength(1)
+})
 
 it('edits the reviewed draft revision without closing on a stale write', async () => {
   const client = mount()

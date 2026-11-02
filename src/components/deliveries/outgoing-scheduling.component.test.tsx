@@ -1,4 +1,4 @@
-﻿import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
@@ -867,7 +867,7 @@ it('keeps confirmed scheduling success separate from a list refresh failure and 
   expect(schedules()).toHaveLength(1)
 })
 
-it.each(['status', 'warehouse', 'date'])(
+it.each(['status', 'warehouse'])(
   'preserves a conflicting %s filter until Show in List is requested',
   async (filter) => {
     mountHub(1)
@@ -877,9 +877,11 @@ it.each(['status', 'warehouse', 'date'])(
       await user.click(screen.getByRole('combobox', { name: 'Status' }))
       await user.click(screen.getByRole('option', { name: 'Draft' }))
     } else if (filter === 'warehouse') {
+      await user.click(screen.getByRole('button', { name: /^Filters/ }))
       await user.click(screen.getByRole('combobox', { name: 'Warehouse' }))
       await user.click(screen.getByRole('option', { name: 'Main Warehouse' }))
-    } else fireEvent.change(screen.getByLabelText('To Date'), { target: { value: '2020-01-01' } })
+      await user.click(within(screen.getByRole('dialog', { name: 'Filters' })).getByRole('button', { name: 'Done' }))
+    }
     await scheduleFromHub(user)
     await finishHubSchedule(user)
     expect(screen.getByText(/Current filters hide this delivery/)).toBeTruthy()
@@ -888,6 +890,14 @@ it.each(['status', 'warehouse', 'date'])(
     expect(schedules()).toHaveLength(1)
   },
 )
+
+it('omits unsupported outgoing date filters instead of hiding records on the current page', async () => {
+  mountHub(1)
+  await screen.findByRole('button', { name: 'Plan Outgoing' })
+  expect(screen.queryByLabelText('From Date')).toBeNull()
+  expect(screen.queryByLabelText('To Date')).toBeNull()
+  expect(screen.queryByLabelText('Scheduled from')).toBeNull()
+})
 
 it('waits for the active outgoing list refresh while preventing another schedule submission', async () => {
   mountHub(1)

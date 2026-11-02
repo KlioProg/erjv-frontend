@@ -141,6 +141,7 @@ export function DeliveryDetailModal({ deliveryId, open, onClose }: DeliveryDetai
             {delivery && (
               <DeliveryStatusBadge
                 status={delivery.status}
+                runId={delivery.runId}
                 className="mt-0.5 shrink-0"
                 showDot={false}
               />

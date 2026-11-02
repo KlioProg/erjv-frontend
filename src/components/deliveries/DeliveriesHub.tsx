@@ -7,12 +7,10 @@ import type { SalesOrderRecord } from '@/features/crm/sales-orders.types'
 import type { Supplier } from '@/features/logistics/suppliers.types'
 import type { Client } from '@/features/crm/clients.types'
 import type { InventoryItemResponse } from '@/features/products/products.types'
-import { PageHeader, PageToolbar } from '@/components/ui/ManagementPage'
+import { PageHeader } from '@/components/ui/ManagementPage'
 import { IncomingDeliveryDetailModal } from './shared/IncomingDeliveryDetailModal'
 import {
   buildDeliveryRows,
-  localDeliveryDay,
-  deliveryNeedsAttention,
   DELIVERY_STATUS_LABELS,
   deliveryBelongsToView,
   getDeliveryActions,
@@ -20,10 +18,10 @@ import {
   type DeliveryView,
   type DeliveryRow,
 } from '@/features/logistics/delivery-workflow'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router'
-import { ArrowDownToLine, Plus, Search } from 'lucide-react'
+import { ArrowDownToLine, Plus } from 'lucide-react'
 import { DeliveryTable } from './DeliveryTable'
 import { OrderDetailDrawer } from '@/components/orders/OrderDetailDrawer'
 import { PurchaseOrderDetailModal } from '@/components/purchases/PurchaseOrderDetailModal'
@@ -67,7 +65,8 @@ import { DeliveryDetailModal } from './shared/DeliveryDetailModal'
 import type { OutgoingDeliveryRecord } from '@/features/logistics/outgoing-deliveries.types'
 import { getErrorMessage } from '@/lib/api-client'
 import { useResourcePage } from '@/lib/use-cursor-page'
-import { CursorPageControls } from '@/components/ui/CursorPageControls'
+import { DeliveryTableToolbar, DeliveryPageFooter } from './DeliveryTableToolbar'
+import { Checkbox } from '@/components/ui/checkbox'
 import type { IncomingDeliveryRecord } from '@/features/logistics/incoming-deliveries.types'
 
 // Older callers retain their navigation hints; outgoing aliases share the active view.
@@ -84,15 +83,20 @@ function DeliveryFilter({
   value,
   onChange,
   options,
+  compact = false,
 }: {
   label: string
   value: string
   onChange: (value: string) => void
   options: { value: string; label: string }[]
+  compact?: boolean
 }) {
   return (
     <div className="flex min-w-0 flex-col gap-2">
-      <Label className="text-[13px] font-medium" htmlFor={`delivery-filter-${label}`}>
+      <Label
+        className={compact ? 'sr-only' : 'text-sm font-medium'}
+        htmlFor={`delivery-filter-${label}`}
+      >
         {label}
       </Label>
       <Select value={value} onValueChange={onChange}>
@@ -123,17 +127,13 @@ export function DeliveriesHub({
   const navigate = useNavigate()
   const view: DeliveryView =
     initialTab === 'history' ? 'history' : initialTab === 'incoming' ? 'incoming' : 'outgoing'
-  const [now, setNow] = useState(Date.now)
-  useEffect(() => {
-    const interval = window.setInterval(() => setNow(Date.now()), 60_000)
-    return () => window.clearInterval(interval)
-  }, [])
   const [type, setType] = useState('ALL')
   const [status, setStatus] = useState('ALL')
   const [warehouseId, setWarehouseId] = useState('ALL')
   const [search, setSearch] = useState('')
   const [fromDate, setFromDate] = useState('')
   const [toDate, setToDate] = useState('')
+  const [unassigned, setUnassigned] = useState(false)
   const [orderScope, setOrderScope] = useState<number | null>(
     purchaseOrderId ?? salesOrderId ?? null,
   )
@@ -172,8 +172,16 @@ export function DeliveriesHub({
       ...(orderScope !== null ? { purchaseOrderId: orderScope } : {}),
       ...(search.trim() ? { q: search.trim() } : {}),
       ...(warehouseId !== 'ALL' ? { warehouseId: Number(warehouseId) } : {}),
-      ...(fromDate ? { scheduledFrom: new Date(`${fromDate}T00:00:00`).toISOString() } : {}),
-      ...(toDate ? { scheduledBefore: (() => { const boundary = new Date(`${toDate}T00:00:00`); boundary.setDate(boundary.getDate() + 1); return boundary.toISOString() })() } : {}),
+      ...(view === 'incoming' && fromDate
+        ? { scheduledFrom: new Date(`${fromDate}T00:00:00+08:00`).toISOString() }
+        : {}),
+      ...(view === 'incoming' && toDate
+        ? {
+            scheduledBefore: new Date(
+              Date.parse(`${toDate}T00:00:00+08:00`) + 86400000,
+            ).toISOString(),
+          }
+        : {}),
     },
     incomingEnabled,
   )
@@ -184,21 +192,45 @@ export function DeliveriesHub({
       ...(orderScope !== null ? { salesOrderId: orderScope } : {}),
       ...(search.trim() ? { q: search.trim() } : {}),
       ...(warehouseId !== 'ALL' ? { warehouseId: Number(warehouseId) } : {}),
+      ...(unassigned ? { unassigned: 'true' } : {}),
     },
     outgoingEnabled,
-    [fromDate, toDate],
   )
   const incoming = incomingQuery.items
   const outgoing = outgoingQuery.items
-  const { data: purchaseOrders } = useRecordsById<PurchaseOrderRecord>('/purchase-orders', [...incoming.map(delivery => delivery.purchaseOrderId), viewOrder?.type === 'Incoming' ? viewOrder.id : undefined])
-  const { data: salesOrders } = useRecordsById<SalesOrderRecord>('/sales-orders', [...outgoing.map(delivery => delivery.salesOrderId), viewOrder?.type === 'Outgoing' ? viewOrder.id : undefined])
-  const { data: suppliers } = useRecordsById<Supplier>('/suppliers', purchaseOrders.map(order => order.supplierId))
-  const { data: clients } = useRecordsById<Client>('/clients', salesOrders.map(order => order.clientId))
+  const { data: purchaseOrders } = useRecordsById<PurchaseOrderRecord>('/purchase-orders', [
+    ...incoming.map((delivery) => delivery.purchaseOrderId),
+    viewOrder?.type === 'Incoming' ? viewOrder.id : undefined,
+  ])
+  const { data: salesOrders } = useRecordsById<SalesOrderRecord>('/sales-orders', [
+    ...outgoing.map((delivery) => delivery.salesOrderId),
+    viewOrder?.type === 'Outgoing' ? viewOrder.id : undefined,
+  ])
+  const { data: suppliers } = useRecordsById<Supplier>(
+    '/suppliers',
+    purchaseOrders.map((order) => order.supplierId),
+  )
+  const { data: clients } = useRecordsById<Client>(
+    '/clients',
+    salesOrders.map((order) => order.clientId),
+  )
   const { data: warehouses = [] } = useAllWarehouses()
-  const { data: runs } = useRecordsById<DeliveryRunRecord>('/delivery-runs', outgoing.map(delivery => delivery.runId))
-  const { data: vehicles } = useRecordsById<DeliveryVehicle>('/delivery-vehicles', runs.map(run => run.deliveryVehicleId))
-  const { data: employees } = useRecordsById<Employee>('/employees', runs.map(run => run.driverEmployeeId))
-  const { data: products } = useRecordsById<InventoryItemResponse>('/inventory-items', [...purchaseOrders.flatMap(order => order.items.map(item => item.inventoryItemId)), ...salesOrders.flatMap(order => order.items.map(item => item.inventoryItemId))])
+  const { data: runs } = useRecordsById<DeliveryRunRecord>(
+    '/delivery-runs',
+    outgoing.map((delivery) => delivery.runId),
+  )
+  const { data: vehicles } = useRecordsById<DeliveryVehicle>(
+    '/delivery-vehicles',
+    runs.map((run) => run.deliveryVehicleId),
+  )
+  const { data: employees } = useRecordsById<Employee>(
+    '/employees',
+    runs.map((run) => run.driverEmployeeId),
+  )
+  const { data: products } = useRecordsById<InventoryItemResponse>('/inventory-items', [
+    ...purchaseOrders.flatMap((order) => order.items.map((item) => item.inventoryItemId)),
+    ...salesOrders.flatMap((order) => order.items.map((item) => item.inventoryItemId)),
+  ])
   const { data: stockItems = [] } = useStockItems()
   const createIncoming = useCreateIncomingDelivery()
   const scheduleIncoming = useScheduleIncomingDelivery()
@@ -230,28 +262,28 @@ export function DeliveriesHub({
     if (view === 'history' && type !== 'ALL' && row.type !== type) return false
     if (status !== 'ALL' && row.status !== status) return false
     if (orderScope !== null && row.orderId !== orderScope) return false
-    if (row.type === 'Outgoing') {
-      const day = localDeliveryDay(row.date)
-      if (fromDate && (!day || day < fromDate)) return false
-      if (toDate && (!day || day > toDate)) return false
-    }
     return true
   })
   const viewRow = rows.find((row) => row.type === 'Incoming' && row.record.id === viewIncomingId)
-  const selectedPurchase = usePurchaseOrderById(viewOrder?.type === 'Incoming' ? viewOrder.id : undefined)
+  const selectedPurchase = usePurchaseOrderById(
+    viewOrder?.type === 'Incoming' ? viewOrder.id : undefined,
+  )
   const selectedSale = useSalesOrderById(viewOrder?.type === 'Outgoing' ? viewOrder.id : undefined)
-  const purchaseOrderToView = viewOrder?.type === 'Incoming' ? selectedPurchase.data ?? null : null
-  const salesOrderToView = viewOrder?.type === 'Outgoing' ? selectedSale.data ?? null : null
+  const purchaseOrderToView =
+    viewOrder?.type === 'Incoming' ? (selectedPurchase.data ?? null) : null
+  const salesOrderToView = viewOrder?.type === 'Outgoing' ? (selectedSale.data ?? null) : null
   // These selected-order aggregates require every receipt/member, independent of the visible page.
   const purchaseDeliveries = useQuery({
     queryKey: ['incoming-deliveries', 'order-detail', purchaseOrderToView?.id],
     enabled: !!purchaseOrderToView,
-    queryFn: ({ signal }) => fetchIncomingDeliveriesApi({ purchaseOrderId: purchaseOrderToView!.id }, signal),
+    queryFn: ({ signal }) =>
+      fetchIncomingDeliveriesApi({ purchaseOrderId: purchaseOrderToView!.id }, signal),
   })
   const saleDeliveries = useQuery({
     queryKey: ['outgoing-deliveries', 'order-detail', salesOrderToView?.id],
     enabled: !!salesOrderToView,
-    queryFn: ({ signal }) => fetchOutgoingDeliveriesApi({ salesOrderId: salesOrderToView!.id }, signal),
+    queryFn: ({ signal }) =>
+      fetchOutgoingDeliveriesApi({ salesOrderId: salesOrderToView!.id }, signal),
   })
   const availableStatuses = Object.entries(DELIVERY_STATUS_LABELS).filter(([value]) =>
     view === 'history'
@@ -261,11 +293,15 @@ export function DeliveriesHub({
         : ['DRAFT', 'READY', 'DISPATCHED'].includes(value),
   )
   const handleAction = (row: DeliveryRow, action: DeliveryAction) => {
+    if (row.type === 'Outgoing' && action === 'run' && row.record.runId != null) {
+      navigate(`/deliveries/runs?run=${row.record.runId}`)
+      return
+    }
     if (!canManage || pending || !getDeliveryActions(row).includes(action)) return
     if (action === 'receive') setReceiveId(row.record.id)
     else if (action === 'reconcile') setCompleteId(row.record.id)
     else if (row.type === 'Outgoing' && action === 'run')
-      navigate(`/deliveries/runs${row.record.runId ? `?run=${row.record.runId}` : ''}`)
+      navigate(`/deliveries/runs?assign=${row.record.id}`)
     else if (row.type === 'Outgoing' && action === 'ready') {
       setOutgoingDraftId(row.record.id)
       setCreateType('Outgoing')
@@ -306,143 +342,61 @@ export function DeliveriesHub({
     setSearch('')
     setFromDate('')
     setToDate('')
+    setUnassigned(false)
     setOrderScope(null)
   }
   const hasFilters =
+    type !== 'ALL' ||
     status !== 'ALL' ||
     warehouseId !== 'ALL' ||
     !!search.trim() ||
     !!fromDate ||
     !!toDate ||
-    orderScope !== null
-  return (
-    <div className="flex min-w-0 flex-col gap-6">
-      <PageHeader
-        description={
-          view === 'history'
-            ? 'Completed and cancelled deliveries remain available for review.'
-            : view === 'incoming'
-              ? 'Arrange supplier shipments and receive goods into a destination warehouse.'
-              : 'Prepare customer shipments by choosing available stock sources for each order item.'
-        }
-      >
-        {view === 'history'
-          ? 'Delivery History'
-          : view === 'incoming'
-            ? 'Incoming Deliveries'
-            : 'Outgoing Deliveries'}
-      </PageHeader>
-      {incomingScheduleFailure && (
-        <Alert variant="destructive">
-          <AlertDescription>{incomingScheduleFailure}</AlertDescription>
-        </Alert>
-      )}
-      <p className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-muted-foreground">
-        <span>
-          {rows.filter((row) => deliveryBelongsToView(row, view)).length} loaded deliveries
-        </span>
-        {view !== 'history' && (
-          <span>
-            {
-              rows.filter(
-                (row) => deliveryBelongsToView(row, view) && deliveryNeedsAttention(row, now),
-              ).length
-            }{' '}
-            loaded deliveries need attention
-          </span>
-        )}
-      </p>
-      <PageToolbar className="[&>div:first-child]:max-w-xl!">
-        <div className="relative min-w-0 flex-1 sm:min-w-64">
-          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            aria-label="Search deliveries"
-            placeholder="Search delivery, order, supplier, or customer..."
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            className="h-10 pl-9 text-[13px]"
-          />
-        </div>
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          <Button variant="ghost" size="sm" onClick={clearFilters}>
-            Clear Filters
-          </Button>
-          {canManage && view !== 'history' && (
-            <div className="flex flex-wrap gap-2">
-              {view === 'incoming' && (
-                <Button
-                  size="sm"
-                  variant="default"
-                  onClick={() => setCreateType('Incoming')}
-                >
-                  <ArrowDownToLine data-icon="inline-start" />
-                  Schedule Incoming
-                </Button>
-              )}
-              {view === 'outgoing' && (
-                <Button
-                  size="sm"
-                  onClick={() => setCreateType('Outgoing')}
-                >
-                  <Plus data-icon="inline-start" />
-                  Plan Outgoing
-                </Button>
-              )}
-            </div>
-          )}
-        </div>
-      </PageToolbar>
-      <div
-        className={`grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 ${view === 'history' ? 'xl:grid-cols-5' : ''}`}
-      >
-        <DeliveryFilter
-          label="Status"
-          value={status}
-          onChange={setStatus}
-          options={[
-            { value: 'ALL', label: 'All Statuses' },
-            ...availableStatuses.map(([value, label]) => ({ value, label })),
-          ]}
-        />
-        <DeliveryFilter
-          label="Warehouse"
-          value={warehouseId}
-          onChange={setWarehouseId}
-          options={[
-            { value: 'ALL', label: 'All Warehouses' },
-            ...warehouses.map((warehouse) => ({
-              value: String(warehouse.id),
-              label: warehouse.name,
-            })),
-          ]}
-        />
-        <div className="flex min-w-0 flex-col gap-2">
-          <Label htmlFor="delivery-date-from" className="text-[13px] font-medium">
-            From Date
-          </Label>
-          <Input
-            id="delivery-date-from"
-            type="date"
-            value={fromDate}
-            onChange={(event) => setFromDate(event.target.value)}
-            className="h-10 min-w-0 text-[13px]"
-          />
-        </div>
-        <div className="flex min-w-0 flex-col gap-2">
-          <Label htmlFor="delivery-date-to" className="text-[13px] font-medium">
-            To Date
-          </Label>
-          <Input
-            id="delivery-date-to"
-            type="date"
-            value={toDate}
-            min={fromDate || undefined}
-            onChange={(event) => setToDate(event.target.value)}
-            className="h-10 min-w-0 text-[13px]"
-          />
-        </div>
-        {view === 'history' && (
+    orderScope !== null ||
+    unassigned
+  const activeFilterCount = [
+    type !== 'ALL',
+    status !== 'ALL',
+    warehouseId !== 'ALL',
+    !!search.trim(),
+    !!fromDate,
+    !!toDate,
+    orderScope !== null,
+    unassigned,
+  ].filter(Boolean).length
+  const statusFilter = (
+    <DeliveryFilter
+      compact={view !== 'history'}
+      label={view === 'history' ? 'Outcome' : 'Status'}
+      value={status}
+      onChange={setStatus}
+      options={[
+        { value: 'ALL', label: view === 'history' ? 'All outcomes' : 'All Statuses' },
+        ...availableStatuses.map(([value, label]) => ({
+          value,
+          label: value === 'READY' ? 'Ready / Assigned' : label,
+        })),
+      ]}
+    />
+  )
+  const toolbar = (
+    <DeliveryTableToolbar
+      search={search}
+      onSearch={setSearch}
+      searchLabel="Search deliveries"
+      placeholder={
+        view === 'incoming'
+          ? 'Search incoming deliveries'
+          : view === 'outgoing'
+            ? 'Search outgoing deliveries'
+            : 'Search delivery history'
+      }
+      activeCount={activeFilterCount}
+      onClear={clearFilters}
+      primaryFilter={
+        view === 'history' ? (
           <DeliveryFilter
+            compact
             label="Direction"
             value={type}
             onChange={(value) => {
@@ -450,109 +404,264 @@ export function DeliveriesHub({
               setStatus('ALL')
             }}
             options={[
-              { value: 'ALL', label: 'All' },
-              ...['Incoming', 'Outgoing'].map((value) => ({ value, label: value })),
+              { value: 'ALL', label: 'All directions' },
+              { value: 'Incoming', label: 'Incoming' },
+              { value: 'Outgoing', label: 'Outgoing' },
             ]}
           />
+        ) : (
+          statusFilter
+        )
+      }
+      filters={
+        <>
+          {view === 'history' && statusFilter}
+          <DeliveryFilter
+            label="Warehouse"
+            value={warehouseId}
+            onChange={setWarehouseId}
+            options={[
+              { value: 'ALL', label: 'All Warehouses' },
+              ...warehouses.map((warehouse) => ({
+                value: String(warehouse.id),
+                label: warehouse.name,
+              })),
+            ]}
+          />
+          {view === 'incoming' && (
+            <>
+              <div className="grid gap-1.5">
+                <Label htmlFor="delivery-date-from">Scheduled from</Label>
+                <Input
+                  id="delivery-date-from"
+                  type="date"
+                  value={fromDate}
+                  onChange={(event) => setFromDate(event.target.value)}
+                />
+              </div>
+              <div className="grid gap-1.5">
+                <Label htmlFor="delivery-date-to">Scheduled through</Label>
+                <Input
+                  id="delivery-date-to"
+                  type="date"
+                  value={toDate}
+                  min={fromDate || undefined}
+                  onChange={(event) => setToDate(event.target.value)}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Scheduled dates use Asia/Manila; they do not filter receipt dates.
+              </p>
+            </>
+          )}
+          {view === 'outgoing' && (
+            <label className="flex min-h-11 items-center gap-2 text-sm">
+              <Checkbox
+                checked={unassigned}
+                onCheckedChange={(value) => setUnassigned(value === true)}
+              />
+              Unassigned deliveries only
+            </label>
+          )}
+        </>
+      }
+    />
+  )
+  const renderTable = (tableRows: DeliveryRow[], loading: boolean) => (
+    <DeliveryTable
+      className="rounded-none border-0"
+      rows={tableRows}
+      view={view}
+      isLoading={loading}
+      hasFilters={hasFilters}
+      canManage={canManage}
+      pending={pending}
+      onView={(row) =>
+        row.type === 'Incoming'
+          ? setViewIncomingId(row.record.id)
+          : setViewOutgoingId(row.record.id)
+      }
+      onViewOrder={(row) => setViewOrder({ type: row.type, id: row.orderId })}
+      onAction={handleAction}
+    />
+  )
+  return (
+    <div className="flex min-w-0 flex-col gap-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <PageHeader
+          description={
+            view === 'history'
+              ? 'Completed and cancelled deliveries remain available for review.'
+              : view === 'incoming'
+                ? 'Arrange supplier shipments and receive goods into a destination warehouse.'
+                : 'Plan customer shipments, mark them ready, then assign them to a delivery run.'
+          }
+        >
+          {view === 'history'
+            ? 'Delivery History'
+            : view === 'incoming'
+              ? 'Incoming Deliveries'
+              : 'Outgoing Deliveries'}
+        </PageHeader>
+        {canManage && view !== 'history' && (
+          <Button onClick={() => setCreateType(view === 'incoming' ? 'Incoming' : 'Outgoing')}>
+            {view === 'incoming' ? (
+              <ArrowDownToLine aria-hidden="true" />
+            ) : (
+              <Plus aria-hidden="true" />
+            )}
+            {view === 'incoming' ? 'Schedule Incoming' : 'Plan Outgoing'}
+          </Button>
         )}
       </div>
-      {outgoingEnabled && <p className="text-xs text-muted-foreground">Outgoing date filters apply to the current page; the backend does not support outgoing date filtering.</p>}
-      {orderScope !== null && (
-        <p className="text-xs text-muted-foreground">
-          {view === 'incoming' ? 'Incoming' : 'Outgoing'} deliveries for{' '}
-          {(view === 'incoming' ? purchaseOrders : salesOrders).find(
-            (order) => order.id === orderScope,
-          )?.orderNumber || `Order #${orderScope}`}
-          .{' '}
-          <Button variant="link" size="sm" onClick={() => setOrderScope(null)}>
-            Show all orders
-          </Button>
-        </p>
-      )}
-      {hasDeliveryError && (
+      {incomingScheduleFailure && (
         <Alert variant="destructive">
-          <AlertDescription>
-            Some deliveries could not be loaded.{' '}
-            <Button
-              variant="link"
-              size="sm"
-              onClick={() => {
-                void incomingQuery.reload()
-                void outgoingQuery.reload()
-              }}
-              disabled={isFetchingDeliveries}
-            >
-              {isFetchingDeliveries ? 'Retrying...' : 'Retry'}
-            </Button>
-          </AlertDescription>
+          <AlertDescription>{incomingScheduleFailure}</AlertDescription>
         </Alert>
       )}
-      {view === 'outgoing' &&
-        lastSavedOutgoing &&
-        (outgoingQuery.isError ||
-          !filtered.some(
-            (row) =>
-              row.record.id === lastSavedOutgoing.id && row.status === lastSavedOutgoing.status,
-          )) && (
-          <Alert>
+      <div data-delivery-table className="min-w-0 overflow-hidden rounded-lg border bg-card">
+        {toolbar}
+        {view === 'history' && (
+          <p className="border-b px-3 py-2 text-sm text-muted-foreground">
+            Incoming and outgoing history have separate pages. Each shows its recorded completion or
+            cancellation dates.
+          </p>
+        )}
+        {orderScope !== null && (
+          <p className="text-xs text-muted-foreground">
+            {view === 'incoming' ? 'Incoming' : 'Outgoing'} deliveries for{' '}
+            {(view === 'incoming' ? purchaseOrders : salesOrders).find(
+              (order) => order.id === orderScope,
+            )?.orderNumber || `Order #${orderScope}`}
+            .{' '}
+            <Button variant="link" size="sm" onClick={() => setOrderScope(null)}>
+              Show all orders
+            </Button>
+          </p>
+        )}
+        {hasDeliveryError && (
+          <Alert variant="destructive">
             <AlertDescription>
-              {lastSavedOutgoing.deliveryNumber}{' '}
-              {lastSavedOutgoing.status === 'READY' ? 'was marked ready' : 'was saved'}.{' '}
-              {outgoingQuery.isFetching
-                ? 'Refreshing outgoing deliveries...'
-                : outgoingQuery.isError
-                  ? 'The list could not be refreshed. Do not schedule it again.'
-                  : hasFilters
-                    ? 'Current filters hide this delivery.'
-                    : 'It is not currently visible in the list.'}
+              Some deliveries could not be loaded.{' '}
               <Button
                 variant="link"
                 size="sm"
-                onClick={() => setViewOutgoingId(lastSavedOutgoing.id)}
+                onClick={() => {
+                  void incomingQuery.reload()
+                  void outgoingQuery.reload()
+                }}
+                disabled={isFetchingDeliveries}
               >
-                View New Delivery
+                {isFetchingDeliveries ? 'Retrying...' : 'Retry'}
               </Button>
-              {hasFilters && (
-                <Button
-                  variant="link"
-                  size="sm"
-                  onClick={() => {
-                    clearFilters()
-                    setSearch(lastSavedOutgoing.deliveryNumber)
-                  }}
-                >
-                  Show in List
-                </Button>
-              )}
             </AlertDescription>
           </Alert>
         )}
-      {hasDeliveryError && filtered.length === 0 && !isLoadingDeliveries ? (
-        <div className="flex min-h-[360px] items-center justify-center rounded-lg border border-border bg-card px-4 py-12 text-center text-sm text-muted-foreground">
-          Delivery records are unavailable until the request succeeds.
-        </div>
-      ) : (
-        <DeliveryTable
-          rows={filtered}
-          view={view}
-          isLoading={
-            isLoadingDeliveries ||
-            (view === 'outgoing' && outgoingQuery.isFetching && !filtered.length)
-          }
-          hasFilters={view === 'outgoing' && hasFilters}
-          canManage={canManage}
-          pending={pending}
-          onView={(row) =>
-            row.type === 'Incoming'
-              ? setViewIncomingId(row.record.id)
-              : setViewOutgoingId(row.record.id)
-          }
-          onViewOrder={(row) => setViewOrder({ type: row.type, id: row.orderId })}
-          onAction={handleAction}
-        />
-      )}
-      {incomingEnabled && <CursorPageControls {...incomingQuery} label="Incoming delivery" />}
-      {outgoingEnabled && <CursorPageControls {...outgoingQuery} label="Outgoing delivery" />}
+        {view === 'outgoing' &&
+          lastSavedOutgoing &&
+          (outgoingQuery.isError ||
+            !filtered.some(
+              (row) =>
+                row.record.id === lastSavedOutgoing.id && row.status === lastSavedOutgoing.status,
+            )) && (
+            <Alert>
+              <AlertDescription>
+                {lastSavedOutgoing.deliveryNumber}{' '}
+                {lastSavedOutgoing.status === 'READY' ? 'was marked ready' : 'was saved'}.{' '}
+                {outgoingQuery.isFetching
+                  ? 'Refreshing outgoing deliveries...'
+                  : outgoingQuery.isError
+                    ? 'The list could not be refreshed. Do not schedule it again.'
+                    : hasFilters
+                      ? 'Current filters hide this delivery.'
+                      : 'It is not currently visible in the list.'}
+                <Button
+                  variant="link"
+                  size="sm"
+                  onClick={() => setViewOutgoingId(lastSavedOutgoing.id)}
+                >
+                  View New Delivery
+                </Button>
+                {hasFilters && (
+                  <Button
+                    variant="link"
+                    size="sm"
+                    onClick={() => {
+                      clearFilters()
+                      setSearch(lastSavedOutgoing.deliveryNumber)
+                    }}
+                  >
+                    Show in List
+                  </Button>
+                )}
+              </AlertDescription>
+            </Alert>
+          )}
+        {view === 'history' ? (
+          <div className="divide-y">
+            {incomingEnabled && (
+              <section aria-label="Incoming history">
+                <h2 className="border-b bg-muted/30 px-3 py-2 text-sm font-semibold">
+                  Incoming history
+                </h2>
+                {incomingQuery.isError && !incoming.length ? (
+                  <p role="status">Incoming history is unavailable. Retry to load records.</p>
+                ) : (
+                  renderTable(
+                    filtered.filter((row) => row.type === 'Incoming'),
+                    incomingQuery.isFetching,
+                  )
+                )}
+                <DeliveryPageFooter
+                  query={incomingQuery}
+                  count={filtered.filter((row) => row.type === 'Incoming').length}
+                  label="Incoming delivery"
+                />
+              </section>
+            )}
+            {outgoingEnabled && (
+              <section aria-label="Outgoing history">
+                <h2 className="border-b bg-muted/30 px-3 py-2 text-sm font-semibold">
+                  Outgoing history
+                </h2>
+                {outgoingQuery.isError && !outgoing.length ? (
+                  <p role="status">Outgoing history is unavailable. Retry to load records.</p>
+                ) : (
+                  renderTable(
+                    filtered.filter((row) => row.type === 'Outgoing'),
+                    outgoingQuery.isFetching,
+                  )
+                )}
+                <DeliveryPageFooter
+                  query={outgoingQuery}
+                  count={filtered.filter((row) => row.type === 'Outgoing').length}
+                  label="Outgoing delivery"
+                />
+              </section>
+            )}
+          </div>
+        ) : hasDeliveryError && filtered.length === 0 && !isLoadingDeliveries ? (
+          <div className="flex min-h-[360px] items-center justify-center rounded-lg border border-border bg-card px-4 py-12 text-center text-sm text-muted-foreground">
+            Delivery records are unavailable until the request succeeds.
+          </div>
+        ) : (
+          renderTable(filtered, isLoadingDeliveries)
+        )}
+        {view !== 'history' && incomingEnabled && (
+          <DeliveryPageFooter
+            query={incomingQuery}
+            count={filtered.length}
+            label="Incoming delivery"
+          />
+        )}
+        {view !== 'history' && outgoingEnabled && (
+          <DeliveryPageFooter
+            query={outgoingQuery}
+            count={filtered.length}
+            label="Outgoing delivery"
+          />
+        )}
+      </div>
       {canManage && createType === 'Incoming' && (
         <ScheduleIncomingDeliveryModal
           key={orderScope ?? 'incoming'}
@@ -648,7 +757,27 @@ export function DeliveriesHub({
         stockItems={stockItems}
         outgoingDeliveries={saleDeliveries.data ?? []}
       />
-      {viewOrder && ((viewOrder.type === 'Incoming' ? selectedPurchase : selectedSale).isError || (viewOrder.type === 'Outgoing' && saleDeliveries.isError)) && <Alert variant="destructive"><AlertDescription>The selected order and its full delivery history could not be loaded. <Button variant="link" onClick={() => { void (viewOrder.type === 'Incoming' ? selectedPurchase : selectedSale).refetch(); if (viewOrder.type === 'Outgoing') void saleDeliveries.refetch() }}>Retry loading order</Button><Button variant="link" onClick={() => setViewOrder(null)}>Close order</Button></AlertDescription></Alert>}
+      {viewOrder &&
+        ((viewOrder.type === 'Incoming' ? selectedPurchase : selectedSale).isError ||
+          (viewOrder.type === 'Outgoing' && saleDeliveries.isError)) && (
+          <Alert variant="destructive">
+            <AlertDescription>
+              The selected order and its full delivery history could not be loaded.{' '}
+              <Button
+                variant="link"
+                onClick={() => {
+                  void (viewOrder.type === 'Incoming' ? selectedPurchase : selectedSale).refetch()
+                  if (viewOrder.type === 'Outgoing') void saleDeliveries.refetch()
+                }}
+              >
+                Retry loading order
+              </Button>
+              <Button variant="link" onClick={() => setViewOrder(null)}>
+                Close order
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
       <ConfirmDeleteModal
         key={
           confirmation ? `${confirmation.row.key}-${confirmation.action}` : 'delivery-confirmation'

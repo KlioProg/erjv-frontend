@@ -7,7 +7,6 @@ import { useResourcePage } from '@/lib/use-cursor-page'
 import { useQueries, useQuery } from '@tanstack/react-query'
 import { fetchSupplierByIdApi } from '@/features/logistics/suppliers.api'
 import { CursorPageControls } from '@/components/ui/CursorPageControls'
-import { Label } from '@/components/ui/label'
 import { PageHeader, PageToolbar } from '@/components/ui/ManagementPage'
 import { toast } from 'sonner'
 import { useState, useMemo, useRef, type MouseEvent } from 'react'
@@ -98,8 +97,6 @@ export function PurchasesView({
   onNavigateToDeliveries,
 }: PurchasesViewProps = {}) {
   const [searchTerm, setSearchTerm] = useState('')
-  const [orderedFrom, setOrderedFrom] = useState('')
-  const [orderedBefore, setOrderedBefore] = useState('')
   const [activeStatus, setActiveStatus] = useState<PurchaseTabFilter>('Active')
   const [supplierView, setSupplierView] = useState<'ACTIVE' | 'ARCHIVED'>('ACTIVE')
 
@@ -118,7 +115,7 @@ export function PurchasesView({
   const processedBy = user?.fullName || user?.email || 'Current User'
 
   // Data queries
-  const ordersQuery = usePurchaseOrdersPage({ statuses: activeStatus === 'Active' ? ['DRAFT', 'CONFIRMED', 'PARTIALLY_RECEIVED'] : activeStatus === 'Completed' ? ['RECEIVED'] : ['CANCELLED'], q: searchTerm.trim() || undefined, orderedFrom: orderedFrom ? new Date(orderedFrom).toISOString() : undefined, orderedBefore: orderedBefore ? new Date(orderedBefore).toISOString() : undefined }, section === 'orders')
+  const ordersQuery = usePurchaseOrdersPage({ statuses: activeStatus === 'Active' ? ['DRAFT', 'CONFIRMED', 'PARTIALLY_RECEIVED'] : activeStatus === 'Completed' ? ['RECEIVED'] : ['CANCELLED'], q: searchTerm.trim() || undefined }, section === 'orders')
   const purchaseOrders = ordersQuery.items
   const isLoadingPOs = ordersQuery.isFetching
   const selectedDetail = usePurchaseOrderById(selectedOrderId ?? undefined)
@@ -605,10 +602,6 @@ export function PurchasesView({
             </Button>
           </PageToolbar>
 
-          <div className="flex flex-wrap gap-3" aria-label="Ordered date filters">
-            <div className="space-y-1"><Label htmlFor="po-ordered-from">Ordered from (inclusive)</Label><Input id="po-ordered-from" type="datetime-local" value={orderedFrom} onChange={(event) => setOrderedFrom(event.target.value)} className="h-9 w-auto" /></div>
-            <div className="space-y-1"><Label htmlFor="po-ordered-before">Ordered before (exclusive)</Label><Input id="po-ordered-before" type="datetime-local" value={orderedBefore} onChange={(event) => setOrderedBefore(event.target.value)} className="h-9 w-auto" /></div>
-          </div>
           {ordersQuery.isError ? (
             <Alert variant="destructive">
               <AlertDescription>

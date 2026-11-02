@@ -1,11 +1,21 @@
-import { CalendarCheck, Check, Eye, PackageCheck, Send, X } from 'lucide-react'
+import { CalendarCheck, Check, MoreHorizontal, PackageCheck, Send, X } from 'lucide-react'
 import { DataTable, type ColumnDef } from '@/components/ui/data-table'
 import { DataTableActions } from '@/components/ui/DataTableActions'
 import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+} from '@/components/ui/dropdown-menu'
 import { DeliveryStatusBadge } from './shared/DeliveryStatusBadge'
 import { IncomingDeliveryStatusBadge } from './shared/IncomingDeliveryDetailModal'
 import {
   formatDeliverySchedule,
+  deliveryHistoryDate,
+  outgoingStatusLabel,
+  DELIVERY_STATUS_LABELS,
   getDeliveryActions,
   type DeliveryAction,
   type DeliveryRow,
@@ -14,9 +24,9 @@ import {
 
 const actions = {
   schedule: { label: 'Schedule', Icon: CalendarCheck },
-  ready: { label: 'Plan / Mark Ready', Icon: Check },
+  ready: { label: 'Continue Planning', Icon: Check },
   reopen: { label: 'Reopen Draft', Icon: CalendarCheck },
-  run: { label: 'Manage Run', Icon: Send },
+  run: { label: 'Assign to Run', Icon: Send },
   receive: { label: 'Receive Goods', Icon: PackageCheck },
   reconcile: { label: 'Reconcile Delivery', Icon: Check },
   cancel: { label: 'Cancel Delivery', Icon: X },
@@ -32,6 +42,7 @@ export function DeliveryTable({
   onViewOrder,
   onAction,
   hasFilters = false,
+  className,
 }: {
   rows: DeliveryRow[]
   view: DeliveryView
@@ -42,6 +53,7 @@ export function DeliveryTable({
   onViewOrder: (row: DeliveryRow) => void
   onAction: (row: DeliveryRow, action: DeliveryAction) => void
   hasFilters?: boolean
+  className?: string
 }) {
   const columns: ColumnDef<DeliveryRow>[] = [
     {
@@ -50,19 +62,37 @@ export function DeliveryTable({
       accessorKey: 'reference',
       sortable: false,
       cell: ({ row }) => (
-        <Button
-          variant="link"
-          className="h-auto min-h-8 justify-start p-0 text-sm font-medium pointer-coarse:min-h-11"
-          onClick={() => onView(row)}
-          aria-label={`View delivery ${row.reference}`}
-        >
-          {row.reference}
-        </Button>
+        <div className="min-w-0 max-w-44 whitespace-normal break-words sm:max-w-none">
+          <Button
+            variant="link"
+            className="h-auto min-h-8 justify-start p-0 text-sm font-medium pointer-coarse:min-h-11"
+            onClick={() => onView(row)}
+            aria-label={`View delivery ${row.reference}`}
+          >
+            {row.reference}
+          </Button>
+          <span className="block text-xs text-muted-foreground sm:hidden">
+            {row.party} · {row.relatedOrder}
+          </span>
+          <span className="block text-xs text-muted-foreground sm:hidden">
+            {row.type === 'Outgoing'
+              ? outgoingStatusLabel(row.record.status, row.record.runId)
+              : DELIVERY_STATUS_LABELS[row.status]}{' '}
+            · {row.warehouse}
+          </span>
+        </div>
       ),
     },
     {
       id: 'order',
-      header: 'Related Order',
+      header:
+        view === 'incoming'
+          ? 'Purchase Order / Warehouse'
+          : view === 'outgoing'
+            ? 'Sales Order / Warehouse'
+            : 'Related Order',
+      className: 'hidden lg:table-cell',
+      headerClassName: 'hidden lg:table-cell',
       accessorKey: 'relatedOrder',
       sortable: false,
       cell: ({ row }) => (
@@ -77,105 +107,163 @@ export function DeliveryTable({
       header:
         view === 'incoming' ? 'Supplier' : view === 'outgoing' ? 'Customer' : 'Customer / Supplier',
       accessorKey: 'party',
+      className: 'hidden md:table-cell',
+      headerClassName: 'hidden md:table-cell',
       sortable: false,
       cell: ({ row }) => (
         <div className="flex flex-col gap-1 py-1">
           <span>{row.party}</span>
-          {row.type === 'Outgoing' && (
-            <span className="text-xs text-muted-foreground">
-              {row.vehicle}
-              {row.driver !== '—' ? ` · ${row.driver}` : ''}
-            </span>
-          )}
         </div>
       ),
     },
     ...(view === 'history'
-      ? [{ id: 'type', header: 'Direction', accessorKey: 'type' as const, sortable: false }]
+      ? [
+          {
+            id: 'type',
+            header: 'Direction',
+            accessorKey: 'type' as const,
+            sortable: false,
+            className: 'hidden md:table-cell',
+            headerClassName: 'hidden md:table-cell',
+          },
+        ]
       : []),
     {
       id: 'date',
-      header: 'Schedule',
+      header:
+        view === 'history'
+          ? 'Recorded event'
+          : view === 'incoming'
+            ? 'Scheduled / Expected Date'
+            : 'Run Assignment',
+      className: 'hidden lg:table-cell',
+      headerClassName: 'hidden lg:table-cell',
       sortable: false,
       sortKey: (row) => (row.date ? new Date(row.date).getTime() || 0 : 0),
       cell: ({ row }) => {
+        if (view === 'outgoing' && row.type === 'Outgoing')
+          return row.record.runId != null ? (
+            <Button variant="link" size="sm" onClick={() => onAction(row, 'run')}>
+              Open Run #{row.record.runId}
+            </Button>
+          ) : (
+            'Unassigned'
+          )
+        const value = view === 'history' ? deliveryHistoryDate(row) : row.date
+        if (view === 'history' && !value)
+          return <span className="text-muted-foreground">Date not recorded</span>
         const schedule = formatDeliverySchedule(
-          row.date,
+          value,
           view === 'history',
           row.type === 'Incoming' && !!row.record.scheduledAt,
         )
         return (
           <div title={schedule.title} className="flex flex-col gap-1 whitespace-nowrap py-1">
             <span>{schedule.date}</span>
-            <span className="text-xs text-muted-foreground">{schedule.time}</span>
+            <span className="text-xs text-muted-foreground">
+              {view === 'history' ? DELIVERY_STATUS_LABELS[row.status] : schedule.time}
+            </span>
           </div>
         )
       },
     },
     {
       id: 'status',
-      header: 'Status',
+      header: view === 'history' ? 'Outcome' : 'Delivery Status',
+      className: 'hidden sm:table-cell',
+      headerClassName: 'hidden sm:table-cell',
       accessorKey: 'status',
       sortable: false,
       cell: ({ row }) =>
         row.type === 'Incoming' ? (
           <IncomingDeliveryStatusBadge status={row.record.status} />
         ) : (
-          <DeliveryStatusBadge status={row.record.status} />
+          <DeliveryStatusBadge status={row.record.status} runId={row.record.runId} />
         ),
     },
     {
       id: 'actions',
-      header: 'Actions',
+      header: view === 'history' ? 'Details' : 'Next Action',
       align: 'right',
-      cell: ({ row }) => (
-        <DataTableActions>
-          {view === 'history' && (
+      cell: ({ row }) => {
+        const available = canManage && view !== 'history' ? getDeliveryActions(row) : []
+        const primary = available.find((action) =>
+          ['schedule', 'ready', 'receive', 'run', 'reconcile'].includes(action),
+        )
+        const label =
+          primary === 'run' && row.type === 'Outgoing' && row.record.runId != null
+            ? 'Open Run'
+            : primary
+              ? actions[primary].label
+              : 'View Details'
+        return (
+          <DataTableActions>
             <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="size-8 shrink-0 pointer-coarse:size-11"
-              title={`View order ${row.relatedOrder}`}
-              aria-label={`View order ${row.relatedOrder}`}
-              onClick={() => onViewOrder(row)}
+              variant={primary ? 'outline' : 'ghost'}
+              size="sm"
+              disabled={pending}
+              onClick={() => (primary ? onAction(row, primary) : onView(row))}
+              aria-label={`${label} ${row.reference}`}
             >
-              <Eye aria-hidden="true" />
+              {label}
             </Button>
-          )}
-          {canManage &&
-            getDeliveryActions(row).map((action) => {
-              const { label, Icon } = actions[action]
-              return (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
                 <Button
-                  key={action}
-                  type="button"
                   variant="ghost"
                   size="icon"
-                  className={`size-8 shrink-0 pointer-coarse:size-11 ${action === 'cancel' ? 'text-destructive hover:text-destructive' : ''}`}
-                  disabled={pending}
-                  title={label}
-                  aria-label={`${label} ${row.reference}`}
-                  onClick={() => onAction(row, action)}
+                  className="size-8 pointer-coarse:size-11"
+                  aria-label={`More actions for ${row.reference}`}
                 >
-                  <Icon aria-hidden="true" />
+                  <MoreHorizontal aria-hidden="true" />
                 </Button>
-              )
-            })}
-        </DataTableActions>
-      ),
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuGroup>
+                  <DropdownMenuItem onSelect={() => onView(row)}>
+                    View delivery details
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => onViewOrder(row)}>
+                    View order {row.relatedOrder}
+                  </DropdownMenuItem>
+                  {available
+                    .filter((action) => action !== primary)
+                    .map((action) => {
+                      const { label, Icon } = actions[action]
+                      return (
+                        <DropdownMenuItem
+                          key={action}
+                          className={
+                            action === 'cancel' ? 'text-destructive focus:text-destructive' : ''
+                          }
+                          disabled={pending}
+                          aria-label={`${label} ${row.reference}`}
+                          onSelect={() => onAction(row, action)}
+                        >
+                          <Icon aria-hidden="true" />
+                          {label}
+                        </DropdownMenuItem>
+                      )
+                    })}
+                </DropdownMenuGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </DataTableActions>
+        )
+      },
     },
   ]
   return (
     <DataTable
       pagination={false}
+      className={className}
       manualSorting
       appearance="management"
       data={rows}
       columns={columns}
       getRowKey={(row) => row.key}
       isLoading={isLoading}
-      tableClassName="min-w-[760px]"
+      tableClassName="w-full"
       emptyContent={
         <div className="py-10 text-center">
           <p className="text-sm font-semibold">
