@@ -22,7 +22,7 @@ import {
 } from '@/features/logistics/delivery-workflow'
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Link, useNavigate } from 'react-router'
+import { useNavigate } from 'react-router'
 import { ArrowDownToLine, Plus, Search } from 'lucide-react'
 import { DeliveryTable } from './DeliveryTable'
 import { OrderDetailDrawer } from '@/components/orders/OrderDetailDrawer'
@@ -332,9 +332,6 @@ export function DeliveriesHub({
             ? 'Incoming Deliveries'
             : 'Outgoing Deliveries'}
       </PageHeader>
-      <Button asChild variant="outline" className="self-start">
-        <Link to="/deliveries/runs">Delivery Runs</Link>
-      </Button>
       {incomingScheduleFailure && (
         <Alert variant="destructive">
           <AlertDescription>{incomingScheduleFailure}</AlertDescription>
