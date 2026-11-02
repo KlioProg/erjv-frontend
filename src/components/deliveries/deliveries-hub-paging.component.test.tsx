@@ -79,13 +79,13 @@ it.each(['incoming', 'outgoing'] as const)(
       },
     })
     expect(screen.getByText('1 loaded deliveries')).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Next page' }))
     await screen.findByText(`${direction === 'incoming' ? 'IN' : 'OUT'}-2`)
     expect(deliveryRequests()).toHaveLength(2)
     expect(deliveryRequests()[1].params.cursor).toBe(`${direction}-page-2`)
     expect(screen.getByText('1 loaded deliveries')).toBeTruthy()
     expect(screen.queryByText(`${direction === 'incoming' ? 'IN' : 'OUT'}-1`)).toBeNull()
-    expect(screen.getByRole('button', { name: 'Next' }).hasAttribute('disabled')).toBe(true)
+    expect(screen.getByRole('button', { name: 'Next page' }).hasAttribute('disabled')).toBe(true)
   },
 )
 
@@ -100,10 +100,10 @@ it('keeps incoming and outgoing history pagination independent', async () => {
   expect(
     deliveryRequests().find(({ url }) => url === '/outgoing-deliveries')?.params.statuses,
   ).toEqual(['RECONCILED', 'CANCELLED'])
-  fireEvent.click(within(screen.getByRole('navigation', { name: 'Incoming delivery pages' })).getByRole('button', { name: 'Next' }))
+  fireEvent.click(within(screen.getByRole('navigation', { name: 'Incoming delivery pages' })).getByRole('button', { name: 'Next page' }))
   await screen.findByText('IN-2')
   expect(deliveryRequests().filter(({ url }) => url === '/outgoing-deliveries')).toHaveLength(1)
-  fireEvent.click(within(screen.getByRole('navigation', { name: 'Outgoing delivery pages' })).getByRole('button', { name: 'Next' }))
+  fireEvent.click(within(screen.getByRole('navigation', { name: 'Outgoing delivery pages' })).getByRole('button', { name: 'Next page' }))
   await screen.findByText('OUT-2')
   expect(screen.getByText('2 loaded deliveries')).toBeTruthy()
   expect(screen.queryByText('IN-1')).toBeNull()
@@ -113,7 +113,7 @@ it('keeps incoming and outgoing history pagination independent', async () => {
 it('starts a fresh first page for server text and status filters', async () => {
   mount('incoming')
   await screen.findByText('IN-1')
-  fireEvent.click(within(screen.getByRole('navigation', { name: 'Incoming delivery pages' })).getByRole('button', { name: 'Next' }))
+  fireEvent.click(within(screen.getByRole('navigation', { name: 'Incoming delivery pages' })).getByRole('button', { name: 'Next page' }))
   await screen.findByText('IN-2')
   fireEvent.change(screen.getByRole('textbox', { name: 'Search deliveries' }), {
     target: { value: 'supplier reference' },
@@ -147,7 +147,7 @@ it('hides stale actions when a later page fails and restarts pagination on retry
   }
   mount('incoming')
   await screen.findByText('IN-1')
-  fireEvent.click(within(screen.getByRole('navigation', { name: 'Incoming delivery pages' })).getByRole('button', { name: 'Next' }))
+  fireEvent.click(within(screen.getByRole('navigation', { name: 'Incoming delivery pages' })).getByRole('button', { name: 'Next page' }))
   await screen.findByRole('alert')
   expect(screen.queryByText('IN-1')).toBeNull()
   expect(screen.getByText('Delivery records are unavailable until the request succeeds.')).toBeTruthy()
@@ -155,6 +155,6 @@ it('hides stale actions when a later page fails and restarts pagination on retry
   fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
   await waitFor(() => expect(screen.queryByRole('alert')).toBeNull())
   expect(deliveryRequests().at(-1)?.params.cursor).toBeUndefined()
-  fireEvent.click(within(screen.getByRole('navigation', { name: 'Incoming delivery pages' })).getByRole('button', { name: 'Next' }))
+  fireEvent.click(within(screen.getByRole('navigation', { name: 'Incoming delivery pages' })).getByRole('button', { name: 'Next page' }))
   await screen.findByText('IN-2')
 })

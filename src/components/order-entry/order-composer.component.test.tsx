@@ -834,7 +834,7 @@ describe('shared catalog', () => {
     const onAdd = vi.fn()
     render(<OrderProductCatalog products={list} stockItems={[]} onAdd={onAdd} busy={false} />)
     expect(screen.getAllByRole('button', { name: /^Add Product/ })).toHaveLength(10)
-    await user.click(screen.getByRole('button', { name: 'Next Page' }))
+    await user.click(screen.getByRole('button', { name: 'Next page' }))
     expect(screen.getAllByRole('button', { name: /^Add Product/ })).toHaveLength(5)
     await user.type(screen.getByRole('textbox'), 'Product 01')
     expect(screen.getAllByRole('button', { name: /^Add Product/ })).toHaveLength(1)

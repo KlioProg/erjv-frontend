@@ -92,8 +92,8 @@ function mount(initialFailure = '') {
     },
   }
 }
-const next = () => screen.getByRole('button', { name: 'Next' })
-const previous = () => screen.getByRole('button', { name: 'Previous' })
+const next = () => screen.getByRole('button', { name: 'Next page' })
+const previous = () => screen.getByRole('button', { name: 'Previous page' })
 const search = () => screen.getByRole('textbox', { name: 'Search customers' })
 
 it('loads one page, preserves server ordering, navigates both ways and stops at the last page', async () => {

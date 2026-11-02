@@ -215,7 +215,7 @@ describe('neutral master-data tables', () => {
     await user.click(screen.getByRole('combobox', { name: 'Suppliers per page' }))
     await user.click(screen.getByRole('option', { name: '10' }))
     await waitFor(() => expect(within(screen.getByRole('table')).getAllByRole('row')).toHaveLength(11))
-    await user.click(screen.getByRole('button', { name: 'Next' }))
+    await user.click(screen.getByRole('button', { name: 'Next page' }))
     await screen.findByText('Supplier 06')
     await user.type(screen.getByRole('textbox', { name: 'Search suppliers' }), 'Supplier 03')
     expect(await screen.findByText('Supplier 03')).toBeTruthy()

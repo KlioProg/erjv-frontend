@@ -1,3 +1,4 @@
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { Button } from './button'
 import {
   Select,
@@ -12,6 +13,7 @@ export function CursorPageControls({
   label = 'Order',
   page,
   pageSize,
+  pageSizeOptions = [10, 25, 50, 100],
   setPageSize,
   hasPrevious,
   hasNext,
@@ -23,6 +25,7 @@ export function CursorPageControls({
   label?: string
   page: number
   pageSize: number
+  pageSizeOptions?: number[]
   setPageSize: (size: number) => void
   hasPrevious: boolean
   hasNext: boolean
@@ -34,19 +37,16 @@ export function CursorPageControls({
   return (
     <nav
       aria-label={`${label} pages`}
-      className="flex flex-wrap items-center justify-end gap-3 text-sm"
+      className="flex flex-wrap items-center justify-end gap-3 py-3 text-sm tabular-nums"
     >
-      <span aria-live="polite">
-        Page {page}
-        {isFetching ? ' - Loading...' : ''}
-      </span>
+      <span className="hidden text-muted-foreground sm:inline">Rows per page</span>
       <Select value={String(pageSize)} onValueChange={(value) => setPageSize(Number(value))}>
-        <SelectTrigger aria-label={`${label}s per page`} className="h-9 w-24">
+        <SelectTrigger aria-label={`${label}s per page`} className="h-9 w-20">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
           <SelectGroup>
-            {[10, 25, 50, 100].map((size) => (
+            {pageSizeOptions.map((size) => (
               <SelectItem key={size} value={String(size)}>
                 {size}
               </SelectItem>
@@ -54,17 +54,34 @@ export function CursorPageControls({
           </SelectGroup>
         </SelectContent>
       </Select>
-      <Button variant="outline" size="sm" disabled={!hasPrevious || isFetching} onClick={previous}>
-        Previous
-      </Button>
-      <Button
-        variant="outline"
-        size="sm"
-        disabled={!hasNext || isFetching || isError}
-        onClick={next}
-      >
-        Next
-      </Button>
+      <span aria-live="polite" aria-atomic="true" className="whitespace-nowrap text-muted-foreground">
+        Page {page}
+        <span className="sr-only">{isFetching ? ' - Loading...' : ''}</span>
+      </span>
+      <div className="flex items-center gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          aria-label="Previous page"
+          title="Previous page"
+          disabled={!hasPrevious || isFetching}
+          onClick={previous}
+        >
+          <ChevronLeft aria-hidden="true" />
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          aria-label="Next page"
+          title="Next page"
+          disabled={!hasNext || isFetching || isError}
+          onClick={next}
+        >
+          <ChevronRight aria-hidden="true" />
+        </Button>
+      </div>
     </nav>
   )
 }

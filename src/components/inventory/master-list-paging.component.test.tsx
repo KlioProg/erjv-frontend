@@ -80,15 +80,15 @@ it.each(surfaces)(
       1,
     )
     expect(screen.queryByText(`${name} 2`)).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Next page' }))
     await screen.findByText(`${name} 2`)
     expect(requests).toContainEqual({
       url: path,
       params: { includeInactive: 'false', limit: 50, cursor: 'page-2' },
     })
-    expect(screen.getByRole('button', { name: 'Next' }).hasAttribute('disabled')).toBe(true)
+    expect(screen.getByRole('button', { name: 'Next page' }).hasAttribute('disabled')).toBe(true)
     expect(screen.queryByText(`${name} 1`)).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: 'Previous' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Previous page' }))
     await screen.findByText(`${name} 1`)
     expect(requests.filter(({ url }) => url === '/stock-items')).toHaveLength(1)
   },

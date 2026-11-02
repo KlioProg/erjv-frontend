@@ -4,10 +4,6 @@ import {
   ArrowUp,
   ArrowDown,
   Package,
-  ChevronLeft,
-  ChevronRight,
-  ChevronsLeft,
-  ChevronsRight,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
@@ -20,7 +16,7 @@ import {
 } from '@/components/ui/table'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Button } from '@/components/ui/button'
+import { CursorPageControls } from '@/components/ui/CursorPageControls'
 import { OverflowValue } from '@/components/ui/OverflowValue'
 
 export type ColumnAlign = 'left' | 'center' | 'right'
@@ -234,25 +230,6 @@ function getHeaderJustifyClass(align?: ColumnAlign): string {
     default:
       return 'justify-start'
   }
-}
-
-/**
- * Helper to compute an array of visible page numbers with ellipsis (e.g. [1, 2, '...', 9, 10])
- */
-function getVisiblePages(totalPages: number, currentPage: number): (number | '...')[] {
-  if (totalPages <= 7) {
-    return Array.from({ length: totalPages }, (_, i) => i + 1)
-  }
-
-  if (currentPage <= 4) {
-    return [1, 2, 3, 4, 5, '...', totalPages]
-  }
-
-  if (currentPage >= totalPages - 3) {
-    return [1, '...', totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages]
-  }
-
-  return [1, '...', currentPage - 1, currentPage, currentPage + 1, '...', totalPages]
 }
 
 /**
@@ -494,8 +471,6 @@ export function DataTable<T>({
     )
   }
 
-  const visiblePages = getVisiblePages(totalPages, safeCurrentPage)
-
   return (
     <div
       className={cn(
@@ -658,120 +633,25 @@ export function DataTable<T>({
 
       {/* Pagination Footer */}
       {pagination && totalRows > 0 && (
-        <div className="flex flex-col sm:flex-row sm:flex-wrap items-center justify-between gap-3 border-t bg-card px-4 py-3 text-xs tabular-nums">
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-muted-foreground w-full sm:w-auto justify-between sm:justify-start">
-            <span>
-              Showing <span className="font-medium text-foreground">{startIndex + 1}</span> to{' '}
-              <span className="font-medium text-foreground">{endIndex}</span> of{' '}
-              <span className="font-medium text-foreground">{totalRows}</span> entries
-            </span>
-
-            {pageSizeOptions.length > 1 && (
-              <div className="flex items-center gap-1.5">
-                <span className="text-[11px]">Rows:</span>
-                <select
-                  aria-label="Rows per page"
-                  value={activePageSize}
-                  onChange={(e) => handlePageSizeSelect(Number(e.target.value))}
-                  className="h-8 rounded-md border border-input bg-card px-2 text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 cursor-pointer"
-                >
-                  {pageSizeOptions.map((opt) => (
-                    <option key={opt} value={opt}>
-                      {opt}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-          </div>
-
-          {/* Navigation Controls */}
-          {totalPages > 1 && (
-            <div className="flex max-w-full flex-wrap items-center justify-center gap-1 self-center sm:self-auto">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => handlePageSelect(1)}
-                disabled={safeCurrentPage === 1}
-                className="size-7.5 rounded-md text-muted-foreground hover:text-foreground cursor-pointer disabled:opacity-30 disabled:pointer-events-none"
-                title="First Page"
-              >
-                <ChevronsLeft className="size-3.5" />
-                <span className="sr-only">First Page</span>
-              </Button>
-
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => handlePageSelect(safeCurrentPage - 1)}
-                disabled={safeCurrentPage === 1}
-                className="size-7.5 rounded-md text-muted-foreground hover:text-foreground cursor-pointer disabled:opacity-30 disabled:pointer-events-none"
-                title="Previous Page"
-              >
-                <ChevronLeft className="size-3.5" />
-                <span className="sr-only">Previous Page</span>
-              </Button>
-
-              <div className="flex max-w-full flex-wrap items-center justify-center gap-1 mx-1">
-                {visiblePages.map((pageNum, idx) => {
-                  if (pageNum === '...') {
-                    return (
-                      <span
-                        key={`ellipsis-${idx}`}
-                        className="px-1.5 text-xs text-muted-foreground select-none"
-                      >
-                        …
-                      </span>
-                    )
-                  }
-
-                  const isCurrent = pageNum === safeCurrentPage
-                  return (
-                    <Button
-                      key={pageNum}
-                      aria-label={`Page ${pageNum}`}
-                      aria-current={isCurrent ? 'page' : undefined}
-                      variant={isCurrent ? 'primary-contrast' : 'ghost'}
-                      size="sm"
-                      onClick={() => handlePageSelect(pageNum as number)}
-                      className={cn(
-                        'size-8 p-0 text-xs font-medium rounded-md cursor-pointer',
-                        isCurrent
-                          ? 'font-medium'
-                          : 'text-muted-foreground hover:text-foreground hover:bg-muted',
-                      )}
-                    >
-                      {pageNum}
-                    </Button>
-                  )
-                })}
-              </div>
-
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => handlePageSelect(safeCurrentPage + 1)}
-                disabled={safeCurrentPage === totalPages}
-                className="size-7.5 rounded-md text-muted-foreground hover:text-foreground cursor-pointer disabled:opacity-30 disabled:pointer-events-none"
-                title="Next Page"
-              >
-                <ChevronRight className="size-3.5" />
-                <span className="sr-only">Next Page</span>
-              </Button>
-
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => handlePageSelect(totalPages)}
-                disabled={safeCurrentPage === totalPages}
-                className="size-7.5 rounded-md text-muted-foreground hover:text-foreground cursor-pointer disabled:opacity-30 disabled:pointer-events-none"
-                title="Last Page"
-              >
-                <ChevronsRight className="size-3.5" />
-                <span className="sr-only">Last Page</span>
-              </Button>
-            </div>
-          )}
+        <div className="flex flex-wrap items-center justify-end gap-x-4 border-t bg-card px-4 text-xs tabular-nums">
+          <span className="mr-auto py-3 text-muted-foreground">
+            Showing <span className="font-medium text-foreground">{startIndex + 1}</span> to{' '}
+            <span className="font-medium text-foreground">{endIndex}</span> of{' '}
+            <span className="font-medium text-foreground">{totalRows}</span> entries
+          </span>
+          <CursorPageControls
+            label="Row"
+            page={safeCurrentPage}
+            pageSize={activePageSize}
+            pageSizeOptions={pageSizeOptions}
+            setPageSize={handlePageSizeSelect}
+            hasPrevious={safeCurrentPage > 1}
+            hasNext={safeCurrentPage < totalPages}
+            previous={() => handlePageSelect(safeCurrentPage - 1)}
+            next={() => handlePageSelect(safeCurrentPage + 1)}
+            isFetching={false}
+            isError={false}
+          />
         </div>
       )}
     </div>

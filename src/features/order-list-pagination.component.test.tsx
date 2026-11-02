@@ -150,8 +150,8 @@ function mount(kind: 'PO' | 'SO', initialFailure = '') {
     },
   }
 }
-const next = () => screen.getByRole('button', { name: 'Next' })
-const previous = () => screen.getByRole('button', { name: 'Previous' })
+const next = () => screen.getByRole('button', { name: 'Next page' })
+const previous = () => screen.getByRole('button', { name: 'Previous page' })
 const search = (kind: 'PO' | 'SO') =>
   screen.getByRole('textbox', { name: kind === 'PO' ? 'Search purchase orders' : 'Search orders' })
 

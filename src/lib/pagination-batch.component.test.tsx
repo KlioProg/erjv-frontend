@@ -260,11 +260,11 @@ it('loads product stock locations from their scoped endpoint across multiple pag
   await screen.findByText('First warehouse')
   expect(reads.filter(read => read.url === '/stock-items/inventory-items/1')).toHaveLength(1)
   const pages = () => within(screen.getByRole('navigation', { name: 'Stock location pages' }))
-  await user.click(pages().getByRole('button', { name: 'Next' }))
+  await user.click(pages().getByRole('button', { name: 'Next page' }))
   await screen.findByText('Later warehouse')
   expect(screen.queryByText('First warehouse')).toBeNull()
   expect(reads.at(-1)).toMatchObject({ url: '/stock-items/inventory-items/1', params: { cursor: 'locations-next', limit: 50 } })
-  await user.click(pages().getByRole('button', { name: 'Previous' }))
+  await user.click(pages().getByRole('button', { name: 'Previous page' }))
   await screen.findByText('First warehouse')
 })
 

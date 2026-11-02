@@ -696,7 +696,7 @@ it('loads subsequent quarantine lot pages into the canonical table', async () =>
     </QueryClientProvider>,
   )
   await screen.findByText('2.00')
-  fireEvent.click(await screen.findByRole('button', { name: 'Next' }))
+  fireEvent.click(await screen.findByRole('button', { name: 'Next page' }))
   await screen.findByText('0.75')
   expect(screen.getAllByRole('button', { name: 'Review & Resolve' })).toHaveLength(1)
   expect(screen.queryByText('2.00')).toBeNull()

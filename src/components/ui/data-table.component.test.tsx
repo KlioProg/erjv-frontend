@@ -56,9 +56,9 @@ describe('DataTable accessibility', () => {
         pageSize={1}
       />,
     )
-    expect(screen.getByRole('button', { name: 'Page 1' }).getAttribute('aria-current')).toBe('page')
-    await user.click(screen.getByRole('button', { name: 'Page 2' }))
-    expect(screen.getByRole('button', { name: 'Page 2' }).getAttribute('aria-current')).toBe('page')
+    expect(screen.getByText('Page 1')).toBeTruthy()
+    await user.click(screen.getByRole('button', { name: 'Next page' }))
+    expect(screen.getByText('Page 2')).toBeTruthy()
     expect(screen.getByRole('cell').textContent).toBe('2')
   })
 })
@@ -72,17 +72,15 @@ describe('DataTable pagination', () => {
     const view = render(
       <DataTable data={data} columns={columns} pageSize={10} pageSizeOptions={[10, 25, 50, 100]} />,
     )
-    await user.click(screen.getByRole('button', { name: 'Last Page' }))
+    await user.click(screen.getByRole('button', { name: 'Next page' }))
     for (const size of [25, 50, 100, 10]) {
-      await user.selectOptions(
-        screen.getByRole('combobox', { name: 'Rows per page' }),
-        String(size),
-      )
+      await user.click(screen.getByRole('combobox', { name: 'Rows per page' }))
+      await user.click(screen.getByRole('option', { name: String(size) }))
       expect(screen.getAllByRole('cell')).toHaveLength(size)
       expect(screen.getByText(/Showing/).textContent).toBe(`Showing 1 to ${size} of 125 entries`)
-      await user.click(screen.getByRole('button', { name: 'Next Page' }))
+      await user.click(screen.getByRole('button', { name: 'Next page' }))
       expect(screen.getAllByRole('cell')[0].textContent).toBe(String(size + 1))
-      await user.click(screen.getByRole('button', { name: 'Previous Page' }))
+      await user.click(screen.getByRole('button', { name: 'Previous page' }))
     }
     await user.click(screen.getByRole('button', { name: 'ID' }))
     await user.click(screen.getByRole('button', { name: 'ID' }))
@@ -122,11 +120,12 @@ describe('DataTable pagination', () => {
       )
     }
     render(<ServerTable />)
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Rows per page' }), '20')
+    await user.click(screen.getByRole('combobox', { name: 'Rows per page' }))
+    await user.click(screen.getByRole('option', { name: '20' }))
     expect(fetchPage).toHaveBeenLastCalledWith(1)
     expect(screen.getAllByRole('cell')).toHaveLength(20)
     expect(screen.getByText(/Showing/).textContent).toBe('Showing 1 to 20 of 125 entries')
-    await user.click(screen.getByRole('button', { name: 'Next Page' }))
+    await user.click(screen.getByRole('button', { name: 'Next page' }))
     expect(screen.getAllByRole('cell')[0].textContent).toBe('21')
   })
 })
