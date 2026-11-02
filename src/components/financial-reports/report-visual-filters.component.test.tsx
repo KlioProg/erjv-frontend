@@ -148,7 +148,7 @@ it('discards unfinished year text when stepping and reset clears scoped IDs', as
 it('discloses advanced filters, shows active scopes and preserves them when collapsed', async () => {
   const user = userEvent.setup()
   const actions = mount({ ...annual, itemId: '101', warehouseId: '2' })
-  const toggle = screen.getByRole('button', { name: 'Advanced filters (2 active)' })
+  const toggle = screen.getByRole('button', { name: 'Filters (2 active)' })
   expect(toggle.getAttribute('aria-expanded')).toBe('true')
   expect(screen.getByText(/Selected item.*Selected warehouse/)).toBeTruthy()
   await user.click(toggle)
@@ -157,7 +157,7 @@ it('discloses advanced filters, shows active scopes and preserves them when coll
   await user.click(toggle)
   await user.click(screen.getByRole('button', { name: 'Clear item' }))
   expect(actions.at(-1)).toEqual({ type: 'itemId', value: '' })
-  expect(screen.getByRole('button', { name: 'Advanced filters (1 active)' })).toBeTruthy()
+  expect(screen.getByRole('button', { name: 'Filters (1 active)' })).toBeTruthy()
   await user.click(screen.getByRole('button', { name: 'Reset filters' }))
   expect(actions.at(-1)).toEqual({ type: 'reset', today: '2026-11-02' })
   expect(screen.getByText(/All items.*All warehouses/)).toBeTruthy()

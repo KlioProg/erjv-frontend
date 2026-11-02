@@ -38,6 +38,10 @@ import {
   type ReportRow,
 } from '@/features/financial-reports/financial-reports.types'
 import { getApiError, getErrorMessage } from '@/lib/api-client'
+import {
+  metricAmount,
+  reportDateLabel,
+} from '@/features/financial-reports/financial-report-visuals'
 import { formatProductUnit } from '@/lib/product-unit'
 import { formatStockCents, parseStockCents } from '@/features/logistics/stock-display'
 
@@ -54,7 +58,7 @@ const labels: Partial<Record<keyof Metrics, string>> = {
 }
 const groupLabel = (group: ReportGroup) =>
   group === 'none'
-    ? 'No breakdown'
+    ? 'No grouping'
     : group === 'client'
       ? 'Customer'
       : group[0].toUpperCase() + group.slice(1)
@@ -90,8 +94,8 @@ export function ReportDetails({
   return (
     <div className="space-y-4">
       <details>
-        <summary className="cursor-pointer rounded text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-          Financial totals and quantities
+        <summary className="min-h-9 cursor-pointer rounded py-1 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          More financial details
         </summary>
         <h2 className="mt-3 text-base font-semibold">
           {kind === 'gross-profit-estimate'
@@ -102,7 +106,7 @@ export function ReportDetails({
           details
         </h2>
         <p className="text-sm text-muted-foreground">
-          Full-period totals from the applied report. Breakdown filters below are independent.
+          These totals match the cards above.
         </p>
         <dl className="grid gap-2 sm:grid-cols-2">
           {amountKeys.map((key) => (
@@ -149,7 +153,7 @@ export function ReportDetails({
       </details>
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="space-y-1 text-sm">
-          Break down by
+          Group by
           <Select
             value={groupBy}
             onValueChange={(value) => {
@@ -157,7 +161,7 @@ export function ReportDetails({
               setPartyId('')
             }}
           >
-            <SelectTrigger aria-label="Break down by">
+            <SelectTrigger aria-label="Group by">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -197,6 +201,7 @@ export function ReportDetails({
           kind={kind}
           scope={scope}
           groupBy={groupBy}
+          totals={metrics}
         />
       )}
     </div>
@@ -207,10 +212,12 @@ function ReportBreakdown({
   kind,
   scope,
   groupBy,
+  totals,
 }: {
   kind: ReportKind
   scope: ReportQuery
   groupBy: ReportGroup
+  totals: Metrics
 }) {
   const query = useFinancialReport(kind, scope)
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set())
@@ -218,18 +225,29 @@ function ReportBreakdown({
     const error = getApiError(query.error)
     const source = (error as (Record<string, unknown> & { status?: number }) | undefined)
       ?.source as { type?: string; id?: string } | undefined
+    const message = getErrorMessage(query.error)
+    const needsReload = /snapshot|cursor/i.test(message)
     return (
       <Alert variant="destructive">
         <AlertDescription>
-          {getErrorMessage(query.error)} {source && `Source: ${source.type} #${source.id}.`}{' '}
+          {needsReload
+            ? 'These results changed or are no longer available. Reload details to continue.'
+            : message}{' '}
+          {source && `Source: ${source.type} #${source.id}.`}{' '}
+          {needsReload && (
+            <details>
+              <summary className="min-h-9 cursor-pointer py-1">Error information</summary>
+              <p>{message}</p>
+            </details>
+          )}
           <Button variant="outline" onClick={query.restart}>
-            Restart breakdown
+            Reload details
           </Button>
         </AlertDescription>
       </Alert>
     )
   }
-  if (!query.data) return <p role="status">Loading narrowed breakdown…</p>
+  if (!query.data) return <p role="status">Loading details…</p>
   const result = query.data as ReportResult
   const profit = kind === 'gross-profit-estimate'
   const toggle = (key: string) =>
@@ -239,43 +257,36 @@ function ReportBreakdown({
       else next.add(key)
       return next
     })
+  const rowLabel = (row: ReportRow) =>
+    groupBy === 'month' && /^\d{4}-(0[1-9]|1[0-2])$/.test(row.key)
+      ? reportDateLabel(row.key + '-01', { month: 'long', year: 'numeric' })
+      : (row.name ?? row.key)
+  const hasPages = query.hasPrevious || query.hasNext
+  const filteredTotal =
+    Boolean(scope.clientId || scope.supplierId) &&
+    metricAmount(result.totals, kind) !== metricAmount(totals, kind)
   const columns: ColumnDef<ReportRow>[] = [
     {
       id: 'group',
       header: groupLabel(groupBy),
-      accessorFn: (row) => row.name ?? row.key,
+      accessorFn: rowLabel,
       sortable: false,
     },
-    ...(profit
-      ? ['costedTaxableSalesValue', 'estimatedAcquisitionCost', 'estimatedGrossProfitAmount']
-      : ['taxableAmount', 'taxAmount', 'totalAmount']
-    ).map((key) => ({
+    ...(profit ? ['estimatedGrossProfitAmount'] : ['totalAmount']).map((key) => ({
       id: key,
-      header: labels[key as keyof Metrics] ?? key,
+      header:
+        key === 'totalAmount'
+          ? kind === 'sales'
+            ? 'Sales'
+            : 'Purchases'
+          : labels[key as keyof Metrics]!,
       align: 'right' as const,
       sortable: false,
       cell: ({ row }: { row: ReportRow }) =>
         formatReportMoney(String(row[key as keyof Metrics] ?? '0.00')),
     })),
-    ...(profit
+    ...(!profit
       ? [
-          {
-            id: 'margin',
-            header: 'Estimated margin',
-            align: 'right' as const,
-            sortable: false,
-            cell: ({ row }: { row: ReportRow }) =>
-              formatReportPercent(row.estimatedGrossMarginPercent),
-          },
-          {
-            id: 'coverage',
-            header: 'Cost coverage',
-            align: 'right' as const,
-            sortable: false,
-            cell: ({ row }: { row: ReportRow }) => formatReportPercent(row.costCoveragePercent),
-          },
-        ]
-      : [
           {
             id: 'orders',
             header: 'Orders',
@@ -283,7 +294,8 @@ function ReportBreakdown({
             align: 'right' as const,
             sortable: false,
           },
-        ]),
+        ]
+      : []),
     {
       id: 'details',
       header: 'Details',
@@ -291,7 +303,7 @@ function ReportBreakdown({
         <DataTableExpandToggle
           expanded={expanded.has(row.key)}
           controls={`report-breakdown-${row.key}`}
-          ariaLabel={`Details for ${row.name ?? row.key}`}
+          ariaLabel={`Details for ${rowLabel(row)}`}
           onToggle={() => toggle(row.key)}
         >
           Details
@@ -300,16 +312,18 @@ function ReportBreakdown({
     },
   ]
   return (
-    <section className="space-y-2" aria-label="Narrowed report breakdown">
-      <p className="text-sm font-medium">
-        {groupLabel(groupBy)} breakdown · these totals reflect the breakdown filters only
-      </p>
+    <section className="space-y-3" aria-label="Report details">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-xs text-muted-foreground">
-          Snapshot as of{' '}
-          {new Date(result.period.asOf).toLocaleString('en-PH', { timeZone: 'Asia/Manila' })}.
-          Breakdown and KPI snapshots may differ.
-        </p>
+        <details className="text-sm text-muted-foreground">
+          <summary className="min-h-9 cursor-pointer rounded py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            About these results
+          </summary>
+          <p className="mt-2">
+            Report as of{' '}
+            {new Date(result.period.asOf).toLocaleString('en-PH', { timeZone: 'Asia/Manila' })}.
+            Details and totals above may have different report times.
+          </p>
+        </details>
         <Button
           type="button"
           variant="outline"
@@ -317,40 +331,43 @@ function ReportBreakdown({
           disabled={query.isFetching}
           onClick={query.refresh}
         >
-          Refresh breakdown
+          Refresh details
         </Button>
       </div>
-      <p className="text-sm">
-        Narrowed total:{' '}
-        {formatReportMoney(
-          String(
-            profit
-              ? (result.totals.estimatedGrossProfitAmount ?? '0.00')
-              : result.totals.totalAmount,
-          ),
-        )}
-      </p>
+      {filteredTotal && (
+        <p className="text-sm">
+          Filtered total: {formatReportMoney(metricAmount(result.totals, kind))}
+        </p>
+      )}
       <DataTable
         appearance="management"
         data={result.rows}
         columns={columns}
         getRowKey={(row) => row.key}
-        pagination={!breakdown(groupBy)}
+        pagination={!breakdown(groupBy) && result.rows.length > 10}
         manualSorting
-        tableClassName="min-w-[600px]"
+        tableClassName="min-w-[400px]"
         emptyContent={<p>No rows for this breakdown.</p>}
         renderExpandedRow={(row) =>
           expanded.has(row.key) ? (
             <DataTableExpandedSection
               id={`report-breakdown-${row.key}`}
-              title={`Details: ${row.name ?? row.key}`}
+              title={`Details: ${rowLabel(row)}`}
             >
               <BreakdownRowDetails metrics={row} profit={profit} />
             </DataTableExpandedSection>
           ) : null
         }
       />
-      {breakdown(groupBy) && <CursorPageControls {...query} label="Breakdown row" />}
+      {breakdown(groupBy) && hasPages ? (
+        <CursorPageControls {...query} label="Result" />
+      ) : (
+        result.rows.length <= (breakdown(groupBy) ? query.pageSize : 10) && (
+          <p className="text-sm text-muted-foreground">
+            {result.rows.length} {result.rows.length === 1 ? 'result' : 'results'}
+          </p>
+        )
+      )}
     </section>
   )
 }

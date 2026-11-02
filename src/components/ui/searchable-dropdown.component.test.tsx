@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, expect, it, vi } from 'vitest'
 import { SearchableDropdown } from './SearchableDropdown'
+import { useState } from 'react'
 
 afterEach(() => vi.restoreAllMocks())
 
@@ -35,6 +36,8 @@ it('prevents opening or choosing options while disabled', async () => {
   await user.click(screen.getByRole('button', { name: 'Picker' }))
   expect(screen.queryByRole('menuitem')).toBeNull()
   expect(props.onValueChange).not.toHaveBeenCalled()
+  view.rerender(<SearchableDropdown {...props} />)
+  expect(screen.queryByRole('menu')).toBeNull()
 })
 
 it('reveals clipped selected text on trigger focus and hover while keeping full options available', async () => {
@@ -200,4 +203,48 @@ it('keeps validation and overflow tooltip descriptions associated with the same 
   expect(descriptions).toContain(screen.getByRole('tooltip').id)
   await user.keyboard('{Escape}')
   expect(trigger.getAttribute('aria-describedby')).toBe(screen.getByRole('alert').id)
+})
+
+it('notifies the parent when Enter creates a value and closes the menu', async () => {
+  const user = userEvent.setup()
+  const onOpenChange = vi.fn()
+  render(<SearchableDropdown options={[]} value="" onValueChange={vi.fn()} onCreateValue={vi.fn()} getOptionValue={(value: string) => value} getOptionLabel={(value: string) => value} placeholder="Choose" searchPlaceholder="Search" emptyMessage="Empty" ariaLabel="Type" onOpenChange={onOpenChange} />)
+  await user.click(screen.getByRole('button', { name: 'Type' }))
+  await user.type(screen.getByRole('searchbox'), 'New type')
+  await user.keyboard('{Enter}')
+  expect(screen.queryByRole('menu')).toBeNull()
+  expect(onOpenChange).toHaveBeenLastCalledWith(false)
+})
+
+it('cannot change a selection through its portal after the parent fieldset is disabled', async () => {
+  const user = userEvent.setup()
+  const change = vi.fn()
+  const picker = <SearchableDropdown options={['Alpha']} value="" onValueChange={change} getOptionValue={(value) => value} getOptionLabel={(value) => value} placeholder="Choose" searchPlaceholder="Search" emptyMessage="Empty" ariaLabel="Picker" />
+  const view = render(<fieldset>{picker}</fieldset>)
+  await user.click(screen.getByRole('button', { name: 'Picker' }))
+  view.rerender(<fieldset disabled>{picker}</fieldset>)
+  await user.click(screen.getByRole('menuitem', { name: 'Alpha' }))
+  expect(change).not.toHaveBeenCalled()
+})
+
+it('keeps multi-selection open, supports keyboard deselection, and restores trigger focus', async () => {
+  function Harness() {
+    const [selected, setSelected] = useState<string[]>([])
+    return <SearchableDropdown options={['Alpha', 'Beta']} value="" selectedValues={selected} onValueChange={(value) => setSelected((current) => current.includes(value) ? current.filter((entry) => entry !== value) : [...current, value])} getOptionValue={(value) => value} getOptionLabel={(value) => value} placeholder="Choose" searchPlaceholder="Search" emptyMessage="Empty" ariaLabel="Records" />
+  }
+  render(<Harness />)
+  const user = userEvent.setup()
+  const trigger = screen.getByRole('button', { name: 'Records' })
+  await user.click(trigger)
+  await user.type(screen.getByRole('searchbox'), 'Bet')
+  await user.keyboard('{ArrowDown}{Enter}')
+  expect(screen.getByRole('menuitemcheckbox', { name: 'Beta', checked: true })).toBeTruthy()
+  await user.keyboard(' ')
+  expect(screen.getByRole('menuitemcheckbox', { name: 'Beta', checked: false })).toBeTruthy()
+  await user.keyboard('{Enter}')
+  await user.click(screen.getByRole('button', { name: 'Done selecting' }))
+  expect(screen.queryByRole('menu')).toBeNull()
+  expect(document.activeElement).toBe(trigger)
+  await user.click(trigger)
+  expect(screen.getByRole('menuitemcheckbox', { name: 'Beta', checked: true })).toBeTruthy()
 })

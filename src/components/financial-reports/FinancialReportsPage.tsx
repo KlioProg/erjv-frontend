@@ -129,7 +129,7 @@ function VisualSession({
             <h2 className="text-sm font-semibold">{metric.label}</h2>
             <TabsList aria-label="Analysis view" className="h-auto flex-wrap">
               <TabsTrigger value="trends">Trends</TabsTrigger>
-              <TabsTrigger value="breakdown">Breakdown</TabsTrigger>
+              <TabsTrigger value="breakdown">Details</TabsTrigger>
               <TabsTrigger value="calendar">Calendar</TabsTrigger>
             </TabsList>
           </div>
@@ -195,14 +195,14 @@ function VisualSession({
       )}
       {!data['gross-profit-estimate'] && (
         <p role="status" className="text-xs text-muted-foreground">
-          Gross profit cost coverage is{' '}
+          Information about missing costs is{' '}
           {query.errors['gross-profit-estimate'] ? 'unavailable' : 'loading'}.
         </p>
       )}
-      <div className="flex flex-wrap items-start justify-between gap-3 text-xs text-muted-foreground">
+      <div className="flex flex-wrap items-start justify-between gap-3 text-sm text-muted-foreground">
         <details className="min-w-0 flex-1">
-          <summary className="cursor-pointer rounded font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-            Report snapshots and definitions
+          <summary className="min-h-9 cursor-pointer rounded py-1 font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            About this report
           </summary>
           <div className="mt-2 space-y-1">
             {reportMetrics.map((item) => (
@@ -217,8 +217,8 @@ function VisualSession({
               </p>
             ))}
             <p>
-              Snapshots are per report, not live or guaranteed synchronized. Periods can include
-              future dates; reported zero buckets do not predict future activity.
+              Totals and details are loaded separately and may have different report times. Periods
+              can include future dates; reported zero buckets do not predict future activity.
             </p>
             <p>
               Sales use reconciled deliveries. Purchases use accepted purchases and are not cost of
@@ -233,14 +233,14 @@ function VisualSession({
           disabled={query.fetching.length > 0}
           onClick={() => query.restart()}
         >
-          Refresh reports
+          Refresh totals
         </Button>
       </div>
       {report && (
-        <p className="text-xs text-muted-foreground" role="status">
+        <p className="text-sm text-muted-foreground" role="status">
           {metric.label} as of{' '}
           {new Date(report.period.asOf).toLocaleString('en-PH', { timeZone: 'Asia/Manila' })}
-          {query.fetching.includes(kind) ? ' (refreshing)' : ' (snapshot)'}
+          {query.fetching.includes(kind) ? ' (refreshing)' : ''}
         </p>
       )}
     </div>

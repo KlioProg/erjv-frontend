@@ -35,6 +35,6 @@ it('warns about positive uncosted quantity even with zero uncosted taxable sales
   uncosted.totals.uncostedQuantityByUnit = { piece: '1.00' }
   render(<ReportProfitNotice report={uncosted} />)
   expect(screen.getByText(/moving weighted average acquisition cost/)).toBeTruthy()
-  expect(screen.getByRole('status').textContent).toContain('incomplete cost coverage')
+  expect(screen.getByRole('status').textContent).toContain('may be incomplete')
   expect(screen.getByText(/Cost coverage:/).textContent).toContain('0.00')
 })

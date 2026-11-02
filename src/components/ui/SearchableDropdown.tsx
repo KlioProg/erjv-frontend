@@ -6,6 +6,7 @@ import {
   DropdownMenuContent,
   DropdownMenuGroup,
   DropdownMenuItem,
+  DropdownMenuCheckboxItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
@@ -18,6 +19,7 @@ type SearchableDropdownProps<T> = {
   maxCustomLength?: number
   options: T[]
   value: string
+  selectedValues?: readonly string[]
   onValueChange: (value: string, option: T) => void
   getOptionValue: (option: T) => string
   getOptionLabel: (option: T) => string
@@ -47,6 +49,7 @@ export function SearchableDropdown<T>({
   maxCustomLength = 100,
   options,
   value,
+  selectedValues,
   onValueChange,
   getOptionValue,
   getOptionLabel,
@@ -72,6 +75,18 @@ export function SearchableDropdown<T>({
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const searchInputRef = useRef<HTMLInputElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const canSelect = () => !disabled && !isLoading && !triggerRef.current?.matches(':disabled')
+  const changeOpen = (nextOpen: boolean) => {
+    const allowed = nextOpen && canSelect()
+    setOpen(allowed)
+    onOpenChange?.(allowed)
+    if (allowed) { setQuery(''); onSearchChange?.('') }
+  }
+  const selectOption = (option: T) => {
+    if (!canSelect()) { changeOpen(false); return }
+    onValueChange(getOptionValue(option), option)
+  }
 
   const fieldErrorId = useId()
   const validationId = useId()
@@ -84,9 +99,10 @@ export function SearchableDropdown<T>({
   const tooLong = !!onCreateValue && customValue.length > maxCustomLength
   const canCreate = !!onCreateValue && !!customValue && !exactMatch && !tooLong
   const selectCustom = () => {
+    if (!canSelect()) { changeOpen(false); return }
     if (!canCreate) return
     onCreateValue?.(customValue)
-    setOpen(false)
+    changeOpen(false)
   }
 
   const selectedOption = options.find((option) => getOptionValue(option) === value)
@@ -110,15 +126,12 @@ export function SearchableDropdown<T>({
     <>
     <DropdownMenu
       open={open && !disabled && !isLoading}
-      onOpenChange={(nextOpen) => {
-        setOpen(nextOpen && !disabled && !isLoading)
-        onOpenChange?.(nextOpen && !disabled && !isLoading)
-        if (nextOpen) { setQuery(''); onSearchChange?.('') }
-      }}
+      onOpenChange={changeOpen}
     >
       <OverflowValue asChild value={selectedLabel} describedBy={error ? fieldErrorId : undefined}>
         <DropdownMenuTrigger asChild>
           <Button
+            ref={triggerRef}
             id={id}
             type="button"
             disabled={disabled || isLoading}
@@ -147,7 +160,7 @@ export function SearchableDropdown<T>({
         onKeyDown={(event) => {
           if (
             event.key === 'ArrowUp' &&
-            event.target === event.currentTarget.querySelector('[role="menuitem"]')
+            event.target === event.currentTarget.querySelector('[role="menuitem"], [role="menuitemcheckbox"]')
           ) {
             event.preventDefault()
             searchInputRef.current?.focus()
@@ -180,8 +193,8 @@ export function SearchableDropdown<T>({
               if (event.key === 'Enter' && onCreateValue && !event.nativeEvent.isComposing) {
                 event.preventDefault()
                 if (exactMatch) {
-                  onValueChange(getOptionValue(exactMatch), exactMatch)
-                  setOpen(false)
+                  selectOption(exactMatch)
+                  changeOpen(false)
                 } else {
                   selectCustom()
                 }
@@ -190,7 +203,7 @@ export function SearchableDropdown<T>({
                 event.preventDefault()
                 const items = event.currentTarget
                   .closest('[role="menu"]')
-                  ?.querySelectorAll<HTMLElement>('[role="menuitem"]')
+                  ?.querySelectorAll<HTMLElement>('[role="menuitem"], [role="menuitemcheckbox"]')
                 const item = event.key === 'ArrowDown' ? items?.[0] : items?.[items.length - 1]
                 item?.focus()
               }
@@ -214,11 +227,19 @@ export function SearchableDropdown<T>({
             <DropdownMenuGroup>
               {filteredOptions.map((option) => {
                 const optionValue = getOptionValue(option)
-                const isSelected = optionValue === value
+                const isSelected = selectedValues ? selectedValues.includes(optionValue) : optionValue === value
+                if (selectedValues) return (
+                  <DropdownMenuCheckboxItem key={optionValue} checked={isSelected}
+                    onSelect={(event) => event.preventDefault()}
+                    onCheckedChange={() => selectOption(option)}
+                    className="min-h-11 whitespace-normal [overflow-wrap:anywhere]">
+                    {renderOption ? renderOption(option) : getOptionLabel(option)}
+                  </DropdownMenuCheckboxItem>
+                )
                 return (
                   <DropdownMenuItem
                     key={optionValue}
-                    onSelect={() => onValueChange(optionValue, option)}
+                    onSelect={() => selectOption(option)}
                     className="flex min-h-11 items-center justify-between gap-3"
                   >
                     <span className="min-w-0 flex-1 whitespace-normal [overflow-wrap:anywhere]">
@@ -242,6 +263,7 @@ export function SearchableDropdown<T>({
           )}
         </div>
         {footer}
+        {selectedValues && <Button type="button" variant="outline" size="sm" onClick={() => changeOpen(false)}>Done selecting</Button>}
       </DropdownMenuContent>
     </DropdownMenu>
     {error && <p id={fieldErrorId} role="alert" className="text-xs text-destructive">{error}</p>}

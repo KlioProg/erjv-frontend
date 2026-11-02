@@ -91,22 +91,28 @@ export function ReportProfitNotice({ report }: { report?: ReportResult }) {
     profit.uncostedTaxableSalesValue !== '0.00' ||
     Object.values(profit.uncostedQuantityByUnit ?? {}).some((quantity) => Number(quantity) > 0)
   return (
-    <div className="space-y-1 text-xs text-muted-foreground" role="note">
-      <p>
-        Estimated gross profit uses costed taxable sales and moving weighted average acquisition
-        cost. It is not net profit or sales minus purchases.
-      </p>
-      <p>
-        Cost coverage: {formatReportPercent(profit.costCoveragePercent)} · uncosted taxable sales:{' '}
-        {formatReportMoney(profit.uncostedTaxableSalesValue ?? '0.00')}.
-      </p>
+    <div className="space-y-2 text-sm text-muted-foreground" role="note">
+      <details>
+        <summary className="min-h-9 cursor-pointer rounded py-1 font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          How estimated gross profit is calculated
+        </summary>
+        <div className="mt-2 space-y-1">
+          <p>
+            Estimated gross profit uses costed taxable sales and moving weighted average acquisition
+            cost. It is not net profit or sales minus purchases.
+          </p>
+          <p>
+            Cost coverage: {formatReportPercent(profit.costCoveragePercent)}; uncosted taxable
+            sales: {formatReportMoney(profit.uncostedTaxableSalesValue ?? '0.00')}.
+          </p>
+        </div>
+      </details>
       {hasUncosted && (
         <div
           role="status"
           className="rounded-md border border-amber-600/50 p-3 text-sm text-foreground"
         >
-          Some sales have no known acquisition cost. The estimated gross profit has incomplete cost
-          coverage.
+          Some sales have no recorded purchase cost. Estimated gross profit may be incomplete.
         </div>
       )}
     </div>

@@ -33,7 +33,7 @@ beforeEach(() => {
                 createdAt: '2026-10-01',
                 updatedAt: '2026-10-01',
               }
-            : /^\/(sales-orders|purchase-orders|incoming-deliveries|outgoing-deliveries)$/.test(config.url ?? '') ? { items: [], nextCursor: null } : [],
+            : /^\/(sales-orders|purchase-orders|incoming-deliveries|outgoing-deliveries|warehouses|stock-items|inventory-items|employees|jobs|users)$/.test(config.url ?? '') ? { items: [], nextCursor: null } : [],
     }
   }
 })

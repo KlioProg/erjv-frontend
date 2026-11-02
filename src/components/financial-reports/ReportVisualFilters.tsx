@@ -240,8 +240,7 @@ export function ReportVisualFilters({
               </p>
             )}
             <p className="text-xs text-muted-foreground">
-              {reportDateLabel(dateRange.from)} – {reportDateLabel(dateRange.through)} ·
-              Asia/Manila
+              {reportDateLabel(dateRange.from)} – {reportDateLabel(dateRange.through)} · Asia/Manila
             </p>
           </div>
         </div>
@@ -254,14 +253,14 @@ export function ReportVisualFilters({
           aria-controls="advanced-report-filters"
           onClick={() => setAdvanced((open) => !open)}
         >
-          Advanced filters{activeFilters > 0 ? ` (${activeFilters} active)` : ''}
+          Filters{activeFilters > 0 ? ` (${activeFilters} active)` : ''}
         </Button>
       </div>
       <p className="mt-2 text-xs text-muted-foreground">
         {activeFilters
           ? `${value.itemId ? 'Selected item' : 'All items'} · ${value.warehouseId ? 'Selected warehouse' : 'All warehouses'}`
           : 'All items · All warehouses'}{' '}
-        · Full selected period
+        · Selected period
       </p>
       {advanced && (
         <div

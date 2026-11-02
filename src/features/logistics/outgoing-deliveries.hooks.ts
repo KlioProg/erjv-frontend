@@ -102,7 +102,7 @@ export function useOutgoingDeliveries(filter?: OutgoingDeliveryFilter) {
 export function useOutgoingDeliveryById(id?: number) {
   return useQuery({
     queryKey: [...DELIVERIES_QUERY_KEY, 'id', id],
-    queryFn: () => (id ? fetchOutgoingDeliveryByIdApi(id) : Promise.reject('No ID provided')),
+    queryFn: ({ signal }) => (id ? fetchOutgoingDeliveryByIdApi(id, signal) : Promise.reject('No ID provided')),
     enabled: Boolean(id && id > 0),
   })
 }

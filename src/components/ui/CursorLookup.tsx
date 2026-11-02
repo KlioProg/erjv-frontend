@@ -11,6 +11,7 @@ export function CursorLookup<T extends { id: number }>({
   path,
   filter = {},
   value,
+  selectedValues,
   onChange,
   label,
   getLabel,
@@ -26,6 +27,7 @@ export function CursorLookup<T extends { id: number }>({
   path: string
   filter?: Record<string, unknown>
   value: string
+  selectedValues?: readonly string[]
   onChange: (value: string, record: T) => void
   label: string
   getLabel: (record: T) => string
@@ -74,6 +76,7 @@ export function CursorLookup<T extends { id: number }>({
       id={id}
       options={accept ? query.items.filter(accept) : query.items}
       value={value}
+      selectedValues={selectedValues}
       onValueChange={(id, record) => {
         setRemembered(record)
         onChange(id, record)

@@ -20,8 +20,9 @@ export async function fetchOutgoingDeliveriesApi(filter?: OutgoingDeliveryFilter
 
 export async function fetchOutgoingDeliveryByIdApi(
   id: number,
+  signal?: AbortSignal,
 ): Promise<OutgoingDeliveryRecord | null> {
-  const { data } = await apiClient.get<OutgoingDeliveryRecord>(`/outgoing-deliveries/${id}`)
+  const { data } = await apiClient.get<OutgoingDeliveryRecord>(`/outgoing-deliveries/${id}`, { signal })
   return data
 }
 
