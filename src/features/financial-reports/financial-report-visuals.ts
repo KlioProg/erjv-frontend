@@ -10,7 +10,7 @@ export const reportMetrics: { kind: ReportKind; label: string; color: string; da
 export type ReportPeriod = 'annual' | 'semiannual' | 'quarterly' | 'monthly' | 'weekly'
 export const reportPeriods: { value: ReportPeriod; label: string }[] = [
   { value: 'annual', label: 'Annual' },
-  { value: 'semiannual', label: 'Semiannual' },
+  { value: 'semiannual', label: 'Semi-Annual' },
   { value: 'quarterly', label: 'Quarterly' },
   { value: 'monthly', label: 'Monthly' },
   { value: 'weekly', label: 'Weekly' },

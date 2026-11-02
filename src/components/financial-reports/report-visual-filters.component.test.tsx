@@ -53,7 +53,7 @@ it('shows one Year input for annual, semiannual, and quarterly periods', async (
   expect(screen.queryByRole('button', { name: 'Apply filters' })).toBeNull()
   expect(screen.queryByRole('button', { name: 'Refresh report' })).toBeNull()
 
-  const semiannual = screen.getByRole('button', { name: 'Semiannual' })
+  const semiannual = screen.getByRole('button', { name: 'Semi-Annual' })
   await user.click(semiannual)
   expect(screen.getByLabelText('Year')).toBe(year)
   expect(screen.getByText('H2 · July–December')).toBeTruthy()
