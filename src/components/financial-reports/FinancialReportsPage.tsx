@@ -3,211 +3,245 @@ import { useSearchParams } from 'react-router'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { PageHeader } from '@/components/ui/ManagementPage'
-import { StatusTabNav } from '@/components/ui/StatusTabNav'
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { getErrorMessage, getApiError } from '@/lib/api-client'
 import {
   buildReportQuery,
   createDefaultReportFilters,
 } from '@/features/financial-reports/financial-reports.filters'
-import {
-  calendarMetric,
-  reportMetrics,
-} from '@/features/financial-reports/financial-report-visuals'
+import { reportMetrics } from '@/features/financial-reports/financial-report-visuals'
 import {
   changeReportFilters,
   initialReportFilters,
   reportDraft,
-  type PeriodAction,
   type ReportFilterState,
 } from '@/features/financial-reports/financial-report-periods'
 import { useReportVisuals } from '@/features/financial-reports/financial-report-visuals.hooks'
 import { useAuth } from '@/features/auth/AuthContext'
 import type { ReportKind } from '@/features/financial-reports/financial-reports.types'
 import { ReportVisualFilters } from './ReportVisualFilters'
-import { ReportLineChart, ReportItemCharts } from './ReportCharts'
+import { ReportLineChart } from './ReportCharts'
 import { ReportCalendar } from './ReportCalendar'
 import { ReportProfitNotice, ReportSummaryCards } from './ReportSummaryCards'
+import { ReportDetails } from './ReportDetails'
+
+const allKinds = reportMetrics.map((metric) => metric.kind)
 
 export function FinancialReportsPage() {
   const { isAdmin, isManager } = useAuth()
   const [params, setParams] = useSearchParams()
   const [today] = useState(() => createDefaultReportFilters().through)
-  const raw = params.get('report')
-  const initialKind = reportMetrics.find((metric) => metric.kind === raw)?.kind
-  const [selected, setSelected] = useState<ReportKind[]>(() =>
-    initialKind ? [initialKind] : reportMetrics.map((metric) => metric.kind),
-  )
-  const [single, setSingle] = useState<ReportKind>(initialKind ?? 'gross-profit-estimate')
+  const rawView = params.get('view')
+  const kind =
+    reportMetrics.find((metric) => metric.kind === params.get('report'))?.kind ??
+    (rawView === 'overview' ? 'gross-profit-estimate' : 'sales')
+  const view =
+    rawView === 'overview' || rawView === 'items' || rawView === 'breakdown'
+      ? 'breakdown'
+      : rawView === 'calendar'
+        ? 'calendar'
+        : 'trends'
   const [filters, setFilters] = useState<ReportFilterState>(() => initialReportFilters(today))
-  const overview = params.get('view') === 'overview'
-  const calendar = calendarMetric(selected)
-  const kinds = overview ? [single] : [...new Set([...selected, calendar])]
+  const updateParam = (key: string, value: string) =>
+    setParams((previous) => {
+      const next = new URLSearchParams(previous)
+      next.set(key, value)
+      if (key === 'view') next.set('report', kind)
+      return next
+    })
 
   if (!isAdmin && !isManager)
     return <p>Financial reports are available to administrators and managers.</p>
 
   return (
-    <div className="flex min-w-0 flex-col gap-5">
-      <PageHeader description="Track sales, accepted purchases and estimated gross profit across time.">
+    <div className="flex min-w-0 flex-col gap-4">
+      <PageHeader description="Monitor sales, purchases, and estimated gross profit.">
         Financial Reports
       </PageHeader>
-      <div role="group" aria-label="Report view">
-        <StatusTabNav
-          tabs={[
-            { value: 'trends', label: 'Trends' },
-            { value: 'overview', label: 'Overview' },
-          ]}
-          activeTab={overview ? 'overview' : 'trends'}
-          onTabChange={(view) => {
-            if ((view === 'overview') === overview) return
-            if (view === 'overview') setSingle(calendarMetric(selected))
-            setParams((previous) => {
-              const next = new URLSearchParams(previous)
-              next.set('view', view)
-              return next
-            })
-          }}
-        />
-      </div>
       <ReportVisualFilters
         value={filters}
         today={today}
-        onChange={(action: PeriodAction) =>
-          setFilters((current) => changeReportFilters(current, action))
-        }
+        onChange={(action) => setFilters((current) => changeReportFilters(current, action))}
       />
       <VisualSession
         filters={filters}
-        kinds={kinds}
-        selected={selected}
-        calendar={calendar}
-        single={single}
-        overview={overview}
-        onSelection={(kind) => {
-          if (overview) setSingle(kind)
-          else
-            setSelected((current) =>
-              current.includes(kind)
-                ? current.length > 1
-                  ? current.filter((selectedKind) => selectedKind !== kind)
-                  : current
-                : [...current, kind],
-            )
-        }}
+        kind={kind}
+        view={view}
+        onSelection={(value) => updateParam('report', value)}
+        onView={(value) => updateParam('view', value)}
       />
     </div>
   )
 }
 
+function ReportError({ error, restart }: { error: unknown; restart: () => void }) {
+  const source = (getApiError(error) as Record<string, unknown> | undefined)?.source as
+    { type?: string; id?: string } | undefined
+  return (
+    <Alert variant="destructive">
+      <AlertDescription>
+        {getErrorMessage(error)} {source && `Source: ${source.type} #${source.id}.`}{' '}
+        <Button type="button" variant="outline" onClick={restart}>
+          Restart report
+        </Button>
+      </AlertDescription>
+    </Alert>
+  )
+}
+
 function VisualSession({
   filters,
-  kinds,
-  selected,
-  calendar,
-  single,
-  overview,
+  kind,
+  view,
   onSelection,
+  onView,
 }: {
   filters: ReportFilterState
-  kinds: ReportKind[]
-  selected: ReportKind[]
-  calendar: ReportKind
-  single: ReportKind
-  overview: boolean
+  kind: ReportKind
+  view: 'trends' | 'breakdown' | 'calendar'
   onSelection: (kind: ReportKind) => void
+  onView: (view: string) => void
 }) {
-  const draft = reportDraft(filters)
-  const scope = buildReportQuery('sales', draft)
-  const query = useReportVisuals(scope, kinds, overview)
+  const scope = buildReportQuery('sales', reportDraft(filters))
+  const query = useReportVisuals(scope, allKinds, false)
+  const [openedBreakdowns, setOpenedBreakdowns] = useState<ReportKind[]>([])
+  if (view === 'breakdown' && !openedBreakdowns.includes(kind))
+    setOpenedBreakdowns((opened) => [...opened, kind])
   if (!query.authorized)
     return <p>Financial reports are available to administrators and managers.</p>
-
-  const displayed = overview ? [single] : selected
-  const data = query.isError ? undefined : query.data
-  const source = (getApiError(query.error) as Record<string, unknown> | undefined)?.source as
-    { type?: string; id?: string } | undefined
-
+  const data = query.data ?? {}
+  const report = data[kind]
+  const metric = reportMetrics.find((metric) => metric.kind === kind)!
   return (
-    <div className="min-w-0 space-y-5">
-      <div
-        role="group"
-        aria-label={overview ? 'Overview metric' : 'Trend lines'}
-        className="flex flex-wrap gap-2"
-      >
-        {reportMetrics.map((metric) => (
-          <Button
-            type="button"
-            key={metric.kind}
-            variant={displayed.includes(metric.kind) ? 'default' : 'outline'}
-            aria-pressed={displayed.includes(metric.kind)}
-            disabled={!overview && selected.length === 1 && selected.includes(metric.kind)}
-            onClick={() => onSelection(metric.kind)}
-          >
-            <span
-              className="h-2.5 w-2.5 shrink-0 rounded-full border border-current"
-              style={{ backgroundColor: metric.color }}
-              aria-hidden="true"
-            />
-            {metric.label}
-          </Button>
-        ))}
-      </div>
-      <p className="text-xs text-muted-foreground">
-        Sales (income): reconciled deliveries. Purchases (expense): accepted purchases, excluding
-        other operating expenses.
-      </p>
-      {query.isError && (
-        <Alert variant="destructive">
-          <AlertDescription>
-            {getErrorMessage(query.error)} {source && `Source: ${source.type} #${source.id}.`}{' '}
-            <Button variant="outline" onClick={query.restart}>
-              Restart report
-            </Button>
-          </AlertDescription>
-        </Alert>
-      )}
-      {!data && !query.isError && (
-        <p role="status">
-          {overview ? 'Loading complete item distribution…' : 'Loading financial trends…'}
-        </p>
-      )}
-      {data && (
-        <>
-          <ReportSummaryCards
-            key={JSON.stringify([overview ? 'overview' : 'trends', scope])}
-            reports={data}
-            visibleKinds={displayed}
-            filters={filters}
-            view={overview ? 'overview' : 'trends'}
-          />
-          <p className="text-xs text-muted-foreground">
-            {kinds
-              .map(
-                (kind) =>
-                  `${reportMetrics.find((metric) => metric.kind === kind)!.label} as of ${new Date(data[kind]!.period.asOf).toLocaleString('en-PH', { timeZone: 'Asia/Manila' })}`,
-              )
-              .join(' · ')}
-          </p>
-          {overview ? (
-            <>
-              <ReportProfitNotice report={data['gross-profit-estimate']} />
-              <ReportItemCharts kind={single} report={data[single]!} />
-            </>
-          ) : (
-            <>
-              <ReportLineChart selected={selected} reports={data} period={filters.period} />
-              <div className="space-y-3">
+    <div className="min-w-0 space-y-4">
+      <ReportSummaryCards
+        reports={data}
+        selected={kind}
+        onSelection={onSelection}
+        errors={query.errors}
+        pending={query.pending}
+        fetching={query.fetching}
+        onRetry={query.restart}
+      />
+      <Tabs value={view} onValueChange={onView}>
+        <section aria-label="Financial analysis" className="min-w-0 rounded-lg border bg-card">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3">
+            <h2 className="text-sm font-semibold">{metric.label}</h2>
+            <TabsList aria-label="Analysis view" className="h-auto flex-wrap">
+              <TabsTrigger value="trends">Trends</TabsTrigger>
+              <TabsTrigger value="breakdown">Breakdown</TabsTrigger>
+              <TabsTrigger value="calendar">Calendar</TabsTrigger>
+            </TabsList>
+          </div>
+          <div className="min-w-0 p-4">
+            <TabsContent value="trends" className="mt-0">
+              {query.errors[kind] ? (
+                <ReportError error={query.errors[kind]} restart={() => query.restart(kind)} />
+              ) : !report ? (
+                <p role="status">Loading {metric.label.toLowerCase()} report...</p>
+              ) : (
+                <ReportLineChart
+                  key={JSON.stringify([kind, scope])}
+                  selected={[kind]}
+                  reports={data}
+                  period={filters.period}
+                />
+              )}
+            </TabsContent>
+            <TabsContent value="calendar" className="mt-0">
+              {query.errors[kind] ? (
+                <ReportError error={query.errors[kind]} restart={() => query.restart(kind)} />
+              ) : !report ? (
+                <p role="status">Loading {metric.label.toLowerCase()} report...</p>
+              ) : (
                 <ReportCalendar
                   key={JSON.stringify(filters)}
-                  kind={calendar}
-                  rows={data[calendar]!.rows}
+                  kind={kind}
+                  rows={report.rows}
                   filters={filters}
                 />
-                <ReportProfitNotice report={data['gross-profit-estimate']} />
-              </div>
-            </>
-          )}
-        </>
+              )}
+            </TabsContent>
+            <TabsContent
+              value="breakdown"
+              forceMount
+              hidden={view !== 'breakdown'}
+              className="mt-0"
+            >
+              {view === 'breakdown' &&
+                (query.errors[kind] ? (
+                  <ReportError error={query.errors[kind]} restart={() => query.restart(kind)} />
+                ) : !report ? (
+                  <p role="status">Loading {metric.label.toLowerCase()} report...</p>
+                ) : null)}
+              {openedBreakdowns.map(
+                (openedKind) =>
+                  data[openedKind] && (
+                    <div key={openedKind} hidden={kind !== openedKind}>
+                      <ReportDetails
+                        kind={openedKind}
+                        metrics={data[openedKind]!.totals}
+                        filters={filters}
+                      />
+                    </div>
+                  ),
+              )}
+            </TabsContent>
+          </div>
+        </section>
+      </Tabs>
+      {data['gross-profit-estimate'] && (
+        <ReportProfitNotice report={data['gross-profit-estimate']} />
+      )}
+      {!data['gross-profit-estimate'] && (
+        <p role="status" className="text-xs text-muted-foreground">
+          Gross profit cost coverage is{' '}
+          {query.errors['gross-profit-estimate'] ? 'unavailable' : 'loading'}.
+        </p>
+      )}
+      <div className="flex flex-wrap items-start justify-between gap-3 text-xs text-muted-foreground">
+        <details className="min-w-0 flex-1">
+          <summary className="cursor-pointer rounded font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            Report snapshots and definitions
+          </summary>
+          <div className="mt-2 space-y-1">
+            {reportMetrics.map((item) => (
+              <p key={item.kind}>
+                {item.label}:{' '}
+                {data[item.kind]
+                  ? `As of ${new Date(data[item.kind]!.period.asOf).toLocaleString('en-PH', { timeZone: 'Asia/Manila' })}`
+                  : query.errors[item.kind]
+                    ? 'Unavailable'
+                    : 'Loading'}
+                .
+              </p>
+            ))}
+            <p>
+              Snapshots are per report, not live or guaranteed synchronized. Periods can include
+              future dates; reported zero buckets do not predict future activity.
+            </p>
+            <p>
+              Sales use reconciled deliveries. Purchases use accepted purchases and are not cost of
+              goods sold, operating expenses, or net cash outflows.
+            </p>
+          </div>
+        </details>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={query.fetching.length > 0}
+          onClick={() => query.restart()}
+        >
+          Refresh reports
+        </Button>
+      </div>
+      {report && (
+        <p className="text-xs text-muted-foreground" role="status">
+          {metric.label} as of{' '}
+          {new Date(report.period.asOf).toLocaleString('en-PH', { timeZone: 'Asia/Manila' })}
+          {query.fetching.includes(kind) ? ' (refreshing)' : ' (snapshot)'}
+        </p>
       )}
     </div>
   )

@@ -37,6 +37,8 @@ export function ReportVisualFilters({
   today: string
   onChange: (action: PeriodAction) => void
 }) {
+  const [advanced, setAdvanced] = useState(Boolean(value.itemId || value.warehouseId))
+  const activeFilters = Number(Boolean(value.itemId)) + Number(Boolean(value.warehouseId))
   const selectors = periodSelectors(value)
   const committedYear = String(selectors.year)
   const [yearDraft, setYearDraft] = useState({
@@ -87,194 +89,231 @@ export function ReportVisualFilters({
   const next = changeReportFilters(value, { type: 'step', value: 1 }) === value
 
   return (
-    <section className="space-y-4" aria-label="Financial report filters">
-      <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Time period">
-        {reportPeriods.map((period) => (
-          <Button
-            key={period.value}
-            type="button"
-            variant={value.period === period.value ? 'default' : 'outline'}
-            aria-pressed={value.period === period.value}
-            onClick={() => apply({ type: 'period', value: period.value }, true)}
-          >
-            {period.label}
-          </Button>
-        ))}
-      </div>
-
-      <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <div className="space-y-1">
-          <p className="text-sm font-medium">Period containing</p>
-          <div className="flex items-center gap-1">
+    <section
+      className="min-w-0 rounded-lg border bg-card p-3"
+      aria-label="Financial report filters"
+    >
+      <div className="flex flex-wrap items-start gap-3">
+        <div
+          className="flex flex-wrap items-center gap-1 rounded-md bg-muted/50 p-1"
+          role="group"
+          aria-label="Time period"
+        >
+          {reportPeriods.map((period) => (
             <Button
-              variant="outline"
-              size="icon"
+              key={period.value}
               type="button"
-              aria-label="Previous period"
-              disabled={previous}
-              onClick={() => apply({ type: 'step', value: -1 }, true)}
+              size="sm"
+              variant={value.period === period.value ? 'outline' : 'ghost'}
+              aria-pressed={value.period === period.value}
+              onClick={() => apply({ type: 'period', value: period.value }, true)}
             >
-              <ChevronLeft aria-hidden="true" />
+              {period.label}
             </Button>
-            {hasYearInput ? (
-              <div className="min-w-0 flex-1 space-y-1">
-                <Label htmlFor="visual-year" className="text-xs">
-                  Year
-                </Label>
-                <Input
-                  id="visual-year"
-                  aria-invalid={yearIsInvalid}
-                  aria-describedby={yearIsInvalid || yearMessage ? yearMessageId : undefined}
-                  type="text"
-                  inputMode="numeric"
-                  pattern="[0-9]{4}"
-                  maxLength={4}
-                  value={rawYear}
-                  onChange={(event) => changeYear(event.currentTarget.value)}
-                  onPaste={pasteYear}
-                  onBlur={() => {
-                    if (yearIsInvalid)
-                      restoreYear('No change applied. Enter a four-digit year from 1900 to 2100.')
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Escape' && rawYear !== committedYear) {
-                      event.preventDefault()
-                      restoreYear()
-                    } else if (event.key === 'Enter') event.preventDefault()
-                  }}
-                  className="min-w-0 focus-visible:ring-2 focus-visible:ring-ring"
-                />
-              </div>
-            ) : value.period === 'monthly' ? (
-              <div className="min-w-0 flex-1 space-y-1">
-                <Label htmlFor="visual-month" className="text-xs">
-                  Month
-                </Label>
-                <Select
-                  value={String(selectors.month)}
-                  onValueChange={(selected) => apply({ type: 'month', value: Number(selected) })}
-                >
-                  <SelectTrigger id="visual-month" aria-label="Month">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {monthOptions().map((month) => (
-                      <SelectItem key={month.value} value={String(month.value)}>
-                        {month.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            ) : (
-              <div className="min-w-0 flex-1 space-y-1">
-                <Label htmlFor="visual-week" className="text-xs">
-                  Week
-                </Label>
-                <Select
-                  value={String(selectors.week)}
-                  onValueChange={(selected) => apply({ type: 'week', value: Number(selected) })}
-                >
-                  <SelectTrigger id="visual-week" aria-label="Week">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {weekOptions(value.anchor).map((week) => (
-                      <SelectItem key={week.value} value={String(week.value)}>
-                        {week.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-            <Button
-              variant="outline"
-              size="icon"
-              type="button"
-              aria-label="Next period"
-              disabled={next}
-              onClick={() => apply({ type: 'step', value: 1 }, true)}
-            >
-              <ChevronRight aria-hidden="true" />
-            </Button>
-          </div>
-          {!hasYearInput && (
-            <p className="text-xs text-muted-foreground" aria-label="Period year">
-              Year · {selectors.year}
-            </p>
-          )}
-          {hasYearInput && value.period === 'semiannual' && (
-            <p className="text-xs text-muted-foreground">
-              H{selectors.half} · {selectors.half === 1 ? 'January–June' : 'July–December'}
-            </p>
-          )}
-          {hasYearInput && value.period === 'quarterly' && (
-            <p className="text-xs text-muted-foreground">
-              Q{selectors.quarter} ·{' '}
-              {
-                ['', 'January–March', 'April–June', 'July–September', 'October–December'][
-                  selectors.quarter
-                ]
-              }
-            </p>
-          )}
-          {yearIsInvalid && (
-            <p id={yearMessageId} className="text-xs text-destructive">
-              Enter a four-digit year from 1900 to 2100. The current report remains unchanged.
-            </p>
-          )}
-          {yearMessage && !yearIsInvalid && (
-            <p id={yearMessageId} className="text-xs text-muted-foreground">
-              {yearMessage}
-            </p>
-          )}
-          <p className="text-xs text-muted-foreground">
-            {reportDateLabel(dateRange.from)} – {reportDateLabel(dateRange.through)} · Asia/Manila
-          </p>
+          ))}
         </div>
 
-        {(
-          [
-            { field: 'itemId', label: 'Item', path: '/inventory-items' },
-            { field: 'warehouseId', label: 'Warehouse', path: '/warehouses' },
-          ] as const
-        ).map(({ field, label, path }) => (
-          <div className="space-y-1" key={field}>
-            <Label htmlFor={'visual-' + field}>
-              {label} {value[field] ? '' : '(All)'}
-            </Label>
-            <div className="flex min-w-0 gap-1">
-              <CursorLookup<{ id: number; name: string; variety?: string; isActive?: boolean }>
-                id={'visual-' + field}
-                path={path}
-                label={label}
-                value={value[field]}
-                filter={{ includeInactive: 'true' }}
-                getLabel={(record) =>
-                  [record.name, record.variety, record.isActive === false ? '(archived)' : '']
-                    .filter(Boolean)
-                    .join(' ')
-                }
-                onChange={(selected) => apply({ type: field, value: selected })}
-              />
+        <div className="min-w-0 flex-1 basis-60">
+          <div className="space-y-1">
+            <div className="flex items-end gap-1">
               <Button
-                type="button"
                 variant="outline"
-                aria-label={'Clear ' + label.toLowerCase()}
-                disabled={!value[field]}
-                onClick={() => apply({ type: field, value: '' })}
+                size="icon"
+                type="button"
+                aria-label="Previous period"
+                disabled={previous}
+                onClick={() => apply({ type: 'step', value: -1 }, true)}
               >
-                Clear
+                <ChevronLeft aria-hidden="true" />
+              </Button>
+              {hasYearInput ? (
+                <div className="min-w-0 flex-1 space-y-1">
+                  <Label htmlFor="visual-year" className="sr-only">
+                    Year
+                  </Label>
+                  <Input
+                    id="visual-year"
+                    aria-invalid={yearIsInvalid}
+                    aria-describedby={yearIsInvalid || yearMessage ? yearMessageId : undefined}
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]{4}"
+                    maxLength={4}
+                    value={rawYear}
+                    onChange={(event) => changeYear(event.currentTarget.value)}
+                    onPaste={pasteYear}
+                    onBlur={() => {
+                      if (yearIsInvalid)
+                        restoreYear('No change applied. Enter a four-digit year from 1900 to 2100.')
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Escape' && rawYear !== committedYear) {
+                        event.preventDefault()
+                        restoreYear()
+                      } else if (event.key === 'Enter') event.preventDefault()
+                    }}
+                    className="h-9 min-w-0 focus-visible:ring-2 focus-visible:ring-ring"
+                  />
+                </div>
+              ) : value.period === 'monthly' ? (
+                <div className="min-w-0 flex-1 space-y-1">
+                  <Label htmlFor="visual-month" className="sr-only">
+                    Month
+                  </Label>
+                  <Select
+                    value={String(selectors.month)}
+                    onValueChange={(selected) => apply({ type: 'month', value: Number(selected) })}
+                  >
+                    <SelectTrigger id="visual-month" aria-label="Month" className="h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {monthOptions().map((month) => (
+                        <SelectItem key={month.value} value={String(month.value)}>
+                          {month.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : (
+                <div className="min-w-0 flex-1 space-y-1">
+                  <Label htmlFor="visual-week" className="sr-only">
+                    Week
+                  </Label>
+                  <Select
+                    value={String(selectors.week)}
+                    onValueChange={(selected) => apply({ type: 'week', value: Number(selected) })}
+                  >
+                    <SelectTrigger id="visual-week" aria-label="Week" className="h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {weekOptions(value.anchor).map((week) => (
+                        <SelectItem key={week.value} value={String(week.value)}>
+                          {week.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              <Button
+                variant="outline"
+                size="icon"
+                type="button"
+                aria-label="Next period"
+                disabled={next}
+                onClick={() => apply({ type: 'step', value: 1 }, true)}
+              >
+                <ChevronRight aria-hidden="true" />
               </Button>
             </div>
+            {!hasYearInput && (
+              <p className="text-xs text-muted-foreground" aria-label="Period year">
+                Year · {selectors.year}
+              </p>
+            )}
+            {hasYearInput && value.period === 'semiannual' && (
+              <p className="text-xs text-muted-foreground">
+                H{selectors.half} · {selectors.half === 1 ? 'January–June' : 'July–December'}
+              </p>
+            )}
+            {hasYearInput && value.period === 'quarterly' && (
+              <p className="text-xs text-muted-foreground">
+                Q{selectors.quarter} ·{' '}
+                {
+                  ['', 'January–March', 'April–June', 'July–September', 'October–December'][
+                    selectors.quarter
+                  ]
+                }
+              </p>
+            )}
+            {yearIsInvalid && (
+              <p id={yearMessageId} className="text-xs text-destructive">
+                Enter a four-digit year from 1900 to 2100. The current report remains unchanged.
+              </p>
+            )}
+            {yearMessage && !yearIsInvalid && (
+              <p id={yearMessageId} className="text-xs text-muted-foreground">
+                {yearMessage}
+              </p>
+            )}
+            <p className="text-xs text-muted-foreground">
+              {reportDateLabel(dateRange.from)} – {reportDateLabel(dateRange.through)} ·
+              Asia/Manila
+            </p>
           </div>
-        ))}
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-9"
+          aria-expanded={advanced}
+          aria-controls="advanced-report-filters"
+          onClick={() => setAdvanced((open) => !open)}
+        >
+          Advanced filters{activeFilters > 0 ? ` (${activeFilters} active)` : ''}
+        </Button>
       </div>
-
-      <Button type="button" variant="outline" onClick={() => apply({ type: 'reset', today }, true)}>
-        Reset filters
-      </Button>
+      <p className="mt-2 text-xs text-muted-foreground">
+        {activeFilters
+          ? `${value.itemId ? 'Selected item' : 'All items'} · ${value.warehouseId ? 'Selected warehouse' : 'All warehouses'}`
+          : 'All items · All warehouses'}{' '}
+        · Full selected period
+      </p>
+      {advanced && (
+        <div
+          id="advanced-report-filters"
+          className="mt-3 grid min-w-0 items-end gap-3 border-t pt-3 md:grid-cols-2 xl:grid-cols-[1fr_1fr_auto]"
+        >
+          {(
+            [
+              { field: 'itemId', label: 'Item', path: '/inventory-items' },
+              { field: 'warehouseId', label: 'Warehouse', path: '/warehouses' },
+            ] as const
+          ).map(({ field, label, path }) => (
+            <div className="space-y-1" key={field}>
+              <Label htmlFor={'visual-' + field}>
+                {label} {value[field] ? '' : '(All)'}
+              </Label>
+              <div className="flex min-w-0 gap-1">
+                <CursorLookup<{ id: number; name: string; variety?: string; isActive?: boolean }>
+                  id={'visual-' + field}
+                  path={path}
+                  label={label}
+                  value={value[field]}
+                  filter={{ includeInactive: 'true' }}
+                  getLabel={(record) =>
+                    [record.name, record.variety, record.isActive === false ? '(archived)' : '']
+                      .filter(Boolean)
+                      .join(' ')
+                  }
+                  onChange={(selected) => apply({ type: field, value: selected })}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  aria-label={'Clear ' + label.toLowerCase()}
+                  disabled={!value[field]}
+                  onClick={() => apply({ type: field, value: '' })}
+                >
+                  Clear
+                </Button>
+              </div>
+            </div>
+          ))}
+          <Button
+            type="button"
+            variant="outline"
+            className="h-9"
+            onClick={() => apply({ type: 'reset', today }, true)}
+          >
+            Reset filters
+          </Button>
+        </div>
+      )}
     </section>
   )
 }

@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Button } from '@/components/ui/button'
 import { decimalString } from '@/lib/order-amounts'
 import { formatReportMoney } from '@/features/financial-reports/financial-reports.filters'
 import {
@@ -35,14 +36,45 @@ export function ReportLineChart({
   reports: Partial<Record<ReportKind, ReportResult>>
   period: ReportPeriod
 }) {
+  const chartRef = useRef<HTMLElement>(null)
+  const [plotWidth, setPlotWidth] = useState(880)
+  useEffect(() => {
+    const element = chartRef.current
+    if (!element) return
+    const resize = () => {
+      const width = element.getBoundingClientRect().width
+      if (width > 0) setPlotWidth(width)
+    }
+    resize()
+    const observer = new ResizeObserver(resize)
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [])
   const [active, setActive] = useState<{ point: number; series: number } | null>(null)
-  const series = reportMetrics
-    .filter((m) => selected.includes(m.kind))
-    .map((m) => ({
-      ...m,
-      points: trendPoints(reports[m.kind]!.rows, m.kind, period),
-    }))
-  const dates = series[0]?.points.map((point) => point.key) ?? []
+  const series = useMemo(
+    () =>
+      reportMetrics
+        .filter((m) => selected.includes(m.kind))
+        .map((m) => ({
+          ...m,
+          points: trendPoints(reports[m.kind]!.rows, m.kind, period),
+        })),
+    [selected, reports, period],
+  )
+  const observedDates = [
+    ...new Set(series.flatMap((item) => item.points.map((point) => point.key))),
+  ].sort()
+  const dates: string[] = []
+  if (observedDates.length) {
+    const monthly = ['annual', 'semiannual', 'quarterly'].includes(period)
+    const date = new Date(observedDates[0] + 'T00:00:00Z')
+    const last = observedDates[observedDates.length - 1]
+    while (date.toISOString().slice(0, 10) <= last) {
+      dates.push(date.toISOString().slice(0, 10))
+      if (monthly) date.setUTCMonth(date.getUTCMonth() + 1)
+      else date.setUTCDate(date.getUTCDate() + 1)
+    }
+  }
   const seriesWithValues = series.map((item) => ({
     ...item,
     values: new Map(item.points.map((point) => [point.key, point.value])),
@@ -53,8 +85,8 @@ export function ReportLineChart({
   const low = amounts.reduce((m, v) => (v < m ? v : m), 0n)
   const high = amounts.reduce((m, v) => (v > m ? v : m), 0n)
   const range = high - low || 100n
-  const x = (i: number) => 100 + (i * 750) / Math.max(1, dates.length - 1)
-  const y = (v: bigint) => 260 - scaledRatio(v - low, range) * 230
+  const x = (i: number) => 90 + (i * Math.max(1, plotWidth - 120)) / Math.max(1, dates.length - 1)
+  const y = (v: bigint) => 182 - scaledRatio(v - low, range) * 164
   const pointIndex = active ? Math.max(0, Math.min(active.point, dates.length - 1)) : 0
   const seriesIndex = active ? Math.max(0, Math.min(active.series, seriesWithValues.length - 1)) : 0
   const pointDate = dates[pointIndex]
@@ -74,11 +106,8 @@ export function ReportLineChart({
     })
   }
   return (
-    <section
-      className="min-w-0 rounded-lg border bg-card p-4 sm:p-5"
-      aria-labelledby="trend-chart-heading"
-    >
-      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+    <section ref={chartRef} className="min-w-0" aria-labelledby="trend-chart-heading">
+      <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
         <div>
           <h2 id="trend-chart-heading" className="font-semibold">
             Financial trends
@@ -89,24 +118,6 @@ export function ReportLineChart({
               : 'Daily amounts'}{' '}
             · Philippine pesos
           </p>
-        </div>
-        <div className="flex flex-wrap gap-3 text-xs">
-          {seriesWithValues.map((s) => (
-            <span key={s.kind} className="inline-flex items-center gap-1.5">
-              <svg width="24" height="8" aria-hidden="true">
-                <line
-                  x1="0"
-                  x2="24"
-                  y1="4"
-                  y2="4"
-                  stroke={s.color}
-                  strokeWidth="3"
-                  strokeDasharray={s.dash}
-                />
-              </svg>
-              {s.label}
-            </span>
-          ))}
         </div>
       </div>
       {dates.length === 0 ? (
@@ -119,9 +130,9 @@ export function ReportLineChart({
             aria-describedby="trend-chart-help trend-chart-value"
             aria-keyshortcuts="ArrowLeft ArrowRight ArrowUp ArrowDown Escape"
             tabIndex={0}
-            viewBox="0 0 880 300"
-            className="block w-full"
-            style={{ minHeight: 200 }}
+            viewBox={`0 0 ${plotWidth} 220}`}
+            preserveAspectRatio="none"
+            className="block h-[200px] w-full rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             onFocus={() => setActive((current) => current ?? { point: 0, series: 0 })}
             onMouseLeave={(event) => {
               if (document.activeElement !== event.currentTarget) setActive(null)
@@ -149,23 +160,24 @@ export function ReportLineChart({
           >
             <title>
               {['annual', 'semiannual', 'quarterly'].includes(period)
-                ? 'Monthly sales, purchases and estimated gross profit'
-                : 'Daily sales, purchases and estimated gross profit'}
+                ? 'Monthly totals: '
+                : 'Daily amounts: '}
+              {series.map((item) => item.label).join(', ')}
             </title>
             {[0, 1, 2, 3, 4].map((i) => {
               const value = low + (range * BigInt(i)) / 4n
               return (
                 <g key={i}>
                   <line
-                    x1="100"
-                    x2="850"
+                    x1="80"
+                    x2={plotWidth - 20}
                     y1={y(value)}
                     y2={y(value)}
                     stroke="currentColor"
                     className="text-border"
                   />
                   <text
-                    x="90"
+                    x="70"
                     y={y(value) + 4}
                     textAnchor="end"
                     fontSize="12"
@@ -177,6 +189,16 @@ export function ReportLineChart({
                 </g>
               )
             })}
+            <line
+              data-zero-baseline="true"
+              x1="80"
+              x2={plotWidth - 20}
+              y1={y(0n)}
+              y2={y(0n)}
+              stroke="currentColor"
+              className="text-muted-foreground"
+              strokeWidth="1.25"
+            />
             {seriesWithValues.map((s, seriesPosition) => {
               let connected = false
               const path = dates
@@ -205,26 +227,27 @@ export function ReportLineChart({
                   {dates.map((date, i) => {
                     const value = s.values.get(date)
                     return value === undefined ? null : (
-                      <circle
-                        key={date}
-                        data-series={s.kind}
-                        data-point-key={date}
-                        cx={x(i)}
-                        cy={y(moneyCents(value))}
-                        r={
-                          active?.point === i && active?.series === seriesPosition
-                            ? 4
-                            : dates.length < 40
-                              ? 2.5
-                              : 1.5
-                        }
-                        fill={s.color}
-                        onMouseEnter={() => setChartPosition(i, seriesPosition)}
-                      >
-                        <title>
-                          {pointLabel(date)}: {s.label} {formatReportMoney(value)}
-                        </title>
-                      </circle>
+                      <g key={date} onMouseEnter={() => setChartPosition(i, seriesPosition)}>
+                        <circle
+                          data-series={s.kind}
+                          data-point-key={date}
+                          cx={x(i)}
+                          cy={y(moneyCents(value))}
+                          r={
+                            active?.point === i && active?.series === seriesPosition
+                              ? 4
+                              : dates.length < 40
+                                ? 2.5
+                                : 1.5
+                          }
+                          fill={s.color}
+                          onMouseEnter={() => setChartPosition(i, seriesPosition)}
+                        >
+                          <title>
+                            {pointLabel(date)}: {s.label} {formatReportMoney(value)}
+                          </title>
+                        </circle>
+                      </g>
                     )
                   })}
                 </g>
@@ -234,7 +257,7 @@ export function ReportLineChart({
               <text
                 key={i}
                 x={x(i)}
-                y="288"
+                y="211"
                 textAnchor={i === 0 ? 'start' : i === dates.length - 1 ? 'end' : 'middle'}
                 fill="currentColor"
                 className="text-muted-foreground"
@@ -249,21 +272,26 @@ export function ReportLineChart({
               </text>
             ))}
           </svg>
-          <p id="trend-chart-help" className="text-xs text-muted-foreground">
-            Focus the chart, then use Left or Right to move across dates and Up or Down to change
-            series. Press Escape to hide the value. Tab moves on from the chart.
+          {amounts.length > 0 && amounts.every((amount) => amount === 0n) && (
+            <p className="text-xs text-muted-foreground">All reported amounts are zero.</p>
+          )}
+          <p id="trend-chart-help" className="sr-only">
+            Straight segments connect consecutive daily or monthly bucket totals, not observed
+            values between buckets. Gaps are unavailable observations. Focus the chart, then use
+            Left or Right to move across dates and Up or Down to change series. Press Escape to hide
+            the value. Tab moves on from the chart.
           </p>
           <p
             id="trend-chart-value"
             role="status"
             aria-live="polite"
-            className="mt-3 min-h-6 text-sm font-medium tabular-nums"
+            className="mt-2 min-h-5 break-words text-xs font-medium tabular-nums"
           >
             {active && activeValue !== undefined
               ? `${pointLabel(pointDate)} · ${activeSeries.label} · ${formatReportMoney(activeValue)}`
               : active
                 ? `${pointLabel(pointDate)} · ${activeSeries.label} · Not available`
-                : ''}
+                : 'Hover or focus the chart to inspect exact amounts.'}
           </p>
         </>
       )}
@@ -272,6 +300,7 @@ export function ReportLineChart({
 }
 const palette = ['#3f6212', '#1d4ed8', '#b45309', '#7e22ce', '#0e7490', '#64748b']
 export function ReportItemCharts({ kind, report }: { kind: ReportKind; report: ReportResult }) {
+  const [expanded, setExpanded] = useState(false)
   const label = reportMetrics.find((m) => m.kind === kind)!.label
   const total = metricAmount(report.totals, kind)
   const distribution = itemContributions(
@@ -281,22 +310,6 @@ export function ReportItemCharts({ kind, report }: { kind: ReportKind; report: R
   const sorted = [...distribution.items].sort((a, b) =>
     a.cents > b.cents ? -1 : a.cents < b.cents ? 1 : a.key.localeCompare(b.key),
   )
-  const slices =
-    sorted.length <= 6
-      ? sorted
-      : [
-          ...sorted.slice(0, 5),
-          ...itemContributions(
-            [
-              {
-                key: 'other',
-                name: `Other ${sorted.length - 5} items`,
-                value: decimalString(sorted.slice(5).reduce((s, r) => s + r.cents, 0n)),
-              },
-            ],
-            total,
-          ).items,
-        ]
   const maxAbs =
     sorted.reduce((m, r) => {
       const absolute = r.cents < 0n ? -r.cents : r.cents
@@ -304,10 +317,7 @@ export function ReportItemCharts({ kind, report }: { kind: ReportKind; report: R
     }, 0n) || 1n
   const loss = sorted.some((r) => r.cents < 0n)
   return (
-    <section
-      className="min-w-0 rounded-lg border bg-card p-4 sm:p-5"
-      aria-labelledby="item-charts-heading"
-    >
+    <section className="min-w-0" aria-labelledby="item-charts-heading">
       <h2 id="item-charts-heading" className="font-semibold">
         {label} by stock item
       </h2>
@@ -317,97 +327,16 @@ export function ReportItemCharts({ kind, report }: { kind: ReportKind; report: R
       {sorted.length === 0 ? (
         <p className="mt-6 text-sm">No item results for this period and filters.</p>
       ) : (
-        <div className="mt-5 grid min-w-0 gap-8 lg:grid-cols-[minmax(240px,1fr)_minmax(0,2fr)]">
-          <div>
-            {distribution.canDonut ? (
-              <>
-                <svg
-                  viewBox="0 0 240 240"
-                  className="mx-auto w-full max-w-72"
-                  role="img"
-                  aria-label={'Item share of ' + label.toLowerCase()}
-                >
-                  <title>{label}: each item's share of the full total</title>
-                  <circle
-                    cx="120"
-                    cy="120"
-                    r="82"
-                    fill="none"
-                    stroke="currentColor"
-                    className="text-muted"
-                    strokeWidth="35"
-                  />
-                  {slices.map((r, i) => {
-                    const start = slices
-                      .slice(0, i)
-                      .reduce((sum, item) => sum + item.ratio * 100, 0)
-                    return (
-                      <circle
-                        key={r.key}
-                        cx="120"
-                        cy="120"
-                        r="82"
-                        fill="none"
-                        stroke={palette[i]}
-                        strokeWidth="35"
-                        pathLength="100"
-                        strokeDasharray={`${r.ratio * 100} 100`}
-                        strokeDashoffset={-start}
-                        transform="rotate(-90 120 120)"
-                      >
-                        <title>
-                          {r.name ?? `Item #${r.key}`}: {r.percent}% · {formatReportMoney(r.value)}
-                        </title>
-                      </circle>
-                    )
-                  })}
-                  <text x="120" y="116" textAnchor="middle" fill="currentColor" fontSize="13">
-                    Share of total
-                  </text>
-                  <text
-                    x="120"
-                    y="140"
-                    textAnchor="middle"
-                    fill="currentColor"
-                    fontWeight="600"
-                    fontSize="24"
-                  >
-                    100%
-                  </text>
-                </svg>
-                <ul className="mt-3 space-y-2 text-sm">
-                  {slices.map((r, i) => (
-                    <li key={r.key} className="flex items-center justify-between gap-3">
-                      <span className="flex min-w-0 items-center gap-2">
-                        <span
-                          className="h-2.5 w-2.5 shrink-0 rounded-full"
-                          style={{ backgroundColor: palette[i] }}
-                          aria-hidden="true"
-                        />
-                        <span className="break-words">{r.name ?? `Item #${r.key}`}</span>
-                      </span>
-                      <span className="shrink-0 tabular-nums">{r.percent}%</span>
-                    </li>
-                  ))}
-                </ul>
-              </>
-            ) : (
-              <div className="flex min-h-48 items-center rounded-lg bg-muted/40 p-5 text-sm text-muted-foreground">
-                {loss
-                  ? 'A donut cannot represent negative amounts faithfully. Signed bars preserve the gains and losses.'
-                  : moneyCents(total) === 0n
-                    ? 'No percentage distribution is available because the net total is zero.'
-                    : 'The item amounts do not form a complete part-to-whole distribution. Exact values are shown alongside.'}
-              </div>
-            )}
-          </div>
+        <div className="mt-4">
           <div className="min-w-0 space-y-4" aria-label="Stock item contributions">
             <p className="text-xs text-muted-foreground">
               {loss
-                ? 'Signed amount bars · percentages are shares of the net total'
-                : 'Each bar shows the item’s percentage of the full total'}
+                ? 'Signed bars preserve gains and losses. Percentage shares are unavailable for signed totals.'
+                : distribution.canDonut
+                  ? 'Each bar shows the item’s percentage of the full total'
+                  : 'Percentage shares are unavailable; bars show relative amounts.'}
             </p>
-            {sorted.map((r, i) => (
+            {(expanded ? sorted : sorted.slice(0, 8)).map((r, i) => (
               <div key={r.key} className="space-y-1.5">
                 <div className="flex flex-wrap justify-between gap-x-4 gap-y-1 text-sm">
                   <span className="min-w-0 break-words font-medium">
@@ -415,7 +344,9 @@ export function ReportItemCharts({ kind, report }: { kind: ReportKind; report: R
                   </span>
                   <span className="tabular-nums">
                     {formatReportMoney(r.value)} ·{' '}
-                    {r.percent === null ? 'Share unavailable' : `${r.percent}%`}
+                    {!distribution.canDonut || r.percent === null
+                      ? 'Share unavailable'
+                      : `${r.percent}%`}
                   </span>
                 </div>
                 {loss ? (
@@ -436,7 +367,7 @@ export function ReportItemCharts({ kind, report }: { kind: ReportKind; report: R
                     <div
                       className="h-full rounded"
                       style={{
-                        width: `${Math.max(0, Math.min(100, r.ratio * 100))}%`,
+                        width: `${Math.max(0, Math.min(100, (distribution.canDonut ? r.ratio : scaledRatio(r.cents, maxAbs)) * 100))}%`,
                         backgroundColor: palette[Math.min(i, 5)],
                       }}
                     />
@@ -444,6 +375,17 @@ export function ReportItemCharts({ kind, report }: { kind: ReportKind; report: R
                 )}
               </div>
             ))}
+            {sorted.length > 8 && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                aria-expanded={expanded}
+                onClick={() => setExpanded((current) => !current)}
+              >
+                {expanded ? 'Show top 8 items' : `Show all ${sorted.length} items`}
+              </Button>
+            )}
           </div>
         </div>
       )}

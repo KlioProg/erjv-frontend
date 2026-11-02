@@ -12,17 +12,38 @@ import { ReportCalendar } from './ReportCalendar'
 
 const auth = vi.hoisted(() => ({ user: { id: 1 }, isAdmin: true, isManager: false }))
 vi.mock('@/features/auth/AuthContext', () => ({ useAuth: () => auth }))
+const failures = new Set<string>()
 const original = apiClient.defaults.adapter
 afterEach(() => {
   apiClient.defaults.adapter = original
   auth.isAdmin = true
+  failures.clear()
 })
 function mount(fail = false, url = '/financial-reports') {
-  const requests: { url?: string; params: Record<string, string> }[] = []
+  const requests: {
+    url?: string
+    params: { from: string; before: string; groupBy: string; warehouseId?: number }
+  }[] = []
   apiClient.defaults.adapter = async (config) => {
     requests.push({ url: config.url, params: config.params })
-    if (fail) throw Error('Report source unavailable')
+    if (config.url === '/warehouses')
+      return {
+        data: { items: [{ id: 2, name: 'Warehouse A', isActive: false }], nextCursor: null },
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+        config,
+      }
+    if (config.url === '/warehouses/2')
+      return {
+        data: { id: 2, name: 'Warehouse A', isActive: false },
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+        config,
+      }
     const kind = config.url!.split('/').at(-1)
+    if (fail || failures.has(kind!)) throw Error('Report source unavailable')
     const profit = kind === 'gross-profit-estimate'
     const base = structuredClone(
       cases.find(
@@ -39,8 +60,14 @@ function mount(fail = false, url = '/financial-reports') {
     base.period.before = config.params.before
     base.totals.totalAmount = kind === 'purchases' ? '40.00' : '100.00'
     if (profit) base.totals.estimatedGrossProfitAmount = '60.00'
-    if (config.params.groupBy === 'item') {
-      base.rows = [{ ...base.totals, key: '101', name: 'Sample stock' }]
+    if (['item', 'client', 'supplier'].includes(config.params.groupBy)) {
+      base.rows = [
+        {
+          ...base.totals,
+          key: '101',
+          name: config.params.groupBy === 'item' ? 'Sample stock' : 'Sample party',
+        },
+      ]
     } else {
       const start = config.params.from.slice(0, 10)
       const end = config.params.before.slice(0, 10)
@@ -70,80 +97,78 @@ function mount(fail = false, url = '/financial-reports') {
   )
   return requests
 }
-it('starts with Trends and pairs mixed lines with a profit calendar', async () => {
+it('shows three exact KPI totals and only the selected analysis view', async () => {
   mount()
-  expect(screen.getByRole('button', { name: 'Trends', pressed: true })).toBeTruthy()
   await screen.findByRole('img', { name: 'Financial trends in pesos' })
-  expect(screen.getByRole('heading', { name: 'Daily estimated gross profit' })).toBeTruthy()
-  const selection = within(screen.getByRole('group', { name: 'Trend lines' }))
-  await userEvent.click(selection.getByRole('button', { name: 'Estimated gross profit' }))
-  expect(screen.getByRole('heading', { name: 'Daily estimated gross profit' })).toBeTruthy()
-  await userEvent.click(selection.getByRole('button', { name: 'Purchases' }))
-  await screen.findByRole('heading', { name: 'Daily sales' })
-  expect(selection.getByRole('button', { name: 'Sales' }).hasAttribute('disabled')).toBe(true)
-})
-it('keeps detail expansion within its view and period scope and resets local breakdown choices', async () => {
-  const requests = mount()
-  await screen.findByRole('img', { name: 'Financial trends in pesos' })
-  const lines = within(screen.getByRole('group', { name: 'Trend lines' }))
-  await userEvent.click(lines.getByRole('button', { name: 'Sales' }))
-  await userEvent.click(lines.getByRole('button', { name: 'Purchases' }))
-  const profitDetails = screen.getByRole('button', { name: /Estimated gross profit details/ })
-  expect(profitDetails.getAttribute('aria-expanded')).toBe('false')
-  await userEvent.click(profitDetails)
-  expect(profitDetails.getAttribute('aria-expanded')).toBe('true')
-  await userEvent.click(screen.getByRole('combobox', { name: 'Break down by' }))
-  await userEvent.click(await screen.findByRole('option', { name: 'Item' }))
-  await screen.findByText(/Item breakdown · these totals reflect/)
-  expect(requests.some((request) => request.params.groupBy === 'item')).toBe(true)
-
-  await userEvent.click(screen.getByRole('button', { name: 'Overview' }))
-  await screen.findByRole('img', { name: 'Item share of estimated gross profit' })
+  const metrics = within(screen.getByRole('region', { name: 'Financial metrics' }))
   expect(
-    screen
-      .getByRole('button', { name: /Estimated gross profit details/ })
-      .getAttribute('aria-expanded'),
-  ).toBe('false')
-  await userEvent.click(screen.getByRole('button', { name: /Estimated gross profit details/ }))
-  expect(screen.getByRole('combobox', { name: 'Break down by' }).textContent).toContain(
-    'No breakdown',
+    metrics.getByRole('button', { name: 'Analyze Sales', pressed: true }).textContent,
+  ).toContain('\u20b1100.00')
+  expect(metrics.getByRole('button', { name: 'Analyze Purchases' }).textContent).toContain(
+    '\u20b140.00',
   )
-
-  await userEvent.click(screen.getByRole('button', { name: 'Overview' }))
   expect(
-    screen
-      .getByRole('button', { name: /Estimated gross profit details/ })
-      .getAttribute('aria-expanded'),
-  ).toBe('true')
+    metrics.getByRole('button', { name: 'Analyze Estimated gross profit' }).textContent,
+  ).toContain('\u20b160.00')
+  expect(screen.queryByRole('grid')).toBeNull()
+  expect(screen.queryByLabelText('Stock item contributions')).toBeNull()
+  await userEvent.click(metrics.getByRole('button', { name: 'Analyze Purchases' }))
+  expect(document.querySelectorAll('[data-series="sales"]')).toHaveLength(0)
+  await userEvent.click(screen.getByRole('tab', { name: 'Calendar' }))
+  expect(screen.queryByRole('img', { name: 'Financial trends in pesos' })).toBeNull()
+  expect(screen.getByRole('heading', { name: 'Daily purchases' })).toBeTruthy()
+  await userEvent.click(screen.getByRole('tab', { name: 'Breakdown' }))
+  await screen.findByText('Sample stock')
+  expect(screen.queryByRole('grid')).toBeNull()
+  expect(metrics.getByRole('button', { name: 'Analyze Purchases', pressed: true })).toBeTruthy()
 })
-it('automatically applies period changes and retains them in the single-metric overview', async () => {
+
+it('retains grouping, row expansion and cached pages across analysis tabs and metric changes', async () => {
   const requests = mount()
   await screen.findByRole('img', { name: 'Financial trends in pesos' })
+  await userEvent.click(screen.getByRole('tab', { name: 'Breakdown' }))
+  await screen.findByText('Sample stock')
+  await userEvent.click(screen.getByRole('button', { name: 'Details for Sample stock' }))
+  expect(
+    screen.getByRole('button', { name: 'Details for Sample stock' }).getAttribute('aria-expanded'),
+  ).toBe('true')
+  const before = requests.length
+  await userEvent.click(screen.getByRole('tab', { name: 'Calendar' }))
+  expect(screen.queryByRole('table')).toBeNull()
+  await userEvent.click(screen.getByRole('button', { name: 'Analyze Purchases' }))
+  await userEvent.click(screen.getByRole('button', { name: 'Analyze Sales' }))
+  await userEvent.click(screen.getByRole('tab', { name: 'Breakdown' }))
+  expect(screen.getByRole('combobox', { name: 'Break down by' }).textContent).toContain('Item')
+  expect(
+    screen.getByRole('button', { name: 'Details for Sample stock' }).getAttribute('aria-expanded'),
+  ).toBe('true')
+  expect(requests).toHaveLength(before)
+})
+
+it('retains period and metric when changing views and honors legacy overview links', async () => {
+  const requests = mount(false, '/financial-reports?view=overview')
+  await screen.findByText('Sample stock')
+  expect(screen.getByRole('tab', { name: 'Breakdown', selected: true })).toBeTruthy()
+  expect(
+    screen.getByRole('button', { name: 'Analyze Estimated gross profit', pressed: true }),
+  ).toBeTruthy()
   const year = requests[0].params.from.slice(0, 4)
   await userEvent.click(screen.getByRole('button', { name: 'Quarterly' }))
   await waitFor(() =>
     expect(
       requests.some(
         (request) =>
+          request.params.groupBy === 'item' &&
           request.params.from === `${year}-10-01T00:00:00+08:00` &&
           request.params.before === `${Number(year) + 1}-01-01T00:00:00+08:00`,
       ),
     ).toBe(true),
   )
+  await userEvent.click(screen.getByRole('tab', { name: 'Trends' }))
   await screen.findByRole('img', { name: 'Financial trends in pesos' })
-  await userEvent.click(screen.getByRole('button', { name: 'Overview' }))
-  await screen.findByRole('img', { name: 'Item share of estimated gross profit' })
-  expect(screen.getAllByText('Sample stock').length).toBeGreaterThan(0)
-  const selection = screen.getByRole('group', { name: 'Overview metric' })
-  expect(within(selection).getAllByRole('button', { pressed: true })).toHaveLength(1)
   expect(
-    requests.some(
-      (r) =>
-        r.params.groupBy === 'item' &&
-        r.params.from === `${year}-10-01T00:00:00+08:00` &&
-        r.params.before === `${Number(year) + 1}-01-01T00:00:00+08:00`,
-    ),
-  ).toBe(true)
+    screen.getByRole('button', { name: 'Analyze Estimated gross profit', pressed: true }),
+  ).toBeTruthy()
 })
 it('keeps the last valid report while a year input is incomplete', async () => {
   const requests = mount()
@@ -169,13 +194,13 @@ it('does not issue visualization or lookup requests for unauthorized users', asy
   expect(requests).toHaveLength(0)
 })
 
-it('removes draft and manual refresh controls and auto-applies a period selection', async () => {
+it('removes draft controls and offers snapshot refresh and auto-applies a period selection', async () => {
   const requests = mount()
   await screen.findByRole('img', { name: 'Financial trends in pesos' })
   expect(screen.queryByLabelText('From (inclusive, Manila)')).toBeNull()
   expect(screen.queryByLabelText('Through (inclusive, Manila)')).toBeNull()
   expect(screen.queryByRole('button', { name: 'Apply filters' })).toBeNull()
-  expect(screen.queryByRole('button', { name: 'Refresh report' })).toBeNull()
+  expect(screen.getByRole('button', { name: 'Refresh reports' })).toBeTruthy()
 
   const before = requests.length
   const year = requests[0].params.from.slice(0, 4)
@@ -200,7 +225,7 @@ it('shows signed losses without a misleading donut', () => {
   render(<ReportItemCharts kind="gross-profit-estimate" report={report} />)
   expect(screen.queryByRole('img')).toBeNull()
   expect(screen.getByText(/Signed bars preserve/)).toBeTruthy()
-  expect(screen.getByText(/-₱25.00 · 100.00%/)).toBeTruthy()
+  expect(screen.getByText(/-₱25.00 · Share unavailable/)).toBeTruthy()
 })
 
 it('keeps missing calendar values distinct from zero and excludes dates outside the filter', async () => {
@@ -217,4 +242,104 @@ it('keeps missing calendar values distinct from zero and excludes dates outside 
   expect(screen.getByRole('gridcell', { name: 'Oct 1, 2026: ₱0.00' })).toBeTruthy()
   expect(screen.getByRole('gridcell', { name: 'Oct 2, 2026: Not available' })).toBeTruthy()
   expect(screen.queryByRole('button', { name: 'Previous calendar month' })).toBeNull()
+})
+
+it('keeps large item reports compact and reveals every record on demand', async () => {
+  const report = structuredClone(
+    cases.find((c) => c.id === 'purchases-overview')!.body,
+  ) as ReportResult
+  report.totals.totalAmount = '90.00'
+  report.rows = Array.from({ length: 9 }, (_, index) => ({
+    ...report.totals,
+    key: String(index),
+    name: `Product ${index}`,
+    totalAmount: '10.00',
+  }))
+  render(<ReportItemCharts kind="purchases" report={report} />)
+  expect(screen.queryByText('Product 8')).toBeNull()
+  expect(screen.getByText(/Complete filtered period.*9 items/).textContent).toContain('\u20b190.00')
+  await userEvent.click(screen.getByRole('button', { name: 'Show all 9 items' }))
+  expect(screen.getByText('Product 8')).toBeTruthy()
+  expect(
+    screen.getByRole('button', { name: 'Show top 8 items' }).getAttribute('aria-expanded'),
+  ).toBe('true')
+})
+
+it('shows an empty item report without inventing product contributions', () => {
+  const report = structuredClone(
+    cases.find((c) => c.id === 'sales-empty-overview')!.body,
+  ) as ReportResult
+  report.rows = []
+  render(<ReportItemCharts kind="sales" report={report} />)
+  expect(screen.getByText('No item results for this period and filters.')).toBeTruthy()
+  expect(screen.queryByLabelText('Stock item contributions')).toBeNull()
+})
+
+it('keeps available metrics usable after a partial failure and retries only the unavailable metric', async () => {
+  failures.add('purchases')
+  const requests = mount()
+  await screen.findByRole('button', { name: 'Retry Purchases' })
+  await screen.findByRole('img', { name: 'Financial trends in pesos' })
+  const purchases = screen.getByRole('button', { name: 'Analyze Purchases' })
+  expect(purchases.textContent).toContain('Unavailable')
+  expect(purchases.textContent).not.toContain('0.00')
+  expect(screen.getByRole('button', { name: 'Analyze Sales' }).textContent).toContain(
+    '\u20b1100.00',
+  )
+  await userEvent.click(purchases)
+  expect(screen.queryByRole('img', { name: 'Financial trends in pesos' })).toBeNull()
+  expect(screen.getByRole('alert').textContent).toContain('Report source unavailable')
+  const before = requests.length
+  failures.clear()
+  await userEvent.click(screen.getByRole('button', { name: 'Retry Purchases' }))
+  await screen.findByRole('img', { name: 'Financial trends in pesos' })
+  expect(requests).toHaveLength(before + 1)
+  expect(requests.at(-1)?.url).toContain('purchases')
+  expect(screen.getByRole('button', { name: 'Analyze Purchases' }).textContent).toContain(
+    '\u20b140.00',
+  )
+})
+
+it.each([
+  ['sales', 'Customer', 'client'],
+  ['purchases', 'Supplier', 'supplier'],
+])(
+  'preserves %s party grouping and archived warehouse scope across tabs',
+  async (kind, label, grouping) => {
+    const requests = mount(false, `/financial-reports?report=${kind}`)
+    await screen.findByRole('img', { name: 'Financial trends in pesos' })
+    await userEvent.click(screen.getByRole('button', { name: 'Advanced filters' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Choose warehouse' }))
+    await userEvent.click(await screen.findByRole('menuitem', { name: /Warehouse A.*archived/ }))
+    await screen.findByRole('img', { name: 'Financial trends in pesos' })
+    await userEvent.click(screen.getByRole('tab', { name: 'Breakdown' }))
+    await screen.findByText('Sample stock')
+    await userEvent.click(screen.getByRole('combobox', { name: 'Break down by' }))
+    await userEvent.click(screen.getByRole('option', { name: label }))
+    await screen.findByText('Sample party')
+    expect(
+      requests.some((read) => read.params.groupBy === grouping && read.params.warehouseId === 2),
+    ).toBe(true)
+    const before = requests.length
+    await userEvent.click(screen.getByRole('tab', { name: 'Trends' }))
+    await userEvent.click(screen.getByRole('tab', { name: 'Breakdown' }))
+    expect(screen.getByRole('combobox', { name: 'Break down by' }).textContent).toBe(label)
+    expect(screen.getByRole('button', { name: 'Advanced filters (1 active)' })).toBeTruthy()
+    expect(requests).toHaveLength(before)
+  },
+)
+
+it('supports arrow-key analysis tabs and keeps only the selected panel accessible', async () => {
+  mount()
+  await screen.findByRole('img', { name: 'Financial trends in pesos' })
+  screen.getByRole('tab', { name: 'Trends' }).focus()
+  await userEvent.keyboard('{ArrowRight}')
+  await screen.findByText('Sample stock')
+  expect(screen.getByRole('tab', { name: 'Breakdown', selected: true })).toBeTruthy()
+  expect(screen.getAllByRole('tabpanel')).toHaveLength(1)
+  await userEvent.keyboard('{End}')
+  await waitFor(() =>
+    expect(screen.getByRole('tab', { name: 'Calendar', selected: true })).toBeTruthy(),
+  )
+  expect(screen.queryByRole('table')).toBeNull()
 })

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQueries, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '@/features/auth/AuthContext'
 import { fetchFinancialReportApi } from './financial-reports.api'
 import { fetchCompleteItemReport } from './financial-report-visuals.api'
@@ -31,44 +31,48 @@ export function useReportVisuals(scope: ReportQuery, kinds: ReportKind[], overvi
     },
     [client, session],
   )
-  const query = useQuery({
-    queryKey: [
-      'financial-reports',
-      'visuals',
-      user?.id,
-      scope,
-      [...kinds].sort(),
-      session,
-      overview,
-    ],
-    enabled: isAdmin || isManager,
-    retry: false,
-    staleTime: 'static',
-    gcTime: 0,
-    refetchOnMount: false,
-    refetchOnWindowFocus: false,
-    refetchOnReconnect: false,
-    queryFn: async ({ signal }) => {
-      const entries = await Promise.all(
-        kinds.map(
-          async (kind) =>
-            [
-              kind,
-              overview
-                ? await fetchCompleteItemReport(kind, scope, signal)
-                : validateTrendReport(
-                    await fetchFinancialReportApi(kind, { ...scope, groupBy: 'day' }, signal),
-                    { ...scope, groupBy: 'day' },
-                  ),
-            ] as const,
-        ),
-      )
-      return Object.fromEntries(entries) as Partial<Record<ReportKind, ReportResult>>
-    },
+  const queries = useQueries({
+    queries: kinds.map((kind) => ({
+      queryKey: ['financial-reports', 'visuals', user?.id, scope, kind, session, overview],
+      enabled: isAdmin || isManager,
+      retry: false,
+      staleTime: 'static' as const,
+      gcTime: Infinity,
+      refetchOnMount: false as const,
+      refetchOnWindowFocus: false as const,
+      refetchOnReconnect: false as const,
+      queryFn: async ({ signal }: { signal: AbortSignal }) =>
+        overview
+          ? fetchCompleteItemReport(kind, scope, signal)
+          : validateTrendReport(
+              await fetchFinancialReportApi(kind, { ...scope, groupBy: 'day' }, signal),
+              { ...scope, groupBy: 'day' },
+            ),
+    })),
+  })
+  const data: Partial<Record<ReportKind, ReportResult>> = {}
+  const errors: Partial<Record<ReportKind, Error>> = {}
+  const pending: ReportKind[] = []
+  const fetching: ReportKind[] = []
+  queries.forEach((query, index) => {
+    const kind = kinds[index]
+    if (query.isError) errors[kind] = query.error
+    else if (query.data) data[kind] = query.data
+    if (query.isPending) pending.push(kind)
+    if (query.isFetching) fetching.push(kind)
   })
   return {
-    ...query,
-    restart: () => setSession(crypto.randomUUID()),
+    data: Object.keys(data).length ? data : undefined,
+    errors,
+    pending,
+    fetching,
+    isError: queries.some((query) => query.isError),
+    error: queries.find((query) => query.isError)?.error,
+    restart: (kind?: ReportKind) => {
+      queries.forEach((query, index) => {
+        if (!kind || kinds[index] === kind) void query.refetch()
+      })
+    },
     authorized: isAdmin || isManager,
   }
 }

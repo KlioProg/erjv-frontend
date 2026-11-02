@@ -63,14 +63,12 @@ export function ReportDetails({
   kind,
   metrics,
   filters,
-  view,
 }: {
   kind: ReportKind
   metrics: Metrics
   filters: ReportFilterState
-  view: 'trends' | 'overview'
 }) {
-  const [groupBy, setGroupBy] = useState<ReportGroup>('none')
+  const [groupBy, setGroupBy] = useState<ReportGroup>('item')
   const [partyId, setPartyId] = useState('')
   const profit = kind === 'gross-profit-estimate'
   const amountKeys = profit
@@ -91,59 +89,64 @@ export function ReportDetails({
 
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-semibold">
-        {kind === 'gross-profit-estimate'
-          ? 'Estimated gross profit'
-          : kind === 'sales'
-            ? 'Sales'
-            : 'Purchases'}{' '}
-        details
-      </h2>
-      <p className="text-sm text-muted-foreground">
-        Full-period totals from the applied report. Breakdown filters below are independent.
-      </p>
-      <dl className="grid gap-2 sm:grid-cols-2">
-        {amountKeys.map((key) => (
-          <div key={key}>
-            <dt className="text-xs text-muted-foreground">{labels[key]}</dt>
-            <dd className="tabular-nums">{formatReportMoney(String(metrics[key] ?? '0.00'))}</dd>
-          </div>
-        ))}
-        <div>
-          <dt className="text-xs text-muted-foreground">Events · Orders · Parties</dt>
-          <dd>
-            {metrics.eventCount} · {metrics.orderCount} · {metrics.partyCount}
-          </dd>
-        </div>
-        {Object.entries(metrics.quantitiesByUnit).map(([unit, quantities]) => (
-          <div key={unit}>
-            <dt className="text-xs text-muted-foreground">{formatProductUnit(unit)}</dt>
+      <details>
+        <summary className="cursor-pointer rounded text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          Financial totals and quantities
+        </summary>
+        <h2 className="mt-3 text-base font-semibold">
+          {kind === 'gross-profit-estimate'
+            ? 'Estimated gross profit'
+            : kind === 'sales'
+              ? 'Sales'
+              : 'Purchases'}{' '}
+          details
+        </h2>
+        <p className="text-sm text-muted-foreground">
+          Full-period totals from the applied report. Breakdown filters below are independent.
+        </p>
+        <dl className="grid gap-2 sm:grid-cols-2">
+          {amountKeys.map((key) => (
+            <div key={key}>
+              <dt className="text-xs text-muted-foreground">{labels[key]}</dt>
+              <dd className="tabular-nums">{formatReportMoney(String(metrics[key] ?? '0.00'))}</dd>
+            </div>
+          ))}
+          <div>
+            <dt className="text-xs text-muted-foreground">Events · Orders · Parties</dt>
             <dd>
-              {formatStockCents(parseStockCents(quantities.quantity))} · Returned damaged{' '}
-              {formatStockCents(parseStockCents(quantities.returnedDamagedQuantity))} · Missing{' '}
-              {formatStockCents(parseStockCents(quantities.missingQuantity))}
+              {metrics.eventCount} · {metrics.orderCount} · {metrics.partyCount}
             </dd>
           </div>
-        ))}
-        {profit && (
-          <>
-            <div>
-              <dt className="text-xs text-muted-foreground">Estimated gross margin</dt>
-              <dd>{formatReportPercent(metrics.estimatedGrossMarginPercent)}</dd>
+          {Object.entries(metrics.quantitiesByUnit).map(([unit, quantities]) => (
+            <div key={unit}>
+              <dt className="text-xs text-muted-foreground">{formatProductUnit(unit)}</dt>
+              <dd>
+                {formatStockCents(parseStockCents(quantities.quantity))} · Returned damaged{' '}
+                {formatStockCents(parseStockCents(quantities.returnedDamagedQuantity))} · Missing{' '}
+                {formatStockCents(parseStockCents(quantities.missingQuantity))}
+              </dd>
             </div>
-            <div>
-              <dt className="text-xs text-muted-foreground">Cost coverage</dt>
-              <dd>{formatReportPercent(metrics.costCoveragePercent)}</dd>
-            </div>
-            {Object.entries(metrics.uncostedQuantityByUnit ?? {}).map(([unit, quantity]) => (
-              <div key={unit}>
-                <dt className="text-xs text-muted-foreground">Uncosted quantity ({unit})</dt>
-                <dd>{quantity}</dd>
+          ))}
+          {profit && (
+            <>
+              <div>
+                <dt className="text-xs text-muted-foreground">Estimated gross margin</dt>
+                <dd>{formatReportPercent(metrics.estimatedGrossMarginPercent)}</dd>
               </div>
-            ))}
-          </>
-        )}
-      </dl>
+              <div>
+                <dt className="text-xs text-muted-foreground">Cost coverage</dt>
+                <dd>{formatReportPercent(metrics.costCoveragePercent)}</dd>
+              </div>
+              {Object.entries(metrics.uncostedQuantityByUnit ?? {}).map(([unit, quantity]) => (
+                <div key={unit}>
+                  <dt className="text-xs text-muted-foreground">Uncosted quantity ({unit})</dt>
+                  <dd>{quantity}</dd>
+                </div>
+              ))}
+            </>
+          )}
+        </dl>
+      </details>
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="space-y-1 text-sm">
           Break down by
@@ -190,7 +193,7 @@ export function ReportDetails({
       </div>
       {groupBy !== 'none' && (
         <ReportBreakdown
-          key={`${view}:${kind}:${groupBy}:${partyId}`}
+          key={JSON.stringify([kind, groupBy, partyId, scope])}
           kind={kind}
           scope={scope}
           groupBy={groupBy}
@@ -301,6 +304,22 @@ function ReportBreakdown({
       <p className="text-sm font-medium">
         {groupLabel(groupBy)} breakdown · these totals reflect the breakdown filters only
       </p>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs text-muted-foreground">
+          Snapshot as of{' '}
+          {new Date(result.period.asOf).toLocaleString('en-PH', { timeZone: 'Asia/Manila' })}.
+          Breakdown and KPI snapshots may differ.
+        </p>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={query.isFetching}
+          onClick={query.refresh}
+        >
+          Refresh breakdown
+        </Button>
+      </div>
       <p className="text-sm">
         Narrowed total:{' '}
         {formatReportMoney(

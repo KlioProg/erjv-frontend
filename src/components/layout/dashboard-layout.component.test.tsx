@@ -49,3 +49,25 @@ it('opens mobile navigation as a modal and restores focus when Escape closes it'
   expect(document.body.hasAttribute('data-scroll-locked')).toBe(false)
   expect(document.activeElement).toBe(account)
 })
+
+it('uses distinct sales and reporting icons without changing their routes', () => {
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <MemoryRouter>
+        <DashboardLayout onNavigate={vi.fn()} onOpenInventory={vi.fn()}>
+          <h1>Dashboard</h1>
+        </DashboardLayout>
+      </MemoryRouter>
+    </QueryClientProvider>,
+  )
+  const reports = screen.getAllByRole('link', { name: 'Financial Reports' })
+  const sales = screen.getAllByRole('link', { name: 'Sales Orders' })
+  for (const link of reports) {
+    expect(link.getAttribute('href')).toBe('/financial-reports')
+    expect(link.querySelector('svg')?.classList.contains('lucide-chart-no-axes-combined')).toBe(
+      true,
+    )
+  }
+  for (const link of sales)
+    expect(link.querySelector('svg')?.classList.contains('lucide-receipt-text')).toBe(true)
+})

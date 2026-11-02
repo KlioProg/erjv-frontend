@@ -49,23 +49,20 @@ export function ReportCalendar({
   if (weekly) {
     const weekDays = dateSequence(range.from, range.through)
     return (
-      <section
-        className="min-w-0 rounded-lg border bg-card p-4 sm:p-5"
-        aria-labelledby="calendar-heading"
-      >
+      <section className="min-w-0" aria-labelledby="calendar-heading">
         <div className="mb-4">
           <h2 id="calendar-heading" className="font-semibold">
             Daily {label}
           </h2>
           <p className="text-sm text-muted-foreground">
-            Paired with your line selection · Asia/Manila
+            Daily observations · Asia/Manila
           </p>
         </div>
-        <div className="overflow-x-auto pb-1">
+        <div className="pb-1">
           <div
             role="list"
             aria-label={`Weekly ${label}`}
-            className="grid min-w-[680px] grid-cols-7 gap-2"
+            className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-7"
           >
             {weekDays.map((day) => {
               const value = values.get(day)
@@ -80,7 +77,7 @@ export function ReportCalendar({
                   <span className="block text-xs font-medium">
                     {reportDateLabel(day, { weekday: 'short', month: 'short', day: 'numeric' })}
                   </span>
-                  <span className="mt-2 block truncate text-sm font-medium tabular-nums">
+                  <span className="mt-1 block break-words text-xs font-medium tabular-nums">
                     {value === undefined ? 'Not available' : formatReportMoney(value)}
                   </span>
                 </div>
@@ -110,17 +107,14 @@ export function ReportCalendar({
   const monthLabel = reportDateLabel(month + '-01', { month: 'long', year: 'numeric' })
 
   return (
-    <section
-      className="min-w-0 rounded-lg border bg-card p-4 sm:p-5"
-      aria-labelledby="calendar-heading"
-    >
+    <section className="min-w-0" aria-labelledby="calendar-heading">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 id="calendar-heading" className="font-semibold">
             Daily {label}
           </h2>
           <p className="text-sm text-muted-foreground">
-            Paired with your line selection · Asia/Manila
+            Daily observations · Asia/Manila
           </p>
         </div>
         {showCalendarNavigation ? (
@@ -155,12 +149,8 @@ export function ReportCalendar({
           </span>
         )}
       </div>
-      <div
-        role="grid"
-        aria-label={`${monthLabel} daily ${label}`}
-        className="mt-5 space-y-1 sm:space-y-2"
-      >
-        <div role="row" className="grid grid-cols-7 gap-1 sm:gap-2">
+      <div role="grid" aria-label={`${monthLabel} daily ${label}`} className="mt-3 space-y-1">
+        <div role="row" className="hidden grid-cols-7 gap-1 sm:grid">
           {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => (
             <div
               key={day}
@@ -172,22 +162,36 @@ export function ReportCalendar({
           ))}
         </div>
         {Array.from({ length: slots.length / 7 }, (_, rowIndex) => (
-          <div key={rowIndex} role="row" className="grid grid-cols-7 gap-1 sm:gap-2">
+          <div key={rowIndex} role="row" className="grid grid-cols-1 gap-1 sm:grid-cols-7">
             {slots.slice(rowIndex * 7, rowIndex * 7 + 7).map((slot, columnIndex) =>
               slot ? (
                 <div
                   key={slot.day}
                   role="gridcell"
                   aria-label={`${reportDateLabel(slot.day)}: ${slot.value === undefined ? 'Not available' : formatReportMoney(slot.value)}`}
-                  className={`min-h-16 min-w-0 rounded-md border bg-background p-1 sm:min-h-20 sm:p-2 ${slot.value !== undefined && moneyCents(slot.value) < 0n ? 'text-destructive' : ''}`}
+                  className={`min-h-11 min-w-0 rounded-md border bg-background p-2 ${slot.value === undefined || moneyCents(slot.value) === 0n ? 'text-muted-foreground bg-muted/20' : moneyCents(slot.value) < 0n ? 'text-destructive' : ''}`}
                 >
-                  <span className="block text-xs font-medium">{Number(slot.day.slice(-2))}</span>
-                  <span className="mt-1 block truncate text-[10px] tabular-nums sm:text-xs">
+                  <span className="block text-xs font-medium">
+                    <span className="sm:hidden">
+                      {reportDateLabel(slot.day, {
+                        weekday: 'short',
+                        month: 'short',
+                        day: 'numeric',
+                      })}
+                    </span>
+                    <span className="hidden sm:inline">{Number(slot.day.slice(-2))}</span>
+                  </span>
+                  <span className="mt-1 block break-words text-xs tabular-nums">
                     {slot.value === undefined ? 'Not available' : formatReportMoney(slot.value)}
                   </span>
                 </div>
               ) : (
-                <div key={`blank-${rowIndex}-${columnIndex}`} role="gridcell" aria-hidden="true" />
+                <div
+                  key={`blank-${rowIndex}-${columnIndex}`}
+                  role="gridcell"
+                  aria-hidden="true"
+                  className="hidden sm:block"
+                />
               ),
             )}
           </div>

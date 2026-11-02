@@ -108,11 +108,13 @@ it('shows exact values on keyboard and pointer with one chart tab stop', async (
     expect(screen.getByRole('status').textContent).toContain('₱1.00')
   })
   await user.keyboard('{Escape}')
-  expect(screen.getByRole('status').textContent).toBe('')
+  expect(screen.getByRole('status').textContent).toBe(
+    'Hover or focus the chart to inspect exact amounts.',
+  )
 })
 
 it('uses solid profit and distinct broken Sales and Purchases lines without exact-data controls', () => {
-  const report = makeReport(['2024-01-01', '2024-01-02'], () => '1.00')
+  const report = makeReport(days('2024-01-01', '2024-01-08'), () => '1.00')
   const { container } = render(
     <ReportLineChart
       period="monthly"
@@ -187,4 +189,60 @@ it('starts a yearly daily calendar at the anchor month and disables navigation o
     />,
   )
   expect(screen.getByText('November 2024')).toBeTruthy()
+})
+
+it('uses straight segments for sparse activity and keeps zero observations exact', async () => {
+  const user = userEvent.setup()
+  const report = makeReport(
+    ['2024-02-01', '2024-02-02', '2024-02-03'],
+    (_kind, index) => ['0.00', '-25.00', '10.00'][index],
+  )
+  const { container } = render(
+    <ReportLineChart period="monthly" selected={['sales']} reports={{ sales: report }} />,
+  )
+  expect(container.querySelectorAll('rect[data-bar-key]')).toHaveLength(0)
+  expect(container.querySelector('path[data-series]')?.getAttribute('d')).toMatch(
+    /^M[^MCQ]*L[^MCQ]*L/,
+  )
+  const chart = screen.getByRole('img', { name: 'Financial trends in pesos' })
+  chart.focus()
+  await waitFor(() => expect(screen.getByRole('status').textContent).toContain('\u20b10.00'))
+  await user.keyboard('{ArrowRight}')
+  expect(screen.getByRole('status').textContent).toContain('-\u20b125.00')
+  await user.keyboard('{ArrowRight}')
+  expect(screen.getByRole('status').textContent).toContain('\u20b110.00')
+})
+
+it('leaves missing daily observations as gaps with no invented zero', async () => {
+  const user = userEvent.setup()
+  const report = makeReport(['2024-02-01', '2024-02-03'], () => '5.00')
+  const { container } = render(
+    <ReportLineChart period="monthly" selected={['sales']} reports={{ sales: report }} />,
+  )
+  const path = container.querySelector('path[data-series]')!.getAttribute('d')!
+  expect(path.match(/M/g)).toHaveLength(2)
+  expect(path).not.toContain('L')
+  expect(container.querySelectorAll('circle[data-point-key]')).toHaveLength(2)
+  screen.getByRole('img', { name: 'Financial trends in pesos' }).focus()
+  await user.keyboard('{ArrowRight}')
+  expect(screen.getByRole('status').textContent).toContain('February 2, 2024')
+  expect(screen.getByRole('status').textContent).toContain('Not available')
+})
+
+it('shows an exact flat zero series and a visible reference for negative amounts', () => {
+  const report = makeReport(days('2024-02-01', '2024-02-04'))
+  const { container, rerender } = render(
+    <ReportLineChart period="monthly" selected={['sales']} reports={{ sales: report }} />,
+  )
+  expect(screen.getByText('All reported amounts are zero.')).toBeTruthy()
+  const baseline = container.querySelector('[data-zero-baseline]')!
+  const zeroY = baseline.getAttribute('y1')
+  for (const point of container.querySelectorAll('circle[data-point-key]'))
+    expect(point.getAttribute('cy')).toBe(zeroY)
+  report.rows[1].totalAmount = '-25.00'
+  rerender(<ReportLineChart period="monthly" selected={['sales']} reports={{ sales: report }} />)
+  expect(screen.queryByText('All reported amounts are zero.')).toBeNull()
+  expect(
+    Number(container.querySelector('circle[data-point-key="2024-02-02"]')!.getAttribute('cy')),
+  ).toBeGreaterThan(Number(container.querySelector('[data-zero-baseline]')!.getAttribute('y1')))
 })

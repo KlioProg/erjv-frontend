@@ -1,94 +1,82 @@
-import { useState } from 'react'
-import type { ReportFilterState } from '@/features/financial-reports/financial-report-periods'
+import { Button } from '@/components/ui/button'
+import type { ReportKind, ReportResult } from '@/features/financial-reports/financial-reports.types'
 import { metricAmount, reportMetrics } from '@/features/financial-reports/financial-report-visuals'
 import {
   formatReportMoney,
   formatReportPercent,
 } from '@/features/financial-reports/financial-reports.filters'
-import type { ReportKind, ReportResult } from '@/features/financial-reports/financial-reports.types'
-import { ReportDetails } from './ReportDetails'
 
 export function ReportSummaryCards({
   reports,
-  visibleKinds,
-  filters,
-  view,
+  selected,
+  onSelection,
+  errors = {},
+  pending = [],
+  fetching = [],
+  onRetry,
 }: {
   reports: Partial<Record<ReportKind, ReportResult>>
-  visibleKinds: ReportKind[]
-  filters: ReportFilterState
-  view: 'trends' | 'overview'
+  selected: ReportKind
+  onSelection: (kind: ReportKind) => void
+  errors?: Partial<Record<ReportKind, Error>>
+  pending?: ReportKind[]
+  fetching?: ReportKind[]
+  onRetry?: (kind: ReportKind) => void
 }) {
   return (
-    <ReportSummaryCardsContent
-      reports={reports}
-      visibleKinds={visibleKinds}
-      filters={filters}
-      view={view}
-    />
-  )
-}
-
-function ReportSummaryCardsContent({
-  reports,
-  visibleKinds,
-  filters,
-  view,
-}: {
-  reports: Partial<Record<ReportKind, ReportResult>>
-  visibleKinds: ReportKind[]
-  filters: ReportFilterState
-  view: 'trends' | 'overview'
-}) {
-  const [expanded, setExpanded] = useState<ReportKind | null>(null)
-  const visibleKey = visibleKinds.join('|')
-  const [previousVisibleKey, setPreviousVisibleKey] = useState(visibleKey)
-  if (previousVisibleKey !== visibleKey) {
-    setPreviousVisibleKey(visibleKey)
-    if (expanded && !visibleKinds.includes(expanded)) setExpanded(null)
-  }
-  const cards = reportMetrics.filter(
-    (metric) => visibleKinds.includes(metric.kind) && reports[metric.kind],
-  )
-
-  return (
-    <section aria-label="Report summary and details" className="space-y-3">
-      <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {cards.map((metric) => (
-          <div key={metric.kind} className="rounded-lg border bg-card px-4 py-3">
-            <dt className="text-xs text-muted-foreground">{metric.label}</dt>
-            <dd className="text-2xl font-semibold leading-8 tabular-nums text-foreground">
-              {formatReportMoney(metricAmount(reports[metric.kind]!.totals, metric.kind))}
-            </dd>
-            <p className="text-xs text-muted-foreground">Full applied period, all report rows</p>
-            <button
-              type="button"
-              className="mt-2 text-sm font-medium underline underline-offset-4"
-              aria-expanded={expanded === metric.kind}
-              aria-controls={`financial-report-details-${metric.kind}`}
-              onClick={() =>
-                setExpanded((current) => (current === metric.kind ? null : metric.kind))
-              }
-            >
-              {metric.label} details
-            </button>
-          </div>
-        ))}
-      </dl>
+    <section aria-label="Financial metrics" className="grid grid-cols-1 gap-3 md:grid-cols-3">
       {reportMetrics.map((metric) => (
         <div
           key={metric.kind}
-          id={`financial-report-details-${metric.kind}`}
-          hidden={expanded !== metric.kind}
-          className="rounded-lg border bg-card p-4"
+          className="flex min-w-0 flex-col rounded-lg border bg-card"
+          style={{ borderColor: selected === metric.kind ? metric.color : undefined }}
         >
-          {expanded === metric.kind && reports[metric.kind] && (
-            <ReportDetails
-              kind={metric.kind}
-              metrics={reports[metric.kind]!.totals}
-              filters={filters}
-              view={view}
-            />
+          <button
+            type="button"
+            aria-label={`Analyze ${metric.label}`}
+            aria-pressed={selected === metric.kind}
+            onClick={() => onSelection(metric.kind)}
+            className="min-w-0 flex-1 rounded-lg px-4 py-3 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            aria-busy={fetching.includes(metric.kind)}
+          >
+            <span className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+              {metric.label}
+              <span
+                aria-hidden="true"
+                className="size-2 rounded-full"
+                style={{ backgroundColor: metric.color }}
+              />
+            </span>
+            <span className="mt-1 block break-words text-xl font-semibold leading-8 tabular-nums text-foreground xl:text-2xl">
+              {errors[metric.kind]
+                ? 'Unavailable'
+                : pending.includes(metric.kind)
+                  ? 'Loading...'
+                  : reports[metric.kind]
+                    ? formatReportMoney(metricAmount(reports[metric.kind]!.totals, metric.kind))
+                    : 'Not available'}
+            </span>
+            <span className="mt-1 block text-xs text-muted-foreground">
+              {metric.kind === 'sales'
+                ? 'Reconciled deliveries'
+                : metric.kind === 'purchases'
+                  ? 'Accepted purchases'
+                  : 'Estimated, not net profit'}
+            </span>
+            <span className="sr-only">
+              {selected === metric.kind ? 'Selected metric' : 'Select metric'}
+            </span>
+          </button>
+          {errors[metric.kind] && onRetry && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              aria-label={`Retry ${metric.label}`}
+              onClick={() => onRetry(metric.kind)}
+            >
+              Retry report
+            </Button>
           )}
         </div>
       ))}

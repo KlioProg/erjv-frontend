@@ -17,6 +17,7 @@ import {
   ChevronDown,
   MapPinned,
   ReceiptText,
+  ChartNoAxesCombined,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
@@ -86,7 +87,7 @@ const NAV_GROUPS: NavGroup[] = [
       {
         key: 'financial-reports',
         label: 'Financial Reports',
-        icon: ReceiptText,
+        icon: ChartNoAxesCombined,
         requiresReportAccess: true,
       },
     ],
