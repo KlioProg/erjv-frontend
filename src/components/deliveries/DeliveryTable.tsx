@@ -68,7 +68,7 @@ export function DeliveryTable({
         <div className="min-w-0 max-w-44 whitespace-normal break-words sm:max-w-none">
           <Button
             variant="link"
-            className="h-auto min-h-8 justify-start p-0 text-sm font-medium pointer-coarse:min-h-11"
+            className="h-auto min-h-8 justify-start whitespace-normal break-words p-0 text-left text-sm font-medium pointer-coarse:min-h-11"
             onClick={() => onView(row)}
             aria-label={`View delivery ${row.reference}`}
           >
@@ -100,7 +100,7 @@ export function DeliveryTable({
       accessorKey: 'relatedOrder',
       sortable: false,
       cell: ({ row }) => (
-        <div className="flex flex-col gap-1 py-1">
+        <div className="flex flex-col gap-1">
           <span className="font-medium">{row.relatedOrder}</span>
           <span className="text-xs text-muted-foreground">{row.warehouse}</span>
         </div>
@@ -115,7 +115,7 @@ export function DeliveryTable({
       headerClassName: 'hidden md:table-cell',
       sortable: false,
       cell: ({ row }) => (
-        <div className="flex flex-col gap-1 py-1">
+        <div className="flex flex-col gap-1">
           <span>{row.party}</span>
         </div>
       ),
@@ -161,7 +161,7 @@ export function DeliveryTable({
           row.type === 'Incoming' && !!row.record.scheduledAt,
         )
         return (
-          <div title={schedule.title} className="flex flex-col gap-1 whitespace-nowrap py-1">
+          <div title={schedule.title} className="flex flex-col gap-1 whitespace-nowrap">
             <span>{schedule.date}</span>
             <span className="text-xs text-muted-foreground">
               {view === 'history' ? DELIVERY_STATUS_LABELS[row.status] : schedule.time}

@@ -10,22 +10,19 @@ import type { ReportKind } from '@/features/financial-reports/financial-reports.
 import { ReportProfitNotice } from '@/components/financial-reports/ReportSummaryCards'
 import { Button } from '@/components/ui/button'
 import { ROUTES } from '@/routes'
-import { DashboardDataTimes } from './DashboardDataTimes'
 
-const metrics: { kind: ReportKind; label: string; basis: string }[] = [
-  { kind: 'sales', label: 'Sales', basis: 'Reconciled deliveries' },
-  { kind: 'purchases', label: 'Purchases', basis: 'Accepted purchases' },
+const metrics: { kind: ReportKind; label: string }[] = [
+  { kind: 'sales', label: 'Sales' },
+  { kind: 'purchases', label: 'Purchases' },
   {
     kind: 'gross-profit-estimate',
     label: 'Estimated Gross Profit',
-    basis: 'Based on recorded costs',
   },
 ]
 
 function FinancialMetric({
   kind,
   label,
-  basis,
   query,
 }: (typeof metrics)[number] & { query: ReturnType<typeof useFinancialReport> }) {
   return (
@@ -46,7 +43,9 @@ function FinancialMetric({
               : formatReportMoney(metricAmount(query.data.totals, kind))}
         </p>
       </Link>
-      <p className="mt-1 text-xs text-muted-foreground">{basis}</p>
+      {kind === 'gross-profit-estimate' && !query.isError && (
+        <ReportProfitNotice report={query.data} className="mt-2" />
+      )}
       {query.isError && (
         <Button variant="ghost" size="sm" onClick={query.refresh}>
           Retry {label}
@@ -93,31 +92,6 @@ export function DashboardFinancialOverview({ now }: { now: Date }) {
         {metrics.map((metric) => (
           <FinancialMetric key={metric.kind} {...metric} query={reports[metric.kind]} />
         ))}
-      </div>
-      <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-1">
-        {!reports['gross-profit-estimate'].isError && (
-          <div className="min-w-0 flex-1 [&_summary]:min-h-11">
-            <ReportProfitNotice
-              report={reports['gross-profit-estimate'].data}
-              summaryLabel="How is this calculated?"
-            />
-          </div>
-        )}
-        <DashboardDataTimes
-          label="Report times"
-          sources={metrics.map(({ kind, label }) => ({
-            label,
-            time:
-              reports[kind].data && !reports[kind].isError
-                ? Date.parse(reports[kind].data.period.asOf)
-                : undefined,
-            status: reports[kind].isError
-              ? 'Unavailable'
-              : reports[kind].isPending
-                ? 'Loading…'
-                : undefined,
-          }))}
-        />
       </div>
     </section>
   )

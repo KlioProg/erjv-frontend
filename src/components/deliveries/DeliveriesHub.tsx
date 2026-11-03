@@ -67,6 +67,8 @@ import { DeliveryDetailModal } from './shared/DeliveryDetailModal'
 import type { OutgoingDeliveryRecord } from '@/features/logistics/outgoing-deliveries.types'
 import { getErrorMessage } from '@/lib/api-client'
 import { useCursorLookup } from '@/lib/use-cursor-lookup'
+import { useDeliveryHistoryPagination } from '@/features/logistics/delivery-history-pagination'
+import { CursorPageControls } from '@/components/ui/CursorPageControls'
 import { useResourcePage } from '@/lib/use-cursor-page'
 import { DeliveryHeaderFilter } from './DeliveryHeaderFilter'
 import { DeliveryTableToolbar, DeliveryPageFooter } from './DeliveryTableToolbar'
@@ -313,8 +315,9 @@ export function DeliveriesHub({
       }
       return time(right) - time(left) || left.key.localeCompare(right.key)
     })
-  const loadMoreHistory = () => {
+  const loadMoreHistory = async () => {
     if (isFetchingDeliveries) return
+    const requests: Promise<unknown>[] = []
     for (const [enabled, source] of [
       [incomingEnabled, loadedIncoming],
       [outgoingEnabled, loadedOutgoing],
@@ -322,12 +325,25 @@ export function DeliveriesHub({
       if (!enabled) continue
       if (hasDeliveryError) {
         if (source.isError)
-          void (source.isFetchNextPageError
-            ? source.fetchNextPage({ cancelRefetch: false })
-            : source.refetch())
-      } else if (source.hasNextPage) void source.fetchNextPage({ cancelRefetch: false })
+          requests.push(
+            source.isFetchNextPageError
+              ? source.fetchNextPage({ cancelRefetch: false })
+              : source.refetch({ cancelRefetch: false }),
+          )
+      } else if (source.hasNextPage) requests.push(source.fetchNextPage({ cancelRefetch: false }))
     }
+    await Promise.all(requests)
   }
+  const historyPagination = useDeliveryHistoryPagination({
+    rows: allHistory ? filtered : [],
+    scope: JSON.stringify(session),
+    isFetching: isFetchingDeliveries,
+    isError: hasDeliveryError,
+    hasMore:
+      (incomingEnabled && !!loadedIncoming.hasNextPage) ||
+      (outgoingEnabled && !!loadedOutgoing.hasNextPage),
+    fetchMore: loadMoreHistory,
+  })
   const viewRow = rows.find((row) => row.type === 'Incoming' && row.record.id === viewIncomingId)
   const selectedPurchase = usePurchaseOrderById(
     viewOrder?.type === 'Incoming' ? viewOrder.id : undefined,
@@ -596,24 +612,38 @@ export function DeliveriesHub({
             ? 'Incoming Deliveries'
             : 'Outgoing Deliveries'}
       </PageHeader>
-      {view === 'history' && (
-        <div role="group" aria-label="Delivery direction" className="min-w-0">
-          <StatusTabNav
-            activeTab={type}
-            onTabChange={(value) => {
-              if (value === type) return
-              setType(value)
-              setStatus('ALL')
-            }}
-            tabs={[
-              { value: 'ALL', label: 'All Deliveries' },
-              { value: 'Incoming', label: 'Incoming' },
-              { value: 'Outgoing', label: 'Outgoing' },
-            ]}
-          />
+      <div
+        className={
+          view === 'history'
+            ? 'flex min-w-0 flex-wrap items-center gap-3 [&_input]:h-11! pointer-coarse:[&_input]:h-13!'
+            : undefined
+        }
+      >
+        {view === 'history' && (
+          <div role="group" aria-label="Delivery direction" className="min-w-0 max-w-full">
+            <StatusTabNav
+              activeTab={type}
+              onTabChange={(value) => {
+                if (value === type) return
+                setType(value)
+                setStatus('ALL')
+              }}
+              tabs={[
+                { value: 'ALL', label: 'All Deliveries' },
+                { value: 'Incoming', label: 'Incoming' },
+                { value: 'Outgoing', label: 'Outgoing' },
+              ]}
+            />
+          </div>
+        )}
+        <div
+          className={
+            view === 'history' ? 'w-full min-w-0 sm:w-auto sm:flex-1 sm:basis-80' : undefined
+          }
+        >
+          {toolbar}
         </div>
-      )}
-      {toolbar}
+      </div>
       {incomingScheduleFailure && (
         <Alert variant="destructive">
           <AlertDescription>{incomingScheduleFailure}</AlertDescription>
@@ -697,37 +727,33 @@ export function DeliveriesHub({
             Delivery records are unavailable until the request succeeds.
           </p>
         ) : (
-          renderTable(filtered, isLoadingDeliveries && (!allHistory || filtered.length === 0))
+          renderTable(
+            allHistory ? historyPagination.items : filtered,
+            isLoadingDeliveries && (!allHistory || filtered.length === 0),
+          )
         )}
         {allHistory ? (
-          <nav
-            data-table-footer
-            aria-label="Delivery history loading"
-            className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t bg-card px-3 py-2 text-sm tabular-nums"
-          >
-            <span role="status" className="min-w-0 text-muted-foreground">
-              {isFetchingDeliveries && !filtered.length
-                ? 'Loading history...'
-                : filtered.length + ' loaded deliveries'}
-              {incomingEnabled && loadedIncoming.isError && '. Incoming history unavailable.'}
-              {outgoingEnabled && loadedOutgoing.isError && '. Outgoing history unavailable.'}
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={
-                isFetchingDeliveries ||
-                (!hasDeliveryError && !incomingQuery.hasNext && !outgoingQuery.hasNext)
-              }
-              onClick={loadMoreHistory}
-            >
-              {isFetchingDeliveries
-                ? 'Loading history...'
-                : hasDeliveryError
-                  ? 'Retry history'
-                  : 'Load more history'}
-            </Button>
-          </nav>
+          <CursorPageControls
+            {...historyPagination}
+            label="Delivery history"
+            summary={
+              <span role="status">
+                Loaded history pages
+                {incomingEnabled && loadedIncoming.isError && '. Incoming history unavailable.'}
+                {outgoingEnabled && loadedOutgoing.isError && '. Outgoing history unavailable.'}
+                {hasDeliveryError && (
+                  <Button
+                    variant="link"
+                    size="sm"
+                    disabled={historyPagination.isFetching}
+                    onClick={historyPagination.retry}
+                  >
+                    Retry history
+                  </Button>
+                )}
+              </span>
+            }
+          />
         ) : view === 'history' ? (
           <>
             {incomingEnabled && (

@@ -305,7 +305,11 @@ export function DeliveryRunsHub() {
       header: 'Run',
       cell: ({ row }) => (
         <div>
-          <Button variant="link" className="h-auto px-0" onClick={() => select(row.id)}>
+          <Button
+            variant="link"
+            className="h-auto whitespace-normal break-words px-0 text-left"
+            onClick={() => select(row.id)}
+          >
             {row.runNumber}
           </Button>
           <p className="text-xs text-muted-foreground">{preparation(row)}</p>
@@ -348,6 +352,7 @@ export function DeliveryRunsHub() {
     {
       id: 'next',
       header: 'Next Action',
+      align: 'right',
       cell: ({ row }) => (
         <Button variant="outline" size="sm" onClick={() => select(row.id)}>
           {row.status === 'DRAFT' && (isAdmin || isManager || isStaff)

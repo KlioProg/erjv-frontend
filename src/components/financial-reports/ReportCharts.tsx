@@ -31,10 +31,12 @@ export function ReportLineChart({
   selected,
   reports,
   period,
+  onToggle,
 }: {
   selected: ReportKind[]
   reports: Partial<Record<ReportKind, ReportResult>>
   period: ReportPeriod
+  onToggle?: (kind: ReportKind) => void
 }) {
   const chartRef = useRef<HTMLElement>(null)
   const [plotWidth, setPlotWidth] = useState(880)
@@ -54,7 +56,7 @@ export function ReportLineChart({
   const series = useMemo(
     () =>
       reportMetrics
-        .filter((m) => selected.includes(m.kind))
+        .filter((m) => selected.includes(m.kind) && reports[m.kind])
         .map((m) => ({
           ...m,
           points: trendPoints(reports[m.kind]!.rows, m.kind, period),
@@ -82,16 +84,16 @@ export function ReportLineChart({
   const amounts = seriesWithValues.flatMap((item) =>
     item.points.map((point) => moneyCents(point.value)),
   )
-  const low = amounts.reduce((m, v) => (v < m ? v : m), 0n)
-  const high = amounts.reduce((m, v) => (v > m ? v : m), 0n)
-  const range = high - low || 100n
+  const minimum = amounts.reduce((m, v) => (v < m ? v : m), 0n)
+  const maximum = amounts.reduce((m, v) => (v > m ? v : m), 0n)
+  const padding = (maximum - minimum) / 20n || 1n
+  const low = minimum < 0n ? minimum - padding : 0n
+  const high = maximum > 0n ? maximum + padding : minimum < 0n ? 0n : 100n
+  const range = high - low
   const x = (i: number) => 90 + (i * Math.max(1, plotWidth - 120)) / Math.max(1, dates.length - 1)
   const y = (v: bigint) => 182 - scaledRatio(v - low, range) * 164
   const pointIndex = active ? Math.max(0, Math.min(active.point, dates.length - 1)) : 0
-  const seriesIndex = active ? Math.max(0, Math.min(active.series, seriesWithValues.length - 1)) : 0
   const pointDate = dates[pointIndex]
-  const activeSeries = seriesWithValues[seriesIndex]
-  const activeValue = pointDate && activeSeries?.values.get(pointDate)
   const pointLabel = (date: string) =>
     reportDateLabel(
       date,
@@ -119,8 +121,33 @@ export function ReportLineChart({
             · Philippine pesos
           </p>
         </div>
+        {onToggle && (
+          <div role="group" aria-label="Chart metrics" className="flex flex-wrap gap-2">
+            {reportMetrics.map((metric) => (
+              <Button
+                key={metric.kind}
+                type="button"
+                size="sm"
+                variant={selected.includes(metric.kind) ? 'secondary' : 'outline'}
+                aria-pressed={selected.includes(metric.kind)}
+                onClick={() => onToggle(metric.kind)}
+              >
+                <span
+                  aria-hidden="true"
+                  className="size-2 rounded-full"
+                  style={{ backgroundColor: metric.color }}
+                />
+                {metric.label}
+              </Button>
+            ))}
+          </div>
+        )}
       </div>
-      {dates.length === 0 ? (
+      {selected.length === 0 ? (
+        <p>Select a metric to view financial trends.</p>
+      ) : series.length === 0 ? (
+        <p>No selected reports are available yet.</p>
+      ) : dates.length === 0 ? (
         <p>No results for this period and filters.</p>
       ) : (
         <>
@@ -287,11 +314,14 @@ export function ReportLineChart({
             aria-live="polite"
             className="mt-2 min-h-5 break-words text-xs font-medium tabular-nums"
           >
-            {active && activeValue !== undefined
-              ? `${pointLabel(pointDate)} · ${activeSeries.label} · ${formatReportMoney(activeValue)}`
-              : active
-                ? `${pointLabel(pointDate)} · ${activeSeries.label} · Not available`
-                : 'Hover or focus the chart to inspect exact amounts.'}
+            {active
+              ? `${pointLabel(pointDate)} · ${seriesWithValues
+                  .map((item) => {
+                    const value = item.values.get(pointDate)
+                    return `${item.label} · ${value === undefined ? 'Not available' : formatReportMoney(value)}`
+                  })
+                  .join(' · ')}`
+              : 'Hover or focus the chart to inspect exact amounts.'}
           </p>
         </>
       )}

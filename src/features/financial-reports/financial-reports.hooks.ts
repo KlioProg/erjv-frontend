@@ -5,7 +5,7 @@ import { fetchFinancialReportApi } from './financial-reports.api'
 import type { ReportKind, ReportQuery } from './financial-reports.types'
 import { breakdown } from './financial-reports.filters'
 export function useFinancialReport(kind: ReportKind, scope: ReportQuery) {
-  const { user, isAdmin, isManager } = useAuth()
+  const { user, isAdmin } = useAuth()
   const [navigation, setNavigation] = useState({
     cursors: [undefined] as (string | undefined)[],
     index: 0,
@@ -40,7 +40,7 @@ export function useFinancialReport(kind: ReportKind, scope: ReportQuery) {
   const cursor = navigation.cursors[navigation.index]
   const query = useQuery({
     queryKey: ['financial-reports', user?.id, kind, scope, pageSize, session, cursor ?? null],
-    enabled: isAdmin || isManager,
+    enabled: isAdmin,
     retry: false,
     staleTime: 'static',
     gcTime: Infinity,
@@ -72,6 +72,7 @@ export function useFinancialReport(kind: ReportKind, scope: ReportQuery) {
     },
   })
   const restart = () => {
+    if (!isAdmin) return
     setNavigation({ cursors: [undefined], index: 0, snapshot: undefined })
     setSession(crypto.randomUUID())
   }

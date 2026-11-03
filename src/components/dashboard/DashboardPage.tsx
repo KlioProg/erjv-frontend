@@ -22,7 +22,7 @@ function countLabel(count: number, complete: boolean) {
 }
 
 export function DashboardPage() {
-  const { isAdmin, isManager } = useAuth()
+  const { isAdmin } = useAuth()
   const { onOpenInventory } = useOutletContext<DashboardOutletContext>()
   const [now, setNow] = useState(() => new Date())
   const client = useQueryClient()
@@ -115,7 +115,7 @@ export function DashboardPage() {
       await Promise.all([
         inventory.refresh(),
         ...previews.map(({ query }) => query.reload()),
-        ...(isAdmin || isManager
+        ...(isAdmin
           ? [client.invalidateQueries({ queryKey: ['financial-reports'] })]
           : []),
       ])
@@ -140,7 +140,7 @@ export function DashboardPage() {
           </Button>
         </div>
       </div>
-      {(isAdmin || isManager) && <DashboardFinancialOverview now={now} />}
+      {isAdmin && <DashboardFinancialOverview now={now} />}
       <div className="grid items-start gap-4 xl:grid-cols-2">
         <section
           aria-labelledby="inventory-overview"

@@ -3,7 +3,7 @@ import type { Metrics, ReportKind } from './financial-reports.types'
 import type { ReportQuery, ReportResult, ReportRow } from './financial-reports.types'
 
 export const reportMetrics: { kind: ReportKind; label: string; color: string; dash?: string }[] = [
-  { kind: 'sales', label: 'Sales', color: '#3f6212', dash: '7 4' },
+  { kind: 'sales', label: 'Sales', color: '#6A994E', dash: '7 4' },
   { kind: 'purchases', label: 'Purchases', color: '#b45309', dash: '2 4' },
   { kind: 'gross-profit-estimate', label: 'Estimated gross profit', color: '#1d4ed8' },
 ]

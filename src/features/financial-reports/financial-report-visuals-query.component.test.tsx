@@ -1,8 +1,9 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, renderHook, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, expect, it, vi } from 'vitest'
 import { apiClient } from '@/lib/api-client'
 import { useReportVisuals } from './financial-report-visuals.hooks'
+import { useFinancialReport } from './financial-reports.hooks'
 import cases from './report-test-fixtures.json'
 import type { ReportResult } from './financial-reports.types'
 
@@ -12,12 +13,33 @@ const original = apiClient.defaults.adapter
 afterEach(() => {
   apiClient.defaults.adapter = original
   auth.user.id = 1
+  auth.isAdmin = true
+  auth.isManager = false
 })
 const scope = {
   from: '2026-10-01T00:00:00+08:00',
   before: '2026-10-03T00:00:00+08:00',
   groupBy: 'day' as const,
 }
+it.each([false, true])('does not query or refresh financial hooks without admin access (manager %s)', async (manager) => {
+  auth.isAdmin = false
+  auth.isManager = manager
+  const adapter = vi.fn()
+  apiClient.defaults.adapter = adapter
+  const client = new QueryClient()
+  const { result } = renderHook(() => ({
+    trends: useReportVisuals(scope, ['sales', 'purchases', 'gross-profit-estimate'], false),
+    details: useFinancialReport('sales', scope),
+  }), {
+    wrapper: ({ children }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>,
+  })
+  expect(result.current.trends.authorized).toBe(false)
+  await act(async () => {
+    result.current.trends.restart()
+    result.current.details.refresh()
+  })
+  expect(adapter).not.toHaveBeenCalled()
+})
 function result(value: string, from = scope.from, before = scope.before): ReportResult {
   const body = structuredClone(
     cases.find((c) => c.id === 'sales-trend-zero-bucket')!.body,

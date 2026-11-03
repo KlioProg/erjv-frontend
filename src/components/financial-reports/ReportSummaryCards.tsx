@@ -1,23 +1,16 @@
 import { Button } from '@/components/ui/button'
 import type { ReportKind, ReportResult } from '@/features/financial-reports/financial-reports.types'
 import { metricAmount, reportMetrics } from '@/features/financial-reports/financial-report-visuals'
-import {
-  formatReportMoney,
-  formatReportPercent,
-} from '@/features/financial-reports/financial-reports.filters'
+import { formatReportMoney } from '@/features/financial-reports/financial-reports.filters'
 
 export function ReportSummaryCards({
   reports,
-  selected,
-  onSelection,
   errors = {},
   pending = [],
   fetching = [],
   onRetry,
 }: {
   reports: Partial<Record<ReportKind, ReportResult>>
-  selected: ReportKind
-  onSelection: (kind: ReportKind) => void
   errors?: Partial<Record<ReportKind, Error>>
   pending?: ReportKind[]
   fetching?: ReportKind[]
@@ -28,17 +21,11 @@ export function ReportSummaryCards({
       {reportMetrics.map((metric) => (
         <div
           key={metric.kind}
+          role="group"
+          aria-label={metric.label}
           className="flex min-w-0 flex-col rounded-lg border bg-card"
-          style={{ borderColor: selected === metric.kind ? metric.color : undefined }}
         >
-          <button
-            type="button"
-            aria-label={`Analyze ${metric.label}`}
-            aria-pressed={selected === metric.kind}
-            onClick={() => onSelection(metric.kind)}
-            className="min-w-0 flex-1 rounded-lg px-4 py-3 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            aria-busy={fetching.includes(metric.kind)}
-          >
+          <div className="min-w-0 flex-1 px-4 py-3" aria-busy={fetching.includes(metric.kind)}>
             <span className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
               {metric.label}
               <span
@@ -56,17 +43,12 @@ export function ReportSummaryCards({
                     ? formatReportMoney(metricAmount(reports[metric.kind]!.totals, metric.kind))
                     : 'Not available'}
             </span>
-            <span className="mt-1 block text-xs text-muted-foreground">
-              {metric.kind === 'sales'
-                ? 'Reconciled deliveries'
-                : metric.kind === 'purchases'
-                  ? 'Accepted purchases'
-                  : 'Estimated, not net profit'}
-            </span>
-            <span className="sr-only">
-              {selected === metric.kind ? 'Selected metric' : 'Select metric'}
-            </span>
-          </button>
+            {metric.kind === 'gross-profit-estimate' && (
+              <span className="mt-1 block text-xs text-muted-foreground">
+                Estimated, not net profit
+              </span>
+            )}
+          </div>
           {errors[metric.kind] && onRetry && (
             <Button
               type="button"
@@ -78,6 +60,9 @@ export function ReportSummaryCards({
               Retry report
             </Button>
           )}
+          {metric.kind === 'gross-profit-estimate' && !errors[metric.kind] && (
+            <ReportProfitNotice report={reports[metric.kind]} className="mx-4 mb-3" />
+          )}
         </div>
       ))}
     </section>
@@ -86,10 +71,10 @@ export function ReportSummaryCards({
 
 export function ReportProfitNotice({
   report,
-  summaryLabel = 'How estimated gross profit is calculated',
+  className = '',
 }: {
   report?: ReportResult
-  summaryLabel?: string
+  className?: string
 }) {
   const profit = report?.totals
   if (!profit) return null
@@ -97,31 +82,12 @@ export function ReportProfitNotice({
     (profit.costCoveragePercent != null && Number(profit.costCoveragePercent) < 100) ||
     profit.uncostedTaxableSalesValue !== '0.00' ||
     Object.values(profit.uncostedQuantityByUnit ?? {}).some((quantity) => Number(quantity) > 0)
+  if (!hasUncosted && profit.costCoveragePercent != null) return null
   return (
-    <div className="space-y-2 text-sm text-muted-foreground" role="note">
-      <details>
-        <summary className="min-h-9 cursor-pointer rounded py-1 font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-          {summaryLabel}
-        </summary>
-        <div className="mt-2 space-y-1">
-          <p>
-            Estimated gross profit uses costed taxable sales and moving weighted average acquisition
-            cost. It is not net profit or sales minus purchases.
-          </p>
-          <p>
-            Cost coverage: {formatReportPercent(profit.costCoveragePercent)}; uncosted taxable
-            sales: {formatReportMoney(profit.uncostedTaxableSalesValue ?? '0.00')}.
-          </p>
-        </div>
-      </details>
-      {hasUncosted && (
-        <div
-          role="status"
-          className="rounded-md border border-amber-600/50 p-3 text-sm text-foreground"
-        >
-          Some sales have no recorded purchase cost. Estimated gross profit may be incomplete.
-        </div>
-      )}
-    </div>
+    <p role="status" className={`text-xs text-foreground ${className}`}>
+      {hasUncosted
+        ? 'Estimated gross profit may be incomplete because some purchase costs are missing.'
+        : 'Cost coverage is unavailable for estimated gross profit.'}
+    </p>
   )
 }

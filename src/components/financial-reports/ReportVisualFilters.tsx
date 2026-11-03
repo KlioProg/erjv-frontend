@@ -56,6 +56,12 @@ export function ReportVisualFilters({
   const yearIsValid = /^\d{4}$/.test(rawYear) && Number(rawYear) >= 1900 && Number(rawYear) <= 2100
   const yearIsInvalid = hasYearInput && !yearIsValid
   const dateRange = reportDraft(value)
+  const yearPrefix =
+    value.period === 'semiannual'
+      ? `H${selectors.half}`
+      : value.period === 'quarterly'
+        ? `Q${selectors.quarter}`
+        : ''
 
   const apply = (action: PeriodAction, discardYearText = false) => {
     if (discardYearText) {
@@ -94,7 +100,7 @@ export function ReportVisualFilters({
       className="min-w-0 rounded-lg border bg-card p-3"
       aria-label="Financial report filters"
     >
-      <div className="flex flex-wrap items-start gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <div className="min-w-0 max-w-full" role="group" aria-label="Time period">
           <StatusTabNav
             activeTab={value.period}
@@ -105,28 +111,37 @@ export function ReportVisualFilters({
           />
         </div>
 
-        <div className="min-w-0 flex-1 basis-60">
+        <div className="w-full min-w-0 max-w-full sm:w-auto">
           <div className="space-y-1">
-            <div className="flex items-end gap-1">
+            <div className="flex items-center gap-1">
               <Button
                 variant="outline"
                 size="icon"
                 type="button"
                 aria-label="Previous period"
+                className="shrink-0"
                 disabled={previous}
                 onClick={() => apply({ type: 'step', value: -1 }, true)}
               >
                 <ChevronLeft aria-hidden="true" />
               </Button>
               {hasYearInput ? (
-                <div className="min-w-0 flex-1 space-y-1">
+                <div className="relative w-full min-w-0 sm:w-70">
                   <Label htmlFor="visual-year" className="sr-only">
                     Year
                   </Label>
+                  {yearPrefix && (
+                    <span
+                      aria-hidden="true"
+                      className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground"
+                    >
+                      {yearPrefix}
+                    </span>
+                  )}
                   <Input
                     id="visual-year"
                     aria-invalid={yearIsInvalid}
-                    aria-describedby={yearIsInvalid || yearMessage ? yearMessageId : undefined}
+                    aria-describedby={`visual-period-description${yearIsInvalid || yearMessage ? ` ${yearMessageId}` : ''}`}
                     type="text"
                     inputMode="numeric"
                     pattern="[0-9]{4}"
@@ -144,11 +159,11 @@ export function ReportVisualFilters({
                         restoreYear()
                       } else if (event.key === 'Enter') event.preventDefault()
                     }}
-                    className="h-9 min-w-0 focus-visible:ring-2 focus-visible:ring-ring"
+                    className={`h-9 min-w-0 focus-visible:ring-2 focus-visible:ring-ring${yearPrefix ? ' pl-10' : ''}`}
                   />
                 </div>
               ) : value.period === 'monthly' ? (
-                <div className="min-w-0 flex-1 space-y-1">
+                <div className="w-full min-w-0 space-y-1 sm:w-70">
                   <Label htmlFor="visual-month" className="sr-only">
                     Month
                   </Label>
@@ -156,8 +171,15 @@ export function ReportVisualFilters({
                     value={String(selectors.month)}
                     onValueChange={(selected) => apply({ type: 'month', value: Number(selected) })}
                   >
-                    <SelectTrigger id="visual-month" aria-label="Month" className="h-9">
-                      <SelectValue />
+                    <SelectTrigger
+                      id="visual-month"
+                      aria-label="Month"
+                      aria-describedby="visual-period-description"
+                      className="h-9 min-w-0 gap-2 whitespace-nowrap [&>span]:min-w-0 [&>svg]:shrink-0"
+                    >
+                      <SelectValue>
+                        {reportDateLabel(dateRange.from, { month: 'long', year: 'numeric' })}
+                      </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       {monthOptions().map((month) => (
@@ -169,7 +191,7 @@ export function ReportVisualFilters({
                   </Select>
                 </div>
               ) : (
-                <div className="min-w-0 flex-1 space-y-1">
+                <div className="w-full min-w-0 space-y-1 sm:w-70">
                   <Label htmlFor="visual-week" className="sr-only">
                     Week
                   </Label>
@@ -177,8 +199,17 @@ export function ReportVisualFilters({
                     value={String(selectors.week)}
                     onValueChange={(selected) => apply({ type: 'week', value: Number(selected) })}
                   >
-                    <SelectTrigger id="visual-week" aria-label="Week" className="h-9">
-                      <SelectValue />
+                    <SelectTrigger
+                      id="visual-week"
+                      aria-label="Week"
+                      aria-describedby="visual-period-description"
+                      className="h-9 min-w-0 gap-2 whitespace-nowrap [&>span]:min-w-0 [&>svg]:shrink-0"
+                    >
+                      <SelectValue>
+                        {reportDateLabel(dateRange.from, { month: 'short', day: 'numeric' })}
+                        {' – '}
+                        {reportDateLabel(dateRange.through, { month: 'short', day: 'numeric' })}
+                      </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       {weekOptions(value.anchor).map((week) => (
@@ -195,32 +226,13 @@ export function ReportVisualFilters({
                 size="icon"
                 type="button"
                 aria-label="Next period"
+                className="shrink-0"
                 disabled={next}
                 onClick={() => apply({ type: 'step', value: 1 }, true)}
               >
                 <ChevronRight aria-hidden="true" />
               </Button>
             </div>
-            {!hasYearInput && (
-              <p className="text-xs text-muted-foreground" aria-label="Period year">
-                Year · {selectors.year}
-              </p>
-            )}
-            {hasYearInput && value.period === 'semiannual' && (
-              <p className="text-xs text-muted-foreground">
-                H{selectors.half} · {selectors.half === 1 ? 'January–June' : 'July–December'}
-              </p>
-            )}
-            {hasYearInput && value.period === 'quarterly' && (
-              <p className="text-xs text-muted-foreground">
-                Q{selectors.quarter} ·{' '}
-                {
-                  ['', 'January–March', 'April–June', 'July–September', 'October–December'][
-                    selectors.quarter
-                  ]
-                }
-              </p>
-            )}
             {yearIsInvalid && (
               <p id={yearMessageId} className="text-xs text-destructive">
                 Enter a four-digit year from 1900 to 2100. The current report remains unchanged.
@@ -231,9 +243,6 @@ export function ReportVisualFilters({
                 {yearMessage}
               </p>
             )}
-            <p className="text-xs text-muted-foreground">
-              {reportDateLabel(dateRange.from)} – {reportDateLabel(dateRange.through)} · Asia/Manila
-            </p>
           </div>
         </div>
         <Button
@@ -248,11 +257,14 @@ export function ReportVisualFilters({
           Filters{activeFilters > 0 ? ` (${activeFilters} active)` : ''}
         </Button>
       </div>
-      <p className="mt-2 text-xs text-muted-foreground">
+      <p id="visual-period-description" className="mt-2 text-xs text-muted-foreground">
+        {reportDateLabel(dateRange.from)} – {reportDateLabel(dateRange.through)} · Asia/Manila
+        {value.period === 'weekly' && ` · ISO year ${selectors.year}`}
+      </p>
+      <p className="mt-1 text-xs text-muted-foreground">
         {activeFilters
           ? `${value.itemId ? 'Selected item' : 'All items'} · ${value.warehouseId ? 'Selected warehouse' : 'All warehouses'}`
-          : 'All items · All warehouses'}{' '}
-        · Selected period
+          : 'All items · All warehouses'}
       </p>
       {advanced && (
         <div

@@ -415,7 +415,7 @@ export function DataTable<T>({
             )}
           >
             <TableHeader className="bg-secondary">
-              <TableRow>
+              <TableRow className="hover:bg-transparent">
                 {resolvedColumns.map((column) => {
                   const widthStyle =
                     column.width != null
@@ -520,12 +520,12 @@ export function DataTable<T>({
               ? '[&_td]:px-4 [&_th]:px-4'
               : '[&_td]:px-2 [&_th]:px-2 [&_td:first-child]:pl-3 [&_th:first-child]:pl-3 [&_td:last-child]:pr-3 [&_th:last-child]:pr-3',
             // Keep controls compact even when feature renderers supply custom typography.
-            '[&_tbody_td_button]:text-ui [&_tbody_td_button]:font-medium [&_tbody_td_button]:leading-4 [&_tbody_[data-slot=badge]]:text-xs [&_tbody_[data-slot=badge]]:font-medium [&_tbody_[data-slot=badge]]:leading-4 [&_tbody_[data-slot=badge]]:px-2 [&_tbody_[data-slot=badge]]:py-0.5',
+            '[&_tbody_td_button]:text-ui [&_tbody_td_button]:font-medium [&_tbody_td_button]:leading-4 [&_tbody_[data-slot=badge]]:text-xs [&_tbody_[data-slot=badge]]:font-medium [&_tbody_[data-slot=badge]]:leading-4 [&_tbody_[data-slot=badge]]:px-2 [&_tbody_[data-slot=badge]]:py-0.5 [&_tbody_[data-slot=badge]]:rounded-md [&_tbody_[data-slot=badge]]:gap-1.5',
             tableClassName,
           )}
         >
           <TableHeader className="bg-secondary">
-            <TableRow>
+            <TableRow className="hover:bg-transparent">
               {resolvedColumns.map((column) => {
                 const alignClass = getAlignmentClass(column.align)
                 const justifyClass = getHeaderJustifyClass(column.align)

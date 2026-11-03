@@ -73,6 +73,9 @@ Do not introduce a second tab styling system, duplicate cursor state management,
 
 ## 6. Table and pagination standard
 
+- Management lists use `DataTable appearance="management"`: neutral headers, matching 16px horizontal cell padding, 12px vertical body padding, centered content, and shared row hover/focus states. Rows expand with their content; avoid extra padding inside cell renderers. Compact dialog and expanded-detail tables may retain their existing density.
+- Use moderately emphasized primary values and `text-xs text-muted-foreground` for supporting values beneath them. Keep business identifiers readable or use the existing accessible `OverflowValue` disclosure.
+- Use shared badges and `DataTableActions`; preserve semantic status colors and labels, align action columns right, and keep primary next actions labeled. Feature code owns permissions and workflow decisions.
 - The DataTable border encloses the table; its pager appears **directly beneath** it or as its footer, never floating above Inventory/Warehouses tables.
 - Use compact visible controls: **Rows [50]  Page 1  [‹] [›]**. Keep accessible descriptions such as “Rows per page”, “Previous page”, “Next page”.
 - **For normal paginated management lists, retain the compact footer even on a single page.** Disable unavailable arrows instead of hiding the entire footer because the list is short.
@@ -115,9 +118,9 @@ Review completed and cancelled deliveries.
 2. **One set of column headings**, one search field, one visible result collection, one bottom paging/loading area.
 3. **Direction is a visible tab**, not another column-header filter icon. Keep the Direction column as data.
 4. A row is uniquely identified by **direction + delivery ID**, to avoid incoming/outgoing ID collisions.
-5. If both sources have authoritative compatible event timestamps, present a stable deterministic sort for the **loaded records**; do not claim exhaustive global chronology unless both source APIs guarantee an ordering that enables a true merge.
+5. Order each newly admitted batch by authoritative event timestamps where available, then preserve visited page boundaries as more batches arrive. Do not claim global event chronology unless both source APIs guarantee an ordering that enables a true merge.
 6. The backend currently exposes independent incoming and outgoing cursor states. **Never fake a unified backend cursor or count.**
-7. **All tab pagination:** If a provably correct merged paging mechanism is available from existing contracts, use one shared pager. Otherwise show a **single “Load more history”** action below the unified table, advancing appropriate independent cursors in bounded batches, with clear loaded-record wording. Do not display two separate footers, two Rows selectors, or two page counters in All. Do not load unbounded history or invent a globally comprehensive “Page 1”.
+7. **All tab pagination:** Use one compact Rows / Page / Previous / Next footer over cached, scoped history batches. Keep separate source cursors, fetch at most one further batch per eligible source per uncached Next action, and preserve visited page boundaries. Label these as loaded history pages; do not imply global event chronology or an authoritative total. Reset local navigation on search/filter/direction changes, preserve cached pages for Previous, and make source failures retryable. Never fetch the entire history to construct a page.
 8. **Incoming-only/Outgoing-only tabs:** Use the respective source's normal cursor pagination beneath the one table; keep predictable tab/search/reset behavior.
 9. Preserve real recorded completion/reconciliation/cancellation dates, source-specific errors and partial states, record detail actions, and permissions.
 10. A source failure must not silently look like “no records.” Make any partial combined view clear and recoverable.

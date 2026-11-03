@@ -6,7 +6,7 @@ import { afterEach, expect, it, vi } from 'vitest'
 import { FinancialReportsPage } from './FinancialReportsPage'
 import { apiClient } from '@/lib/api-client'
 import cases from '@/features/financial-reports/report-test-fixtures.json'
-import type { ReportResult } from '@/features/financial-reports/financial-reports.types'
+import type { ReportKind, ReportResult } from '@/features/financial-reports/financial-reports.types'
 import { ReportItemCharts } from './ReportCharts'
 import { ReportCalendar } from './ReportCalendar'
 
@@ -18,10 +18,15 @@ const original = apiClient.defaults.adapter
 afterEach(() => {
   apiClient.defaults.adapter = original
   auth.isAdmin = true
+  auth.isManager = false
   failures.clear()
   paginateItems = false
 })
-function mount(fail = false, url = '/financial-reports') {
+function mount(
+  fail = false,
+  url = '/financial-reports',
+  times: Partial<Record<ReportKind, string>> = {},
+) {
   const requests: {
     url?: string
     params: { from: string; before: string; groupBy: string; warehouseId?: number }
@@ -68,6 +73,7 @@ function mount(fail = false, url = '/financial-reports') {
     ) as ReportResult
     base.period.from = config.params.from
     base.period.before = config.params.before
+    if (times[kind as ReportKind]) base.period.asOf = times[kind as ReportKind]!
     if (config.params.cursor && failures.has('changed-details'))
       base.period.asOf = '2030-01-01T00:00:00+08:00'
     base.totals.totalAmount = config.params.clientId
@@ -120,30 +126,68 @@ function mount(fail = false, url = '/financial-reports') {
   )
   return requests
 }
+async function selectReportMetric(label: string) {
+  await userEvent.click(screen.getByRole('combobox', { name: 'Report metric' }))
+  await userEvent.click(screen.getByRole('option', { name: label }))
+}
 it('shows three exact KPI totals and only the selected analysis view', async () => {
   mount()
   await screen.findByRole('img', { name: 'Financial trends in pesos' })
   const metrics = within(screen.getByRole('region', { name: 'Financial metrics' }))
-  expect(
-    metrics.getByRole('button', { name: 'Analyze Sales', pressed: true }).textContent,
-  ).toContain('\u20b1100.00')
-  expect(metrics.getByRole('button', { name: 'Analyze Purchases' }).textContent).toContain(
-    '\u20b140.00',
+  expect(metrics.getByRole('group', { name: 'Sales' }).textContent).toContain('\u20b1100.00')
+  expect(metrics.getByRole('group', { name: 'Purchases' }).textContent).toContain('\u20b140.00')
+  expect(metrics.getByRole('group', { name: 'Estimated gross profit' }).textContent).toContain(
+    '\u20b160.00',
   )
-  expect(
-    metrics.getByRole('button', { name: 'Analyze Estimated gross profit' }).textContent,
-  ).toContain('\u20b160.00')
   expect(screen.queryByRole('grid')).toBeNull()
   expect(screen.queryByLabelText('Stock item contributions')).toBeNull()
-  await userEvent.click(metrics.getByRole('button', { name: 'Analyze Purchases' }))
-  expect(document.querySelectorAll('[data-series="sales"]')).toHaveLength(0)
+  await userEvent.click(metrics.getByRole('group', { name: 'Purchases' }))
+  expect(document.querySelector('path[data-series="sales"]')).toBeTruthy()
+  expect(document.querySelector('path[data-series="purchases"]')).toBeNull()
   await userEvent.click(screen.getByRole('tab', { name: 'Calendar' }))
+  await selectReportMetric('Purchases')
   expect(screen.queryByRole('img', { name: 'Financial trends in pesos' })).toBeNull()
   expect(screen.getByRole('heading', { name: 'Daily purchases' })).toBeTruthy()
   await userEvent.click(screen.getByRole('tab', { name: 'Details' }))
   await screen.findByText('Sample stock')
   expect(screen.queryByRole('grid')).toBeNull()
-  expect(metrics.getByRole('button', { name: 'Analyze Purchases', pressed: true })).toBeTruthy()
+  expect(screen.getByRole('combobox', { name: 'Report metric' }).textContent).toBe('Purchases')
+})
+
+it('omits informational sections and timestamps while preserving refresh', async () => {
+  const requests = mount(false, '/financial-reports', {
+    sales: '2026-11-03T01:00:00Z',
+    purchases: '2026-11-03T09:00:00+08:00',
+    'gross-profit-estimate': '2026-11-03T01:00:00Z',
+  })
+  await waitFor(() => expect(document.querySelectorAll('path[data-series]')).toHaveLength(1))
+  expect(screen.queryByText('About this report')).toBeNull()
+  expect(screen.queryByText('How estimated gross profit is calculated')).toBeNull()
+  expect(document.querySelectorAll('time')).toHaveLength(0)
+  const metrics = screen.getByRole('region', { name: 'Financial metrics' })
+  expect(within(metrics).getAllByText(/Estimated gross profit may be incomplete/)).toHaveLength(1)
+  const before = requests.length
+  await userEvent.click(screen.getByRole('button', { name: 'Refresh totals' }))
+  await waitFor(() => expect(requests).toHaveLength(before + 3))
+  expect(document.querySelectorAll('time')).toHaveLength(0)
+})
+
+it('preserves source errors without exposing snapshot metadata', async () => {
+  failures.add('purchases')
+  mount(false, '/financial-reports', {
+    sales: '2026-11-03T01:00:00.001Z',
+    'gross-profit-estimate': '2026-11-03T01:00:00.002Z',
+  })
+  await screen.findByRole('button', { name: 'Retry Purchases' })
+  await userEvent.click(
+    within(screen.getByRole('group', { name: 'Chart metrics' })).getByRole('button', {
+      name: 'Purchases',
+    }),
+  )
+  await waitFor(() => expect(document.querySelectorAll('path[data-series]')).toHaveLength(1))
+  expect(screen.queryByText('About this report')).toBeNull()
+  expect(document.querySelectorAll('time')).toHaveLength(0)
+  expect(screen.getByRole('alert').textContent).toContain('Report source unavailable')
 })
 
 it('retains grouping, row expansion and cached pages across analysis tabs and metric changes', async () => {
@@ -158,8 +202,8 @@ it('retains grouping, row expansion and cached pages across analysis tabs and me
   const before = requests.length
   await userEvent.click(screen.getByRole('tab', { name: 'Calendar' }))
   expect(screen.queryByRole('table')).toBeNull()
-  await userEvent.click(screen.getByRole('button', { name: 'Analyze Purchases' }))
-  await userEvent.click(screen.getByRole('button', { name: 'Analyze Sales' }))
+  await selectReportMetric('Purchases')
+  await selectReportMetric('Sales')
   await userEvent.click(screen.getByRole('tab', { name: 'Details' }))
   expect(screen.getByRole('combobox', { name: 'Group by' }).textContent).toContain('Item')
   expect(
@@ -168,13 +212,86 @@ it('retains grouping, row expansion and cached pages across analysis tabs and me
   expect(requests).toHaveLength(before)
 })
 
+it('toggles every metric combination locally and retains selection across periods and views', async () => {
+  const requests = mount()
+  await waitFor(() => expect(document.querySelectorAll('path[data-series]')).toHaveLength(1))
+  const legend = within(screen.getByRole('group', { name: 'Chart metrics' }))
+  const labels = ['Sales', 'Purchases', 'Estimated gross profit']
+  const kinds = ['sales', 'purchases', 'gross-profit-estimate']
+  const before = requests.length
+  for (let mask = 0; mask < 8; mask++) {
+    for (let index = 0; index < 3; index++) {
+      const button = legend.getByRole('button', { name: labels[index] })
+      const enabled = Boolean(mask & (1 << index))
+      if ((button.getAttribute('aria-pressed') === 'true') !== enabled)
+        await userEvent.click(button)
+      expect(Boolean(document.querySelector(`path[data-series="${kinds[index]}"]`))).toBe(enabled)
+    }
+    if (mask === 0)
+      expect(screen.getByText('Select a metric to view financial trends.')).toBeTruthy()
+  }
+  expect(requests).toHaveLength(before)
+  const salesToggle = legend.getByRole('button', { name: 'Sales' })
+  salesToggle.focus()
+  await userEvent.keyboard(' ')
+  expect(salesToggle.getAttribute('aria-pressed')).toBe('false')
+  await userEvent.keyboard('{Enter}')
+  expect(salesToggle.getAttribute('aria-pressed')).toBe('true')
+  expect(requests).toHaveLength(before)
+  await userEvent.click(legend.getByRole('button', { name: 'Purchases' }))
+  for (const period of ['Annual', 'Semi-Annual', 'Quarterly', 'Monthly', 'Weekly']) {
+    await userEvent.click(screen.getByRole('button', { name: period }))
+    await waitFor(() => expect(document.querySelectorAll('path[data-series]')).toHaveLength(2))
+    expect(document.querySelector('path[data-series="purchases"]')).toBeNull()
+  }
+  await userEvent.click(screen.getByRole('tab', { name: 'Calendar' }))
+  await userEvent.click(screen.getByRole('tab', { name: 'Trends' }))
+  expect(screen.getByRole('button', { name: 'Purchases', pressed: false })).toBeTruthy()
+})
+
+it.each(['sales', 'purchases', 'gross-profit-estimate'])(
+  'initially shows only the %s metric from the report link',
+  async (kind) => {
+    mount(false, `/financial-reports?report=${kind}`)
+    await screen.findByRole('img', { name: 'Financial trends in pesos' })
+    const paths = document.querySelectorAll('path[data-series]')
+    expect(paths).toHaveLength(1)
+    expect(paths[0].getAttribute('data-series')).toBe(kind)
+  },
+)
+
+it('keeps summaries passive and chart selection independent of the Details/Calendar metric', async () => {
+  const requests = mount()
+  await screen.findByRole('img', { name: 'Financial trends in pesos' })
+  const legend = within(screen.getByRole('group', { name: 'Chart metrics' }))
+  expect(screen.queryByRole('combobox', { name: 'Report metric' })).toBeNull()
+  const before = requests.length
+  await userEvent.click(legend.getByRole('button', { name: 'Purchases' }))
+  const metrics = within(screen.getByRole('region', { name: 'Financial metrics' }))
+  for (const label of ['Sales', 'Purchases', 'Estimated gross profit']) {
+    await userEvent.click(metrics.getByRole('group', { name: label }))
+    expect(document.querySelectorAll('path[data-series]')).toHaveLength(2)
+  }
+  expect(metrics.queryByRole('button')).toBeNull()
+  await userEvent.click(screen.getByRole('tab', { name: 'Calendar' }))
+  await selectReportMetric('Estimated gross profit')
+  expect(screen.getByRole('heading', { name: 'Daily estimated gross profit' })).toBeTruthy()
+  await userEvent.click(screen.getByRole('tab', { name: 'Trends' }))
+  expect(document.querySelectorAll('path[data-series]')).toHaveLength(2)
+  expect(legend.getByRole('button', { name: 'Purchases', pressed: true })).toBeTruthy()
+  expect(
+    legend.getByRole('button', { name: 'Estimated gross profit', pressed: false }),
+  ).toBeTruthy()
+  expect(requests).toHaveLength(before)
+})
+
 it('retains period and metric when changing views and honors legacy overview links', async () => {
   const requests = mount(false, '/financial-reports?view=overview')
   await screen.findByText('Sample stock')
   expect(screen.getByRole('tab', { name: 'Details', selected: true })).toBeTruthy()
-  expect(
-    screen.getByRole('button', { name: 'Analyze Estimated gross profit', pressed: true }),
-  ).toBeTruthy()
+  expect(screen.getByRole('combobox', { name: 'Report metric' }).textContent).toBe(
+    'Estimated gross profit',
+  )
   const year = requests[0].params.from.slice(0, 4)
   await userEvent.click(screen.getByRole('button', { name: 'Quarterly' }))
   await waitFor(() =>
@@ -189,9 +306,7 @@ it('retains period and metric when changing views and honors legacy overview lin
   )
   await userEvent.click(screen.getByRole('tab', { name: 'Trends' }))
   await screen.findByRole('img', { name: 'Financial trends in pesos' })
-  expect(
-    screen.getByRole('button', { name: 'Analyze Estimated gross profit', pressed: true }),
-  ).toBeTruthy()
+  expect(screen.getByRole('button', { name: 'Estimated gross profit', pressed: true })).toBeTruthy()
 })
 it('keeps the last valid report while a year input is incomplete', async () => {
   const requests = mount()
@@ -207,15 +322,19 @@ it('keeps the last valid report while a year input is incomplete', async () => {
 })
 it('shows a source error without zero-valued charts', async () => {
   mount(true)
-  await screen.findByText(/Report source unavailable/)
+  await screen.findAllByText(/Report source unavailable/)
   expect(screen.queryByRole('img', { name: 'Financial trends in pesos' })).toBeNull()
 })
-it('does not issue visualization or lookup requests for unauthorized users', async () => {
-  auth.isAdmin = false
-  const requests = mount()
-  await screen.findByText('Financial reports are available to administrators and managers.')
-  expect(requests).toHaveLength(0)
-})
+it.each([false, true])(
+  'does not issue visualization or lookup requests without admin access (manager %s)',
+  async (manager) => {
+    auth.isAdmin = false
+    auth.isManager = manager
+    const requests = mount()
+    await screen.findByText('Financial reports are available to administrators only.')
+    expect(requests).toHaveLength(0)
+  },
+)
 
 it('removes draft controls and offers snapshot refresh and auto-applies a period selection', async () => {
   const requests = mount()
@@ -303,14 +422,20 @@ it('keeps available metrics usable after a partial failure and retries only the 
   const requests = mount()
   await screen.findByRole('button', { name: 'Retry Purchases' })
   await screen.findByRole('img', { name: 'Financial trends in pesos' })
-  const purchases = screen.getByRole('button', { name: 'Analyze Purchases' })
+  const purchases = screen.getByRole('group', { name: 'Purchases' })
   expect(purchases.textContent).toContain('Unavailable')
   expect(purchases.textContent).not.toContain('0.00')
-  expect(screen.getByRole('button', { name: 'Analyze Sales' }).textContent).toContain(
-    '\u20b1100.00',
-  )
-  await userEvent.click(purchases)
+  expect(screen.getByRole('group', { name: 'Sales' }).textContent).toContain('\u20b1100.00')
+  const legend = within(screen.getByRole('group', { name: 'Chart metrics' }))
+  await userEvent.click(legend.getByRole('button', { name: 'Sales' }))
+  await userEvent.click(legend.getByRole('button', { name: 'Purchases' }))
   expect(screen.queryByRole('img', { name: 'Financial trends in pesos' })).toBeNull()
+  await userEvent.click(
+    within(screen.getByRole('group', { name: 'Chart metrics' })).getByRole('button', {
+      name: 'Sales',
+    }),
+  )
+  expect(screen.getByRole('img', { name: 'Financial trends in pesos' })).toBeTruthy()
   expect(screen.getByRole('alert').textContent).toContain('Report source unavailable')
   const before = requests.length
   failures.clear()
@@ -318,9 +443,7 @@ it('keeps available metrics usable after a partial failure and retries only the 
   await screen.findByRole('img', { name: 'Financial trends in pesos' })
   expect(requests).toHaveLength(before + 1)
   expect(requests.at(-1)?.url).toContain('purchases')
-  expect(screen.getByRole('button', { name: 'Analyze Purchases' }).textContent).toContain(
-    '\u20b140.00',
-  )
+  expect(screen.getByRole('group', { name: 'Purchases' }).textContent).toContain('\u20b140.00')
 })
 
 it.each([
@@ -408,11 +531,11 @@ it('formats month labels and refreshes totals and details independently', async 
   await screen.findByText('Sample stock')
   await userEvent.click(screen.getByRole('combobox', { name: 'Group by' }))
   await userEvent.click(screen.getByRole('option', { name: 'Month' }))
-  await screen.findByText('November 2026')
+  await within(screen.getByRole('table')).findByText('November 2026')
   expect(screen.queryByRole('cell', { name: '2026-11' })).toBeNull()
   let before = requests.length
   await userEvent.click(screen.getByRole('button', { name: 'Refresh details' }))
-  await screen.findByText('November 2026')
+  await within(screen.getByRole('table')).findByText('November 2026')
   expect(requests.slice(before)).toHaveLength(1)
   expect(requests.at(-1)?.params.groupBy).toBe('month')
   before = requests.length
@@ -432,9 +555,7 @@ it('shows a filtered total only for a narrower customer selection with a differe
   await userEvent.click(screen.getByRole('button', { name: 'Choose customer' }))
   await userEvent.click(await screen.findByRole('menuitem', { name: /Customer A.*archived/ }))
   expect((await screen.findByText(/Filtered total:/)).textContent).toContain('\u20b125.00')
-  expect(screen.getByRole('button', { name: 'Analyze Sales' }).textContent).toContain(
-    '\u20b1100.00',
-  )
+  expect(screen.getByRole('group', { name: 'Sales' }).textContent).toContain('\u20b1100.00')
 })
 
 it('explains changed report results plainly and retains technical information on demand', async () => {

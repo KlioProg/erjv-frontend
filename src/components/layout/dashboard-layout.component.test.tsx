@@ -2,13 +2,29 @@ import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router'
-import { expect, it, vi } from 'vitest'
+import { afterEach, expect, it, vi } from 'vitest'
 import { DashboardLayout } from './DashboardLayout'
 
-vi.mock('@/features/auth/AuthContext', () => ({
-  useAuth: () => ({ user: { role: 'ADMIN', fullName: 'Admin' }, isAdmin: true, logout: vi.fn() }),
-}))
+const auth = vi.hoisted(() => ({ user: { role: 'ADMIN', fullName: 'Admin' }, isAdmin: true, isManager: false, logout: vi.fn() }))
+vi.mock('@/features/auth/AuthContext', () => ({ useAuth: () => auth }))
+afterEach(() => { auth.isAdmin = true; auth.isManager = false })
 vi.mock('./StockNotifications', () => ({ StockNotifications: () => null }))
+
+it('hides financial navigation from managers while preserving their staffing access', () => {
+  auth.isAdmin = false
+  auth.isManager = true
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <MemoryRouter>
+        <DashboardLayout onNavigate={vi.fn()} onOpenInventory={vi.fn()}>
+          <h1>Dashboard</h1>
+        </DashboardLayout>
+      </MemoryRouter>
+    </QueryClientProvider>,
+  )
+  expect(screen.queryByRole('link', { name: 'Financial Reports' })).toBeNull()
+  expect(screen.getAllByRole('link', { name: 'Staff Directory' }).length).toBeGreaterThan(0)
+})
 
 it('opens mobile navigation as a modal and restores focus when Escape closes it', async () => {
   const user = userEvent.setup()

@@ -164,7 +164,7 @@ it.each(['ADMIN', 'SUPERADMIN', 'MANAGER', 'STAFF'])(
     mount()
     await screen.findByText('Nothing needs attention.')
     expect(screen.getByRole('heading', { name: 'Inventory Overview' })).toBeTruthy()
-    if (role === 'STAFF') {
+    if (!auth.isAdmin) {
       expect(screen.queryByRole('heading', { name: 'Financial Overview' })).toBeNull()
       expect(requests.some(({ url }) => url.startsWith('/financial-reports/'))).toBe(false)
     } else {
@@ -183,11 +183,9 @@ it.each(['ADMIN', 'SUPERADMIN', 'MANAGER', 'STAFF'])(
         '/financial-reports?report=sales',
       )
       expect(screen.queryByText(/Snapshot:/)).toBeNull()
-      const times = within(screen.getByRole('region', { name: 'Financial Overview' }))
-        .getByText('Report times')
-        .closest('details')!
-      expect(times.open).toBe(false)
-      expect(times.querySelectorAll('time')).toHaveLength(1)
+      const finance = screen.getByRole('region', { name: 'Financial Overview' })
+      expect(within(finance).queryByText('Report times')).toBeNull()
+      expect(finance.querySelectorAll('time')).toHaveLength(0)
     }
   },
 )
@@ -326,28 +324,17 @@ it('keeps finance usable while a delivery request is slow and cancels it on navi
   release()
 })
 
-it('keeps definitions and distinct report times contextual while warnings stay visible', async () => {
+it('omits financial disclosures and timestamps while retaining a warning beside estimated gross profit', async () => {
   separateReportTimes = true
   mount()
   await screen.findByText('₱50.00')
   const finance = screen.getByRole('region', { name: 'Financial Overview' })
-  const explanation = within(finance).getByText('How is this calculated?').closest('details')!
-  const times = within(finance).getByText('Report times').closest('details')!
-  expect(explanation.open).toBe(false)
-  expect(times.open).toBe(false)
-  expect(
-    within(finance)
-      .getByText(/may be incomplete/)
-      .closest('details'),
-  ).toBeNull()
-  await userEvent.setup().click(within(finance).getByText('Report times'))
-  expect(times.open).toBe(true)
-  expect([...times.querySelectorAll('time')].map((time) => time.dateTime)).toEqual([
-    '2026-11-02T03:04:00.000Z',
-    '2026-11-02T03:05:00.000Z',
-  ])
-  expect(within(times).getByText('Sales, Estimated Gross Profit')).toBeTruthy()
-  expect(within(times).getByText('Purchases')).toBeTruthy()
+  expect(within(finance).queryByText('How is this calculated?')).toBeNull()
+  expect(within(finance).queryByText('Report times')).toBeNull()
+  expect(finance.querySelectorAll('time')).toHaveLength(0)
+  const profit = within(finance).getByRole('link', { name: /Estimated Gross Profit/ })
+  expect(within(profit.parentElement!).getAllByRole('status')).toHaveLength(1)
+  expect(within(profit.parentElement!).getByText(/may be incomplete/)).toBeTruthy()
   expect(screen.getByText('About stock counts').closest('details')!.open).toBe(false)
   expect(screen.queryByText(/Asia\/Manila/)).toBeNull()
 })

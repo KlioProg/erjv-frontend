@@ -37,6 +37,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { DataTable, type ColumnDef } from '@/components/ui/data-table'
+import { DataTableActions } from '@/components/ui/DataTableActions'
+import { StatusBadge } from '@/components/ui/StatusBadge'
 import {
   useAllProducts,
   useDeactivateProduct,
@@ -439,7 +441,7 @@ export function InventoryStockList({
         header: 'Reorder Level',
         align: 'center',
         cell: ({ row }) => (
-          <Badge variant="secondary" className="text-xs px-2 py-0.5 rounded-lg">
+          <Badge variant="secondary">
             {row.reorderLevel === null
               ? 'Not set'
               : `${row.reorderLevel} ${formatProductUnit(row.product?.unit, 'units')}`}
@@ -455,18 +457,12 @@ export function InventoryStockList({
         cell: ({ row }) => {
           if (row.status === 'OUT_OF_STOCK') {
             return (
-              <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-md bg-destructive/10 text-destructive border border-destructive/30">
-                <span className="size-1.5 rounded-full bg-destructive shrink-0" />
-                Out of Stock
-              </span>
+              <StatusBadge label="Out of Stock" tone="destructive" appearance="emphasis" />
             )
           }
           if (row.status === 'LOW_STOCK') {
             return (
-              <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-md bg-status-warning text-status-warning-foreground border border-status-warning-foreground/30">
-                <span className="size-1.5 rounded-full bg-status-warning-foreground shrink-0" />
-                Low Stock
-              </span>
+              <StatusBadge label="Low Stock" tone="warning" appearance="emphasis" />
             )
           }
           if (row.status === 'UNKNOWN') return <span>Stock status unavailable</span>
@@ -478,10 +474,7 @@ export function InventoryStockList({
             )
           }
           return (
-            <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-md bg-status-success text-status-success-foreground border border-status-success-foreground/30">
-              <span className="size-1.5 rounded-full bg-status-success-foreground shrink-0" />
-              In Stock
-            </span>
+            <StatusBadge label="In Stock" tone="success" appearance="emphasis" />
           )
         },
       },
@@ -493,12 +486,12 @@ export function InventoryStockList({
               align: 'right' as const,
               width: 230,
               cell: ({ row }: { row: FlatWarehouseStockItem }) => (
-                <div className="flex items-center justify-end gap-1">
+                <DataTableActions>
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => handleAdjustStock(row.stock)}
-                    className="h-8 px-2 text-[13px] font-medium rounded-lg gap-1 cursor-pointer bg-background hover:bg-muted/70 text-foreground border-border"
+                    className="gap-1"
                   >
                     <ArrowUpDown className="size-3 text-muted-foreground" />
                     Adjust
@@ -507,7 +500,7 @@ export function InventoryStockList({
                     variant="outline"
                     size="sm"
                     onClick={() => setSelectedStockForThreshold(row.stock)}
-                    className="h-8 px-2 text-[13px] font-medium rounded-lg gap-1"
+                    className="gap-1"
                     aria-label={`Set reorder threshold for ${row.product?.name ?? 'item'} at ${row.warehouse?.name ?? 'warehouse'}`}
                   >
                     <SlidersHorizontal className="size-3 text-muted-foreground" />
@@ -523,12 +516,13 @@ export function InventoryStockList({
                         row.warehouse?.name || `WH #${row.stock.warehouseId}`,
                       )
                     }
-                    className="size-8 text-muted-foreground pointer-coarse:size-11 hover:text-destructive hover:bg-destructive/10 rounded-lg cursor-pointer"
+                    className="size-8 text-muted-foreground pointer-coarse:size-11 hover:text-destructive hover:bg-destructive/10"
                     title="Remove allocation"
+                    aria-label="Remove allocation"
                   >
                     <Trash2 className="size-3.5" />
                   </Button>
-                </div>
+                </DataTableActions>
               ),
             },
           ]
@@ -667,6 +661,7 @@ export function InventoryStockList({
       {/* Main View: Table Mode or Card Mode */}
       {viewMode === 'table' ? (
         <DataTable
+          appearance="management"
           data={flatStockItems}
           columns={tableColumns}
           isLoading={isLoading}

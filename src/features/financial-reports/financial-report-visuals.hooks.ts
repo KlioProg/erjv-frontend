@@ -7,7 +7,7 @@ import { validateTrendReport } from './financial-report-visuals'
 import type { ReportKind, ReportQuery, ReportResult } from './financial-reports.types'
 
 export function useReportVisuals(scope: ReportQuery, kinds: ReportKind[], overview: boolean) {
-  const { user, isAdmin, isManager } = useAuth()
+  const { user, isAdmin } = useAuth()
   const client = useQueryClient()
   const [session, setSession] = useState(() => crypto.randomUUID())
   useEffect(
@@ -34,7 +34,7 @@ export function useReportVisuals(scope: ReportQuery, kinds: ReportKind[], overvi
   const queries = useQueries({
     queries: kinds.map((kind) => ({
       queryKey: ['financial-reports', 'visuals', user?.id, scope, kind, session, overview],
-      enabled: isAdmin || isManager,
+      enabled: isAdmin,
       retry: false,
       staleTime: 'static' as const,
       gcTime: Infinity,
@@ -69,10 +69,11 @@ export function useReportVisuals(scope: ReportQuery, kinds: ReportKind[], overvi
     isError: queries.some((query) => query.isError),
     error: queries.find((query) => query.isError)?.error,
     restart: (kind?: ReportKind) => {
+      if (!isAdmin) return
       queries.forEach((query, index) => {
         if (!kind || kinds[index] === kind) void query.refetch()
       })
     },
-    authorized: isAdmin || isManager,
+    authorized: isAdmin,
   }
 }

@@ -56,9 +56,9 @@ it('shows one Year input for annual, semiannual, and quarterly periods', async (
   const semiannual = screen.getByRole('button', { name: 'Semi-Annual' })
   await user.click(semiannual)
   expect(screen.getByLabelText('Year')).toBe(year)
-  expect(screen.getByText('H2 · July–December')).toBeTruthy()
+  expect(screen.getByText('H2')).toBeTruthy()
   await user.click(screen.getByRole('button', { name: 'Quarterly' }))
-  expect(screen.getByText('Q4 · October–December')).toBeTruthy()
+  expect(screen.getByText('Q4')).toBeTruthy()
 })
 
 it('automatically applies a complete year while retaining focus and the input node', async () => {
@@ -74,7 +74,7 @@ it('automatically applies a complete year while retaining focus and the input no
   expect(document.activeElement).toBe(year)
   expect(year.value).toBe('2025')
   expect(year.selectionStart).toBe(4)
-  expect(screen.getByText('Q4 · October–December')).toBeTruthy()
+  expect(screen.getByText('Q4')).toBeTruthy()
 })
 
 it('restores partial year text on Escape or blur without applying it', async () => {
@@ -114,17 +114,21 @@ it('uses a Month dropdown and read-only year context for monthly periods', async
   const user = userEvent.setup()
   const actions = mount({ ...annual, period: 'monthly', anchor: '2026-11-15' })
   expect(screen.queryByLabelText('Year')).toBeNull()
-  expect(screen.getByText('Year · 2026')).toBeTruthy()
+  expect(screen.getByRole('combobox', { name: 'Month' }).textContent).toBe('November 2026')
+  expect(screen.getByText(/Nov 1, 2026.*Nov 30, 2026.*Asia\/Manila/)).toBeTruthy()
   await user.click(screen.getByRole('combobox', { name: 'Month' }))
   await user.click(await screen.findByRole('option', { name: 'February' }))
   expect(actions).toContainEqual({ type: 'month', value: 2 })
+  expect(screen.getByRole('combobox', { name: 'Month' }).textContent).toBe('February 2026')
 })
 
 it('uses dated Monday–Sunday week options and a read-only ISO year', async () => {
   const user = userEvent.setup()
   const actions = mount({ ...annual, period: 'weekly', anchor: '2027-01-01' })
   expect(screen.queryByLabelText('Year')).toBeNull()
-  expect(screen.getByText('Year · 2026')).toBeTruthy()
+  expect(screen.getByText(/ISO year 2026/)).toBeTruthy()
+  expect(screen.getByRole('combobox', { name: 'Week' }).textContent).toBe('Dec 28 – Jan 3')
+  expect(screen.getByText(/Dec 28, 2026.*Jan 3, 2027/)).toBeTruthy()
   await user.click(screen.getByRole('combobox', { name: 'Week' }))
   const week = await screen.findByRole('option', { name: 'December 28, 2026 – January 3, 2027' })
   expect(week).toBeTruthy()

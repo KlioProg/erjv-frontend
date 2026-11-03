@@ -101,6 +101,6 @@ export function DashboardNotFound() {
 }
 
 export function FinancialReportsAccess() {
-  const { isAdmin, isManager } = useAuth()
-  return isAdmin || isManager ? <Outlet /> : <Navigate replace to={ROUTES.home} />
+  const { isAdmin } = useAuth()
+  return isAdmin ? <Outlet /> : <Navigate replace to={ROUTES.home} />
 }

@@ -64,6 +64,117 @@ function mount(initialTab: 'incoming' | 'outgoing' | 'history') {
 const deliveryRequests = () =>
   requests.filter(({ url }) => ['/incoming-deliveries', '/outgoing-deliveries'].includes(url))
 
+function historyBatches(waitForNext?: Promise<void>) {
+  const adapter = getAdapter(apiClient.defaults.adapter)
+  apiClient.defaults.adapter = async (config) => {
+    const result = await adapter(config)
+    if (['/incoming-deliveries', '/outgoing-deliveries'].includes(config.url!)) {
+      if (config.params?.cursor && waitForNext) await waitForNext
+      const incoming = config.url === '/incoming-deliveries'
+      const prefix = incoming ? 'IN' : 'OUT'
+      const start = Number(config.params?.cursor?.split('-')[1] ?? 0)
+      const count = config.params?.q ? 1 : 75
+      const size = Number(config.params?.limit ?? 50)
+      const template = result.data.items[0]
+      result.data = {
+        items: Array.from({ length: Math.min(size, count - start) }, (_, index) => ({
+          ...template,
+          id: start + index + 1,
+          deliveryNumber: config.params?.q ? `${prefix}-new` : `${prefix}-${start + index + 1}`,
+          // Newer event dates on later creation pages must not move already visited rows.
+          completedAt: incoming ? (start ? '2030-01-01T00:00:00Z' : '2026-01-01T00:00:00Z') : null,
+          reconciledAt: incoming ? null : (start ? '2030-01-01T00:00:00Z' : '2026-01-01T00:00:00Z'),
+        })),
+        nextCursor: start + size < count ? `offset-${start + size}` : null,
+      }
+    }
+    return result
+  }
+}
+
+const visibleHistory = () => [...document.querySelectorAll('button[aria-label^="View delivery "]')].map((button) => button.textContent)
+
+it('keeps stable cached pages, fills supported page sizes, and never duplicates or skips either source', async () => {
+  historyBatches()
+  mount('history')
+  const user = userEvent.setup()
+  await waitFor(() => expect(visibleHistory()).toHaveLength(50))
+  const controls = within(screen.getByRole('navigation', { name: 'Delivery history pages' }))
+  const first = visibleHistory()
+  expect(deliveryRequests()).toHaveLength(2)
+  await user.click(controls.getByRole('button', { name: 'Next page' }))
+  const second = visibleHistory()
+  expect(second).toHaveLength(50)
+  expect(deliveryRequests()).toHaveLength(2)
+  await user.click(controls.getByRole('button', { name: 'Next page' }))
+  await screen.findByText('IN-75')
+  const third = visibleHistory()
+  expect(third).toHaveLength(50)
+  expect(new Set([...first, ...second, ...third]).size).toBe(150)
+  expect(deliveryRequests()).toHaveLength(4)
+  expect(controls.getByRole('button', { name: 'Next page' }).hasAttribute('disabled')).toBe(true)
+  await user.click(controls.getByRole('button', { name: 'Previous page' }))
+  await user.click(controls.getByRole('button', { name: 'Previous page' }))
+  expect(visibleHistory()).toEqual(first)
+  for (const size of [10, 25, 100]) {
+    await user.click(controls.getByRole('combobox', { name: 'Rows per page' }))
+    await user.click(screen.getByRole('option', { name: String(size) }))
+    expect(screen.getByText('Page 1')).toBeTruthy()
+    expect(visibleHistory()).toHaveLength(size)
+  }
+  expect(deliveryRequests()).toHaveLength(4)
+})
+
+it('ignores rapid Next clicks and does not navigate an obsolete scope when search changes', async () => {
+  let release!: () => void
+  const pending = new Promise<void>((resolve) => { release = resolve })
+  historyBatches(pending)
+  mount('history')
+  await waitFor(() => expect(visibleHistory()).toHaveLength(50))
+  const controls = within(screen.getByRole('navigation', { name: 'Delivery history pages' }))
+  fireEvent.click(controls.getByRole('button', { name: 'Next page' }))
+  const next = controls.getByRole('button', { name: 'Next page' })
+  fireEvent.click(next)
+  fireEvent.click(next)
+  await waitFor(() => expect(deliveryRequests()).toHaveLength(4))
+  expect(screen.getByText(/Page 2/)).toBeTruthy()
+  expect(next.hasAttribute('disabled')).toBe(true)
+  fireEvent.change(screen.getByRole('textbox', { name: 'Search deliveries' }), { target: { value: 'new' } })
+  await screen.findByText('IN-new')
+  await screen.findByText('OUT-new')
+  await act(async () => { release(); await pending })
+  expect(screen.getByText('Page 1')).toBeTruthy()
+  expect(visibleHistory()).toHaveLength(2)
+  expect(screen.queryByText('IN-51')).toBeNull()
+  expect(deliveryRequests().filter(({ params }) => params.q === 'new').every(({ params }) => !params.cursor)).toBe(true)
+})
+
+it('keeps one compact footer for empty history and bounds empty cursor batches to one request per source', async () => {
+  const adapter = getAdapter(apiClient.defaults.adapter)
+  let exhausted = false
+  apiClient.defaults.adapter = async (config) => {
+    const result = await adapter(config)
+    if (['/incoming-deliveries', '/outgoing-deliveries'].includes(config.url!))
+      result.data = { items: [], nextCursor: exhausted ? null : (config.params?.cursor ? 'empty-2' : 'empty-1') }
+    return result
+  }
+  mount('history')
+  await waitFor(() => expect(screen.getByRole('combobox', { name: 'Rows per page' }).hasAttribute('disabled')).toBe(false))
+  expect(screen.getAllByRole('navigation')).toHaveLength(1)
+  expect(screen.getByText('Page 1')).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: 'Next page' }))
+  await waitFor(() => expect(deliveryRequests()).toHaveLength(4))
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Next page' }).hasAttribute('disabled')).toBe(false))
+  expect(deliveryRequests()).toHaveLength(4)
+  expect(screen.getByText('Page 1')).toBeTruthy()
+  exhausted = true
+  fireEvent.click(screen.getByRole('button', { name: 'Next page' }))
+  await waitFor(() => expect(deliveryRequests()).toHaveLength(6))
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Next page' }).hasAttribute('disabled')).toBe(true))
+  expect(deliveryRequests()).toHaveLength(6)
+  expect(screen.getByRole('button', { name: 'Previous page' }).hasAttribute('disabled')).toBe(true)
+})
+
 it.each(['incoming', 'outgoing'] as const)(
   'loads only one %s page until requested, with verified active statuses',
   async (direction) => {
@@ -89,7 +200,7 @@ it.each(['incoming', 'outgoing'] as const)(
   },
 )
 
-it('loads bounded independent History sources into one accumulated table and one bottom action', async () => {
+it('pages bounded independent History sources with one compact footer', async () => {
   mount('history')
   await screen.findByText('IN-1')
   await screen.findByText('OUT-1')
@@ -97,19 +208,27 @@ it('loads bounded independent History sources into one accumulated table and one
   expect(deliveryRequests().find(read => read.url === '/incoming-deliveries')?.params.statuses).toEqual(['COMPLETED', 'CANCELLED'])
   expect(deliveryRequests().find(read => read.url === '/outgoing-deliveries')?.params.statuses).toEqual(['RECONCILED', 'CANCELLED'])
   expect(screen.getAllByRole('navigation')).toHaveLength(1)
-  expect(screen.getByRole('navigation', { name: 'Delivery history loading' }).hasAttribute('data-table-footer')).toBe(true)
-  expect(screen.queryByRole('combobox', { name: 'Rows per page' })).toBeNull()
-  fireEvent.click(screen.getByRole('button', { name: 'Load more history' }))
+  expect(screen.getByRole('navigation', { name: 'Delivery history pages' }).hasAttribute('data-table-footer')).toBe(true)
+  expect(screen.getByRole('combobox', { name: 'Rows per page' })).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: 'Next page' }))
   await screen.findByText('IN-2')
   await screen.findByText('OUT-2')
   expect(deliveryRequests()).toHaveLength(4)
   expect(deliveryRequests().filter(read => read.params.cursor).map(read => read.params.cursor)).toEqual(expect.arrayContaining(['incoming-page-2', 'outgoing-page-2']))
   expect(deliveryRequests().every(read => read.params.limit === 50)).toBe(true)
-  expect(screen.getByText('IN-1')).toBeTruthy()
-  expect(screen.getByText('OUT-1')).toBeTruthy()
-  expect(screen.getByText('4 loaded deliveries')).toBeTruthy()
+  expect(screen.queryByText('IN-1')).toBeNull()
+  expect(screen.queryByText('OUT-1')).toBeNull()
+  expect(screen.getByText('Page 2')).toBeTruthy()
   expect(screen.getAllByRole('table')).toHaveLength(1)
-  expect(screen.getByRole('button', { name: 'Load more history' }).hasAttribute('disabled')).toBe(true)
+  expect(screen.getByRole('button', { name: 'Next page' }).hasAttribute('disabled')).toBe(true)
+  const reads = deliveryRequests().length
+  fireEvent.click(screen.getByRole('button', { name: 'Previous page' }))
+  await screen.findByText('IN-1')
+  expect(screen.getByText('OUT-1')).toBeTruthy()
+  expect(screen.queryByText('IN-2')).toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: 'Next page' }))
+  await screen.findByText('IN-2')
+  expect(deliveryRequests()).toHaveLength(reads)
   expect(screen.queryByText(/Page .* of/)).toBeNull()
 })
 
@@ -215,7 +334,7 @@ it('filters History direction using only the corresponding source and resets its
   mount('history')
   const user = userEvent.setup()
   await screen.findByText('OUT-1')
-  await user.click(screen.getByRole('button', { name: 'Load more history' }))
+  await user.click(screen.getByRole('button', { name: 'Next page' }))
   await screen.findByText('IN-2')
   const selector = within(screen.getByRole('group', { name: 'Delivery direction' }))
   const selectDirection = (direction: string) => user.click(selector.getByRole('button', { name: direction }))
@@ -290,7 +409,7 @@ it('keeps healthy History records in the combined table when the other source fa
   await screen.findByText('OUT-1')
   expect(screen.getAllByRole('table')).toHaveLength(1)
   expect(screen.getByText('Some deliveries could not be loaded.')).toBeTruthy()
-  expect(within(screen.getByRole('navigation', { name: 'Delivery history loading' })).getByText(/Incoming history unavailable/)).toBeTruthy()
+  expect(within(screen.getByRole('navigation', { name: 'Delivery history pages' })).getByText(/Incoming history unavailable/)).toBeTruthy()
   expect(screen.queryByText('No delivery history found')).toBeNull()
   fail = false
   await userEvent.click(screen.getByRole('button', { name: 'Retry history' }))
@@ -341,7 +460,7 @@ it('keeps server search, single-table pagination and exclusive selection for eve
     expect(footers).toHaveLength(1)
     for (const footer of footers) {
       expect(table.compareDocumentPosition(footer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-      if (direction === 'All Deliveries') expect(within(footer).getByRole('button', { name: 'Load more history' }).hasAttribute('disabled')).toBe(true)
+      if (direction === 'All Deliveries') expect(within(footer).getByRole('button', { name: 'Next page' }).hasAttribute('disabled')).toBe(true)
       else {
         expect(within(footer).getByText('Page 1')).toBeTruthy()
         expect(within(footer).getByRole('button', { name: 'Next page' }).hasAttribute('disabled')).toBe(true)
@@ -442,30 +561,46 @@ it('retains loaded History during a source failure, retries that cursor, and adv
   await screen.findByText('IN-1')
   await screen.findByText('OUT-1')
   expect(screen.getAllByRole('button', { name: /^View delivery / })[0].textContent).toBe('OUT-1')
-  await user.click(screen.getByRole('button', { name: 'Load more history' }))
-  await screen.findByText('OUT-2')
+  await user.click(screen.getByRole('button', { name: 'Next page' }))
   await screen.findByRole('button', { name: 'Retry history' })
   expect(screen.getByText('IN-1')).toBeTruthy()
   expect(screen.getByText('OUT-1')).toBeTruthy()
-  expect(screen.getByText(/3 loaded deliveries/)).toBeTruthy()
+  expect(screen.getByText('Page 1')).toBeTruthy()
+  expect(screen.queryByText('OUT-2')).toBeNull()
   const outgoingReads = () => deliveryRequests().filter(read => read.url === '/outgoing-deliveries').length
   expect(outgoingReads()).toBe(2)
   failIncoming = false
   await user.click(screen.getByRole('button', { name: 'Retry history' }))
+  await waitFor(() => expect(screen.queryByRole('button', { name: 'Retry history' })).toBeNull())
+  await user.click(screen.getByRole('button', { name: 'Next page' }))
   await screen.findByText('IN-2')
+  expect(screen.getByText('OUT-2')).toBeTruthy()
   expect(outgoingReads()).toBe(2)
-  await user.click(screen.getByRole('button', { name: 'Load more history' }))
+  await user.click(screen.getByRole('button', { name: 'Next page' }))
   await screen.findByText('OUT-3')
-  expect(screen.getByText('5 loaded deliveries')).toBeTruthy()
-  expect(screen.getAllByRole('button', { name: /^View delivery / })).toHaveLength(5)
+  expect(screen.getByText('Page 3')).toBeTruthy()
+  expect(screen.getAllByRole('button', { name: /^View delivery / })).toHaveLength(1)
   expect(deliveryRequests().filter(read => read.url === '/incoming-deliveries')).toHaveLength(3)
   expect(outgoingReads()).toBe(3)
   expect(screen.getAllByRole('navigation')).toHaveLength(1)
+  const reads = deliveryRequests().length
+  await user.click(screen.getByRole('button', { name: 'Previous page' }))
+  expect(visibleHistory()).toHaveLength(2)
+  expect(screen.getByText('IN-2')).toBeTruthy()
+  await user.click(screen.getByRole('button', { name: 'Previous page' }))
+  expect(visibleHistory()).toHaveLength(2)
+  expect(screen.getByText('IN-1')).toBeTruthy()
+  await user.click(screen.getByRole('button', { name: 'Next page' }))
+  expect(visibleHistory()).toHaveLength(2)
+  expect(screen.getByText('IN-2')).toBeTruthy()
+  await user.click(screen.getByRole('button', { name: 'Next page' }))
+  expect(visibleHistory()).toEqual(['OUT-3'])
+  expect(deliveryRequests()).toHaveLength(reads)
   fireEvent.change(screen.getByRole('textbox', { name: 'Search deliveries' }), { target: { value: 'new' } })
   await screen.findByText('IN-new')
   await screen.findByText('OUT-new')
   expect(screen.queryByText('IN-2')).toBeNull()
   expect(screen.queryByText('OUT-3')).toBeNull()
-  expect(screen.getByText('2 loaded deliveries')).toBeTruthy()
+  expect(screen.getByText('Page 1')).toBeTruthy()
   expect(deliveryRequests().filter(read => read.params.q === 'new').every(read => !read.params.cursor)).toBe(true)
 })

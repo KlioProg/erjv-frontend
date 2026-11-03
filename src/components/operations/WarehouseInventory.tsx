@@ -92,7 +92,7 @@ export function WarehouseInventory({
           <div
             className={cn(
               'relative flex min-w-0 flex-col gap-0.5',
-              (isAdmin || isManager) && 'pr-8',
+              (isAdmin || isManager) && 'pr-8 pointer-coarse:pr-12',
             )}
           >
             <OverflowValue
@@ -106,7 +106,7 @@ export function WarehouseInventory({
               <Button
                 variant="ghost"
                 size="icon"
-                className="absolute right-0 top-0 size-8"
+                className="absolute right-0 top-0 size-8 pointer-coarse:size-11"
                 title="Stock Alert Settings"
                 onClick={() => setThresholdStock(row.stock)}
                 aria-label={`Stock Alert Settings for ${row.stock.inventoryItem?.name ?? 'product'}`}
@@ -306,6 +306,7 @@ export function WarehouseInventory({
           </div>
         ) : (
           <DataTable
+            appearance="management"
             pagination={false}
             manualSorting
             data={filteredRows}
@@ -330,7 +331,7 @@ export function WarehouseInventory({
             }
             pageSizeOptions={[10, 25, 50, 100]}
             className="rounded-none border-0 shadow-none"
-            tableClassName="min-w-[480px] table-fixed w-full [&_tbody_tr]:h-14 [&_tbody_td]:py-2"
+            tableClassName="min-w-[480px] table-fixed w-full"
           />
         )}
       <DataTableFooter {...stockQuery} rowCount={stockQuery.items.length} label="Stock record" />

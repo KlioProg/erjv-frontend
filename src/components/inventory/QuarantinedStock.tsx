@@ -161,8 +161,9 @@ export function QuarantinedStock({ stockItemId }: { stockItemId?: number } = {})
         </Alert>
       ) : (
         <DataTable
-        pagination={false}
-        manualSorting
+          appearance="management"
+          pagination={false}
+          manualSorting
           data={query.items}
           columns={columns}
           getRowKey={(lot) => lot.id}

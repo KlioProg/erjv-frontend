@@ -60,6 +60,48 @@ function makeReport(
 
 const annualRows = days('2024-01-01', '2024-12-31')
 
+it('rescales from visible series with linear padding while keeping exact tooltip amounts', () => {
+  const dates = ['2024-02-01', '2024-02-02']
+  const reports = {
+    sales: makeReport(dates, (_kind, index) => (index ? '100.00' : '50.00')),
+    purchases: makeReport(dates, () => '10000.00'),
+    'gross-profit-estimate': makeReport(dates, () => '-25.00'),
+  }
+  const { container, rerender } = render(
+    <ReportLineChart
+      period="monthly"
+      selected={['sales', 'purchases', 'gross-profit-estimate']}
+      reports={reports}
+    />,
+  )
+  const pointY = (kind: string, date = '2024-02-02') =>
+    Number(
+      container
+        .querySelector(`circle[data-series="${kind}"][data-point-key="${date}"]`)!
+        .getAttribute('cy'),
+    )
+  const compressed = Math.abs(pointY('sales') - pointY('sales', dates[0]))
+  const purchasesY = pointY('purchases')
+  expect(purchasesY).toBeGreaterThan(18)
+  rerender(
+    <ReportLineChart
+      period="monthly"
+      selected={['sales', 'gross-profit-estimate']}
+      reports={reports}
+    />,
+  )
+  const readable = Math.abs(pointY('sales') - pointY('sales', dates[0]))
+  expect(readable).toBeGreaterThan(compressed * 50)
+  expect(pointY('sales')).toBeGreaterThan(18)
+  expect(pointY('gross-profit-estimate')).toBeLessThan(182)
+  const baseline = Number(container.querySelector('[data-zero-baseline]')!.getAttribute('y1'))
+  expect(pointY('gross-profit-estimate')).toBeGreaterThan(baseline)
+  fireEvent.focus(screen.getByRole('img', { name: 'Financial trends in pesos' }))
+  expect(screen.getByRole('status').textContent).toContain('Sales · ₱50.00')
+  expect(screen.getByRole('status').textContent).toContain('Estimated gross profit · -₱25.00')
+  expect(screen.getByRole('status').textContent).not.toContain('Purchases')
+})
+
 it.each([
   ['annual', annualRows, 12],
   ['semiannual', days('2024-01-01', '2024-06-30'), 6],
@@ -136,6 +178,37 @@ it('uses solid profit and distinct broken Sales and Purchases lines without exac
   expect(screen.queryByLabelText('Chart date')).toBeNull()
   expect(screen.queryByText('View daily chart data')).toBeNull()
   expect(screen.queryByText(/Choose a date for exact values/)).toBeNull()
+})
+
+it('compares exact amounts including losses, zero and unavailable buckets in one tooltip', async () => {
+  const dates = ['2024-02-01', '2024-02-02', '2024-02-03']
+  const sales = makeReport(dates, () => '9007199254740993.01')
+  const purchases = makeReport(dates, () => '0.00')
+  purchases.rows.splice(1, 1)
+  const profit = makeReport(dates, () => '-25.03')
+  const { container } = render(
+    <ReportLineChart
+      period="monthly"
+      selected={['sales', 'purchases', 'gross-profit-estimate']}
+      reports={{ sales, purchases, 'gross-profit-estimate': profit }}
+    />,
+  )
+  const chart = screen.getByRole('img', { name: 'Financial trends in pesos' })
+  fireEvent.focus(chart)
+  const tooltip = screen.getByRole('status')
+  expect(tooltip.textContent).toContain('Sales · ₱9,007,199,254,740,993.01')
+  expect(tooltip.textContent).toContain('Purchases · ₱0.00')
+  expect(tooltip.textContent).toContain('Estimated gross profit · -₱25.03')
+  fireEvent.keyDown(chart, { key: 'ArrowRight' })
+  expect(tooltip.textContent).toContain('Purchases · Not available')
+  const baseline = Number(container.querySelector('[data-zero-baseline]')!.getAttribute('y1'))
+  const loss = Number(
+    container.querySelector('circle[data-series="gross-profit-estimate"]')!.getAttribute('cy'),
+  )
+  expect(loss).toBeGreaterThanOrEqual(baseline)
+  expect(container.querySelector('path[data-series="sales"]')!.getAttribute('stroke')).toBe(
+    '#6A994E',
+  )
 })
 
 it('shows exactly seven week cells in one row and no month navigation', () => {

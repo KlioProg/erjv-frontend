@@ -149,7 +149,9 @@ export function DashboardLayout({
   const visibleGroups = NAV_GROUPS.map((group) => ({
     ...group,
     items: group.items.filter(
-      (item) => (!item.requiresStaffAccess && !item.requiresReportAccess) || isAdmin || isManager,
+      (item) =>
+        (!item.requiresReportAccess || isAdmin) &&
+        (!item.requiresStaffAccess || isAdmin || isManager),
     ),
   })).filter((group) => group.items.length > 0)
 

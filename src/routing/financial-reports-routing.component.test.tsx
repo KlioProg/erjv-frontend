@@ -24,7 +24,7 @@ it.each(['ADMIN', 'SUPERADMIN', 'MANAGER', 'STAFF', 'UNKNOWN'])(
         <AppRoutes />
       </MemoryRouter>,
     )
-    if (auth.isAdmin || auth.isManager) expect(screen.getByText('Report feature')).toBeTruthy()
+    if (auth.isAdmin) expect(screen.getByText('Report feature')).toBeTruthy()
     else expect(screen.queryByText('Report feature')).toBeNull()
   },
 )

@@ -341,7 +341,6 @@ export function WarehouseList({ onOpenWarehouse }: { onOpenWarehouse: (id: numbe
           ) : null
         }
         onRowClick={(warehouse) => onOpenWarehouse(warehouse.id)}
-        rowClassName={() => 'hover:bg-accent focus-within:bg-accent'}
         isLoading={warehousesQuery.isFetching || stockQuery.isLoading}
         loadingMessage="Loading warehouses..."
         emptyContent={

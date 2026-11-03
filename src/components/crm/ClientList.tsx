@@ -88,7 +88,7 @@ export function ClientList() {
         <>
           <OverflowValue value={row.phone} />
           {row.email && (
-            <OverflowValue value={row.email} className="customer-secondary text-muted-foreground" />
+            <OverflowValue value={row.email} className="text-xs text-muted-foreground" />
           )}
         </>
       ),

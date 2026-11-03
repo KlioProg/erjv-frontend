@@ -105,9 +105,6 @@ export function ReportDetails({
               : 'Purchases'}{' '}
           details
         </h2>
-        <p className="text-sm text-muted-foreground">
-          These totals match the cards above.
-        </p>
         <dl className="grid gap-2 sm:grid-cols-2">
           {amountKeys.map((key) => (
             <div key={key}>
@@ -313,17 +310,7 @@ function ReportBreakdown({
   ]
   return (
     <section className="space-y-3" aria-label="Report details">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <details className="text-sm text-muted-foreground">
-          <summary className="min-h-9 cursor-pointer rounded py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-            About these results
-          </summary>
-          <p className="mt-2">
-            Report as of{' '}
-            {new Date(result.period.asOf).toLocaleString('en-PH', { timeZone: 'Asia/Manila' })}.
-            Details and totals above may have different report times.
-          </p>
-        </details>
+      <div className="flex flex-wrap items-center justify-end gap-2">
         <Button
           type="button"
           variant="outline"
