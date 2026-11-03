@@ -1,3 +1,4 @@
+import { useAuth } from '@/features/auth/AuthContext'
 import { PageHeader, PageToolbar } from '@/components/ui/ManagementPage'
 import { DataTable, type ColumnDef } from '@/components/ui/data-table'
 import { useState } from 'react'
@@ -30,6 +31,7 @@ import { EmployeePositionSelector } from './EmployeePositionSelector'
 import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal'
 
 export function EmployeeList() {
+  const { isAdmin } = useAuth()
   const [activeTab, setActiveTab] = useState<'ACTIVE' | 'ARCHIVED'>('ACTIVE')
   const deactivateMutation = useDeactivateEmployee({
     onViewArchive: () => setActiveTab('ARCHIVED'),
@@ -146,7 +148,7 @@ export function EmployeeList() {
           <EmployeePositionSelector
             employeeId={emp.id}
             employeeName={`${emp.firstName} ${emp.lastName}`}
-            canEdit={!isArchived}
+            canEdit={isAdmin && !isArchived}
           />
         )
       case 'hireDate':

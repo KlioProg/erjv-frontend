@@ -1,3 +1,4 @@
+import { requireDecimalLimit } from '@/lib/decimal-limits'
 import { apiClient, getApiError, requireRevision } from '@/lib/api-client'
 import { parseStockCents } from './stock-display'
 import { decimalString } from './purchase-pricing'
@@ -66,6 +67,7 @@ export async function createStockItemApi(payload: CreateStockItemPayload): Promi
 }
 
 export async function createStockAdjustmentApi(id: number, payload: StockAdjustmentPayload): Promise<StockAdjustment> {
+  requireDecimalLimit(payload.quantity, 'Quantity', payload.kind !== 'SET')
   const quantity = parseStockCents(payload.quantity)
   if (!['SET', 'INCREASE', 'DECREASE'].includes(payload.kind) || quantity === null || (payload.kind !== 'SET' && quantity <= 0n))
     throw Error('Enter a valid quantity with up to two decimals. Increases and decreases must be positive.')

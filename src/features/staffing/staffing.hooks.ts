@@ -1,3 +1,4 @@
+import { useAuth } from '@/features/auth/AuthContext'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { getErrorMessage, type FetchParams } from '@/lib/api-client'
@@ -86,9 +87,14 @@ export function useUpdateEmployeeDrivingEligibility() {
 }
 
 export function useCreateEmployee() {
+  const { isAdmin, isManager } = useAuth()
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (payload: CreateEmployeePayload) => createEmployeeApi(payload),
+    mutationFn: async (payload: CreateEmployeePayload) => {
+      if (!isAdmin && !isManager) throw Error('You cannot create employee records.')
+      if (payload.userId != null && !isAdmin) throw Error('Only administrators can link user accounts.')
+      return createEmployeeApi(payload)
+    },
     onSuccess: (newEmp) => {
       void queryClient.invalidateQueries({ queryKey: staffingKeys.all })
       toast.success(`Employee "${newEmp.firstName} ${newEmp.lastName}" registered successfully`)
@@ -115,9 +121,11 @@ export function useUpdateEmployeeProfile() {
 }
 
 export function useLinkEmployeeUser() {
+  const { isAdmin } = useAuth()
+  const requireAdmin = () => { if (!isAdmin) throw Error('Administrator permission is required.') }
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, userId }: { id: number; userId: number }) => linkEmployeeUserApi(id, userId),
+    mutationFn: async ({ id, userId }: { id: number; userId: number }) => { requireAdmin(); return linkEmployeeUserApi(id, userId) },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: staffingKeys.all })
       toast.success('Employee successfully linked to user account')
@@ -129,9 +137,11 @@ export function useLinkEmployeeUser() {
 }
 
 export function useUnlinkEmployeeUser() {
+  const { isAdmin } = useAuth()
+  const requireAdmin = () => { if (!isAdmin) throw Error('Administrator permission is required.') }
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (id: number) => unlinkEmployeeUserApi(id),
+    mutationFn: async (id: number) => { requireAdmin(); return unlinkEmployeeUserApi(id) },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: staffingKeys.all })
       toast.success('Employee unlinked from user account')
@@ -244,9 +254,11 @@ export function useAllJobs() {
 }
 
 export function useCreateJob() {
+  const { isAdmin } = useAuth()
+  const requireAdmin = () => { if (!isAdmin) throw Error('Administrator permission is required.') }
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (payload: CreateJobPayload) => createJobApi(payload),
+    mutationFn: async (payload: CreateJobPayload) => { requireAdmin(); return createJobApi(payload) },
     onSuccess: (newJob) => {
       void queryClient.invalidateQueries({ queryKey: staffingKeys.all })
       toast.success(`Job position "${newJob.name}" created successfully`)
@@ -258,10 +270,11 @@ export function useCreateJob() {
 }
 
 export function useUpdateJobDetails() {
+  const { isAdmin } = useAuth()
+  const requireAdmin = () => { if (!isAdmin) throw Error('Administrator permission is required.') }
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, payload }: { id: number; payload: UpdateJobPayload }) =>
-      updateJobDetailsApi(id, payload),
+    mutationFn: async ({ id, payload }: { id: number; payload: UpdateJobPayload }) => { requireAdmin(); return updateJobDetailsApi(id, payload) },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: staffingKeys.all })
       toast.success('Job position details updated')
@@ -273,14 +286,18 @@ export function useUpdateJobDetails() {
 }
 
 export function useDeactivateJob(options?: { onViewArchive?: () => void }) {
+  const { isAdmin } = useAuth()
+  const requireAdmin = () => { if (!isAdmin) throw Error('Administrator permission is required.') }
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (jobOrId: Job | number) => {
+      requireAdmin()
       const id = typeof jobOrId === 'number' ? jobOrId : jobOrId.id
       const res = await deactivateJobApi(id)
       return { res, inputJob: typeof jobOrId === 'object' ? jobOrId : null, id }
     },
     onMutate: async (jobOrId) => {
+      requireAdmin()
       await queryClient.cancelQueries({ queryKey: staffingKeys.jobs('true') })
       const previousJobs = queryClient.getQueryData<Job[]>(staffingKeys.jobs('true'))
       const targetId = typeof jobOrId === 'number' ? jobOrId : jobOrId.id
@@ -317,14 +334,18 @@ export function useDeactivateJob(options?: { onViewArchive?: () => void }) {
 }
 
 export function useReactivateJob() {
+  const { isAdmin } = useAuth()
+  const requireAdmin = () => { if (!isAdmin) throw Error('Administrator permission is required.') }
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (idOrJob: number | Job) => {
+      requireAdmin()
       const id = typeof idOrJob === 'number' ? idOrJob : idOrJob.id
       const res = await reactivateJobApi(id)
       return { res, id }
     },
     onMutate: async (idOrJob) => {
+      requireAdmin()
       await queryClient.cancelQueries({ queryKey: staffingKeys.jobs('true') })
       const previousJobs = queryClient.getQueryData<Job[]>(staffingKeys.jobs('true'))
       const targetId = typeof idOrJob === 'number' ? idOrJob : idOrJob.id
@@ -374,10 +395,11 @@ export function useJobEmployees(jobId: number) {
 export const useEmployeesForJob = useJobEmployees
 
 export function useAssignEmployeeJob() {
+  const { isAdmin } = useAuth()
+  const requireAdmin = () => { if (!isAdmin) throw Error('Administrator permission is required.') }
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ employeeId, jobId }: { employeeId: number; jobId: number }) =>
-      assignEmployeeJobApi(employeeId, jobId),
+    mutationFn: async ({ employeeId, jobId }: { employeeId: number; jobId: number }) => { requireAdmin(); return assignEmployeeJobApi(employeeId, jobId) },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: staffingKeys.all })
     },
@@ -385,10 +407,11 @@ export function useAssignEmployeeJob() {
 }
 
 export function useRemoveEmployeeJob() {
+  const { isAdmin } = useAuth()
+  const requireAdmin = () => { if (!isAdmin) throw Error('Administrator permission is required.') }
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ employeeId, jobId }: { employeeId: number; jobId: number }) =>
-      removeEmployeeJobApi(employeeId, jobId),
+    mutationFn: async ({ employeeId, jobId }: { employeeId: number; jobId: number }) => { requireAdmin(); return removeEmployeeJobApi(employeeId, jobId) },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: staffingKeys.all })
     },
@@ -396,11 +419,12 @@ export function useRemoveEmployeeJob() {
 }
 
 export function useReplaceEmployeeJobs() {
+  const { isAdmin } = useAuth()
+  const requireAdmin = () => { if (!isAdmin) throw Error('Administrator permission is required.') }
   const queryClient = useQueryClient()
   return useMutation({
     retry: false,
-    mutationFn: ({ employeeId, jobIds }: { employeeId: number; jobIds: number[] }) =>
-      replaceJobsForEmployeeApi(employeeId, jobIds),
+    mutationFn: async ({ employeeId, jobIds }: { employeeId: number; jobIds: number[] }) => { requireAdmin(); return replaceJobsForEmployeeApi(employeeId, jobIds) },
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: staffingKeys.all })
     },

@@ -1,3 +1,4 @@
+import { passwordError } from '@/features/auth/session'
 import { useState, type FormEvent } from 'react'
 import { Mail, Lock, Eye, EyeOff, LogIn, AlertCircle, CheckCircle2 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
@@ -41,7 +42,6 @@ export default function LoginForm({
 
     let invalid = false
     const emailInvalid = !trimmedEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)
-    const passInvalid = !password || password.length < 8
 
     if (!trimmedEmail) {
       emailVal.setMessage('Please enter your work email.')
@@ -51,11 +51,8 @@ export default function LoginForm({
       invalid = true
     }
 
-    if (!password) {
-      passVal.setMessage('Please enter your password.')
-      invalid = true
-    } else if (passInvalid) {
-      passVal.setMessage('Password must be at least 8 characters.')
+    if (passwordError(password)) {
+      passVal.setMessage(passwordError(password)!)
       invalid = true
     }
 

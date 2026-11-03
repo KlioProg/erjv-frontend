@@ -50,7 +50,9 @@ export function QuarantinedStock({ stockItemId }: { stockItemId?: number } = {})
     },
     { id: 'condition', header: 'Current condition', accessorKey: 'condition', sortable: false },
     { id: 'reported', header: 'Originally reported', accessorKey: 'reportedCondition' },
-    { id: 'source', header: 'Source', cell: ({ row }) => row.sourceKind.replaceAll('_', ' ') },
+    { id: 'source', header: 'Source', cell: ({ row }) => row.sourceKind === 'WAREHOUSE_TRANSFER'
+      ? `Warehouse transfer${row.warehouseTransferItemId ? ` · Line #${row.warehouseTransferItemId}` : ''}`
+      : row.sourceKind.replaceAll('_', ' ') },
     {
       id: 'remaining',
       header: 'Remaining quantity',

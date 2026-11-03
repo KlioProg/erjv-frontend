@@ -1,3 +1,4 @@
+import { requireDecimalLimit } from '@/lib/decimal-limits'
 import { apiClient, requireRevision } from '@/lib/api-client'
 import { parseStockCents } from './stock-display'
 import type {
@@ -13,6 +14,7 @@ function requireId(id: number): number {
 }
 
 function decimal(value: string, positive = false): string {
+  requireDecimalLimit(value, 'Quantity or weight', positive)
   const cents = typeof value === 'string' ? parseStockCents(value) : null
   if (cents === null || (positive && cents <= 0n))
     throw new Error(`Enter ${positive ? 'positive' : 'non-negative'} decimal quantities with up to two decimal places.`)

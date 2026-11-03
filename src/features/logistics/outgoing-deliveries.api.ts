@@ -1,5 +1,6 @@
 import { fetchCursorList } from '@/lib/cursor-pagination'
 import { apiClient, extractArray } from '@/lib/api-client'
+import { requireDecimalLimit } from '@/lib/decimal-limits'
 import type {
   CreateOutgoingDeliveryPayload,
   CreateOutgoingDeliveryDraftPayload,
@@ -60,6 +61,7 @@ export async function updateOutgoingDeliveryDraftApi(
   id: number,
   payload: UpdateOutgoingDeliveryDraftPayload,
 ): Promise<OutgoingDeliveryRecord> {
+  payload.plannedItems?.forEach((item) => requireDecimalLimit(item.plannedQuantity, 'Planned quantity', true))
   const { data } = await apiClient.patch<OutgoingDeliveryRecord>(
     `/outgoing-deliveries/${id}/draft`,
     payload,

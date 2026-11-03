@@ -1,3 +1,4 @@
+import { requireDecimalLimit } from '@/lib/decimal-limits'
 import { fetchCursorList } from '@/lib/cursor-pagination'
 import { apiClient, type FetchParams } from '@/lib/api-client'
 import { parseStockCents } from './stock-display'
@@ -33,6 +34,7 @@ export async function fetchVehicleByPlateNumberApi(
 
 function vehicleCapacity(value: string | number | null | undefined): string | null {
   if (value == null || String(value).trim() === '') return null
+  requireDecimalLimit(String(value), 'Capacity', true)
   const parsed = parseStockCents(value)
   if (parsed === null || parsed > 999_999_999_999n)
     throw new Error('Capacity must be non-negative, with up to two decimals and 10 whole digits.')

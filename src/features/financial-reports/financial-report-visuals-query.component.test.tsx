@@ -6,6 +6,8 @@ import { useReportVisuals } from './financial-report-visuals.hooks'
 import { useFinancialReport } from './financial-reports.hooks'
 import cases from './report-test-fixtures.json'
 import type { ReportResult } from './financial-reports.types'
+import { AxiosError } from 'axios'
+import { getErrorMessage } from '@/lib/api-client'
 
 const auth = vi.hoisted(() => ({ user: { id: 1 }, isAdmin: true, isManager: false }))
 vi.mock('@/features/auth/AuthContext', () => ({ useAuth: () => auth }))
@@ -21,6 +23,41 @@ const scope = {
   before: '2026-10-03T00:00:00+08:00',
   groupBy: 'day' as const,
 }
+it('immediately masks cached financial results when admin permission is removed', async () => {
+  const request = vi.fn(async (config) => ({ config, status: 200, statusText: 'OK', headers: {}, data: result('100.00') }))
+  apiClient.defaults.adapter = request
+  const client = new QueryClient()
+  const hook = renderHook(() => ({ trends: useReportVisuals(scope, ['sales'], false), details: useFinancialReport('sales', scope) }), {
+    wrapper: ({ children }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>,
+  })
+  await waitFor(() => expect(hook.result.current.details.data).toBeTruthy())
+  await waitFor(() => expect(hook.result.current.trends.data).toBeTruthy())
+  const reads = request.mock.calls.length
+  auth.isAdmin = false
+  auth.isManager = true
+  hook.rerender()
+  expect(hook.result.current.details.data).toBeUndefined()
+  expect(hook.result.current.trends.data).toBeUndefined()
+  await act(async () => { hook.result.current.details.refresh(); hook.result.current.trends.restart() })
+  expect(request).toHaveBeenCalledTimes(reads)
+})
+it('keeps invalid gross-profit source data unavailable and allows an explicit retry', async () => {
+  const request = vi.fn(async (config) => {
+    throw new AxiosError('Conflict', 'ERR_BAD_REQUEST', config, undefined, { config, status: 409, statusText: 'Conflict', headers: {}, data: { code: 'REPORT_SOURCE_DATA_INVALID', detail: 'Invalid source' } })
+  })
+  apiClient.defaults.adapter = request
+  const client = new QueryClient()
+  const hook = renderHook(() => useReportVisuals(scope, ['gross-profit-estimate'], false), {
+    wrapper: ({ children }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>,
+  })
+  await waitFor(() => expect(hook.result.current.isError).toBe(true))
+  expect(hook.result.current.data).toBeUndefined()
+  expect(getErrorMessage(hook.result.current.error)).toMatch(/source data/i)
+  expect(request).toHaveBeenCalledOnce()
+  act(() => hook.result.current.restart('gross-profit-estimate'))
+  await waitFor(() => expect(request).toHaveBeenCalledTimes(2))
+  expect(hook.result.current.data).toBeUndefined()
+})
 it.each([false, true])('does not query or refresh financial hooks without admin access (manager %s)', async (manager) => {
   auth.isAdmin = false
   auth.isManager = manager

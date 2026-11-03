@@ -1,3 +1,4 @@
+import { requireDecimalLimit } from '@/lib/decimal-limits'
 import { apiClient, requireRevision } from '@/lib/api-client'
 import { fetchCursorList } from '@/lib/cursor-pagination'
 import { parseStockCents } from './stock-display'
@@ -72,6 +73,8 @@ export async function completeIncomingDeliveryApi(
     throw new Error('Enter receipt quantities, or record no receipt with a reason.')
   const seen = new Set<number>()
   const items = payload.items.map((item) => {
+    requireDecimalLimit(item.receivedQuantity, 'Received quantity')
+    requireDecimalLimit(item.damagedQuantity, 'Damaged quantity')
     const received = parseStockCents(item.receivedQuantity)
     const damaged = parseStockCents(item.damagedQuantity)
     if (

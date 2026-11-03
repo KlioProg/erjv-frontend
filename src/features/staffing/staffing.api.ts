@@ -1,3 +1,5 @@
+import { requireJobName } from './job-validation'
+import { requirePassword } from '@/features/auth/session'
 import { fetchCursorList } from '@/lib/cursor-pagination'
 import { apiClient, extractArray, type FetchParams } from '@/lib/api-client'
 import type { CursorParams } from '@/lib/cursor-pagination'
@@ -130,7 +132,7 @@ export async function fetchJobByNameApi(name: string): Promise<Job | null> {
 
 export async function createJobApi(payload: CreateJobPayload): Promise<Job> {
   const cleanPayload = {
-    name: payload.name.trim(),
+    name: requireJobName(payload.name),
     ...(payload.description?.trim() ? { description: payload.description.trim() } : {}),
   }
 
@@ -140,7 +142,7 @@ export async function createJobApi(payload: CreateJobPayload): Promise<Job> {
 
 export async function updateJobDetailsApi(id: number, payload: UpdateJobPayload): Promise<Job> {
   const cleanPayload = {
-    ...(payload.name ? { name: payload.name.trim() } : {}),
+    ...(payload.name !== undefined ? { name: requireJobName(payload.name) } : {}),
     ...(payload.description !== undefined
       ? { description: payload.description?.trim() || null }
       : {}),
@@ -260,6 +262,7 @@ export async function updateUserEmailApi(id: number, email: string): Promise<Use
 }
 
 export async function updateUserPasswordApi(id: number, password: string): Promise<UserAccount> {
+  requirePassword(password)
   const { data } = await apiClient.patch<UserAccount>(`/users/${id}/password`, { password })
   return data
 }

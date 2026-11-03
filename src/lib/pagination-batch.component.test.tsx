@@ -21,10 +21,12 @@ import {
   fetchAvailableVehiclesApi,
 } from '@/features/logistics/delivery-vehicles.api'
 
-vi.mock('@/features/auth/AuthContext', () => ({ useAuth: () => ({ isAdmin: false, isManager: false }) }))
+const auth = vi.hoisted(() => ({ isAdmin: false, isManager: false }))
+vi.mock('@/features/auth/AuthContext', () => ({ useAuth: () => auth }))
 const original = apiClient.defaults.adapter
 afterEach(() => {
   apiClient.defaults.adapter = original
+  auth.isAdmin = false
 })
 function provider() {
   const client = new QueryClient({
@@ -269,6 +271,7 @@ it('loads product stock locations from their scoped endpoint across multiple pag
 })
 
 it('pages and searches job assignments without dropping assigned off-page IDs', async () => {
+  auth.isAdmin = true
   const reads: Record<string, unknown>[] = []
   const writes: unknown[] = []
   apiClient.defaults.adapter = async config => {

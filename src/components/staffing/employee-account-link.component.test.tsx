@@ -5,6 +5,7 @@ import { afterEach, expect, it, vi } from 'vitest'
 import { apiClient } from '@/lib/api-client'
 import { EmployeeModal } from './EmployeeModal'
 
+vi.mock('@/features/auth/AuthContext', () => ({ useAuth: () => ({ isAdmin: true }) }))
 const originalAdapter = apiClient.defaults.adapter
 afterEach(() => {
   apiClient.defaults.adapter = originalAdapter

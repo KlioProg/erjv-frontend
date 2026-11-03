@@ -1,3 +1,6 @@
+import { useAuth } from '@/features/auth/AuthContext'
+import { jobNameError } from '@/features/staffing/job-validation'
+import { getApiError, getApiFieldErrors } from '@/lib/api-client'
 import { useState, type FormEvent } from 'react'
 import { RotateCcw } from 'lucide-react'
 import {
@@ -30,6 +33,7 @@ type JobModalProps = {
 }
 
 function JobFormContent({ job, onClose }: { job: Job | null; onClose: () => void }) {
+  const { isAdmin } = useAuth()
   const isEditing = !!job
   const { data: allJobs = [] } = useAllJobs()
   const createMutation = useCreateJob()
@@ -38,17 +42,21 @@ function JobFormContent({ job, onClose }: { job: Job | null; onClose: () => void
 
   const [name, setName] = useState(job?.name || '')
   const [description, setDescription] = useState(job?.description || '')
+  const [nameError, setNameError] = useState('')
   const [errorMsg, setErrorMsg] = useState('')
   const [deactivatedJobMatch, setDeactivatedJobMatch] = useState<Job | null>(null)
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
+    if (!isAdmin || isPending) return
     setErrorMsg('')
+    setNameError('')
     setDeactivatedJobMatch(null)
 
     const cleanName = name.trim()
-    if (!cleanName) {
-      setErrorMsg('Job position name is required.')
+    const validation = jobNameError(cleanName)
+    if (validation && (!job || cleanName !== job.name)) {
+      setNameError(validation)
       return
     }
 
@@ -67,7 +75,7 @@ function JobFormContent({ job, onClose }: { job: Job | null; onClose: () => void
         await updateMutation.mutateAsync({
           id: job.id,
           payload: {
-            name: name.trim(),
+            ...(cleanName !== job.name ? { name: cleanName } : {}),
             description: description.trim() || null,
           },
         })
@@ -80,11 +88,13 @@ function JobFormContent({ job, onClose }: { job: Job | null; onClose: () => void
       }
       onClose()
     } catch (err) {
+      setNameError(getApiFieldErrors(err).name ?? (getApiError(err)?.code === 'JOB_NAME_RESERVED' ? 'This name is reserved for account roles.' : ''))
       setErrorMsg(getErrorMessage(err))
     }
   }
 
   const handleRestoreFoundJob = async () => {
+    if (!isAdmin) return
     try {
       if (deactivatedJobMatch) {
         await reactivateMutation.mutateAsync(deactivatedJobMatch.id)
@@ -135,7 +145,7 @@ function JobFormContent({ job, onClose }: { job: Job | null; onClose: () => void
             Position Title <span className="text-primary">*</span>
           </Label>
           <Input
-            id="job-name"
+            id="job-name" aria-invalid={Boolean(nameError)} aria-describedby={nameError ? "job-name-error" : undefined} maxLength={100}
             placeholder="e.g. Warehouse Supervisor, Delivery Driver, POS Cashier"
             value={name}
             onChange={(e) => {
@@ -153,6 +163,7 @@ function JobFormContent({ job, onClose }: { job: Job | null; onClose: () => void
             }}
             required
           />
+          {nameError && <p id="job-name-error" className="text-xs text-destructive">{nameError}</p>}
         </div>
 
         <div className="flex flex-col gap-1.5">
@@ -169,7 +180,7 @@ function JobFormContent({ job, onClose }: { job: Job | null; onClose: () => void
         </div>
 
         <DialogFooter className="gap-2 mt-4 pt-3 border-t">
-          <Button type="button" variant="outline" size="sm" onClick={onClose} disabled={isPending}>
+          <Button type="button" variant="outline" size="sm" onClick={onClose} disabled={isPending || !isAdmin}>
             Cancel
           </Button>
           {deactivatedJobMatch ? (
@@ -177,7 +188,7 @@ function JobFormContent({ job, onClose }: { job: Job | null; onClose: () => void
               type="button"
               size="sm"
               onClick={handleRestoreFoundJob}
-              disabled={isPending}
+              disabled={isPending || !isAdmin}
               className="gap-2"
             >
               {reactivateMutation.isPending ? (
@@ -196,7 +207,7 @@ function JobFormContent({ job, onClose }: { job: Job | null; onClose: () => void
             <Button
               type="submit"
               size="sm"
-              disabled={isPending}
+              disabled={isPending || !isAdmin}
               className="font-medium cursor-pointer"
             >
               {isPending ? (

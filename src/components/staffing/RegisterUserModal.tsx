@@ -1,3 +1,4 @@
+import { passwordError } from '@/features/auth/session'
 import { CursorLookup } from '@/components/ui/CursorLookup'
 import type { Employee } from '@/features/staffing/staffing.types'
 import { useState, type FormEvent } from 'react'
@@ -114,8 +115,8 @@ export function RegisterUserModal({ open, onClose }: RegisterUserModalProps) {
       return
     }
 
-    if (password.length < 8) {
-      setErrorMsg('Password must be at least 8 characters long.')
+    if (passwordError(password)) {
+      setErrorMsg(passwordError(password)!)
       return
     }
 

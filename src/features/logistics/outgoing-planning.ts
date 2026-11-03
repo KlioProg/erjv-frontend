@@ -1,4 +1,5 @@
 import { decimalString, parseOrderDecimal } from '@/lib/order-amounts'
+import { decimalLimitError } from '@/lib/decimal-limits'
 import type { SalesOrderRecord } from '@/features/crm/sales-orders.types'
 import type { OutgoingPlanningOption } from './outgoing-deliveries.types'
 
@@ -24,8 +25,9 @@ export function outgoingPlanningErrors(
     const field = `quantity-${id}`
     const item = order.items.find((item) => item.id === Number(id))
     const option = options.find((option) => option.salesOrderItemId === Number(id))
-    if (quantity === null) {
-      errors[field] = 'Enter a nonnegative quantity with up to two decimal places.'
+    const limitError = decimalLimitError(raw || '0')
+    if (quantity === null || limitError) {
+      errors[field] = limitError || 'Enter a nonnegative quantity with up to two decimal places.'
       continue
     }
     if (!item) {

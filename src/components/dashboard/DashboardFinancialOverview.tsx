@@ -38,7 +38,7 @@ function FinancialMetric({
         >
           {query.isError
             ? 'Unavailable'
-            : query.isPending
+            : query.isPending || !query.data
               ? 'Loading…'
               : formatReportMoney(metricAmount(query.data.totals, kind))}
         </p>

@@ -1,6 +1,6 @@
 import { fetchCursorList, fetchCursorPage } from '@/lib/cursor-pagination'
 import { apiClient, requireRevision } from '@/lib/api-client'
-import { serializeLineDiscount } from '@/lib/order-line-pricing'
+import { serializeLineDiscount, validateOrderLine } from '@/lib/order-line-pricing'
 import type {
   CreatePurchaseOrderPayload,
   PurchaseOrderFilter,
@@ -30,6 +30,7 @@ export async function fetchPurchaseOrderByNumberApi(
 export async function createPurchaseOrderApi(
   payload: CreatePurchaseOrderPayload,
 ): Promise<PurchaseOrderRecord> {
+  payload.items?.forEach(validateOrderLine)
   const cleanPayload = {
     ...(payload.supplierId != null ? { supplierId: payload.supplierId } : {}),
     ...(payload.expectedAt ? { expectedAt: new Date(payload.expectedAt).toISOString() } : {}),
@@ -59,6 +60,7 @@ export async function updatePurchaseOrderDraftApi(
 ): Promise<PurchaseOrderRecord> {
   if (!Number.isInteger(payload.expectedRevision) || payload.expectedRevision < 1)
     throw new Error('A valid saved revision is required. Reload this draft.')
+  payload.items?.forEach(validateOrderLine)
   const cleanPayload = {
     expectedRevision: payload.expectedRevision,
     ...(payload.supplierId !== undefined ? { supplierId: payload.supplierId } : {}),

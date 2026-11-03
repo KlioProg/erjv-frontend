@@ -1,5 +1,6 @@
 import { deliveryFormStyles } from './delivery-form.styles'
 import { useRef, useState } from 'react'
+import { decimalLimitError, QUANTITY_MAX } from '@/lib/decimal-limits'
 import { toast } from 'sonner'
 import {
   Dialog,
@@ -74,7 +75,7 @@ export function CompleteDeliveryModal({
     const values = fields.map(([field]) => parseStockCents(counts[item.id]?.[field] ?? ''))
     const total = values.reduce<bigint>((sum, value) => sum + (value ?? 0n), 0n)
     const reasonRequired = (values[2] ?? 0n) > 0n || (values[3] ?? 0n) > 0n
-    const invalid = values.some((value) => value === null)
+    const invalid = values.some((value) => value === null || value > QUANTITY_MAX)
     const balanced = !invalid && loaded !== null && total === loaded
     return { item, product, warehouse, loaded, values, total, reasonRequired, invalid, balanced }
   })
@@ -410,7 +411,8 @@ export function CompleteDeliveryModal({
                     <div className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2 sm:grid-cols-4">
                       {fields.map(([field, label]) => {
                         const value = counts[row.item.id]?.[field] ?? ''
-                        const invalid = !!value && parseStockCents(value) === null
+                        const quantityError = value ? decimalLimitError(value) : undefined
+                        const invalid = !!quantityError
                         return (
                           <div key={field} className="flex min-w-0 flex-col gap-1.5">
                             <Label htmlFor={`completion-${row.item.id}-${field}`}>{label}</Label>
@@ -420,7 +422,7 @@ export function CompleteDeliveryModal({
                               value={value}
                               aria-label={`${label} for ${row.product?.name || 'unavailable product'} (${index + 1})`}
                               aria-invalid={invalid || !!fieldErrors[`${row.item.id}.${field}`]}
-                              aria-describedby={`completion-balance-${row.item.id}${fieldErrors[`${row.item.id}.${field}`] ? ` completion-${row.item.id}-${field}-error` : ''}`}
+                              aria-describedby={`completion-balance-${row.item.id}${quantityError || fieldErrors[`${row.item.id}.${field}`] ? ` completion-${row.item.id}-${field}-error` : ''}`}
                               onChange={(event) =>
                                 setCounts((current) => ({
                                   ...current,
@@ -431,7 +433,7 @@ export function CompleteDeliveryModal({
                                 }))
                               }
                             />
-                            {fieldErrors[`${row.item.id}.${field}`] && <p id={`completion-${row.item.id}-${field}-error`} role="alert" className="text-xs text-destructive">{fieldErrors[`${row.item.id}.${field}`]}</p>}
+                            {(quantityError || fieldErrors[`${row.item.id}.${field}`]) && <p id={`completion-${row.item.id}-${field}-error`} role="alert" className="text-xs text-destructive">{quantityError || fieldErrors[`${row.item.id}.${field}`]}</p>}
                           </div>
                         )
                       })}

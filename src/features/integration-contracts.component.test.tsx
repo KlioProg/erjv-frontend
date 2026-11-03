@@ -16,6 +16,7 @@ import { useReplaceEmployeeJobs, staffingKeys } from './staffing/staffing.hooks'
 import { fetchSupplierPricesApi, saveSupplierPriceApi } from './logistics/supplier-pricing.api'
 import type { PropsWithChildren } from 'react'
 import { createProductApi, updateProductPriceApi } from './products/products.api'
+vi.mock('@/features/auth/AuthContext', () => ({ useAuth: () => ({ isAdmin: true }) }))
 
 it.each([1.001, -1, NaN, Infinity, '1e2', '10000000000'])(
   'rejects catalog prices %s instead of silently rounding',

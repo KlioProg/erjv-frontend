@@ -370,7 +370,7 @@ it('preserves removal inputs after a conflict and requires another explicit conf
   expect(posts).toHaveLength(2)
 })
 
-it('compares large lot balances exactly and accepts the remaining balance without rounding', async () => {
+it('keeps large lot balances exact while limiting each resolution to the supported quantity', async () => {
   const { posts } = mount({ lots: [{ ...baseLot, remainingQuantity: '90071992547409.25' }] })
   await openLot()
   fill('90071992547409.26')
@@ -378,10 +378,13 @@ it('compares large lot balances exactly and accepts the remaining balance withou
   expect(posts).toHaveLength(0)
   fill('90071992547409.25')
   fireEvent.click(screen.getByRole('button', { name: 'Confirm Release' }))
+  expect(posts).toHaveLength(0)
+  fill('9999999999.99')
+  fireEvent.click(screen.getByRole('button', { name: 'Confirm Release' }))
   await waitFor(() => expect(posts).toHaveLength(1))
   expect(posts[0].body).toEqual({
     action: 'CLEAR',
-    quantity: '90071992547409.25',
+    quantity: '9999999999.99',
     reason: 'Inspection completed',
     expectedRevision: 1,
     requestId: expect.any(String),

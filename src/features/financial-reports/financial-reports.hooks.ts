@@ -78,6 +78,7 @@ export function useFinancialReport(kind: ReportKind, scope: ReportQuery) {
   }
   return {
     ...query,
+    data: isAdmin ? query.data : undefined,
     page: navigation.index + 1,
     pageSize,
     setPageSize: (n: number) => {

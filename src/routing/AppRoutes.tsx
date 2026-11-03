@@ -1,3 +1,4 @@
+import { WarehouseTransfersPage } from '@/components/warehouse-transfers/WarehouseTransfersPage'
 import { FinancialReportsPage } from '@/components/financial-reports/FinancialReportsPage'
 import { Navigate, Route, Routes } from 'react-router'
 import { MainDashboard } from '@/components/dashboard/MainDashboard'
@@ -34,6 +35,7 @@ export function AppRoutes() {
         <Route path="inventory" element={<InventoryRoute />} />
         <Route path="warehouses" element={<WarehousesRoute />} />
         <Route path="warehouses/:warehouseId" element={<WarehouseDetailsRoute />} />
+        <Route path="warehouse-transfers" element={<WarehouseTransfersPage />} />
         <Route path="vehicles" element={<VehicleList />} />
         <Route path="deliveries" element={<Navigate replace to={ROUTES.outgoingDeliveries} />} />
         <Route path="deliveries/incoming" element={<DeliveriesRoute view="incoming" />} />

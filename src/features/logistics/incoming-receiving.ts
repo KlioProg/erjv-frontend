@@ -5,6 +5,7 @@ import type {
 } from './incoming-deliveries.types'
 import { parseStockCents } from './stock-display'
 import { decimalString } from './purchase-pricing'
+import { decimalLimitError } from '@/lib/decimal-limits'
 
 export type IncomingReceiptCounts = Record<number, { received: string; damaged: string }>
 
@@ -67,9 +68,11 @@ export function validateIncomingReceipt(
     const received = parseStockCents(counts[item.id]?.received.trim() || '0')
     const damaged = parseStockCents(counts[item.id]?.damaged.trim() || '0')
     const issues: { received?: string; damaged?: string } = {}
-    if (received === null) issues.received = 'Use a nonnegative quantity with up to two decimals.'
-    if (damaged === null) issues.damaged = 'Use a nonnegative quantity with up to two decimals.'
-    else if (received !== null && damaged > received)
+    const receivedError = decimalLimitError(counts[item.id]?.received.trim() || '0')
+    const damagedError = decimalLimitError(counts[item.id]?.damaged.trim() || '0')
+    if (receivedError) issues.received = receivedError
+    if (damagedError) issues.damaged = damagedError
+    else if (received !== null && damaged !== null && damaged > received)
       issues.damaged = 'Damaged goods cannot exceed received goods.'
     if (received !== null && damaged !== null && received > 0n && damaged <= received) {
       if (outstanding === null)

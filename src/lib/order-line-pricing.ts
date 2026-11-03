@@ -1,3 +1,4 @@
+import { MONEY_MAX, requireDecimalLimit } from './decimal-limits.ts'
 import { decimalString, lineSubtotal, parseOrderDecimal, roundedDivide } from './order-amounts.ts'
 import { discountError } from './order-entry.schema.ts'
 
@@ -72,4 +73,16 @@ function sumLineAmounts(lines: ReturnType<typeof orderLineAmounts>[]) {
   }
   return { subtotal: decimalString(totals.subtotal), discount: decimalString(totals.discount),
     vat: decimalString(totals.vat), total: decimalString(totals.total) }
+}
+
+/** Write-boundary check; individual stored columns are bounded, report aggregates are not. */
+export function validateOrderLine(line: PricedOrderLine): void {
+  const discountInvalid = lineDiscountError(line)
+  if (discountInvalid) throw Error(discountInvalid)
+  requireDecimalLimit(String(line.quantity), 'Quantity', true)
+  requireDecimalLimit(String(line.unitPrice), 'Unit price', false, MONEY_MAX)
+  const amounts = orderLineAmounts(line)
+  if (!amounts) throw Error('Check line discount, tax and decimal amounts.')
+  for (const [name, value] of Object.entries(amounts))
+    requireDecimalLimit(value, `Line ${name}`, false, MONEY_MAX)
 }

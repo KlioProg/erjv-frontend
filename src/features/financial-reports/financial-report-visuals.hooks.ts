@@ -57,7 +57,7 @@ export function useReportVisuals(scope: ReportQuery, kinds: ReportKind[], overvi
   queries.forEach((query, index) => {
     const kind = kinds[index]
     if (query.isError) errors[kind] = query.error
-    else if (query.data) data[kind] = query.data
+    else if (isAdmin && query.data) data[kind] = query.data
     if (query.isPending) pending.push(kind)
     if (query.isFetching) fetching.push(kind)
   })

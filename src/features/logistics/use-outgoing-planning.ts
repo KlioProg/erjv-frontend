@@ -1,3 +1,4 @@
+import { requireDecimalLimit } from '@/lib/decimal-limits'
 import { useRef, useState } from 'react'
 import axios from 'axios'
 import { toast } from 'sonner'
@@ -179,6 +180,7 @@ export function useOutgoingPlanning(
         return
       }
       const plannedItems = Object.entries(quantities).flatMap(([id, raw]) => {
+        if (raw.trim()) requireDecimalLimit(raw, 'Planned quantity')
         const quantity = parseOrderDecimal(raw || '0')!
         return quantity > 0n
           ? [{ salesOrderItemId: Number(id), plannedQuantity: decimalString(quantity) }]

@@ -5,6 +5,7 @@ import { AUTH_SESSION_EXPIRED_EVENT, getErrorMessage } from '@/lib/api-client'
 import { getProfileApi, loginApi, registerApi } from './auth.api'
 import type { LoginRequest, RegisterRequest, SafeUserResponse } from './auth.types'
 import { USER_ROLES, type UserRole } from './roles'
+import { tokenExpiry } from './session'
 
 type AuthContextType = {
   user: SafeUserResponse | null
@@ -113,8 +114,6 @@ export function normalizeUser(
   }
 }
 
-const ONE_DAY_MS = 24 * 60 * 60 * 1000
-
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const queryClient = useQueryClient()
   const [token, setToken] = useState<string | null>(() => localStorage.getItem('erjv_access_token'))
@@ -123,7 +122,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const expireSession = () => {
+      localStorage.removeItem('erjv_access_token')
+      localStorage.removeItem('erjv_session_expiry')
       queryClient.clear()
+      setIsLoading(false)
       setToken(null)
       setUser(null)
     }
@@ -140,21 +142,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       localStorage.removeItem('erjv_demo_user')
 
       const currentToken = localStorage.getItem('erjv_access_token')
-      if (currentToken === 'demo-token') {
-        localStorage.removeItem('erjv_access_token')
-        if (isMounted) {
-          setToken(null)
-          setUser(null)
-          setIsLoading(false)
-        }
-        return
-      }
-
-      // Check session expiration
-      const expiry = localStorage.getItem('erjv_session_expiry')
-      if (expiry && Date.now() > Number(expiry)) {
-        localStorage.removeItem('erjv_access_token')
+      if (currentToken && (tokenExpiry(currentToken) === null || tokenExpiry(currentToken)! <= Date.now())) {
+        queryClient.clear()
         localStorage.removeItem('erjv_session_expiry')
+        localStorage.removeItem('erjv_access_token')
         if (isMounted) {
           setToken(null)
           setUser(null)
@@ -164,12 +155,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (currentToken) {
+        localStorage.setItem('erjv_session_expiry', String(tokenExpiry(currentToken)))
         try {
           const profile = await getProfileApi()
-          if (isMounted) {
+          if (isMounted && localStorage.getItem('erjv_access_token') === currentToken) {
             if (profile?.id && profile.isActive) {
               setUser(normalizeUser(profile))
             } else {
+              queryClient.clear()
               localStorage.removeItem('erjv_access_token')
               localStorage.removeItem('erjv_session_expiry')
               setToken(null)
@@ -177,13 +170,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             }
           }
         } catch (err: unknown) {
+          if (!isMounted || localStorage.getItem('erjv_access_token') !== currentToken) return
           const status =
             err && typeof err === 'object' && 'response' in err
               ? (err as { response?: { status?: number } }).response?.status
               : undefined
 
-          if (status === 401 || status === 403) {
+          if (status === 401) {
             // Revoked, expired, or invalid token
+            queryClient.clear()
             localStorage.removeItem('erjv_access_token')
             localStorage.removeItem('erjv_session_expiry')
             if (isMounted) {
@@ -214,7 +209,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       isMounted = false
     }
-  }, [])
+  }, [queryClient])
+
+  useEffect(() => {
+    if (!token) return
+    let timer: ReturnType<typeof setTimeout>
+    const check = () => {
+      const remaining = (tokenExpiry(token) ?? 0) - Date.now()
+      if (remaining <= 0) window.dispatchEvent(new Event(AUTH_SESSION_EXPIRED_EVENT))
+      else timer = setTimeout(check, Math.min(remaining, 2_147_483_647))
+    }
+    const onFocus = () => { clearTimeout(timer); check() }
+    check()
+    window.addEventListener('focus', onFocus)
+    return () => { clearTimeout(timer); window.removeEventListener('focus', onFocus) }
+  }, [token])
 
   const login = async (payload: LoginRequest, rememberMe: boolean = false) => {
     const cleanEmail = payload.email.trim().toLowerCase()
@@ -223,19 +232,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const loginRes = await loginApi({ email: cleanEmail, password: cleanPassword })
       const accessToken = loginRes.accessToken
-      if (!accessToken) {
-        throw new Error('No access token returned by server.')
+      const expiryTime = accessToken ? tokenExpiry(accessToken) : null
+      if (expiryTime === null || expiryTime <= Date.now()) {
+        throw new Error('The server returned an invalid or expired session. Please sign in again.')
       }
 
       queryClient.clear()
       localStorage.setItem('erjv_access_token', accessToken)
       const profile = await getProfileApi()
+      if (localStorage.getItem('erjv_access_token') !== accessToken)
+        throw new Error('The session ended. Please sign in again.')
       if (!profile?.id || !profile.isActive)
         throw new Error('An active account could not be verified. Please sign in again.')
       setUser(normalizeUser(profile))
       setToken(accessToken)
 
-      const expiryTime = Date.now() + ONE_DAY_MS
       localStorage.setItem('erjv_session_expiry', String(expiryTime))
       if (rememberMe) {
         localStorage.setItem('erjv_remember_me', 'true')
@@ -246,6 +257,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     } catch (err) {
       localStorage.removeItem('erjv_access_token')
+      localStorage.removeItem('erjv_session_expiry')
+      queryClient.clear()
       setToken(null)
       setUser(null)
       throw new Error(getErrorMessage(err), { cause: err })
@@ -288,6 +301,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const isStaff = userRole === USER_ROLES.STAFF
   const canManageStaff = isAdmin || isManager
   const canManageOperations = isAdmin || isManager
+
+  useEffect(() => {
+    if (user && !isAdmin) queryClient.removeQueries({ queryKey: ['financial-reports'] })
+  }, [isAdmin, user, queryClient])
 
   return (
     <AuthContext.Provider

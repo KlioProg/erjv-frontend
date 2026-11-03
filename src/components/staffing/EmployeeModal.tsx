@@ -1,3 +1,4 @@
+import { useAuth } from '@/features/auth/AuthContext'
 import { useState, type FormEvent } from 'react'
 import { Calendar, Mail, Phone, MapPin, User as UserIcon, RotateCcw } from 'lucide-react'
 import {
@@ -40,6 +41,7 @@ function EmployeeFormContent({
   employee: Employee | null
   onClose: () => void
 }) {
+  const { isAdmin } = useAuth()
   const isEditing = !!employee
   const createMutation = useCreateEmployee()
   const updateMutation = useUpdateEmployeeProfile()
@@ -114,7 +116,7 @@ function EmployeeFormContent({
         })
         if (canDrive !== employee.canDrive)
           await eligibilityMutation.mutateAsync({ id: employee.id, canDrive })
-        if (userId !== employee.userId) {
+        if (isAdmin && userId !== employee.userId) {
           if (userId !== null) await linkMutation.mutateAsync({ id: employee.id, userId })
           else await unlinkMutation.mutateAsync(employee.id)
         }
@@ -126,7 +128,7 @@ function EmployeeFormContent({
           phone: cleanPhone,
           address: address.trim() || null,
           hireDate: parsedHireDate,
-          userId,
+          ...(isAdmin ? { userId } : {}),
           canDrive,
         })
       }
@@ -318,7 +320,7 @@ function EmployeeFormContent({
             </div>
           </div>
 
-          <div className="flex flex-col gap-1.5">
+          {isAdmin && <div className="flex flex-col gap-1.5">
             <Label htmlFor="emp-user" className="text-ui font-medium">
               Link User Account
             </Label>
@@ -328,7 +330,7 @@ function EmployeeFormContent({
               getLabel={(user) => `${user.email} (${user.role})`} disabled={isPending} />
             <Button type="button" variant="link" size="sm" disabled={isPending}
               onClick={() => setSelectedUserId('none')}>No linked account</Button>
-          </div>
+          </div>}
         </div>
 
         <div className="flex items-center gap-2">

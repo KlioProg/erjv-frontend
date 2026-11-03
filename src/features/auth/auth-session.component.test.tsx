@@ -1,3 +1,4 @@
+import { testToken } from '@/test/auth-token'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, render, renderHook, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -16,7 +17,7 @@ beforeEach(() => {
     headers: {},
     data:
       config.url === '/auth/login'
-        ? { accessToken: 'test-session-token' }
+        ? { accessToken: testToken() }
         : { id: 2, email: 'staff@example.test', role: 'STAFF', isActive: true },
   })
 })
@@ -53,7 +54,7 @@ function mount(client: QueryClient) {
 }
 it('clears cached records when signing out', async () => {
   const user = userEvent.setup()
-  localStorage.setItem('erjv_access_token', 'test-session-token')
+  localStorage.setItem('erjv_access_token', testToken())
   const client = new QueryClient()
   client.setQueryData(['employees'], [{ id: 1, name: 'Previous account private record' }])
   mount(client)
@@ -75,7 +76,7 @@ it('clears prior account data before a new session can reuse query keys', async 
 
 it('preserves SUPERADMIN identity and grants existing administrator navigation', async () => {
   expect(normalizeUserRole('SUPERADMIN')).toBe('SUPERADMIN')
-  localStorage.setItem('erjv_access_token', 'test-session-token')
+  localStorage.setItem('erjv_access_token', testToken())
   apiClient.defaults.adapter = async (config) => ({
     config,
     status: 200,
@@ -137,7 +138,7 @@ it('loads the server profile once during a successful login', async () => {
       headers: {},
       data:
         config.url === '/auth/login'
-          ? { accessToken: 'test-session-token' }
+          ? { accessToken: testToken() }
           : { id: 2, email: 'staff@example.test', role: 'STAFF', isActive: true },
     }
   }
@@ -149,7 +150,7 @@ it('loads the server profile once during a successful login', async () => {
 })
 
 it('synchronizes only the signed-in account after an authoritative role update', async () => {
-  localStorage.setItem('erjv_access_token', 'test-session-token')
+  localStorage.setItem('erjv_access_token', testToken())
   const client = new QueryClient()
   const { result } = renderHook(() => useAuth(), {
     wrapper: ({ children }) => (
@@ -174,7 +175,7 @@ it('synchronizes only the signed-in account after an authoritative role update',
 })
 
 it('clears a revoked session and its cached records after a protected request returns 401', async () => {
-  localStorage.setItem('erjv_access_token', 'test-session-token')
+  localStorage.setItem('erjv_access_token', testToken())
   const client = new QueryClient()
   mount(client)
   await screen.findByText('Signed in')
@@ -197,7 +198,7 @@ it('clears a revoked session and its cached records after a protected request re
 })
 
 it('does not let a late 401 response erase a newer session token', async () => {
-  localStorage.setItem('erjv_access_token', 'old-session')
+  localStorage.setItem('erjv_access_token', testToken())
   apiClient.defaults.adapter = async (config) => {
     localStorage.setItem('erjv_access_token', 'new-session')
     throw new AxiosError('Unauthorized', 'ERR_BAD_REQUEST', config, undefined, {

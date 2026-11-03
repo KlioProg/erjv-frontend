@@ -120,6 +120,8 @@ function mount(stockRecord: StockItemWithRelations | null = stock) {
     'warehouses',
     'outgoing-deliveries',
     'purchase-orders',
+    'warehouse-transfers',
+    'financial-reports',
   ])
     client.setQueryData([key], [])
   const close = vi.fn()
@@ -144,6 +146,26 @@ async function chooseAction(action: 'CLEAR' | 'REMOVE' | 'CORRECT') {
   await waitFor(() => expect(button.matches(':disabled')).toBe(false))
   fireEvent.click(button)
 }
+it.each(['CLEAR', 'REMOVE'] as const)('preserves transfer provenance and its stock pool when applying %s', async (action) => {
+  lot.sourceKind = 'WAREHOUSE_TRANSFER'
+  lot.warehouseTransferItemId = 71
+  const { client } = mount()
+  await screen.findByText('#71')
+  expect(screen.getByText('WAREHOUSE TRANSFER')).toBeTruthy()
+  expect(screen.getByText('Main Warehouse')).toBeTruthy()
+  await chooseAction(action)
+  quantity('1.00', action)
+  reason('Transfer damage inspected')
+  if (action === 'CLEAR') { inspect(); fireEvent.click(screen.getByRole('button', { name: 'Confirm Release' })) }
+  else { fireEvent.click(screen.getByRole('button', { name: 'Review Removal' })); fireEvent.click(await screen.findByRole('button', { name: 'Confirm Removal' })) }
+  await waitFor(() => expect(writes).toHaveLength(1))
+  expect(lot.stockItemId).toBe(4)
+  expect(lot.warehouseTransferItemId).toBe(71)
+  expect(writes[0].url).toBe('/stock-items/quarantine-lots/8/resolutions')
+  expect(writes[0].body).not.toHaveProperty('acceptedPurchaseValue')
+  await waitFor(() => expect(client.getQueryState(['financial-reports'])?.isInvalidated).toBe(true))
+  expect(client.getQueryState(['warehouse-transfers'])?.isInvalidated).toBe(true)
+})
 function reason(value = 'Inspected') {
   fireEvent.change(screen.getByLabelText('Reason'), { target: { value } })
 }

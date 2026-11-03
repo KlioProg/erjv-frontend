@@ -1,4 +1,5 @@
 import { useRef, useState, type FormEvent } from 'react'
+import { decimalLimitError } from '@/lib/decimal-limits'
 import { toast } from 'sonner'
 import {
   Dialog,
@@ -144,7 +145,7 @@ export function QuarantineLotDialog({
   const safetyConfirmed = confirmedSnapshot === signature
   const quantityError = !draft.quantity.trim()
     ? ''
-    : amount === null
+    : decimalLimitError(draft.quantity, true) || (amount === null
       ? 'Enter a quantity with up to two decimals.'
       : amount <= 0n
         ? 'Quantity must be greater than zero.'
@@ -152,13 +153,14 @@ export function QuarantineLotDialog({
           ? 'Remaining quarantined quantity is unavailable.'
           : amount > remaining
             ? 'Quantity cannot exceed remaining quarantined stock.'
-            : ''
+            : '')
   const valid =
     !!action &&
     !!draft.reason.trim() &&
     (action === 'CORRECT'
       ? ['DAMAGED', 'SPOILED'].includes(condition) && condition !== lot?.condition
       : amount !== null &&
+        !quantityError &&
         amount > 0n &&
         remaining !== null &&
         amount <= remaining &&
@@ -349,6 +351,9 @@ export function QuarantineLotDialog({
                   <div>
                     <dt className="text-xs text-muted-foreground">Source</dt>
                     <dd>{lot.sourceKind.replaceAll('_', ' ')}</dd>
+                    {lot.sourceKind === 'WAREHOUSE_TRANSFER' && lot.warehouseTransferItemId != null && (
+                      <><dt>Transfer line</dt><dd>#{lot.warehouseTransferItemId}</dd></>
+                    )}
                   </div>
                   {lot.tagReason && (
                     <div className="min-w-0">

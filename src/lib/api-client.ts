@@ -1,3 +1,4 @@
+import { tokenExpiry } from '@/features/auth/session'
 import axios, { type AxiosError } from 'axios'
 
 const API_BASE_URL = import.meta.env.DEV ? '/api' : import.meta.env.VITE_API_BASE_URL
@@ -92,9 +93,11 @@ apiClient.interceptors.response.use(
 // Attach JWT access token to outgoing requests if present
 apiClient.interceptors.request.use((config) => {
   const token = localStorage.getItem('erjv_access_token')
-  if (token === 'demo-token') {
+  if (token && (tokenExpiry(token) === null || tokenExpiry(token)! <= Date.now())) {
     localStorage.removeItem('erjv_access_token')
-    return config
+    localStorage.removeItem('erjv_session_expiry')
+    window.dispatchEvent(new Event(AUTH_SESSION_EXPIRED_EVENT))
+    throw new Error('Your session has expired. Please sign in again.')
   }
   if (token && config.headers) {
     config.headers.Authorization = `Bearer ${token}`
@@ -261,6 +264,22 @@ export function humanizeErrorMessage(raw: string, status?: number): string {
 }
 
 // Format error messages from NestJS ValidationPipe, Prisma constraints, or HTTP exceptions
+const domainMessages: Record<string, string> = {
+  REPORT_SOURCE_DATA_INVALID: 'Estimated gross profit is unavailable because the source data is inconsistent. Refresh the report or ask an administrator to review it.',
+  INVENTORY_UNIT_LOCKED: 'This item has recorded activity, so its unit cannot be changed. Keep the saved unit to update other details.',
+  JOB_NAME_RESERVED: 'This job name is reserved for account roles. Choose a job title.',
+  TRANSFER_REPLAY_MISMATCH: 'This transfer was already reconciled with different quantities. Reload and review the saved results.',
+  INVALID_TRANSFER_STATE: 'This transfer has changed state. Reload it before continuing.',
+  INVALID_TRANSFER_ITEMS: 'Include every saved transfer line exactly once and review the selected items.',
+  INVALID_TRANSFER_QUANTITIES: 'Check that received, returned and missing quantities equal the sent quantity. Damage is included in received.',
+  DISCREPANCY_REASON_REQUIRED: 'Enter a reason for the cancellation, damage, return or missing quantity.',
+  STOCK_CHANGED: 'Stock changed. Refresh and review available quantities before continuing.',
+  WAREHOUSE_INACTIVE: 'Select an active warehouse before continuing.',
+  INVENTORY_ITEM_INACTIVE: 'This item is inactive. Review the selected items before continuing.',
+  RETRYABLE_TRANSACTION_CONFLICT: 'Another operation changed these records. Reload and review the saved state before trying again.',
+  INVALID_CURSOR: 'This page is no longer valid. Reset the filters or reload results.',
+}
+
 export function getErrorMessage(error: unknown): string {
   if (axios.isAxiosError(error)) {
     const axiosErr = error as AxiosError<{
@@ -287,6 +306,9 @@ export function getErrorMessage(error: unknown): string {
     }
 
     const structured = getApiError(error)
+    if (status !== 401 && status !== 403 && structured?.code && domainMessages[structured.code] &&
+        (!structured.detail || ['REPORT_SOURCE_DATA_INVALID', 'INVENTORY_UNIT_LOCKED', 'JOB_NAME_RESERVED'].includes(structured.code)))
+      return domainMessages[structured.code]
     if (status !== undefined && status >= 500)
       return humanizeErrorMessage('Internal server error', status)
     if (structured && typeof structured.detail === 'string' && status !== 401 && status !== 403) {

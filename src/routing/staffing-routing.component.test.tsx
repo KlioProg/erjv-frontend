@@ -1,3 +1,4 @@
+import { testToken } from '@/test/auth-token'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, expect, it } from 'vitest'
@@ -22,7 +23,7 @@ beforeEach(() => {
       statusText: 'OK',
       data:
         config.url === '/auth/login'
-          ? { accessToken: 'routing-test-token' }
+          ? { accessToken: testToken() }
           : config.url === '/auth/profile'
             ? {
                 id: 1,
@@ -45,7 +46,7 @@ afterEach(() => {
 
 function mount(path: string, authenticated = true) {
   window.history.replaceState(null, '', path)
-  if (authenticated) localStorage.setItem('erjv_access_token', 'routing-test-token')
+  if (authenticated && !localStorage.getItem('erjv_access_token')) localStorage.setItem('erjv_access_token', testToken())
   return render(<App />)
 }
 
@@ -213,7 +214,7 @@ it('loads a staffing URL again after a fresh application mount', async () => {
 })
 
 it('keeps expired sessions at login without displaying or fetching the protected page', async () => {
-  localStorage.setItem('erjv_session_expiry', String(Date.now() - 1000))
+  localStorage.setItem('erjv_access_token', testToken({ iat: 1, exp: 2 }))
   mount('/user-roles')
   await screen.findByRole('heading', { name: 'Welcome back' })
   expect(screen.queryByRole('heading', { name: 'User Roles & Access' })).toBeNull()

@@ -1,3 +1,4 @@
+import { useAuth } from '@/features/auth/AuthContext'
 import { useResourcePage } from '@/lib/use-cursor-page'
 import { DataTableFooter, DataTableFrame } from '@/components/ui/DataTableFooter'
 import { PageHeader, PageToolbar } from '@/components/ui/ManagementPage'
@@ -71,6 +72,7 @@ function JobStaffCount({ jobId, isArchived }: { jobId: number; isArchived?: bool
 }
 
 export function JobList() {
+  const { isAdmin } = useAuth()
   const [activeTab, setActiveTab] = useState<'ACTIVE' | 'ARCHIVED'>('ACTIVE')
   const deactivateMutation = useDeactivateJob({ onViewArchive: () => setActiveTab('ARCHIVED') })
   const reactivateMutation = useReactivateJob()
@@ -153,6 +155,7 @@ export function JobList() {
       className: 'w-px whitespace-nowrap',
       headerClassName: 'w-px whitespace-nowrap',
       cell: ({ row }) => {
+        if (!isAdmin) return null
         const isArchived = row.isActive === false
         const isReactivatingThis =
           reactivateMutation.isPending &&
@@ -207,7 +210,7 @@ export function JobList() {
           />
         </div>
 
-        {activeTab === 'ACTIVE' && (
+        {isAdmin && activeTab === 'ACTIVE' && (
           <Button size="sm" onClick={handleCreate} className="font-medium cursor-pointer">
             <Plus data-icon="inline-start" className="size-4" />
             Create Job Position
@@ -241,7 +244,7 @@ export function JobList() {
           manualSorting
           appearance="management"
           data={filteredJobList}
-          columns={jobColumns}
+          columns={isAdmin ? jobColumns : jobColumns.filter((column) => column.id !== 'actions')}
           getRowKey={(job) => job.id}
           isLoading={isLoading}
           loadingMessage="Loading job positions..."
@@ -260,7 +263,7 @@ export function JobList() {
                 {searchTerm
                   ? `No positions matched "${searchTerm}". Try a different keyword.`
                   : activeTab === 'ACTIVE'
-                    ? 'Create a job position to define roles such as Cashier or Manager.'
+                    ? 'Create a job position to define roles such as Cashier or Warehouse Supervisor.'
                     : 'Archived job positions can be restored at any time.'}
               </p>
             </div>
@@ -272,7 +275,7 @@ export function JobList() {
 
       <DataTableFooter {...jobsQuery} rowCount={jobsQuery.items.length} label="Job" />
       </DataTableFrame>
-      <JobModal job={selectedJob} open={isModalOpen} onClose={() => setIsModalOpen(false)} />
+      <JobModal job={selectedJob} open={isAdmin && isModalOpen} onClose={() => setIsModalOpen(false)} />
 
       <ConfirmDeleteModal
         open={!!jobToDeactivate}

@@ -1,3 +1,4 @@
+import { testToken } from '@/test/auth-token'
 import { afterEach, expect, it } from 'vitest'
 import { AxiosError } from 'axios'
 import { apiClient } from '@/lib/api-client'
@@ -219,7 +220,7 @@ it('allows only header fields for incoming creation even when a legacy caller su
 it.each(creations)(
   'sends the current $name DTO and returns authoritative server values',
   async ({ path, create, body }) => {
-    localStorage.setItem('erjv_access_token', 'test-bearer')
+    localStorage.setItem('erjv_access_token', testToken())
     const serverRecord = {
       id: 91,
       status: 'DRAFT',
@@ -229,7 +230,7 @@ it.each(creations)(
       expect(config.method).toBe('post')
       expect(config.url).toBe(path)
       expect(JSON.parse(config.data)).toEqual(body)
-      expect(config.headers.Authorization).toBe('Bearer test-bearer')
+      expect(config.headers.Authorization).toBe(`Bearer ${localStorage.getItem('erjv_access_token')}`)
       return { config, status: 201, statusText: 'Created', headers: {}, data: serverRecord }
     }
     await expect(create()).resolves.toEqual(serverRecord)

@@ -30,6 +30,8 @@ export function useRefreshQuarantine() {
         'purchase-orders',
         'incoming-deliveries',
         'outgoing-deliveries',
+        'warehouse-transfers',
+        'financial-reports',
       ].map((key) => client.invalidateQueries({ queryKey: [key] }, { throwOnError: true })),
     )
 }
@@ -47,6 +49,8 @@ function refreshStockConditionQueries(client: QueryClient) {
       'purchase-orders',
       'incoming-deliveries',
       'outgoing-deliveries',
+      'warehouse-transfers',
+      'financial-reports',
     ].map((key) => client.invalidateQueries({ queryKey: [key] })),
   )
 }

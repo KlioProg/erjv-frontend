@@ -40,7 +40,8 @@ export type QuarantineLot = {
   id: number
   revision: number
   stockItemId: number
-  sourceKind: 'MANUAL' | 'INCOMING_DELIVERY' | 'OUTGOING_DELIVERY'
+  sourceKind: 'MANUAL' | 'INCOMING_DELIVERY' | 'OUTGOING_DELIVERY' | 'WAREHOUSE_TRANSFER'
+  warehouseTransferItemId?: number | null
   condition: QuarantineCondition
   reportedCondition: QuarantineCondition
   initialQuantity: string

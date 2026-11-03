@@ -80,6 +80,7 @@ const NAV_GROUPS: NavGroup[] = [
       { key: 'inventory', label: 'Inventory', icon: Boxes },
       { key: 'warehouses', label: 'Warehouses', icon: WarehouseIcon },
       { key: 'deliveries', label: 'Deliveries', icon: MapPinned },
+      { key: 'warehouse-transfers', label: 'Warehouse Transfers', icon: Truck },
       { key: 'fleet', label: 'Vehicles', icon: Truck },
     ],
   },

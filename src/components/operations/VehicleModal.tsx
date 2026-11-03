@@ -72,8 +72,8 @@ function VehicleFormContent({
   const [status, setStatus] = useState<VehicleOperationalStatus>(vehicle?.operationalStatus || 'SERVICEABLE')
   const capacityCents = parseStockCents(capacity)
   const capacityError =
-    capacity.trim() && (capacityCents === null || capacityCents > 999_999_999_999n)
-      ? 'Use a non-negative capacity with up to two decimals and 10 whole digits.'
+    capacity.trim() && (capacityCents === null || capacityCents <= 0n || capacityCents > 999_999_999_999n)
+      ? 'Use a positive capacity with up to two decimals and 10 whole digits.'
       : ''
   const [errorMsg, setErrorMsg] = useState('')
   const [deactivatedVehicleMatch, setDeactivatedVehicleMatch] = useState<DeliveryVehicle | null>(

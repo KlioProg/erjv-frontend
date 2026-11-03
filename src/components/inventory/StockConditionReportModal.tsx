@@ -1,4 +1,5 @@
 import { useRef, useState, type FormEvent } from 'react'
+import { decimalLimitError } from '@/lib/decimal-limits'
 import { toast } from 'sonner'
 import {
   Dialog,
@@ -110,7 +111,7 @@ export function StockConditionReportModal({
   const amount = parseStockCents(quantity)
   const quantityError = !quantity.trim()
     ? ''
-    : amount === null
+    : decimalLimitError(quantity, true) || (amount === null
       ? 'Enter a quantity with up to two decimals.'
       : amount <= 0n
         ? 'Quantity must be greater than zero.'
@@ -118,7 +119,7 @@ export function StockConditionReportModal({
           ? 'Available stock is unavailable.'
           : available !== null && amount > available
             ? 'Quantity cannot exceed available stock.'
-            : ''
+            : '')
   const valid =
     !!stock &&
     Number.isSafeInteger(stock.id) &&
@@ -126,6 +127,7 @@ export function StockConditionReportModal({
     ['DAMAGED', 'SPOILED'].includes(condition) &&
     amount !== null &&
     amount > 0n &&
+    !quantityError &&
     available !== null &&
     amount <= available &&
     !!reason.trim() &&
@@ -147,6 +149,7 @@ export function StockConditionReportModal({
         !['DAMAGED', 'SPOILED'].includes(condition) ||
         amount === null ||
         amount <= 0n ||
+        !!quantityError ||
         available === null ||
         amount > available
       )

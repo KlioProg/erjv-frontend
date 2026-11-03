@@ -1,3 +1,4 @@
+import { requireDecimalLimit } from '@/lib/decimal-limits'
 import { apiClient } from '@/lib/api-client'
 import { parseStockCents } from './stock-display'
 import type {
@@ -43,6 +44,7 @@ export async function fetchQuarantineLotsApi(
 export async function createManualQuarantineApi(
   payload: ManualQuarantinePayload,
 ): Promise<QuarantineLot> {
+  requireDecimalLimit(payload.quantity, 'Quantity', true)
   const quantity = parseStockCents(payload.quantity)
   if (quantity === null || quantity <= 0n || !payload.reason.trim())
     throw new Error(
@@ -93,6 +95,7 @@ export async function resolveQuarantineApi(
   payload: QuarantineResolutionPayload,
 ): Promise<QuarantineResolution> {
   validateRevision(payload)
+  requireDecimalLimit(payload.quantity, 'Quantity', true)
   const quantity = parseStockCents(payload.quantity)
   if (quantity === null || quantity <= 0n || !payload.reason.trim())
     throw Error('Enter a positive quantity with up to two decimals and a reason.')

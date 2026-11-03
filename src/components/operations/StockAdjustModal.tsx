@@ -15,6 +15,7 @@ import { getApiError, getErrorMessage, requireRevision } from '@/lib/api-client'
 import { formatStockCents, parseStockCents } from '@/features/logistics/stock-display'
 import { decimalString } from '@/features/logistics/purchase-pricing'
 import { useCursorLookup } from '@/lib/use-cursor-lookup'
+import { decimalLimitError } from '@/lib/decimal-limits'
 
 type Mode = 'increase' | 'decrease' | 'set'
 export type StockAdjustModalProps = {
@@ -51,6 +52,7 @@ function StockAdjustContent({ stockItem, inventoryItem, warehouseId, initialMode
   const adjust = useCreateStockAdjustment()
   const history = useCursorLookup<StockAdjustment>(`/stock-items/${current?.id}/adjustments`, {}, Boolean(current?.id))
   const quantity = parseStockCents(amount)
+  const quantityError = decimalLimitError(amount, mode !== 'set')
   const onHand = parseStockCents(current?.onHandQuantity)
   const projected = quantity === null || onHand === null ? null : mode === 'set' ? quantity : mode === 'increase' ? onHand + quantity : onHand - quantity
   const stale = Boolean(current && query.data && current.revision !== query.data.revision)
@@ -58,7 +60,7 @@ function StockAdjustContent({ stockItem, inventoryItem, warehouseId, initialMode
   const freeze = busy || Boolean(attempt)
   const unit = formatProductUnit(stockItem?.inventoryItem.unit ?? inventoryItem?.unit, 'units')
   const capture = () => { if (current && !reviewed) setReviewed(current) }
-  const invalid = quantity === null || (mode !== 'set' && quantity <= 0n) || !reason.trim() || projected === null || projected < 0n
+  const invalid = !!quantityError || quantity === null || !reason.trim() || projected === null || projected < 0n
   const submit = async (event: FormEvent) => {
     event.preventDefault()
     if (lock.current || busy || query.isPending || query.isError || !selectedWarehouseId || rejected) return
@@ -109,7 +111,7 @@ function StockAdjustContent({ stockItem, inventoryItem, warehouseId, initialMode
         <div className="grid grid-cols-3 gap-2" role="group" aria-label="Adjustment action">
           {([['increase', 'Increase (+)', PlusCircle], ['decrease', 'Decrease (-)', MinusCircle], ['set', 'Set Total (=)', SlidersHorizontal]] as const).map(([value, label, Icon]) => <Button key={value} type="button" variant={mode === value ? 'default' : 'outline'} disabled={freeze} aria-pressed={mode === value} onClick={() => { capture(); setMode(value) }}><Icon className="size-4" />{label}</Button>)}
         </div>
-        <div className="space-y-2"><Label htmlFor="stock-amount">Adjustment quantity ({unit})</Label><div className="relative"><Package className="absolute left-3 top-3 size-4 text-muted-foreground" /><Input id="stock-amount" className="pl-9" type="text" inputMode="decimal" value={amount} disabled={freeze} onChange={(event) => { capture(); setAmount(event.target.value) }} required /></div></div>
+        <div className="space-y-2"><Label htmlFor="stock-amount">Adjustment quantity ({unit})</Label><div className="relative"><Package className="absolute left-3 top-3 size-4 text-muted-foreground" /><Input id="stock-amount" className="pl-9" type="text" inputMode="decimal" value={amount} disabled={freeze} aria-invalid={!!quantityError} aria-describedby={quantityError ? 'stock-amount-error' : undefined} onChange={(event) => { capture(); setAmount(event.target.value) }} required /></div>{quantityError && <p id="stock-amount-error" className="text-xs text-destructive">{quantityError}</p>}</div>
         <div className="space-y-2"><Label htmlFor="stock-reason">Adjustment reason</Label><Input id="stock-reason" value={reason} disabled={freeze} onChange={(event) => { capture(); setReason(event.target.value) }} required /></div>
         <div className="flex justify-between rounded-lg border bg-muted/30 p-3 text-sm"><span>On hand: {formatStockCents(onHand)} {unit}</span><span>Projected: {projected !== null && projected >= 0n ? formatStockCents(projected) : '?'} {unit}</span></div>
         <p className="text-xs text-muted-foreground">In transit: {current.inTransitQuantity} {unit} ? Quarantined: {current.quarantinedQuantity} {unit}. Adjustments change on-hand stock; delivery and quarantine actions remain separate.</p>

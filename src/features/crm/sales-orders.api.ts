@@ -1,6 +1,6 @@
 import { fetchCursorList, fetchCursorPage } from '@/lib/cursor-pagination'
 import axios from 'axios'
-import { serializeLineDiscount } from '@/lib/order-line-pricing'
+import { serializeLineDiscount, validateOrderLine } from '@/lib/order-line-pricing'
 import { apiClient, requireRevision } from '@/lib/api-client'
 import type {
   CreateSalesOrderPayload,
@@ -34,6 +34,7 @@ export async function fetchSalesOrderByNumberApi(
 export async function createSalesOrderApi(
   payload: CreateSalesOrderPayload,
 ): Promise<SalesOrderRecord> {
+  payload.items?.forEach(validateOrderLine)
   const cleanPayload = {
     clientId: payload.clientId,
     ...(payload.deliveryAddress?.trim() ? { deliveryAddress: payload.deliveryAddress.trim() } : {}),
@@ -75,6 +76,7 @@ export async function updateSalesOrderDraftApi(
 ): Promise<SalesOrderRecord> {
   if (!Number.isInteger(payload.expectedRevision) || payload.expectedRevision < 1)
     throw new Error('A valid saved revision is required. Reload this draft.')
+  payload.items?.forEach(validateOrderLine)
   const cleanPayload = {
     expectedRevision: payload.expectedRevision,
     ...(payload.clientId !== undefined ? { clientId: payload.clientId } : {}),
