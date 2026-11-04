@@ -46,9 +46,12 @@ function ClientFormContent({ client, onClose }: { client: Client | null; onClose
   const [errorMsg, setErrorMsg] = useState('')
   const [errorField, setErrorField] = useState<'name' | 'address' | 'email' | 'phone' | null>(null)
   const [deactivatedClientMatch, setDeactivatedClientMatch] = useState<Client | null>(null)
+  const submitting = useRef(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
+    if (submitting.current) return
     setErrorMsg('')
     setErrorField(null)
     setDeactivatedClientMatch(null)
@@ -66,87 +69,94 @@ function ClientFormContent({ client, onClose }: { client: Client | null; onClose
       return
     }
 
-    if (!isEditing) {
-      let backendMatches: Client[]
-      try {
-        backendMatches = await searchClientsByNameApi(cleanName)
-      } catch (err) {
-        setErrorMsg(getErrorMessage(err))
-        return
-      }
-
-      const backendInactive = backendMatches.find(
-        (c) => c.name.toUpperCase().trim() === cleanName.toUpperCase() && c.isActive === false,
-      )
-
-      if (backendInactive) {
-        setDeactivatedClientMatch(backendInactive)
-        setErrorMsg(
-          `Customer account "${cleanName}" is currently deactivated. You can reactivate it directly.`,
-        )
-        return
-      }
-
-      // 2. Check if active duplicate exists
-      const isNameDup = allClients.some(
-        (c) => c.name.toLowerCase().trim() === cleanName.toLowerCase() && c.isActive !== false,
-      )
-      const backendActive = backendMatches.find(
-        (c) => c.name.toUpperCase().trim() === cleanName.toUpperCase() && c.isActive !== false,
-      )
-      if (isNameDup || backendActive) {
-        setErrorField('name')
-        setErrorMsg(`A customer account with the name "${cleanName}" is already registered.`)
-        return
-      }
-    }
-
-    const cleanEmail = email.trim().toLowerCase()
-    if (cleanEmail) {
-      const isEmailDup = allClients.some(
-        (c) => c.id !== client?.id && c.email?.toLowerCase().trim() === cleanEmail,
-      )
-      if (isEmailDup) {
-        setErrorField('email')
-        setErrorMsg(`A customer with email "${cleanEmail}" already exists.`)
-        return
-      }
-    }
-
-    const phoneError = validatePhilippinePhone(phone, 'Phone number')
-    if (phoneError) {
-      setErrorField('phone')
-      setErrorMsg(phoneError)
-      return
-    }
-
+    submitting.current = true
+    setIsSubmitting(true)
     try {
-      const cleanPhone = sanitizePhilippinePhone(phone) || null
+      if (!isEditing) {
+        let backendMatches: Client[]
+        try {
+          backendMatches = await searchClientsByNameApi(cleanName)
+        } catch (err) {
+          setErrorMsg(getErrorMessage(err))
+          return
+        }
 
-      if (isEditing && client) {
-        await updateMutation.mutateAsync({
-          id: client.id,
-          payload: {
+        const backendInactive = backendMatches.find(
+          (c) => c.name.toUpperCase().trim() === cleanName.toUpperCase() && c.isActive === false,
+        )
+
+        if (backendInactive) {
+          setDeactivatedClientMatch(backendInactive)
+          setErrorMsg(
+            `Customer account "${cleanName}" is currently deactivated. You can reactivate it directly.`,
+          )
+          return
+        }
+
+        // 2. Check if active duplicate exists
+        const isNameDup = allClients.some(
+          (c) => c.name.toLowerCase().trim() === cleanName.toLowerCase() && c.isActive !== false,
+        )
+        const backendActive = backendMatches.find(
+          (c) => c.name.toUpperCase().trim() === cleanName.toUpperCase() && c.isActive !== false,
+        )
+        if (isNameDup || backendActive) {
+          setErrorField('name')
+          setErrorMsg(`A customer account with the name "${cleanName}" is already registered.`)
+          return
+        }
+      }
+
+      const cleanEmail = email.trim().toLowerCase()
+      if (cleanEmail) {
+        const isEmailDup = allClients.some(
+          (c) => c.id !== client?.id && c.email?.toLowerCase().trim() === cleanEmail,
+        )
+        if (isEmailDup) {
+          setErrorField('email')
+          setErrorMsg(`A customer with email "${cleanEmail}" already exists.`)
+          return
+        }
+      }
+
+      const phoneError = validatePhilippinePhone(phone, 'Phone number')
+      if (phoneError) {
+        setErrorField('phone')
+        setErrorMsg(phoneError)
+        return
+      }
+
+      try {
+        const cleanPhone = sanitizePhilippinePhone(phone) || null
+
+        if (isEditing && client) {
+          await updateMutation.mutateAsync({
+            id: client.id,
+            payload: {
+              name: name.trim(),
+              contactPerson: contactPerson.trim() || null,
+              phone: cleanPhone,
+              email: email.trim() || null,
+              address: address.trim(),
+            },
+          })
+        } else {
+          await createMutation.mutateAsync({
             name: name.trim(),
             contactPerson: contactPerson.trim() || null,
             phone: cleanPhone,
             email: email.trim() || null,
             address: address.trim(),
-          },
-        })
-      } else {
-        await createMutation.mutateAsync({
-          name: name.trim(),
-          contactPerson: contactPerson.trim() || null,
-          phone: cleanPhone,
-          email: email.trim() || null,
-          address: address.trim(),
-          isActive: true,
-        })
+            isActive: true,
+          })
+        }
+        onClose()
+      } catch (err) {
+        setErrorMsg(getErrorMessage(err))
       }
-      onClose()
-    } catch (err) {
-      setErrorMsg(getErrorMessage(err))
+    } finally {
+      submitting.current = false
+      setIsSubmitting(false)
     }
   }
 
@@ -162,7 +172,10 @@ function ClientFormContent({ client, onClose }: { client: Client | null; onClose
   }
 
   const isPending =
-    createMutation.isPending || updateMutation.isPending || reactivateMutation.isPending
+    isSubmitting ||
+    createMutation.isPending ||
+    updateMutation.isPending ||
+    reactivateMutation.isPending
 
   return (
     <>

@@ -1,4 +1,4 @@
-import { Badge } from '@/components/ui/badge'
+import { StatusBadge } from '@/components/ui/StatusBadge'
 import { DeliveryUtils } from '@/features/logistics/delivery-utils'
 import type { OutgoingDeliveryStatus } from '@/features/logistics/outgoing-deliveries.types'
 import { outgoingStatusLabel } from '@/features/logistics/delivery-workflow'
@@ -19,13 +19,13 @@ export function DeliveryStatusBadge({
   const config = DeliveryUtils.getStatusConfig(status)
 
   return (
-    <Badge
-      variant="outline"
-      className={`text-xs font-medium px-2 py-0.5 rounded-md inline-flex items-center gap-2 ${config.badgeClass} ${className}`}
+    <StatusBadge
+      label={outgoingStatusLabel(status, runId)}
+      appearance="emphasis"
+      showDot={showDot}
+      className={className}
+      tone={status === 'DRAFT' ? 'neutral' : status === 'READY' ? 'info' : status === 'DISPATCHED' ? 'warning' : status === 'RECONCILED' ? 'success' : 'destructive'}
       title={status === 'READY' && runId != null ? 'Assigned to a delivery run' : config.description}
-    >
-      {showDot && <span className={`size-1.5 rounded-full shrink-0 ${config.dotClass}`} />}
-      <span>{outgoingStatusLabel(status, runId)}</span>
-    </Badge>
+    />
   )
 }

@@ -25,6 +25,10 @@ export function validateTransfer(data: WarehouseTransfer): WarehouseTransfer {
       (typeof data.scheduledDepartureAt === 'string' &&
         Number.isFinite(Date.parse(data.scheduledDepartureAt)))
     ) ||
+    ['dispatchedAt', 'reconciledAt'].some((field) => {
+      const value = data[field as 'dispatchedAt' | 'reconciledAt']
+      return value != null && (typeof value !== 'string' || !Number.isFinite(Date.parse(value)))
+    }) ||
     !Array.isArray(data.items) ||
     !data.items.length ||
     data.items.length > 100 ||

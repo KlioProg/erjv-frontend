@@ -5,7 +5,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useSearchParams } from 'react-router'
 import { toast } from 'sonner'
 import { useRecordsById } from '@/lib/use-records-by-id'
-import { RUN_STATUS_LABELS, outgoingStatusLabel } from '@/features/logistics/delivery-workflow'
+import { RUN_STATUS_LABELS } from '@/features/logistics/delivery-workflow'
 import type { OutgoingDeliveryRecord } from '@/features/logistics/outgoing-deliveries.types'
 import { AssignDeliveryToRun } from './AssignDeliveryToRun'
 import { useAuth } from '@/features/auth/AuthContext'
@@ -14,7 +14,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
-import { Badge } from '@/components/ui/badge'
+import { StatusBadge } from '@/components/ui/StatusBadge'
+import { DeliveryStatusBadge } from './shared/DeliveryStatusBadge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   Dialog,
@@ -55,6 +56,16 @@ import { DispatchDeliveryModal } from './shared/DispatchDeliveryModal'
 import { CompleteDeliveryModal } from './shared/CompleteDeliveryModal'
 
 const statuses: DeliveryRunStatus[] = ['DRAFT', 'DISPATCHED', 'COMPLETED', 'CANCELLED']
+
+function RunStatusBadge({ status }: { status: DeliveryRunStatus }) {
+  return (
+    <StatusBadge
+      label={RUN_STATUS_LABELS[status]}
+      appearance="emphasis"
+      tone={status === 'COMPLETED' ? 'success' : status === 'DISPATCHED' ? 'warning' : status === 'CANCELLED' ? 'destructive' : 'info'}
+    />
+  )
+}
 type NamedRecord = { id: number; name: string }
 type DriverRecord = {
   id: number
@@ -347,7 +358,7 @@ export function DeliveryRunsHub() {
     {
       header: filterHeaders.status,
       accessorKey: 'status',
-      cell: ({ row }) => <Badge variant="outline">{RUN_STATUS_LABELS[row.status]}</Badge>,
+      cell: ({ row }) => <RunStatusBadge status={row.status} />,
     },
     {
       id: 'next',
@@ -793,7 +804,7 @@ function RunDetails({ id, onClose }: { id: number; onClose: () => void }) {
     {
       header: 'Status',
       accessorKey: 'status',
-      cell: ({ row }) => outgoingStatusLabel(row.status, run?.id),
+      cell: ({ row }) => <DeliveryStatusBadge status={row.status} runId={run?.id} />,
     },
     { id: 'order', header: 'Sales order', cell: ({ row }) => `#${row.salesOrderId}` },
     {
@@ -872,7 +883,7 @@ function RunDetails({ id, onClose }: { id: number; onClose: () => void }) {
                 <div>
                   <dt>Status</dt>
                   <dd>
-                    <Badge variant="outline">{RUN_STATUS_LABELS[run.status]}</Badge>
+                    <RunStatusBadge status={run.status} />
                   </dd>
                 </div>
                 <div>

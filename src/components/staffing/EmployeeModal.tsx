@@ -1,5 +1,5 @@
 import { useAuth } from '@/features/auth/AuthContext'
-import { useState, type FormEvent } from 'react'
+import { useRef, useState, type FormEvent } from 'react'
 import { Calendar, Mail, Phone, MapPin, User as UserIcon, RotateCcw } from 'lucide-react'
 import {
   Dialog,
@@ -59,17 +59,18 @@ function EmployeeFormContent({
   const [hireDate, setHireDate] = useState(
     employee?.hireDate
       ? new Date(employee.hireDate).toISOString().split('T')[0]
-      : new Date().toISOString().split('T')[0],
+      : new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' }),
   )
   const [selectedUserId, setSelectedUserId] = useState<string>(
     employee?.userId ? String(employee.userId) : 'none',
   )
   const [errorMsg, setErrorMsg] = useState('')
   const [deactivatedEmployeeMatch, setDeactivatedEmployeeMatch] = useState<Employee | null>(null)
+  const submitting = useRef(false)
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
-    if (isPending) return
+    if (isPending || submitting.current) return
     setErrorMsg('')
     setDeactivatedEmployeeMatch(null)
 
@@ -97,6 +98,7 @@ function EmployeeFormContent({
     // - just let the DB check the email constraint (or remove the email entirely in favor of user linking)
     // - do not make firstname/lastname unique. people can absolutely have the same first and last name.
 
+    submitting.current = true
     try {
       const parsedHireDate = new Date(hireDate).toISOString()
       const userId = selectedUserId !== 'none' ? Number(selectedUserId) : null
@@ -135,6 +137,8 @@ function EmployeeFormContent({
       onClose()
     } catch (err) {
       setErrorMsg(getErrorMessage(err))
+    } finally {
+      submitting.current = false
     }
   }
 

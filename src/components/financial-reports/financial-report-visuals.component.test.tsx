@@ -7,7 +7,7 @@ import { FinancialReportsPage } from './FinancialReportsPage'
 import { apiClient } from '@/lib/api-client'
 import cases from '@/features/financial-reports/report-test-fixtures.json'
 import type { ReportKind, ReportResult } from '@/features/financial-reports/financial-reports.types'
-import { ReportItemCharts } from './ReportCharts'
+import { ReportItemCharts, ReportLineChart } from './ReportCharts'
 import { ReportCalendar } from './ReportCalendar'
 
 const auth = vi.hoisted(() => ({ user: { id: 1 }, isAdmin: true, isManager: false }))
@@ -15,6 +15,24 @@ vi.mock('@/features/auth/AuthContext', () => ({ useAuth: () => auth }))
 const failures = new Set<string>()
 let paginateItems = false
 const original = apiClient.defaults.adapter
+
+it('explains the metric line patterns without changing chart values or bridging gaps', () => {
+  const base = structuredClone(cases.find((entry) => entry.id === 'profit-partial-coverage')!.body) as ReportResult
+  base.rows = [{ ...base.totals, key: '2026-11-01', totalAmount: '125.00' }, { ...base.totals, key: '2026-11-03', totalAmount: '150.00' }]
+  const original = structuredClone(base)
+  render(<ReportLineChart selected={['sales', 'purchases', 'gross-profit-estimate']} reports={{ sales: base, purchases: base, 'gross-profit-estimate': base }} period="monthly" />)
+  const legend = screen.getByRole('list', { name: 'Chart series' })
+  const chart = screen.getByRole('img', { name: 'Financial trends in pesos' })
+  expect(chart.getAttribute('aria-describedby')).toContain(legend.id)
+  expect(chart.getAttribute('viewBox')).toMatch(/^0 0 \d+ 220$/)
+  expect(legend.textContent).toContain('Sales')
+  expect(legend.textContent).toContain('Purchases')
+  expect(legend.textContent).toContain('Estimated gross profit')
+  for (const series of ['sales', 'purchases', 'gross-profit-estimate'])
+    expect(document.querySelector(`path[data-series="${series}"]`)?.hasAttribute('stroke-dasharray')).toBe(false)
+  expect(document.querySelector('path[data-series="sales"]')?.getAttribute('d')?.match(/M/g)).toHaveLength(2)
+  expect(base).toEqual(original)
+})
 afterEach(() => {
   apiClient.defaults.adapter = original
   auth.isAdmin = true

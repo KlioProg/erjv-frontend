@@ -87,3 +87,18 @@ it('uses distinct sales and reporting icons without changing their routes', () =
   for (const link of sales)
     expect(link.querySelector('svg')?.classList.contains('lucide-receipt-text')).toBe(true)
 })
+
+it('reserves expansion chevrons for the expandable delivery navigation', async () => {
+  render(<QueryClientProvider client={new QueryClient()}><MemoryRouter initialEntries={['/customers']}>
+    <DashboardLayout currentScreen="clients" onNavigate={vi.fn()} onOpenInventory={vi.fn()}><h1>Customers</h1></DashboardLayout>
+  </MemoryRouter></QueryClientProvider>)
+  for (const link of screen.getAllByRole('link', { name: 'Customers' })) {
+    expect(link.getAttribute('aria-current')).toBe('page')
+    expect(link.querySelector('.lucide-chevron-right')).toBeNull()
+  }
+  const delivery = screen.getByRole('button', { name: 'Deliveries' })
+  expect(delivery.getAttribute('aria-expanded')).toBe('false')
+  await userEvent.click(delivery)
+  expect(delivery.getAttribute('aria-expanded')).toBe('true')
+  expect(screen.getByRole('link', { name: 'Incoming' }).getAttribute('href')).toBe('/deliveries/incoming')
+})

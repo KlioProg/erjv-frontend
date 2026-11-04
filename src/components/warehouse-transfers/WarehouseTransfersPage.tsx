@@ -34,6 +34,15 @@ import { TransferActionForm, TransferDraftForm } from './TransferForms'
 type Warehouse = { id: number; name: string; isActive: boolean }
 const statusLabel = (status: TransferStatus) =>
   transferStatuses.find((item) => item.value === status)?.label ?? status
+function TransferStatusBadge({ status }: { status: TransferStatus }) {
+  return (
+    <StatusBadge
+      label={statusLabel(status)}
+      appearance="emphasis"
+      tone={status === 'COMPLETED' ? 'success' : status === 'DISPATCHED' ? 'warning' : status === 'CANCELLED' ? 'destructive' : 'neutral'}
+    />
+  )
+}
 const transferTime = (value: string | null) =>
   value ? new Date(value).toLocaleString('en-PH', { timeZone: 'Asia/Manila' }) : 'Not scheduled'
 
@@ -73,21 +82,30 @@ export function WarehouseTransfersPage() {
     },
     { header: 'Source Warehouse', cell: ({ row }) => name(row.sourceWarehouseId) },
     { header: 'Destination Warehouse', cell: ({ row }) => name(row.destinationWarehouseId) },
-    { header: 'Scheduled Departure', cell: ({ row }) => transferTime(row.scheduledDepartureAt) },
+    {
+      header: 'Departure',
+      cell: ({ row }) => (
+        <div className="flex flex-col gap-1 text-sm">
+          <span>
+            <span className="text-xs text-muted-foreground">Scheduled: </span>
+            {transferTime(row.scheduledDepartureAt)}
+          </span>
+          {(row.dispatchedAt || row.status === 'DISPATCHED' || row.status === 'COMPLETED') && (
+            <span>
+              <span className="text-xs text-muted-foreground">Actual: </span>
+              {row.dispatchedAt ? (
+                <time dateTime={row.dispatchedAt}>{transferTime(row.dispatchedAt)}</time>
+              ) : (
+                'Not recorded'
+              )}
+            </span>
+          )}
+        </div>
+      ),
+    },
     {
       header: 'Status',
-      cell: ({ row }) => (
-        <StatusBadge
-          label={statusLabel(row.status)}
-          tone={
-            row.status === 'COMPLETED'
-              ? 'success'
-              : row.status === 'DISPATCHED'
-                ? 'info'
-                : 'neutral'
-          }
-        />
-      ),
+      cell: ({ row }) => <TransferStatusBadge status={row.status} />,
     },
     {
       header: 'Next Action',
@@ -359,11 +377,25 @@ function TransferDialog({
                 </div>
                 <div>
                   <dt className="text-muted-foreground">Status</dt>
-                  <dd>{statusLabel(record.status)}</dd>
+                  <dd>
+                    <TransferStatusBadge status={record.status} />
+                  </dd>
                 </div>
                 <div>
                   <dt className="text-muted-foreground">Scheduled Departure</dt>
                   <dd>{transferTime(record.scheduledDepartureAt)}</dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Actual Departure</dt>
+                  <dd>
+                    {record.dispatchedAt ? <time dateTime={record.dispatchedAt}>{transferTime(record.dispatchedAt)}</time> : 'Not recorded'}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Completion Time</dt>
+                  <dd>
+                    {record.reconciledAt ? <time dateTime={record.reconciledAt}>{transferTime(record.reconciledAt)}</time> : 'Not recorded'}
+                  </dd>
                 </div>
               </dl>
               {record.notes && <p className="break-words text-sm">{record.notes}</p>}

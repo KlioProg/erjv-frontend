@@ -10,6 +10,10 @@ import type {
   VehicleOperationalStatus,
 } from './delivery-vehicles.types'
 
+export function normalizeVehiclePlateNumber(plateNumber: string): string {
+  return plateNumber.trim().toUpperCase()
+}
+
 export async function fetchDeliveryVehiclesApi(params?: FetchParams): Promise<DeliveryVehicle[]> {
   return fetchCursorList<DeliveryVehicle>('/delivery-vehicles', params)
 }
@@ -27,7 +31,7 @@ export async function fetchVehicleByPlateNumberApi(
   plateNumber: string,
 ): Promise<DeliveryVehicle | null> {
   const { data } = await apiClient.get<DeliveryVehicle>(
-    `/delivery-vehicles/plate-number/${encodeURIComponent(plateNumber.trim())}`,
+    `/delivery-vehicles/plate-number/${encodeURIComponent(normalizeVehiclePlateNumber(plateNumber))}`,
   )
   return data
 }
@@ -46,7 +50,7 @@ export async function createVehicleApi(
 ): Promise<DeliveryVehicle> {
   const parsedCap = vehicleCapacity(payload.capacityKg)
   const cleanPayload: Record<string, unknown> = {
-    plateNumber: payload.plateNumber.trim().toUpperCase(),
+    plateNumber: normalizeVehiclePlateNumber(payload.plateNumber),
     vehicleType: payload.vehicleType.trim(),
     ...(payload.model?.trim() ? { model: payload.model.trim() } : {}),
     ...(parsedCap !== null ? { capacityKg: parsedCap } : {}),
@@ -64,7 +68,9 @@ export async function updateVehicleDetailsApi(
 ): Promise<DeliveryVehicle> {
   const parsedCap = vehicleCapacity(payload.capacityKg)
   const cleanPayload: Record<string, unknown> = {
-    ...(payload.plateNumber ? { plateNumber: payload.plateNumber.trim().toUpperCase() } : {}),
+    ...(payload.plateNumber
+      ? { plateNumber: normalizeVehiclePlateNumber(payload.plateNumber) }
+      : {}),
     ...(payload.vehicleType ? { vehicleType: payload.vehicleType.trim() } : {}),
     ...(payload.model !== undefined ? { model: payload.model?.trim() || null } : {}),
     ...(payload.capacityKg === null ? { capacityKg: null } : {}),

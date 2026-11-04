@@ -1,7 +1,7 @@
 import { passwordError } from '@/features/auth/session'
 import { CursorLookup } from '@/components/ui/CursorLookup'
 import type { Employee } from '@/features/staffing/staffing.types'
-import { useState, type FormEvent } from 'react'
+import { useRef, useState, type FormEvent } from 'react'
 import { UserPlus, Mail, Lock, Eye, EyeOff, Shield } from 'lucide-react'
 import {
   Dialog,
@@ -67,6 +67,7 @@ export function RegisterUserModal({ open, onClose }: RegisterUserModalProps) {
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
+  const submitting = useRef(false)
 
   const selectedRole = registrationRoles.find((option) => option.value === role)
 
@@ -85,6 +86,7 @@ export function RegisterUserModal({ open, onClose }: RegisterUserModalProps) {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
+    if (submitting.current || registerMutation.isPending) return
     setErrorMsg('')
 
     const cleanEmail = email.trim().toLowerCase()
@@ -125,6 +127,7 @@ export function RegisterUserModal({ open, onClose }: RegisterUserModalProps) {
       return
     }
 
+    submitting.current = true
     try {
       await registerMutation.mutateAsync({
         email: cleanEmail,
@@ -136,6 +139,8 @@ export function RegisterUserModal({ open, onClose }: RegisterUserModalProps) {
       handleClose()
     } catch (err: unknown) {
       setErrorMsg(getErrorMessage(err))
+    } finally {
+      submitting.current = false
     }
   }
 

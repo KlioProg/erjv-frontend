@@ -12,6 +12,7 @@ import type {
   WarehouseTransfer,
 } from '@/features/warehouse-transfers/warehouse-transfers.types'
 import { useTransferWrite } from '@/features/warehouse-transfers/warehouse-transfers.hooks'
+import { validateTransfer } from '@/features/warehouse-transfers/warehouse-transfers.api'
 import { renderHook } from '@testing-library/react'
 
 const auth = vi.hoisted(() => ({ isAdmin: true, isManager: false, isStaff: false }))
@@ -128,6 +129,39 @@ async function open() {
   await waitFor(() => expect(screen.queryByText('Loading transfer…')).toBeNull())
 }
 const writes = () => requests.filter((item) => item.method === 'post' || item.method === 'patch')
+
+it('rejects malformed actual transfer event timestamps instead of displaying an invalid date', () => {
+  expect(() => validateTransfer(Object.assign(transferFixture(), { dispatchedAt: 'invalid' }))).toThrow(/incomplete transfer/)
+})
+
+it.each(['DRAFT', 'DISPATCHED', 'COMPLETED'] as const)('keeps the optional schedule distinct from actual events for %s', async (status) => {
+  const dispatchedAt = status === 'DRAFT' ? null : '2026-11-04T01:00:00Z'
+  const reconciledAt = status === 'COMPLETED' ? '2026-11-04T03:00:00Z' : null
+  Object.assign(record, { status, dispatchedAt, reconciledAt })
+  if (status === 'COMPLETED') record.items = record.items.map((item) => ({ ...item, receivedQuantity: '10.00', damagedQuantity: '0.00', returnedSellableQuantity: '0.00', returnedDamagedQuantity: '0.00', missingQuantity: '0.00' }))
+  const client = mount()
+  await screen.findByText('WT-000007')
+  const transferRow = screen.getByText('WT-000007').closest('tr')!
+  expect(transferRow.textContent).toContain('Scheduled: Not scheduled')
+  if (dispatchedAt) {
+    expect(transferRow.textContent).toContain('Actual:')
+    expect(transferRow.querySelector('time')?.getAttribute('datetime')).toBe(dispatchedAt)
+  } else {
+    expect(transferRow.textContent).not.toContain('Actual:')
+  }
+  await userEvent.click(screen.getByRole('button', { name: status === 'DRAFT' ? 'Review / Dispatch' : status === 'DISPATCHED' ? 'Reconcile Transfer' : 'View Details' }))
+  const dialog = await screen.findByRole('dialog')
+  await waitFor(() => expect(within(dialog).queryByText('Loading transfer…')).toBeNull())
+  const scheduled = within(dialog).getByText('Scheduled Departure').parentElement!
+  expect(scheduled.textContent).toContain('Not scheduled')
+  const actual = within(dialog).getByText('Actual Departure').parentElement!
+  const completion = within(dialog).getByText('Completion Time').parentElement!
+  expect(actual.querySelector('time')?.getAttribute('dateTime') ?? null).toBe(dispatchedAt)
+  expect(completion.querySelector('time')?.getAttribute('dateTime') ?? null).toBe(reconciledAt)
+  if (!dispatchedAt) expect(actual.textContent).toContain('Not recorded')
+  expect(writes()).toHaveLength(0)
+  client.clear()
+})
 
 it('supports manager draft creation with distinct warehouses and no stock requests', async () => {
   auth.isAdmin = false

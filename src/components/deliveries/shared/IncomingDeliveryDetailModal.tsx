@@ -1,6 +1,6 @@
 import { formatProductUnit } from '@/lib/product-unit'
 import { DataTable } from '@/components/ui/data-table'
-import { Badge } from '@/components/ui/badge'
+import { StatusBadge } from '@/components/ui/StatusBadge'
 import {
   Dialog,
   DialogContent,
@@ -21,18 +21,17 @@ export function IncomingDeliveryStatusBadge({
   status: IncomingDeliveryRecord['status']
 }) {
   return (
-    <Badge
-      variant="outline"
-      className={
+    <StatusBadge
+      label={DELIVERY_STATUS_LABELS[status]}
+      appearance="emphasis"
+      tone={
         status === 'COMPLETED'
-          ? 'bg-status-success text-status-success-foreground border-status-success-foreground/30'
+          ? 'success'
           : status === 'CANCELLED'
-            ? 'bg-destructive/10 text-destructive'
-            : 'bg-muted/50'
+            ? 'destructive'
+            : status === 'SCHEDULED' ? 'info' : 'neutral'
       }
-    >
-      {DELIVERY_STATUS_LABELS[status]}
-    </Badge>
+    />
   )
 }
 

@@ -7,6 +7,8 @@ import { VehicleModal } from './VehicleModal'
 import type { DeliveryVehicle } from '@/features/logistics/delivery-vehicles.types'
 import { AxiosError, getAdapter } from 'axios'
 import { updateVehicleDetailsApi } from '@/features/logistics/delivery-vehicles.api'
+import { useCreateVehicle } from '@/features/logistics/delivery-vehicles.hooks'
+import { useResourcePage } from '@/lib/use-cursor-page'
 
 const originalAdapter = apiClient.defaults.adapter
 
@@ -29,14 +31,19 @@ it('preserves explicit null when clearing vehicle capacity', async () => {
 })
 let saved: DeliveryVehicle | null
 let writes: { method: string; data: Record<string, unknown> }[]
+let plateLookups: string[]
 
 beforeEach(() => {
   saved = null
   writes = []
+  plateLookups = []
   // Exercise the real hooks and API serializers against a test-only transport.
   apiClient.defaults.adapter = async (config) => {
     let data: unknown
-    if (config.url?.includes('/plate-number/')) data = null
+    if (config.url?.includes('/plate-number/')) {
+      plateLookups.push(config.url)
+      data = null
+    }
     else if (config.method === 'post' || config.method === 'patch') {
       const payload = JSON.parse(config.data)
       writes.push({ method: config.method, data: payload })
@@ -74,6 +81,67 @@ function mount(vehicle: DeliveryVehicle | null, onClose = vi.fn()) {
   }
 }
 
+function VehicleListProbe() {
+  const vehicles = useResourcePage<DeliveryVehicle>('/delivery-vehicles', {
+    includeInactive: 'false',
+  })
+  const create = useCreateVehicle()
+  return (
+    <>
+      <output aria-label="Vehicle list count">{vehicles.items.length}</output>
+      <button
+        type="button"
+        onClick={() =>
+          create.mutate({ plateNumber: 'ABC-1234', vehicleType: 'Delivery Van' })
+        }
+      >
+        Create vehicle
+      </button>
+    </>
+  )
+}
+
+it('refreshes the cursor-paged vehicle list after a successful creation', async () => {
+  const created: DeliveryVehicle = {
+    id: 1,
+    plateNumber: 'ABC-1234',
+    vehicleType: 'Delivery Van',
+    model: null,
+    capacityKg: null,
+    operationalStatus: 'SERVICEABLE',
+    isAvailable: true,
+    isActive: true,
+    createdAt: '',
+    updatedAt: '',
+  }
+  let listReads = 0
+  apiClient.defaults.adapter = async (config) => {
+    let data: unknown = null
+    if (config.url === '/delivery-vehicles' && config.method === 'get') {
+      listReads += 1
+      data = { items: listReads > 1 ? [created] : [], nextCursor: null }
+    } else if (config.method === 'post') {
+      data = created
+    }
+    return { data, status: 200, statusText: 'OK', headers: {}, config }
+  }
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  })
+  render(
+    <QueryClientProvider client={client}>
+      <VehicleListProbe />
+    </QueryClientProvider>,
+  )
+
+  await waitFor(() => expect(screen.getByLabelText('Vehicle list count').textContent).toBe('0'))
+  await userEvent.click(screen.getByRole('button', { name: 'Create vehicle' }))
+  await waitFor(() => expect(screen.getByLabelText('Vehicle list count').textContent).toBe('1'))
+
+  expect(listReads).toBe(2)
+  client.clear()
+})
+
 it('preserves all predefined types and submits a predefined selection through the existing API', async () => {
   const user = userEvent.setup()
   const view = mount(null)
@@ -98,6 +166,7 @@ it('preserves all predefined types and submits a predefined selection through th
 it('submits a normalized custom type, displays it when editing, and saves a replacement', async () => {
   const user = userEvent.setup()
   const view = mount(null)
+  expect(screen.getByText('Choose a type, or enter a new name and select Use.')).toBeTruthy()
   await user.type(screen.getByLabelText(/Plate Number/), 'NEW-1234')
   await user.click(screen.getByRole('button', { name: 'Vehicle Type' }))
   await user.type(screen.getByRole('searchbox'), '  Refrigerated   Truck  ')
@@ -139,6 +208,17 @@ function plateLookupFailure(status: number, code?: string) {
     return base(config)
   }
 }
+
+it.each([' abc-123 ', ' abc 1234 ', ' 123abc '])('preserves plate variant %s while normalizing case and surrounding spaces', async (plate) => {
+  const view = mount(null)
+  fireEvent.change(screen.getByLabelText(/Plate Number/), { target: { value: plate } })
+  await userEvent.click(screen.getByRole('button', { name: 'Add Vehicle' }))
+  await waitFor(() => expect(view.onClose).toHaveBeenCalledOnce())
+  expect(writes[0].data.plateNumber).toBe(plate.trim().toUpperCase())
+  expect(decodeURIComponent(plateLookups[0])).toContain(
+    `/plate-number/${plate.trim().toUpperCase()}`,
+  )
+})
 
 it('creates a new vehicle when the backend explicitly reports that its plate does not exist', async () => {
   plateLookupFailure(404, 'RESOURCE_NOT_FOUND')

@@ -7,6 +7,7 @@ import {
   fetchDeliveryVehiclesApi,
   fetchVehicleByIdApi,
   fetchVehicleByPlateNumberApi,
+  normalizeVehiclePlateNumber,
   reactivateVehicleApi,
   updateVehicleDetailsApi,
   updateVehicleStatusApi,
@@ -48,13 +49,12 @@ export function useVehicleById(id?: number) {
 }
 
 export function useVehicleByPlateNumber(plateNumber?: string) {
+  const normalizedPlate = normalizeVehiclePlateNumber(plateNumber ?? '')
   return useQuery({
-    queryKey: [...VEHICLES_QUERY_KEY, 'plate', plateNumber?.trim().toUpperCase() || ''],
+    queryKey: [...VEHICLES_QUERY_KEY, 'plate', normalizedPlate],
     queryFn: () =>
-      plateNumber?.trim()
-        ? fetchVehicleByPlateNumberApi(plateNumber.trim().toUpperCase())
-        : Promise.resolve(null),
-    enabled: Boolean(plateNumber && plateNumber.trim().length > 0),
+      normalizedPlate ? fetchVehicleByPlateNumberApi(normalizedPlate) : Promise.resolve(null),
+    enabled: Boolean(normalizedPlate),
   })
 }
 

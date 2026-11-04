@@ -34,6 +34,8 @@ export type WarehouseTransfer = {
   sourceWarehouseId: number
   destinationWarehouseId: number
   scheduledDepartureAt: string | null
+  dispatchedAt?: string | null
+  reconciledAt?: string | null
   notes: string | null
   items: TransferItem[]
 }

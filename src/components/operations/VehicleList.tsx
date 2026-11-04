@@ -133,7 +133,7 @@ export function VehicleList() {
       header: 'Plate Number',
       accessorFn: (row) => row.vehicle.plateNumber,
       sortable: false,
-      cell: ({ row }) => <span className="font-medium">{row.vehicle.plateNumber}</span>,
+      cell: ({ row }) => <span className="min-w-0 font-medium break-all">{row.vehicle.plateNumber}</span>,
     },
     {
       id: 'type',

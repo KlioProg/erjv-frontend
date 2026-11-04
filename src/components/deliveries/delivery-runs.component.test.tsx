@@ -69,6 +69,17 @@ function mount(selected: boolean | string = true) {
 }
 const writes = () => requests.filter((request) => request.method !== 'get')
 
+it('uses a warning badge for an in-transit run in both the list and detail view', async () => {
+  run.status = 'DISPATCHED'
+  const client = mount()
+  await screen.findByRole('dialog', { name: 'RUN-1' })
+  const statuses = screen.getAllByText('In Transit')
+  expect(statuses.length).toBeGreaterThanOrEqual(2)
+  for (const status of statuses)
+    expect(status.closest('[data-slot="badge"]')?.classList.contains('bg-status-warning')).toBe(true)
+  client.clear()
+})
+
 it('reviews an incoming assignment context and confirms membership without automatic writes', async () => {
   mount('?assign=8&keep=yes')
   const user = userEvent.setup()

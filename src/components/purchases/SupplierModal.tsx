@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useRef, useState, type FormEvent } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -13,6 +13,9 @@ import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import type { CreateSupplierPayload, Supplier } from '@/features/logistics/suppliers.types'
 import { getErrorMessage } from '@/lib/api-client'
+import { sanitizePhilippinePhone, validatePhilippinePhone } from '@/lib/phone-utils'
+
+const contactDigits = (value: string) => value.replace(/\D/g, '').replace(/^63(?=9)/, '0')
 
 type SupplierModalProps = {
   open: boolean
@@ -36,33 +39,54 @@ export function SupplierModal({
   const [email, setEmail] = useState(supplier?.email || '')
   const [address, setAddress] = useState(supplier?.address || '')
   const [errorMessage, setErrorMessage] = useState('')
+  const [phoneError, setPhoneError] = useState('')
+  const submitting = useRef(false)
+  const [saving, setSaving] = useState(false)
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
+    if (submitting.current || isSubmitting) return
     if (!name.trim()) {
       setErrorMessage('Supplier company name is required.')
       return
     }
 
+    const digits = contactDigits(phone)
+    const mobile = digits.startsWith('09')
+    const invalidPhone = mobile
+      ? digits.length > 11
+        ? 'Philippine mobile numbers may not exceed 11 digits.'
+        : validatePhilippinePhone(digits)
+      : phone.trim() && !digits
+        ? 'Enter a phone number.'
+        : null
+    setPhoneError(invalidPhone || '')
+    if (invalidPhone) return
+
+    submitting.current = true
+    setSaving(true)
     try {
       setErrorMessage('')
       await onSubmit({
         code: code.trim() || `SUP-${Date.now().toString(36).toUpperCase()}`,
         name: name.trim(),
         contactPerson: contactPerson.trim() || null,
-        phone: phone.trim() || null,
+        phone: mobile ? sanitizePhilippinePhone(digits) : phone.trim() || null,
         email: email.trim() || null,
         address: address.trim(),
       })
       onClose()
     } catch (err: unknown) {
       setErrorMessage(getErrorMessage(err))
+    } finally {
+      submitting.current = false
+      setSaving(false)
     }
   }
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-      <DialogContent className="sm:max-w-md gap-4 p-6">
+      <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto gap-4 p-6 sm:max-w-md">
         <DialogHeader className="pb-1">
           <DialogTitle>{supplier ? 'Edit Supplier' : 'Add New Supplier'}</DialogTitle>
           <DialogDescription className="text-ui">
@@ -126,11 +150,22 @@ export function SupplierModal({
               </Label>
               <Input
                 id="supplier-phone"
+                type="tel"
+                autoComplete="tel"
                 value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="e.g. +63 917 123 4567"
+                onChange={(e) => {
+                  setPhone(e.target.value)
+                  setPhoneError('')
+                }}
+                aria-invalid={!!phoneError || undefined}
+                aria-describedby={`supplier-phone-help${phoneError ? ' supplier-phone-error' : ''}`}
+                placeholder="e.g. 09171234567"
                 className="h-9 text-sm"
               />
+              <p id="supplier-phone-help" className="text-xs text-muted-foreground [overflow-wrap:anywhere]">
+                Philippine mobile: 11 digits starting 09. Landlines and other international formats are accepted.
+              </p>
+              {phoneError && <p id="supplier-phone-error" role="alert" className="text-xs text-destructive">{phoneError}</p>}
             </div>
           </div>
 
@@ -165,7 +200,12 @@ export function SupplierModal({
             <Button type="button" variant="outline" size="sm" onClick={onClose}>
               Cancel
             </Button>
-            <Button type="submit" size="sm" disabled={isSubmitting} className="font-medium">
+            <Button
+              type="submit"
+              size="sm"
+              disabled={isSubmitting || saving}
+              className="font-medium"
+            >
               {supplier ? 'Save Changes' : 'Add Supplier'}
             </Button>
           </DialogFooter>

@@ -28,6 +28,7 @@ import {
   useReactivateVehicle,
   fetchVehicleByPlateNumberApi,
 } from '@/features/logistics/delivery-vehicles.hooks'
+import { normalizeVehiclePlateNumber } from '@/features/logistics/delivery-vehicles.api'
 import {
   OPERATIONAL_STATUSES,
   type DeliveryVehicle,
@@ -89,7 +90,7 @@ function VehicleFormContent({
       setErrorMsg('')
       setDeactivatedVehicleMatch(null)
 
-      const cleanPlate = plateNumber.trim().toUpperCase()
+      const cleanPlate = normalizeVehiclePlateNumber(plateNumber)
       if (capacityError) {
         setErrorMsg(capacityError)
         return
@@ -154,7 +155,7 @@ function VehicleFormContent({
           await updateMutation.mutateAsync({
             id: vehicle.id,
             payload: {
-              plateNumber: plateNumber.trim().toUpperCase(),
+              plateNumber: cleanPlate,
               vehicleType: vehicleType.trim(),
               model: model.trim() || null,
               capacityKg: parsedCap,
@@ -162,7 +163,7 @@ function VehicleFormContent({
           })
         } else {
           await createMutation.mutateAsync({
-            plateNumber: plateNumber.trim().toUpperCase(),
+            plateNumber: cleanPlate,
             vehicleType: vehicleType.trim(),
             model: model.trim() || null,
             capacityKg: parsedCap,
@@ -217,7 +218,7 @@ function VehicleFormContent({
       {deactivatedVehicleMatch && (
         <div className="p-3.5 rounded-lg bg-status-warning border border-status-warning-foreground/30 text-status-warning-foreground flex items-start gap-3">
           <RotateCcw className="mt-0.5 size-4 shrink-0 text-status-warning-foreground" />
-          <div className="flex-1 text-xs">
+          <div className="min-w-0 flex-1 text-xs [overflow-wrap:anywhere]">
             <p className="font-medium text-foreground">Deactivated Vehicle Found</p>
             <p className="text-muted-foreground mt-0.5 leading-relaxed">
               An archived vehicle record with plate{' '}
@@ -252,6 +253,10 @@ function VehicleFormContent({
                 required
               />
             </div>
+            <p className="text-xs text-muted-foreground [overflow-wrap:anywhere]">
+              Enter the plate as printed; surrounding spaces are removed and letters are
+              normalized to uppercase.
+            </p>
           </div>
 
           <div className="flex flex-col gap-1.5">
@@ -272,6 +277,9 @@ function VehicleFormContent({
               emptyMessage="No matching vehicle types"
               ariaLabel="Vehicle Type"
             />
+            <p className="text-xs text-muted-foreground">
+              Choose a type, or enter a new name and select Use.
+            </p>
           </div>
         </div>
 
@@ -397,7 +405,7 @@ function VehicleFormContent({
 export function VehicleModal({ vehicle, open, onClose }: VehicleModalProps) {
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-      <DialogContent className="sm:max-w-[480px]">
+      <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-[480px]">
         {open && (
           <VehicleFormContent
             key={vehicle ? `vehicle-${vehicle.id}` : 'new-vehicle'}

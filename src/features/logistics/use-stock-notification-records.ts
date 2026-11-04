@@ -22,6 +22,6 @@ export function useStockNotificationRecords() {
     hasMore,
     refreshing: queries.some((query) => query.isFetching),
     loadNext: () => Promise.all(queries.filter((query) => query.hasNextPage).map((query) => query.fetchNextPage())),
-    refresh: () => Promise.all(queries.map((query) => query.reload())),
+    refresh: () => Promise.all(queries.map((query) => query.isError ? query.reload() : query.refetch())),
   }
 }

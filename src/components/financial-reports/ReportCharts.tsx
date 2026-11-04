@@ -151,13 +151,23 @@ export function ReportLineChart({
         <p>No results for this period and filters.</p>
       ) : (
         <>
+          <ul id="trend-chart-legend" aria-label="Chart series" className="mb-2 flex flex-wrap gap-x-4 gap-y-2 text-xs text-muted-foreground">
+            {series.map((item) => (
+              <li key={item.kind} className="flex min-w-0 items-center gap-2">
+                <svg aria-hidden="true" width="28" height="8" className="shrink-0">
+                  <line x1="0" x2="28" y1="4" y2="4" stroke={item.color} strokeWidth="2.5" />
+                </svg>
+                <span className="[overflow-wrap:anywhere]">{item.label}</span>
+              </li>
+            ))}
+          </ul>
           <svg
             role="img"
             aria-label="Financial trends in pesos"
-            aria-describedby="trend-chart-help trend-chart-value"
+            aria-describedby="trend-chart-legend trend-chart-help trend-chart-value"
             aria-keyshortcuts="ArrowLeft ArrowRight ArrowUp ArrowDown Escape"
             tabIndex={0}
-            viewBox={`0 0 ${plotWidth} 220}`}
+            viewBox={`0 0 ${plotWidth} 220`}
             preserveAspectRatio="none"
             className="block h-[200px] w-full rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             onFocus={() => setActive((current) => current ?? { point: 0, series: 0 })}
@@ -248,7 +258,6 @@ export function ReportLineChart({
                     fill="none"
                     stroke={s.color}
                     strokeWidth="2.5"
-                    strokeDasharray={s.dash}
                     vectorEffect="non-scaling-stroke"
                   />
                   {dates.map((date, i) => {

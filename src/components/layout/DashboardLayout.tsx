@@ -12,7 +12,6 @@ import {
   Package,
   Menu,
   X,
-  ChevronRight,
   Building2,
   ChevronDown,
   MapPinned,
@@ -254,9 +253,6 @@ export function DashboardLayout({
                         <span>{item.label}</span>
                       </div>
 
-                      {currentScreen === item.key && item.key !== 'inventory' && (
-                        <ChevronRight className="size-3.5 text-muted-foreground" />
-                      )}
                     </NavLink>
                   )
                 })}

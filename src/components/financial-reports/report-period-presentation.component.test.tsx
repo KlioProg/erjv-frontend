@@ -155,7 +155,7 @@ it('shows exact values on keyboard and pointer with one chart tab stop', async (
   )
 })
 
-it('uses solid profit and distinct broken Sales and Purchases lines without exact-data controls', () => {
+it('uses consistent solid financial series without exact-data controls', () => {
   const report = makeReport(days('2024-01-01', '2024-01-08'), () => '1.00')
   const { container } = render(
     <ReportLineChart
@@ -164,17 +164,8 @@ it('uses solid profit and distinct broken Sales and Purchases lines without exac
       reports={{ sales: report, purchases: report, 'gross-profit-estimate': report }}
     />,
   )
-  expect(
-    container.querySelector('path[data-series="sales"]')?.getAttribute('stroke-dasharray'),
-  ).toBe('7 4')
-  expect(
-    container.querySelector('path[data-series="purchases"]')?.getAttribute('stroke-dasharray'),
-  ).toBe('2 4')
-  expect(
-    container
-      .querySelector('path[data-series="gross-profit-estimate"]')
-      ?.hasAttribute('stroke-dasharray'),
-  ).toBe(false)
+  for (const series of ['sales', 'purchases', 'gross-profit-estimate'])
+    expect(container.querySelector(`path[data-series="${series}"]`)?.hasAttribute('stroke-dasharray')).toBe(false)
   expect(screen.queryByLabelText('Chart date')).toBeNull()
   expect(screen.queryByText('View daily chart data')).toBeNull()
   expect(screen.queryByText(/Choose a date for exact values/)).toBeNull()

@@ -1,7 +1,7 @@
 import { useAuth } from '@/features/auth/AuthContext'
 import { jobNameError } from '@/features/staffing/job-validation'
 import { getApiError, getApiFieldErrors } from '@/lib/api-client'
-import { useState, type FormEvent } from 'react'
+import { useRef, useState, type FormEvent } from 'react'
 import { RotateCcw } from 'lucide-react'
 import {
   Dialog,
@@ -45,10 +45,11 @@ function JobFormContent({ job, onClose }: { job: Job | null; onClose: () => void
   const [nameError, setNameError] = useState('')
   const [errorMsg, setErrorMsg] = useState('')
   const [deactivatedJobMatch, setDeactivatedJobMatch] = useState<Job | null>(null)
+  const submitting = useRef(false)
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
-    if (!isAdmin || isPending) return
+    if (!isAdmin || isPending || submitting.current) return
     setErrorMsg('')
     setNameError('')
     setDeactivatedJobMatch(null)
@@ -70,6 +71,7 @@ function JobFormContent({ job, onClose }: { job: Job | null; onClose: () => void
       }
     }
 
+    submitting.current = true
     try {
       if (isEditing && job) {
         await updateMutation.mutateAsync({
@@ -90,6 +92,8 @@ function JobFormContent({ job, onClose }: { job: Job | null; onClose: () => void
     } catch (err) {
       setNameError(getApiFieldErrors(err).name ?? (getApiError(err)?.code === 'JOB_NAME_RESERVED' ? 'This name is reserved for account roles.' : ''))
       setErrorMsg(getErrorMessage(err))
+    } finally {
+      submitting.current = false
     }
   }
 

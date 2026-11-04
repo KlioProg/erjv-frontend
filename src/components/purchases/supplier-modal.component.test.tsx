@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, expect, it, vi } from 'vitest'
 import { apiClient } from '@/lib/api-client'
@@ -8,6 +8,61 @@ import { SupplierModal } from './SupplierModal'
 const originalAdapter = apiClient.defaults.adapter
 afterEach(() => {
   apiClient.defaults.adapter = originalAdapter
+})
+
+it.each([
+  ['+63 917 123 4567', '09171234567'],
+  ['02 8123 4567', '02 8123 4567'],
+  ['+1 (415) 555-2671', '+1 (415) 555-2671'],
+  ['+1 415 555 267100', '+1 415 555 267100'],
+])('handles supplier contact %s without restricting other phone formats', async (input, expected) => {
+  const submit = vi.fn().mockResolvedValue(undefined)
+  render(<SupplierModal open onClose={vi.fn()} onSubmit={submit} />)
+  fireEvent.change(screen.getByLabelText(/Company Name/), { target: { value: 'Supplier' } })
+  const phone = screen.getByLabelText('Phone Number') as HTMLInputElement
+  await userEvent.click(phone)
+  await userEvent.paste(input)
+  await userEvent.click(screen.getByRole('button', { name: 'Add Supplier' }))
+  await waitFor(() => expect(submit).toHaveBeenCalledOnce())
+  expect(submit.mock.calls[0][0].phone).toBe(expected)
+})
+
+it('accepts an 11-digit Philippine mobile number entered by typing', async () => {
+  const submit = vi.fn().mockResolvedValue(undefined)
+  render(<SupplierModal open onClose={vi.fn()} onSubmit={submit} />)
+  fireEvent.change(screen.getByLabelText(/Company Name/), { target: { value: 'Supplier' } })
+  await userEvent.type(screen.getByLabelText('Phone Number'), '09171234567')
+  await userEvent.click(screen.getByRole('button', { name: 'Add Supplier' }))
+
+  await waitFor(() => expect(submit).toHaveBeenCalledOnce())
+  expect(submit.mock.calls[0][0].phone).toBe('09171234567')
+})
+
+it.each(['09123', 'letters only'])('rejects incomplete or nonnumeric supplier phone %s and retains the form', async (phone) => {
+  const submit = vi.fn()
+  render(<SupplierModal open onClose={vi.fn()} onSubmit={submit} />)
+  fireEvent.change(screen.getByLabelText(/Company Name/), { target: { value: 'Supplier' } })
+  fireEvent.change(screen.getByLabelText('Phone Number'), { target: { value: phone } })
+  await userEvent.click(screen.getByRole('button', { name: 'Add Supplier' }))
+  expect(submit).not.toHaveBeenCalled()
+  expect(screen.getByLabelText('Phone Number').getAttribute('aria-invalid')).toBe('true')
+  expect(screen.getByRole('alert').textContent).toMatch(/11 digits|phone number/)
+})
+
+it('retains and rejects an overlong Philippine mobile number pasted into the supplier form', async () => {
+  const submit = vi.fn()
+  render(<SupplierModal open onClose={vi.fn()} onSubmit={submit} />)
+  fireEvent.change(screen.getByLabelText(/Company Name/), { target: { value: 'Supplier' } })
+  const phone = screen.getByLabelText('Phone Number') as HTMLInputElement
+  await userEvent.click(phone)
+  await userEvent.paste('09 17abc123456789')
+
+  expect(phone.value).toBe('09 17abc123456789')
+  await userEvent.click(screen.getByRole('button', { name: 'Add Supplier' }))
+
+  expect(submit).not.toHaveBeenCalled()
+  expect(phone.getAttribute('aria-invalid')).toBe('true')
+  expect(screen.getByRole('alert').textContent).toContain('may not exceed 11 digits')
 })
 it('includes the required supplier address field even when its string is empty', async () => {
   let sent: unknown
