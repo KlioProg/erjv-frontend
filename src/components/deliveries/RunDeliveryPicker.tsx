@@ -17,13 +17,13 @@ export function RunDeliveryPicker({
 }) {
   return (
     <section className="flex min-w-0 flex-col gap-2" aria-label="Delivery selection">
-      <Label htmlFor="run-ready-delivery">READY deliveries from this warehouse</Label>
+      <Label htmlFor="run-ready-delivery">Ready deliveries from this warehouse</Label>
       <CursorLookup<OutgoingDeliveryRecord>
         id="run-ready-delivery"
         path="/outgoing-deliveries"
         filter={{ statuses: ['READY'], warehouseId, unassigned: 'true' }}
         value=""
-        label="READY delivery"
+        label="Ready delivery"
         selectedValues={selection.selected.map((delivery) => String(delivery.id))}
         disabled={disabled || !warehouseId}
         getLabel={(delivery) =>
@@ -40,7 +40,7 @@ export function RunDeliveryPicker({
       <p role="status" className="text-xs text-muted-foreground">
         {selection.selected.length} selected{selection.checking ? ' · Checking availability…' : ''}
         {selection.selected.length + existingIds.length >= 100
-          ? ' · Run limit: 100 deliveries'
+          ? ' · Trip limit: 100 deliveries'
           : ''}
       </p>
       <ul className="flex max-h-44 flex-col gap-2 overflow-y-auto" aria-label="Selected deliveries">

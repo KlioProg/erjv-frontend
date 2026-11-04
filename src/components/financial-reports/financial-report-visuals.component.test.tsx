@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router'
@@ -32,6 +32,64 @@ it('explains the metric line patterns without changing chart values or bridging 
     expect(document.querySelector(`path[data-series="${series}"]`)?.hasAttribute('stroke-dasharray')).toBe(false)
   expect(document.querySelector('path[data-series="sales"]')?.getAttribute('d')?.match(/M/g)).toHaveLength(2)
   expect(base).toEqual(original)
+})
+it('shows all selected period amounts in a hover and keyboard detail box', async () => {
+  const base = structuredClone(
+    cases.find((entry) => entry.id === 'profit-partial-coverage')!.body,
+  ) as ReportResult
+  const report = (totalAmount: string, estimatedGrossProfitAmount: string) => ({
+    ...structuredClone(base),
+    rows: [
+      {
+        ...base.totals,
+        key: '2026-11-01',
+        totalAmount,
+        estimatedGrossProfitAmount,
+      },
+    ],
+  })
+  render(
+    <ReportLineChart
+      selected={['sales', 'purchases', 'gross-profit-estimate']}
+      reports={{
+        sales: report('125.00', '30.00'),
+        purchases: report('75.00', '15.00'),
+        'gross-profit-estimate': report('125.00', '30.00'),
+      }}
+      period="monthly"
+    />,
+  )
+
+  expect(screen.queryByText('Hover or focus the chart to inspect exact amounts.')).toBeNull()
+  const chart = screen.getByRole('img', { name: 'Financial trends in pesos' })
+  const salesPoint = document.querySelector(
+    'circle[data-series="sales"][data-point-key="2026-11-01"]',
+  )!
+  vi.spyOn(chart, 'getBoundingClientRect').mockReturnValue({
+    left: 0,
+    top: 0,
+    right: 880,
+    bottom: 200,
+    width: 880,
+    height: 200,
+    x: 0,
+    y: 0,
+    toJSON: () => ({}),
+  } as DOMRect)
+  fireEvent.mouseMove(chart, {
+    clientX: Number(salesPoint.getAttribute('cx')) + 12,
+    clientY: (Number(salesPoint.getAttribute('cy')) * 200) / 220,
+  })
+  const tooltip = await screen.findByTestId('trend-chart-tooltip')
+  expect(tooltip.textContent).toContain('November 1, 2026')
+  expect(tooltip.textContent).toContain('Sales₱125.00')
+  expect(tooltip.textContent).toContain('Purchases₱75.00')
+  expect(tooltip.textContent).toContain('Estimated gross profit₱30.00')
+
+  chart.focus()
+  expect(screen.getByTestId('trend-chart-tooltip').textContent).toContain('Sales')
+  await userEvent.keyboard('{Escape}')
+  expect(screen.queryByTestId('trend-chart-tooltip')).toBeNull()
 })
 afterEach(() => {
   apiClient.defaults.adapter = original
@@ -172,8 +230,8 @@ it('shows three exact KPI totals and only the selected analysis view', async () 
   expect(screen.getByRole('combobox', { name: 'Report metric' }).textContent).toBe('Purchases')
 })
 
-it('omits informational sections and timestamps while preserving refresh', async () => {
-  const requests = mount(false, '/financial-reports', {
+it('omits informational sections, timestamps, and manual refresh controls', async () => {
+  mount(false, '/financial-reports', {
     sales: '2026-11-03T01:00:00Z',
     purchases: '2026-11-03T09:00:00+08:00',
     'gross-profit-estimate': '2026-11-03T01:00:00Z',
@@ -184,9 +242,7 @@ it('omits informational sections and timestamps while preserving refresh', async
   expect(document.querySelectorAll('time')).toHaveLength(0)
   const metrics = screen.getByRole('region', { name: 'Financial metrics' })
   expect(within(metrics).getAllByText(/Estimated gross profit may be incomplete/)).toHaveLength(1)
-  const before = requests.length
-  await userEvent.click(screen.getByRole('button', { name: 'Refresh totals' }))
-  await waitFor(() => expect(requests).toHaveLength(before + 3))
+  expect(screen.queryByRole('button', { name: 'Refresh totals' })).toBeNull()
   expect(document.querySelectorAll('time')).toHaveLength(0)
 })
 
@@ -354,13 +410,13 @@ it.each([false, true])(
   },
 )
 
-it('removes draft controls and offers snapshot refresh and auto-applies a period selection', async () => {
+it('removes draft and manual refresh controls and auto-applies a period selection', async () => {
   const requests = mount()
   await screen.findByRole('img', { name: 'Financial trends in pesos' })
   expect(screen.queryByLabelText('From (inclusive, Manila)')).toBeNull()
   expect(screen.queryByLabelText('Through (inclusive, Manila)')).toBeNull()
   expect(screen.queryByRole('button', { name: 'Apply filters' })).toBeNull()
-  expect(screen.getByRole('button', { name: 'Refresh totals' })).toBeTruthy()
+  expect(screen.queryByRole('button', { name: 'Refresh totals' })).toBeNull()
 
   const before = requests.length
   const year = requests[0].params.from.slice(0, 4)
@@ -544,22 +600,16 @@ it('retains shared cursor controls and page-size changes when more results exist
   expect(requests.at(-1)?.params).not.toHaveProperty('cursor')
 })
 
-it('formats month labels and refreshes totals and details independently', async () => {
+it('formats month labels and removes manual refresh controls', async () => {
   const requests = mount(false, '/financial-reports?view=breakdown')
   await screen.findByText('Sample stock')
   await userEvent.click(screen.getByRole('combobox', { name: 'Group by' }))
   await userEvent.click(screen.getByRole('option', { name: 'Month' }))
   await within(screen.getByRole('table')).findByText('November 2026')
   expect(screen.queryByRole('cell', { name: '2026-11' })).toBeNull()
-  let before = requests.length
-  await userEvent.click(screen.getByRole('button', { name: 'Refresh details' }))
-  await within(screen.getByRole('table')).findByText('November 2026')
-  expect(requests.slice(before)).toHaveLength(1)
-  expect(requests.at(-1)?.params.groupBy).toBe('month')
-  before = requests.length
-  await userEvent.click(screen.getByRole('button', { name: 'Refresh totals' }))
-  await waitFor(() => expect(requests.slice(before)).toHaveLength(3))
-  expect(requests.slice(before).every((request) => request.params.groupBy === 'day')).toBe(true)
+  expect(screen.queryByRole('button', { name: 'Refresh details' })).toBeNull()
+  expect(screen.queryByRole('button', { name: 'Refresh totals' })).toBeNull()
+  expect(requests.some((request) => request.params.groupBy === 'month')).toBe(true)
 })
 
 it('shows a filtered total only for a narrower customer selection with a different amount', async () => {

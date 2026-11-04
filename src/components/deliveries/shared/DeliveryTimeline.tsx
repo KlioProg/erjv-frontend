@@ -25,9 +25,9 @@ export function DeliveryTimeline({ delivery, run }: { delivery: OutgoingDelivery
   const current = DeliveryUtils.getStepIndex(delivery.status)
   const steps = [
     { label: 'Draft Created', date: delivery.createdAt },
-    { label: 'Ready for Run', date: null },
-    { label: 'In Transit', date: run?.dispatchedAt },
-    { label: 'Reconciled', date: delivery.reconciledAt },
+    { label: 'Ready', date: null },
+    { label: 'Dispatched', date: run?.dispatchedAt },
+    { label: 'Results recorded', date: delivery.reconciledAt },
   ]
 
   return (

@@ -32,18 +32,23 @@ test('distinguishes an unconfirmed order from one ready for delivery', () => {
   )
 })
 
-test('shows READY separately from a run schedule', () => {
+test('shows READY separately from trip assignment', () => {
   const display = getSalesOrderDeliveryDisplay(order, delivery, [delivery])
   assert.equal(display.label, 'Ready')
-  assert.equal(display.supportingText, 'Awaiting run assignment')
-  assert.equal(getSalesOrderDeliveryDisplay(order, { ...delivery, runId: 7 }, []).supportingText, 'Run #7')
+  assert.equal(display.supportingText, 'Awaiting trip assignment')
+  assert.equal(
+    getSalesOrderDeliveryDisplay(order, { ...delivery, runId: 7 }, []).supportingText,
+    'Assigned to Trip #7',
+  )
 })
 
 test('retains the active delivery state on partially delivered orders', () => {
   const partial = { ...order, status: 'PARTIALLY_DELIVERED' }
   assert.equal(getSalesOrderDeliveryDisplay(partial, delivery, [delivery]).label, 'Ready')
   const dispatched = { ...delivery, status: 'DISPATCHED' }
-  assert.equal(getSalesOrderDeliveryDisplay(partial, dispatched, []).supportingText, 'On the way')
+  const display = getSalesOrderDeliveryDisplay(partial, dispatched, [])
+  assert.equal(display.label, 'Dispatched')
+  assert.equal(display.supportingText, 'Departure recorded')
 })
 
 test('counts only this order’s uncancelled deliveries', () => {

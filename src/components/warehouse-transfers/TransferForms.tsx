@@ -277,7 +277,7 @@ export function TransferDraftForm(props: FormProps) {
           Cancel
         </Button>
         <Button disabled={state.busy || state.review}>
-          {state.busy ? 'Saving…' : record ? 'Save draft' : 'Create Transfer'}
+          {state.busy ? 'Saving…' : 'Save Transfer'}
         </Button>
       </DialogFooter>
     </form>
@@ -285,9 +285,9 @@ export function TransferDraftForm(props: FormProps) {
 }
 
 const outcomeLabels = {
-  receivedQuantity: 'Received (including damage)',
+  receivedQuantity: 'Received at destination',
   damagedQuantity: 'Damaged at destination',
-  returnedSellableQuantity: 'Returned sellable',
+  returnedSellableQuantity: 'Returned in good condition',
   returnedDamagedQuantity: 'Returned damaged',
   missingQuantity: 'Missing',
 }
@@ -342,8 +342,9 @@ export function TransferActionForm(
       {action === 'dispatch' && (
         <>
           <p className="text-sm">
-            Dispatch from {warehouseName(record.sourceWarehouseId)} to{' '}
-            {warehouseName(record.destinationWarehouseId)}? Source stock will move into transit.
+            Send goods from {warehouseName(record.sourceWarehouseId)} to{' '}
+            {warehouseName(record.destinationWarehouseId)}? This records their departure and moves
+            source stock into transit.
           </p>
           <ul className="space-y-1 text-sm">
             {record.items.map((line) => {
@@ -374,8 +375,8 @@ export function TransferActionForm(
       {action === 'reconcile' && (
         <>
           <p className="text-sm">
-            Confirm all final quantities. Received includes destination damage. Reconciliation is
-            final.
+            Record all final quantities received at the destination. Include damaged, returned, and
+            missing goods. These results are final.
           </p>
           <FieldError field="items" errors={state.errors} />
           {items.map((item, index) => {
@@ -428,7 +429,7 @@ export function TransferActionForm(
                 </p>
                 <FieldError field={`items.${index}.balance`} errors={state.errors} />
                 <Label htmlFor={`outcome-reason-${index}`}>
-                  Discrepancy reason for item {line.inventoryItemId}
+                  Reason for difference for item {line.inventoryItemId}
                 </Label>
                 <Textarea
                   id={`outcome-reason-${index}`}
@@ -458,10 +459,10 @@ export function TransferActionForm(
           {state.busy
             ? 'Saving…'
             : action === 'dispatch'
-              ? 'Confirm Dispatch'
+              ? 'Send Goods'
               : action === 'reconcile'
-                ? 'Confirm Reconciliation'
-                : 'Confirm Cancellation'}
+                ? 'Save Receipt'
+                : 'Cancel Transfer'}
         </Button>
       </DialogFooter>
     </form>

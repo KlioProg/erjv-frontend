@@ -706,7 +706,7 @@ describe('order to delivery workflow', () => {
     ]
     const user = userEvent.setup()
     mount(<DeliveriesHub initialTab="outgoing" />)
-    const schedule = await screen.findByRole('button', { name: 'Continue Planning OUT-5' })
+    const schedule = await screen.findByRole('button', { name: 'Edit Delivery OUT-5' })
     expect(schedule.closest('tr')?.textContent).toContain('Test Warehouse')
     await user.click(schedule)
     const quantity = await screen.findByRole('textbox', {
@@ -716,7 +716,7 @@ describe('order to delivery workflow', () => {
     expect((quantity as HTMLInputElement).value).toBe('0.25')
     expect(mutations()).toHaveLength(0)
     await user.click(screen.getByRole('button', { name: 'Mark Ready' }))
-    expect(await screen.findByText('Delivery ready for a run')).toBeTruthy()
+    expect(await screen.findByText('Delivery ready')).toBeTruthy()
     expect(
       requests.find((request) => request.url === '/outgoing-deliveries/5/draft')?.body
         .expectedRevision,
@@ -923,7 +923,7 @@ describe('order to delivery workflow', () => {
       </MemoryRouter>,
     )
     expect(screen.getByRole('link', { name: 'Incoming' }).getAttribute('aria-current')).toBe('page')
-    expect(screen.getAllByRole('link').map((link) => link.textContent)).toEqual(['Incoming', 'Outgoing', 'Delivery Runs', 'History'])
+    expect(screen.getAllByRole('link').map((link) => link.textContent)).toEqual(['Incoming', 'Outgoing', 'Delivery Trips', 'History'])
     await user.click(screen.getByRole('button', { name: 'Deliveries' }))
     expect(screen.queryByRole('button', { name: 'Incoming' })).toBeNull()
     await user.keyboard('{Enter}')
@@ -943,7 +943,7 @@ describe('order to delivery workflow', () => {
     expect(screen.queryByRole('columnheader', { name: 'Type' })).toBeNull()
     expect(screen.queryByRole('tablist')).toBeNull()
     await user.click(nav.getByRole('link', { name: 'Outgoing' }))
-    expect(await screen.findByRole('button', { name: 'Assign to Run OUT-6' })).toBeTruthy()
+    expect(await screen.findByRole('button', { name: 'Add to Trip OUT-6' })).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'View delivery OUT-7' })).toBeNull()
     await user.click(nav.getByRole('link', { name: 'History' }))
     expect(await screen.findByRole('button', { name: 'View delivery IN-23' })).toBeTruthy()
@@ -1100,7 +1100,7 @@ describe('order to delivery workflow', () => {
     await user.click(screen.getByRole('menuitem', { name: 'Test Warehouse' }))
     await user.type(screen.getByLabelText('Supplier Reference (optional)'), ' WAYBILL-12 ')
     await user.type(screen.getByLabelText('Notes (optional)'), ' Dock 2 ')
-    await user.click(screen.getByRole('button', { name: 'Schedule Incoming Delivery' }))
+    await user.click(screen.getByRole('button', { name: 'Schedule Arrival' }))
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
     expect(requests.find((request) => request.method === 'post')?.body).toMatchObject({
       purchaseOrderId: 2,
@@ -1154,7 +1154,7 @@ describe('order to delivery workflow', () => {
       'PO-TEST',
     )
     expect(
-      (screen.getByRole('button', { name: 'Schedule Incoming Delivery' }) as HTMLButtonElement)
+      (screen.getByRole('button', { name: 'Schedule Arrival' }) as HTMLButtonElement)
         .disabled,
     ).toBe(true)
     await user.click(screen.getByRole('button', { name: /Purchase Order/ }))
@@ -1172,7 +1172,7 @@ describe('order to delivery workflow', () => {
     expect(screen.queryByRole('textbox', { name: /Quantity to receive/ })).toBeNull()
     await user.click(screen.getByRole('button', { name: /Destination Warehouse/ }))
     await user.click(screen.getByRole('menuitem', { name: 'Test Warehouse' }))
-    await user.click(screen.getByRole('button', { name: 'Schedule Incoming Delivery' }))
+    await user.click(screen.getByRole('button', { name: 'Schedule Arrival' }))
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
     expect(requests.find((request) => request.method === 'post')?.body).toMatchObject({
       purchaseOrderId: 3,
@@ -1191,11 +1191,11 @@ describe('order to delivery workflow', () => {
       (screen.getByRole('button', { name: /Purchase Order/ }) as HTMLButtonElement).disabled,
     ).toBe(false)
     expect(
-      (screen.getByRole('button', { name: 'Schedule Incoming Delivery' }) as HTMLButtonElement)
+      (screen.getByRole('button', { name: 'Schedule Arrival' }) as HTMLButtonElement)
         .disabled,
     ).toBe(true)
     fireEvent.submit(
-      screen.getByRole('button', { name: 'Schedule Incoming Delivery' }).closest('form')!,
+      screen.getByRole('button', { name: 'Schedule Arrival' }).closest('form')!,
     )
     expect(requests.filter((request) => request.method !== 'get')).toHaveLength(0)
   })
@@ -1227,7 +1227,7 @@ describe('order to delivery workflow', () => {
     )
     expect(screen.queryByRole('textbox', { name: 'Quantity to receive for Test Mango' })).toBeNull()
     expect(
-      (screen.getByRole('button', { name: 'Schedule Incoming Delivery' }) as HTMLButtonElement)
+      (screen.getByRole('button', { name: 'Schedule Arrival' }) as HTMLButtonElement)
         .disabled,
     ).toBe(true)
     expect(requests.filter((request) => request.method !== 'get')).toHaveLength(0)
@@ -1244,22 +1244,22 @@ describe('order to delivery workflow', () => {
     await user.click(partial)
     await user.type(screen.getByLabelText('Received now for Test Mango (1)'), '0.20')
     await waitFor(() =>
-      expect(screen.getByRole('button', { name: 'Confirm Receipt' }).hasAttribute('disabled')).toBe(
+      expect(screen.getByRole('button', { name: 'Save Receipt' }).hasAttribute('disabled')).toBe(
         false,
       ),
     )
     expect(requests.some((request) => request.url.endsWith('/complete'))).toBe(false)
     await user.click(
       within(screen.getByRole('dialog')).getByRole('button', {
-        name: 'Confirm Receipt',
+        name: 'Save Receipt',
       }),
     )
     expect(await screen.findByText('Receipt retry required.')).toBeTruthy()
     await user.click(screen.getByRole('button', { name: 'Refresh receipt data' }))
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Confirm Receipt' }).hasAttribute('disabled')).toBe(false))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Save Receipt' }).hasAttribute('disabled')).toBe(false))
     await user.click(
       within(screen.getByRole('dialog')).getByRole('button', {
-        name: 'Confirm Receipt',
+        name: 'Save Receipt',
       }),
     )
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
@@ -1354,7 +1354,7 @@ it.each([false, true])('preserves delivery context when opening run assignment (
   outgoing = outgoing.map((delivery) => delivery.id === 6 ? { ...delivery, runId: assigned ? 12 : null } : delivery)
   function Location() { const location = useLocation(); return <output data-testid="handoff-location">{location.pathname}{location.search}</output> }
   mount(<><DeliveriesHub initialTab="outgoing" /><Location /></>)
-  const action = assigned ? 'Open Run OUT-6' : 'Assign to Run OUT-6'
+  const action = assigned ? 'View Trip OUT-6' : 'Add to Trip OUT-6'
   await userEvent.setup().click(await screen.findByRole('button', { name: action }))
   expect(screen.getByTestId('handoff-location').textContent).toBe(assigned ? '/deliveries/runs?run=12' : '/deliveries/runs?assign=6')
   expect(mutations()).toHaveLength(0)
@@ -1368,13 +1368,13 @@ it('preserves a created incoming draft when scheduling fails and prevents duplic
   mount(<DeliveriesHub initialTab="incoming" purchaseOrderId={2} arrangeOrder />)
   await user.click(await screen.findByRole('button', { name: /Destination Warehouse/ }))
   await user.click(screen.getByRole('menuitem', { name: 'Test Warehouse' }))
-  await user.click(screen.getByRole('button', { name: 'Schedule Incoming Delivery' }))
+  await user.click(screen.getByRole('button', { name: 'Schedule Arrival' }))
   const failure = await screen.findByText(/IN-91 was created, but scheduling was not confirmed/)
   expect(failure.textContent).toContain('Do not create a duplicate shipment')
   expect(screen.queryByRole('dialog')).toBeNull()
   expect(requests.filter((request) => request.method === 'post' && request.url === '/incoming-deliveries')).toHaveLength(1)
   expect(incoming.find((delivery) => delivery.id === 91)?.status).toBe('DRAFT')
-  expect(await screen.findByRole('button', { name: 'Schedule IN-91' })).toBeTruthy()
+  expect(await screen.findByRole('button', { name: 'Schedule Arrival IN-91' })).toBeTruthy()
   expect(requests.filter((request) => request.url === '/incoming-deliveries/91/schedule')).toHaveLength(1)
 })
 

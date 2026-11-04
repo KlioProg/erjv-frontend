@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { Link, useOutletContext } from 'react-router'
-import { useQueryClient } from '@tanstack/react-query'
-import { CheckCircle2, RefreshCw } from 'lucide-react'
+import { CheckCircle2 } from 'lucide-react'
 import { useAuth } from '@/features/auth/AuthContext'
 import { useStockWarnings } from '@/features/logistics/stock-warnings.hooks'
 import { useDashboardDeliveries } from '@/features/logistics/use-dashboard-deliveries'
@@ -24,11 +23,9 @@ function countLabel(count: number, complete: boolean) {
 export function DashboardPage() {
   const { isAdmin } = useAuth()
   const { onOpenInventory } = useOutletContext<DashboardOutletContext>()
-  const [now, setNow] = useState(() => new Date())
-  const client = useQueryClient()
+  const now = new Date()
   const inventory = useStockWarnings()
   const deliveries = useDashboardDeliveries()
-  const [refreshing, setRefreshing] = useState(false)
   const [visibleTasks, setVisibleTasks] = useState(4)
   const previews = [
     {
@@ -108,37 +105,16 @@ export function DashboardPage() {
       href: ROUTES.outgoingDeliveries,
     })),
   ].sort((a, b) => a.priority - b.priority)
-  const refresh = async () => {
-    setRefreshing(true)
-    setNow(new Date())
-    try {
-      await Promise.all([
-        inventory.refresh(),
-        ...previews.map(({ query }) => query.reload()),
-        ...(isAdmin
-          ? [client.invalidateQueries({ queryKey: ['financial-reports'] })]
-          : []),
-      ])
-    } finally {
-      setRefreshing(false)
-    }
-  }
   return (
     <div className="min-w-0 space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <PageHeader description="Business overview">Dashboard</PageHeader>
-        <div className="flex flex-wrap items-center gap-3">
-          <time className="text-sm text-muted-foreground" dateTime={now.toISOString()}>
-            {new Intl.DateTimeFormat('en-PH', {
-              timeZone: 'Asia/Manila',
-              dateStyle: 'long',
-            }).format(now)}
-          </time>
-          <Button variant="outline" size="sm" onClick={() => void refresh()} disabled={refreshing}>
-            <RefreshCw className="size-4" />
-            {refreshing ? 'Refreshing…' : 'Refresh'}
-          </Button>
-        </div>
+        <time className="text-sm text-muted-foreground" dateTime={now.toISOString()}>
+          {new Intl.DateTimeFormat('en-PH', {
+            timeZone: 'Asia/Manila',
+            dateStyle: 'long',
+          }).format(now)}
+        </time>
       </div>
       {isAdmin && <DashboardFinancialOverview now={now} />}
       <div className="grid items-start gap-4 xl:grid-cols-2">

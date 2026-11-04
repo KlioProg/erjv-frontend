@@ -23,7 +23,7 @@ const input = (category = 'Delivered', product = 'Banana') =>
   screen.getByLabelText(
     `${category} for ${product} (${product === 'Banana' ? 1 : 2})`,
   ) as HTMLInputElement
-const button = () => screen.getByRole('button', { name: /Confirm Completion|Completing/ })
+const button = () => screen.getByRole('button', { name: /Save Results|Saving/ })
 function mount() {
   const onClose = vi.fn()
   const client = new QueryClient({
@@ -49,7 +49,7 @@ async function fill() {
     ['Banana', '2.25'],
     ['Mango', '1.00'],
   ])
-    for (const category of ['Delivered', 'Returned sellable', 'Returned damaged', 'Missing'])
+    for (const category of ['Delivered', 'Returned in good condition', 'Returned damaged', 'Missing'])
       fireEvent.change(input(category, product), {
         target: { value: category === 'Delivered' ? quantity : '0' },
       })
@@ -269,10 +269,10 @@ it('sends delivered, sellable, damaged and missing categories exactly with a tri
   await fill()
   for (const [category, value] of [
     ['Delivered', '1.00'],
-    ['Returned sellable', '0.25'],
+    ['Returned in good condition', '0.25'],
     ['Returned damaged', '0.50'],
     ['Missing', '0.50'],
-    ['Discrepancy Reason', ' Torn bag and missing stock '],
+    ['Reason for Difference', ' Torn bag and missing stock '],
   ])
     fireEvent.change(input(category), { target: { value } })
   submit()
@@ -318,7 +318,7 @@ it.each(['Returned damaged', 'Missing'])(
     fireEvent.change(input(), { target: { value: '1.25' } })
     fireEvent.change(input(category), { target: { value: '1' } })
     submit()
-    expect(input('Discrepancy Reason').required).toBe(true)
+    expect(input('Reason for Difference').required).toBe(true)
     expect(button().hasAttribute('disabled')).toBe(true)
     expect(input(category).value).toBe('1')
     expect(writes).toHaveLength(0)
@@ -388,7 +388,7 @@ it('does not repeat uncertain reconciliation after refreshed member is already r
   await waitFor(() => expect(button().hasAttribute('disabled')).toBe(true))
   delivery = { ...delivery, status: 'RECONCILED', reconciledAt: '2026-10-21T08:00:00Z' }
   fireEvent.click(screen.getByRole('button', { name: 'Refresh delivery data' }))
-  expect(await screen.findByText(/no longer in transit/)).toBeTruthy()
+  expect(await screen.findByText(/no longer marked as dispatched/)).toBeTruthy()
   expect(writes).toHaveLength(1)
 })
 it('does not close on an incomplete reconciliation confirmation', async () => {
@@ -422,7 +422,7 @@ it.each(['run status', 'member revision', 'member removed', 'different run'] as 
     if (kind === 'member removed') run.deliveries = []
     if (kind === 'different run') delivery.runId = 99
     mount()
-    expect(await screen.findByText(/run membership, revision, or status changed/)).toBeTruthy()
+    expect(await screen.findByText(/Trip membership, revision, or status changed/)).toBeTruthy()
     expect(button().hasAttribute('disabled')).toBe(true)
     expect(writes).toHaveLength(0)
   },
@@ -432,14 +432,14 @@ it('retains unsent exceptions when switching to full delivery requires confirmat
   await fill()
   fireEvent.change(input(), { target: { value: '1.25' } })
   fireEvent.change(input('Returned damaged'), { target: { value: '1.00' } })
-  fireEvent.change(input('Discrepancy Reason'), { target: { value: 'Damaged packaging' } })
+  fireEvent.change(input('Reason for Difference'), { target: { value: 'Damaged packaging' } })
   await choose()
   expect(screen.getByRole('button', { name: 'Keep exceptions' })).toBeTruthy()
   expect(writes).toHaveLength(0)
   fireEvent.click(screen.getByRole('button', { name: 'Confirm everything delivered' }))
   await choose(false)
   expect(input('Returned damaged').value).toBe('1.00')
-  expect(input('Discrepancy Reason').value).toBe('Damaged packaging')
+  expect(input('Reason for Difference').value).toBe('Damaged packaging')
 })
 it('requires an explicit new outcome after the loaded member revision changes', async () => {
   const { client } = mount()

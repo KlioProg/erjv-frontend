@@ -522,7 +522,7 @@ export function OrderDetailDrawer({
                   </div>
                 </div>
 
-                <p className="border-t pt-2 text-sm">Delivery Run: {activeDelivery.runId ? `#${activeDelivery.runId}` : 'Not assigned'}. Driver and vehicle assignments are managed on the run.</p>
+                <p className="border-t pt-2 text-sm">Delivery Trip: {activeDelivery.runId ? `#${activeDelivery.runId}` : 'Not assigned'}. Driver and vehicle assignments are managed on the trip.</p>
               </div>
             )}
 

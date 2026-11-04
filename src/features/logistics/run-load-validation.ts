@@ -22,7 +22,7 @@ export function validateRunLoad(
   quantities: Record<string, string>,
 ): Pick<DispatchDeliveryRunPayload, 'loads'> {
   if (!members.length || new Set(members.map((member) => member.id)).size !== members.length)
-    throw Error('Every run member must be identified exactly once.')
+    throw Error('Every delivery in the trip must be identified exactly once.')
   if (new Set(rows.map((row) => row.key)).size !== rows.length)
     throw Error('The saved loading plan contains duplicate lines. Refresh the run.')
   const totals = new Map<number, bigint>()
@@ -60,12 +60,12 @@ export function validateRunLoad(
     })
     if (!items.length)
       throw Error(
-        `Confirm at least one loaded product for ${memberRows[0].deliveryNumber}. Remove an unloaded member from the run before departure.`,
+        `Enter at least one loaded product for ${memberRows[0].deliveryNumber}. Remove an unloaded delivery from the trip before departure.`,
       )
     return { deliveryId: member.id, expectedRevision: member.revision, items }
   })
   if (rows.some((row) => !members.some((member) => member.id === row.deliveryId)))
-    throw Error('The saved run membership changed. Refresh the run.')
+    throw Error('Trip deliveries have changed. Refresh and review the trip.')
   for (const row of rows)
     if ((totals.get(row.stockItemId) ?? 0n) > parseStockCents(row.availableQuantity)!)
       throw Error(`Combined loads exceed available warehouse stock for ${row.productName}.`)

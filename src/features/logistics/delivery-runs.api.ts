@@ -23,7 +23,7 @@ function decimal(value: string, positive = false): string {
 
 function members(entries: RunMemberRevision[]): RunMemberRevision[] {
   if (entries.length > 100 || new Set(entries.map((entry) => entry.deliveryId)).size !== entries.length)
-    throw new Error('Include each delivery only once, with at most 100 members.')
+    throw new Error('Include each delivery only once, with at most 100 deliveries.')
   return entries.map(({ deliveryId, expectedRevision }) => ({
     deliveryId: requireId(deliveryId), expectedRevision: requireRevision(expectedRevision),
   }))
@@ -48,7 +48,7 @@ export async function fetchDeliveryRunsPageApi(filter: DeliveryRunFilter = {}, s
     signal,
   })
   if (!Array.isArray(data?.items) || !(data.nextCursor === null || (typeof data.nextCursor === 'string' && data.nextCursor.length > 0 && data.nextCursor !== cursor)))
-    throw new Error('The server returned an invalid run page. Reload before continuing.')
+    throw new Error('The server returned an invalid trip list. Reload before continuing.')
   return data
 }
 
@@ -101,16 +101,16 @@ export async function cancelDeliveryRunApi(id: number, expectedRevision: number)
 }
 
 export async function dispatchDeliveryRunApi(id: number, payload: DispatchDeliveryRunPayload): Promise<DeliveryRunRecord> {
-  if (!payload.loads.length) throw new Error('Confirm a load for every run member.')
+  if (!payload.loads.length) throw new Error('Enter a load for every delivery in this trip.')
   members(payload.loads)
   const loads = payload.loads.map((load) => {
-    if (!load.items.length) throw new Error('Each member needs at least one loaded item.')
+    if (!load.items.length) throw new Error('Each delivery needs at least one loaded item.')
     const seen = new Set<string>()
     return {
       deliveryId: requireId(load.deliveryId), expectedRevision: requireRevision(load.expectedRevision),
       items: load.items.map((item) => {
         const key = `${item.salesOrderItemId}:${item.stockItemId}`
-        if (seen.has(key)) throw new Error('Include each order item and stock source only once per member.')
+        if (seen.has(key)) throw new Error('Include each order item and stock source only once per delivery.')
         seen.add(key)
         return { salesOrderItemId: requireId(item.salesOrderItemId), stockItemId: requireId(item.stockItemId), loadedQuantity: decimal(item.loadedQuantity, true) }
       }),
@@ -130,7 +130,7 @@ export async function reconcileRunMemberApi(id: number, deliveryId: number, payl
     const missingQuantity = decimal(item.missingQuantity)
     const reason = item.discrepancyReason?.trim()
     if ((parseStockCents(returnedDamagedQuantity)! > 0n || parseStockCents(missingQuantity)! > 0n) && !reason)
-      throw new Error('Explain damaged or missing goods before reconciliation.')
+      throw new Error('Explain damage or missing goods before saving results.')
     return {
       outgoingDeliveryItemId: requireId(item.outgoingDeliveryItemId),
       deliveredQuantity: decimal(item.deliveredQuantity), returnedSellableQuantity: decimal(item.returnedSellableQuantity),

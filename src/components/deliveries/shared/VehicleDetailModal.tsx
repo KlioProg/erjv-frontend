@@ -53,7 +53,7 @@ export function VehicleDetailModal({
       <DialogContent className="max-h-[calc(100svh-2rem)] overflow-y-auto sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>{viewVehicle?.plateNumber || 'Vehicle'}</DialogTitle>
-          <DialogDescription>Vehicle details and paged run history.</DialogDescription>
+          <DialogDescription>Vehicle details and delivery trip history.</DialogDescription>
         </DialogHeader>
         {viewVehicle && (
           <>
@@ -84,7 +84,7 @@ export function VehicleDetailModal({
               {[
                 ['Trips', allTrips.length],
                 ['Completed', allTrips.filter((trip) => trip.status === 'COMPLETED').length],
-                ['In Transit', allTrips.filter((trip) => trip.status === 'DISPATCHED').length],
+                ['Dispatched', allTrips.filter((trip) => trip.status === 'DISPATCHED').length],
                 ['Cancelled', allTrips.filter((trip) => trip.status === 'CANCELLED').length],
               ].map(([label, count]) => (
                 <div key={label} className="rounded-lg border bg-card p-3">
@@ -94,7 +94,7 @@ export function VehicleDetailModal({
               ))}
             </div>
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className="text-base font-semibold">Run History</h2>
+              <h2 className="text-base font-semibold">Delivery Trip History</h2>
               <Select value={historyStatus} onValueChange={setHistoryStatus}>
                 <SelectTrigger aria-label="Vehicle history status" className="h-9 w-44 text-[13px]">
                   <SelectValue />

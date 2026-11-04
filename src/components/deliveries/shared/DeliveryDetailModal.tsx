@@ -237,8 +237,8 @@ export function DeliveryDetailModal({ deliveryId, open, onClose }: DeliveryDetai
                     value={sourceWarehouseNames.join(', ') || 'No source records'}
                   />
                   <DeliveryDetailField
-                    label="Run departure"
-                    value={run ? DeliveryUtils.formatDateTime(run.scheduledDepartureAt) : delivery.runId ? (runQuery.isFetching ? 'Loading run...' : 'Run details unavailable') : 'No run assigned'}
+                    label="Scheduled departure"
+                    value={run ? DeliveryUtils.formatDateTime(run.scheduledDepartureAt) : delivery.runId ? (runQuery.isFetching ? 'Loading trip...' : 'Trip details unavailable') : 'No trip assigned'}
                   />
                   <DeliveryDetailField
                     label="Driver / Logistics Officer"
@@ -247,7 +247,7 @@ export function DeliveryDetailModal({ deliveryId, open, onClose }: DeliveryDetai
                         ? `${driver.firstName} ${driver.lastName}`
                         : run?.driverEmployeeId
                           ? `Employee #${run?.driverEmployeeId}`
-                          : delivery.runId && !run ? 'Run details unavailable' : 'Unassigned'
+                          : delivery.runId && !run ? 'Trip details unavailable' : 'Unassigned'
                     }
                     secondary={
                       driver ? driver.phone || driver.email || 'No contact listed' : undefined
@@ -260,7 +260,7 @@ export function DeliveryDetailModal({ deliveryId, open, onClose }: DeliveryDetai
                         ? `${vehicle.plateNumber} (${vehicle.vehicleType})`
                         : run?.deliveryVehicleId
                           ? `Vehicle #${run?.deliveryVehicleId}`
-                          : delivery.runId && !run ? 'Run details unavailable' : 'Unassigned'
+                          : delivery.runId && !run ? 'Trip details unavailable' : 'Unassigned'
                     }
                     secondary={
                       vehicle

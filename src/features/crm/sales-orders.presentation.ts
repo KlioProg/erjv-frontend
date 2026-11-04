@@ -91,15 +91,17 @@ export function getSalesOrderDeliveryDisplay(
 
   if (delivery?.status === 'DISPATCHED')
     return {
-      label: 'In Transit',
-      supportingText: 'On the way',
+      label: 'Dispatched',
+      supportingText: 'Departure recorded',
       badgeClassName: infoBadge,
     }
 
   if (delivery?.status === 'READY')
     return {
       label: 'Ready',
-      supportingText: delivery.runId ? `Run #${delivery.runId}` : 'Awaiting run assignment',
+      supportingText: delivery.runId
+        ? `Assigned to Trip #${delivery.runId}`
+        : 'Awaiting trip assignment',
       badgeClassName: infoBadge,
     }
 

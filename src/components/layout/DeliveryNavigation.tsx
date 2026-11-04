@@ -8,7 +8,7 @@ import { routeForScreen } from '@/routes'
 const links: { view: DeliveryView | 'runs'; label: string }[] = [
   { view: 'incoming', label: 'Incoming' },
   { view: 'outgoing', label: 'Outgoing' },
-  { view: 'runs', label: 'Delivery Runs' },
+  { view: 'runs', label: 'Delivery Trips' },
   { view: 'history', label: 'History' },
 ]
 

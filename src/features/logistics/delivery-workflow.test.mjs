@@ -11,11 +11,10 @@ import {
   localDeliveryDay,
 } from './delivery-workflow.ts'
 
-test('friendly labels preserve backend states and distinguish actual run assignment', () => {
-  assert.equal(outgoingStatusLabel('READY', null), 'Ready to Assign')
-  assert.equal(outgoingStatusLabel('READY', 10), 'Assigned to Run')
-  assert.equal(outgoingStatusLabel('DISPATCHED', 10), 'In Transit')
-  assert.equal(outgoingStatusLabel('RECONCILED', 10), 'Completed')
+test('friendly labels preserve backend states regardless of trip assignment', () => {
+  assert.equal(outgoingStatusLabel('READY'), 'Ready')
+  assert.equal(outgoingStatusLabel('DISPATCHED'), 'Dispatched')
+  assert.equal(outgoingStatusLabel('RECONCILED'), 'Completed')
   assert.equal(DELIVERY_STATUS_LABELS.SCHEDULED, 'Awaiting Receipt')
   assert.equal(DELIVERY_STATUS_LABELS.COMPLETED, 'Received')
 })

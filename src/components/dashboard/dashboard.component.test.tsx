@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, Outlet, Route, Routes } from 'react-router'
@@ -282,15 +282,13 @@ it.each(['failed', 'malformed'])(
   },
 )
 
-it('shows accurate zero activity and refreshes all active dashboard sources', async () => {
+it('shows accurate zero activity without a manual refresh button', async () => {
   financialFixture = 'sales-empty-overview'
   mount()
   await screen.findByText('₱0.00')
   await screen.findByText('Nothing needs attention.')
-  const before = requests.length
-  await userEvent.setup().click(screen.getByRole('button', { name: 'Refresh' }))
-  await waitFor(() => expect(requests.length).toBeGreaterThanOrEqual(before + 10))
-  expect(requests.every(({ params }) => !params.cursor)).toBe(true)
+  expect(screen.queryByRole('button', { name: 'Refresh' })).toBeNull()
+  expect(requests.length).toBeGreaterThan(0)
 })
 
 it('keeps finance usable while a delivery request is slow and cancels it on navigation', async () => {

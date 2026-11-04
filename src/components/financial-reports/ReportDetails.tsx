@@ -310,17 +310,6 @@ function ReportBreakdown({
   ]
   return (
     <section className="space-y-3" aria-label="Report details">
-      <div className="flex flex-wrap items-center justify-end gap-2">
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={query.isFetching}
-          onClick={query.refresh}
-        >
-          Refresh details
-        </Button>
-      </div>
       {filteredTotal && (
         <p className="text-sm">
           Filtered total: {formatReportMoney(metricAmount(result.totals, kind))}

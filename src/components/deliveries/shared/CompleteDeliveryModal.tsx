@@ -25,7 +25,7 @@ import { useDeliveryRunById, useReconcileRunMember } from '@/features/logistics/
 
 const fields = [
   ['deliveredQuantity', 'Delivered'],
-  ['returnedSellableQuantity', 'Returned sellable'],
+  ['returnedSellableQuantity', 'Returned in good condition'],
   ['returnedDamagedQuantity', 'Returned damaged'],
   ['missingQuantity', 'Missing'],
 ] as const
@@ -140,12 +140,14 @@ export function CompleteDeliveryModal({
         className="flex max-h-[calc(100svh-2rem)] flex-col overflow-hidden p-0 sm:max-w-2xl"
       >
         <DialogHeader className="shrink-0 px-6 pr-14 pt-6">
-          <DialogTitle>Complete Delivery</DialogTitle>
+          <DialogTitle>Record Delivery Results</DialogTitle>
           <DialogDescription>
-            {runQuery.data?.runNumber || 'Loading run...'} ?{' '}
+            {runQuery.data?.runNumber || 'Loading trip...'} ·{' '}
             {delivery?.deliveryNumber || 'Loading delivery...'} ·{' '}
             {clients.data?.find((client) => client.id === order.data?.clientId)?.name ||
-              'Customer unavailable'}
+              'Customer unavailable'}.{' '}
+            Record delivered, returned, damaged, and missing quantities. Saving these results
+            updates order fulfillment.
           </DialogDescription>
         </DialogHeader>
         <form
@@ -168,7 +170,7 @@ export function CompleteDeliveryModal({
                     ? counts[row.item.id]?.discrepancyReason?.trim()
                     : undefined
                 if ((values[2]! > 0n || values[3]! > 0n) && !reason)
-                  throw Error('Damage or missing goods require a discrepancy reason.')
+                  throw Error('Damage or missing goods require a reason for the difference.')
                 return {
                   outgoingDeliveryItemId: row.item.id,
                   deliveredQuantity: decimalString(values[0]!),
@@ -194,9 +196,9 @@ export function CompleteDeliveryModal({
                 saved.run?.id !== runId
               )
                 throw Error(
-                  'The server did not confirm member reconciliation. Refresh and review before retrying.',
+                  'Delivery results were not confirmed. Refresh and review before trying again.',
                 )
-              toast.success('Delivery reconciled.')
+              toast.success('Delivery results saved.')
               onClose()
             } catch (cause) {
               const issues = getApiFieldErrors(cause)
@@ -248,7 +250,7 @@ export function CompleteDeliveryModal({
                 <AlertDescription>
                   {error ||
                     (runQuery.isError
-                      ? `The run could not be loaded. ${getErrorMessage(runQuery.error)}`
+                      ? `The delivery trip could not be loaded. ${getErrorMessage(runQuery.error)}`
                       : 'The latest delivery could not be loaded. Refresh and retry.')}
                 </AlertDescription>
               </Alert>
@@ -270,8 +272,8 @@ export function CompleteDeliveryModal({
                 )) && (
                 <Alert variant="destructive">
                   <AlertDescription>
-                    The run membership, revision, or status changed. Refresh and review before
-                    reconciling this member.
+                    Trip membership, revision, or status changed. Refresh and review before
+                    recording these results.
                   </AlertDescription>
                 </Alert>
               )}
@@ -286,7 +288,7 @@ export function CompleteDeliveryModal({
             {delivery && delivery.status !== 'DISPATCHED' && (
               <Alert variant="destructive">
                 <AlertDescription>
-                  This delivery is no longer in transit. Close and review its current status.
+                  This delivery is no longer marked as dispatched. Close and review its current status.
                 </AlertDescription>
               </Alert>
             )}
@@ -394,7 +396,7 @@ export function CompleteDeliveryModal({
               </Alert>
             )}
             {outcome === 'exceptions' && (
-              <section className="flex flex-col gap-5" aria-label="Product reconciliation">
+              <section className="flex flex-col gap-5" aria-label="Delivery results">
                 {rows.map((row, index) => (
                   <fieldset
                     key={row.item.id}
@@ -454,11 +456,11 @@ export function CompleteDeliveryModal({
                     {row.reasonRequired && (
                       <div className="flex flex-col gap-1.5">
                         <Label htmlFor={`completion-reason-${row.item.id}`}>
-                          Discrepancy Reason (required)
+                          Reason for Difference (required)
                         </Label>
                         <Input
                           id={`completion-reason-${row.item.id}`}
-                          aria-label={`Discrepancy Reason for ${row.product?.name || 'unavailable product'} (${index + 1})`}
+                          aria-label={`Reason for Difference for ${row.product?.name || 'unavailable product'} (${index + 1})`}
                           value={counts[row.item.id]?.discrepancyReason ?? ''}
                           aria-invalid={!!fieldErrors[`${row.item.id}.discrepancyReason`]}
                           aria-describedby={fieldErrors[`${row.item.id}.discrepancyReason`] ? `completion-reason-${row.item.id}-error` : undefined}
@@ -485,9 +487,9 @@ export function CompleteDeliveryModal({
             )}
             {outcome && (
               <p className="text-xs text-muted-foreground">
-                Delivered goods count toward order fulfillment. The system reconciles returns,
-                tracks damaged goods, and completes this member. The vehicle remains occupied until
-                every run member is reconciled.
+                Delivered goods count toward order fulfillment. These results record returns,
+                damaged goods, and missing quantities. The vehicle remains occupied until results
+                are recorded for every delivery in this trip.
               </p>
             )}
           </div>
@@ -496,7 +498,7 @@ export function CompleteDeliveryModal({
               Cancel
             </Button>
             <Button type="submit" disabled={disabled || !validOutcome || confirmAll}>
-              {complete.isPending ? 'Completing...' : 'Confirm Completion'}
+              {complete.isPending ? 'Saving...' : 'Save Results'}
             </Button>
           </DialogFooter>
         </form>

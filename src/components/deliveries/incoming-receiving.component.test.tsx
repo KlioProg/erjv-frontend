@@ -291,7 +291,7 @@ it('confirms a partial damaged receipt using PO line IDs and refreshes every aff
   fireEvent.change(received(), { target: { value: '2.25' } })
   fireEvent.change(damaged(), { target: { value: '0.25' } })
   fireEvent.change(received('Mango'), { target: { value: '0.00' } })
-  await user.click(screen.getByRole('button', { name: 'Confirm Receipt' }))
+  await user.click(screen.getByRole('button', { name: 'Save Receipt' }))
   await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
   expect(writes()).toEqual([
     {
@@ -325,7 +325,7 @@ it('allows received quantities above the outstanding good balance when damage ke
   await choosePartial()
   fireEvent.change(received(), { target: { value: '8.25' } })
   fireEvent.change(damaged(), { target: { value: '1.25' } })
-  await user.click(screen.getByRole('button', { name: 'Confirm Receipt' }))
+  await user.click(screen.getByRole('button', { name: 'Save Receipt' }))
   await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
   expect(delivery.items[0].acceptedQuantity).toBe('7.00')
 })
@@ -337,7 +337,7 @@ it('allows a wholly damaged receipt and does not treat it as good stock', async 
   await choosePartial()
   fireEvent.change(received(), { target: { value: '2.25' } })
   fireEvent.change(damaged(), { target: { value: '2.25' } })
-  await user.click(screen.getByRole('button', { name: 'Confirm Receipt' }))
+  await user.click(screen.getByRole('button', { name: 'Save Receipt' }))
   await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
   expect(delivery.items[0].acceptedQuantity).toBe('0.00')
 })
@@ -347,14 +347,14 @@ it('requires a reason for no receipt and sends an empty items array without assu
   const { onClose } = mount()
   await screen.findByText('Banana')
   await user.click(screen.getByRole('radio', { name: 'No goods arrived' }))
-  expect(screen.getByRole('button', { name: 'Confirm No Receipt' }).hasAttribute('disabled')).toBe(true)
+  expect(screen.getByRole('button', { name: 'Record No Receipt' }).hasAttribute('disabled')).toBe(true)
   expect(writes()).toHaveLength(0)
   expect(screen.queryByRole('textbox', { name: /Received now/ })).toBeNull()
   await user.type(
     screen.getByRole('textbox', { name: 'Reason no goods arrived' }),
     '  Supplier did not arrive  ',
   )
-  await user.click(screen.getByRole('button', { name: 'Confirm No Receipt' }))
+  await user.click(screen.getByRole('button', { name: 'Record No Receipt' }))
   await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
   expect(writes()[0].body).toEqual({ expectedRevision: 1, items: [], noReceiptReason: 'Supplier did not arrive' })
   expect(delivery.outcome).toBe('NO_RECEIPT')
@@ -380,7 +380,7 @@ it.each([
   await choosePartial()
     fireEvent.change(received(), { target: { value } })
     fireEvent.change(damaged(), { target: { value: damage } })
-    fireEvent.submit(screen.getByRole('button', { name: 'Confirm Receipt' }).closest('form')!)
+    fireEvent.submit(screen.getByRole('button', { name: 'Save Receipt' }).closest('form')!)
     expect(within(received().closest('tr')!).getAllByRole('alert').length).toBeGreaterThan(0)
     expect(received().value).toBe(value)
     expect(damaged().value).toBe(damage)
@@ -392,8 +392,8 @@ it('requires explicit actual quantities rather than assuming ordered goods were 
   mount()
   await screen.findByText('Banana')
   await choosePartial()
-  fireEvent.submit(screen.getByRole('button', { name: 'Confirm Receipt' }).closest('form')!)
-  expect(screen.getByRole('button', { name: 'Confirm Receipt' }).hasAttribute('disabled')).toBe(true)
+  fireEvent.submit(screen.getByRole('button', { name: 'Save Receipt' }).closest('form')!)
+  expect(screen.getByRole('button', { name: 'Save Receipt' }).hasAttribute('disabled')).toBe(true)
   expect(received().value).toBe('')
   expect(writes()).toHaveLength(0)
 })
@@ -407,7 +407,7 @@ it('prevents repeated confirmation and closing while a receipt is pending', asyn
   await screen.findByText('Banana')
   await choosePartial()
   fireEvent.change(received(), { target: { value: '1.25' } })
-  const form = screen.getByRole('button', { name: 'Confirm Receipt' }).closest('form')!
+  const form = screen.getByRole('button', { name: 'Save Receipt' }).closest('form')!
   fireEvent.submit(form)
   fireEvent.submit(form)
   await waitFor(() => expect(writes()).toHaveLength(1))
@@ -431,11 +431,11 @@ it.each([400, 403, 404, 409, 'network'] as const)(
   await choosePartial()
     fireEvent.change(received(), { target: { value: '1.25' } })
     fireEvent.change(damaged(), { target: { value: '0.25' } })
-    await user.click(screen.getByRole('button', { name: 'Confirm Receipt' }))
+    await user.click(screen.getByRole('button', { name: 'Save Receipt' }))
     expect(await screen.findByRole('alert')).toBeTruthy()
     expect(received().value).toBe('1.25')
     expect(damaged().value).toBe('0.25')
-    expect(screen.getByRole('button', { name: 'Confirm Receipt' }).hasAttribute('disabled')).toBe(
+    expect(screen.getByRole('button', { name: 'Save Receipt' }).hasAttribute('disabled')).toBe(
       true,
     )
     expect(writes()).toHaveLength(1)
@@ -445,7 +445,7 @@ it.each([400, 403, 404, 409, 'network'] as const)(
     await user.click(screen.getByRole('button', { name: 'Refresh receipt data' }))
     await waitFor(() => expect(received().disabled).toBe(false))
     expect(received().value).toBe('1.25')
-    await user.click(screen.getByRole('button', { name: 'Confirm Receipt' }))
+    await user.click(screen.getByRole('button', { name: 'Save Receipt' }))
     await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
   },
 )
@@ -457,7 +457,7 @@ it('does not repeat an uncertain receipt when refresh finds the delivery already
   await screen.findByText('Banana')
   await choosePartial()
   fireEvent.change(received(), { target: { value: '1.25' } })
-  await user.click(screen.getByRole('button', { name: 'Confirm Receipt' }))
+  await user.click(screen.getByRole('button', { name: 'Save Receipt' }))
   await screen.findByRole('alert')
   delivery.status = 'COMPLETED'
   await user.click(screen.getByRole('button', { name: 'Refresh receipt data' }))
@@ -481,7 +481,7 @@ it('keeps existing staff permissions read-only', async () => {
   mount()
   expect(await screen.findByText(/do not have permission/)).toBeTruthy()
   expect(screen.getAllByRole('radio').every((radio) => radio.matches(':disabled'))).toBe(true)
-  expect(screen.getByRole('button', { name: 'Confirm Receipt' }).hasAttribute('disabled')).toBe(
+  expect(screen.getByRole('button', { name: 'Save Receipt' }).hasAttribute('disabled')).toBe(
     true,
   )
   expect(writes()).toHaveLength(0)
@@ -494,7 +494,7 @@ it('opens the actual receiving form from Incoming Deliveries and moves the confi
   expect(await screen.findByText('Banana')).toBeTruthy()
   await choosePartial()
   fireEvent.change(received(), { target: { value: '1.25' } })
-  await user.click(screen.getByRole('button', { name: 'Confirm Receipt' }))
+  await user.click(screen.getByRole('button', { name: 'Save Receipt' }))
   await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Receive Goods' })).toBeNull())
   expect(screen.queryByRole('button', { name: 'Receive Goods IN-90' })).toBeNull()
 })
@@ -518,7 +518,7 @@ it('refreshes the rendered Stock Warnings and Quarantine views after a damaged r
   await choosePartial()
   fireEvent.change(received(), { target: { value: '1.25' } })
   fireEvent.change(damaged(), { target: { value: '0.25' } })
-  await user.click(screen.getByRole('button', { name: 'Confirm Receipt' }))
+  await user.click(screen.getByRole('button', { name: 'Save Receipt' }))
   await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Receive Goods' })).toBeNull())
   expect(screen.queryByRole('button', { name: /1 unresolved/ })).toBeNull()
   const quarantineSource = await screen.findByText('INCOMING DELIVERY')
@@ -536,7 +536,7 @@ it('confirms a full remaining receipt across current purchase order line IDs', a
   await choosePartial()
   fireEvent.change(received(), { target: { value: '7.00' } })
   fireEvent.change(received('Mango'), { target: { value: '5.00' } })
-  await user.click(screen.getByRole('button', { name: 'Confirm Receipt' }))
+  await user.click(screen.getByRole('button', { name: 'Save Receipt' }))
   await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
   expect(writes()[0].body).toEqual({
     expectedRevision: 1,
@@ -551,7 +551,7 @@ it('shows a recoverable error for incomplete purchase order detail data', async 
   order.items = undefined as unknown as PurchaseOrderRecord['items']
   mount()
   expect(await screen.findByRole('alert')).toBeTruthy()
-  expect(screen.getByRole('button', { name: 'Confirm Receipt' }).hasAttribute('disabled')).toBe(
+  expect(screen.getByRole('button', { name: 'Save Receipt' }).hasAttribute('disabled')).toBe(
     true,
   )
   expect(screen.getByRole('button', { name: 'Refresh receipt data' })).toBeTruthy()
@@ -577,7 +577,7 @@ it('binds nested receipt issues to submitted purchase lines after skipped rows a
   await choosePartial()
   fireEvent.change(received('Banana'), { target: { value: '0' } })
   fireEvent.change(received('Mango'), { target: { value: '1' } })
-  fireEvent.submit(screen.getByRole('button', { name: 'Confirm Receipt' }).closest('form')!)
+  fireEvent.submit(screen.getByRole('button', { name: 'Save Receipt' }).closest('form')!)
   const issue = await screen.findByText('Supplier count must be checked')
   expect(received('Mango').getAttribute('aria-describedby')).toBe(issue.id)
   expect(received('Mango').getAttribute('aria-invalid')).toBe('true')

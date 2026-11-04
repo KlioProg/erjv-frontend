@@ -13,7 +13,6 @@ import { useState, useMemo, useRef, type MouseEvent } from 'react'
 import {
   Archive,
   Building2,
-  Check,
   CheckCircle2,
   Clock,
   Download,
@@ -397,7 +396,6 @@ export function PurchasesView({
               onClick={() => void confirmPurchaseOrder(po.id, po.revision).catch(() => undefined)}
               title="Confirm Purchase Order"
             >
-              <Check aria-hidden="true" data-icon="inline-start" />
               Confirm
             </Button>
           )}

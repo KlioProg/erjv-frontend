@@ -13,16 +13,16 @@ it('uses existing theme colors for neutral and cancelled states', () => {
 it('distinguishes awaiting receipt from in-transit deliveries', () => {
   render(<><IncomingDeliveryStatusBadge status="SCHEDULED" /><DeliveryStatusBadge status="DISPATCHED" /></>)
   const incoming = screen.getByText('Awaiting Receipt').closest('[data-slot="badge"]')!
-  const outgoing = screen.getByText('In Transit').closest('[data-slot="badge"]')!
+  const outgoing = screen.getByText('Dispatched').closest('[data-slot="badge"]')!
   expect(incoming.classList.contains('bg-status-info')).toBe(true)
   expect(outgoing.classList.contains('bg-status-warning')).toBe(true)
   for (const badge of [incoming, outgoing])
     expect(badge.querySelector('[data-slot="status-dot"]')?.getAttribute('aria-hidden')).toBe('true')
 })
 
-it('keeps run assignment distinct from dispatch and preserves reconciliation labels', () => {
+it('keeps Ready distinct from dispatched status and preserves completed outcomes', () => {
   render(<><DeliveryStatusBadge status="READY" runId={4} /><DeliveryStatusBadge status="RECONCILED" /><IncomingDeliveryStatusBadge status="COMPLETED" /></>)
-  expect(screen.getByText('Assigned to Run').closest('[data-slot="badge"]')?.classList.contains('bg-status-info')).toBe(true)
+  expect(screen.getByText('Ready').closest('[data-slot="badge"]')?.classList.contains('bg-status-info')).toBe(true)
   for (const label of ['Completed', 'Received'])
     expect(screen.getByText(label).closest('[data-slot="badge"]')?.classList.contains('bg-status-success')).toBe(true)
 })

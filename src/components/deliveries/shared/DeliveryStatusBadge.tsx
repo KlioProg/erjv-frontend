@@ -20,12 +20,12 @@ export function DeliveryStatusBadge({
 
   return (
     <StatusBadge
-      label={outgoingStatusLabel(status, runId)}
+      label={outgoingStatusLabel(status)}
       appearance="emphasis"
       showDot={showDot}
       className={className}
       tone={status === 'DRAFT' ? 'neutral' : status === 'READY' ? 'info' : status === 'DISPATCHED' ? 'warning' : status === 'RECONCILED' ? 'success' : 'destructive'}
-      title={status === 'READY' && runId != null ? 'Assigned to a delivery run' : config.description}
+      title={status === 'READY' && runId != null ? 'Assigned to a delivery trip' : config.description}
     />
   )
 }

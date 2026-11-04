@@ -122,7 +122,7 @@ async function open() {
   await screen.findByText('WT-000007')
   await userEvent.click(
     screen.getByRole('button', {
-      name: record.status === 'DISPATCHED' ? 'Reconcile Transfer' : 'Review / Dispatch',
+      name: 'Review Transfer',
     }),
   )
   await screen.findByRole('dialog')
@@ -149,7 +149,7 @@ it.each(['DRAFT', 'DISPATCHED', 'COMPLETED'] as const)('keeps the optional sched
   } else {
     expect(transferRow.textContent).not.toContain('Actual:')
   }
-  await userEvent.click(screen.getByRole('button', { name: status === 'DRAFT' ? 'Review / Dispatch' : status === 'DISPATCHED' ? 'Reconcile Transfer' : 'View Details' }))
+  await userEvent.click(screen.getByRole('button', { name: status === 'DRAFT' || status === 'DISPATCHED' ? 'Review Transfer' : 'View Details' }))
   const dialog = await screen.findByRole('dialog')
   await waitFor(() => expect(within(dialog).queryByText('Loading transfer…')).toBeNull())
   const scheduled = within(dialog).getByText('Scheduled Departure').parentElement!
@@ -169,7 +169,7 @@ it('supports manager draft creation with distinct warehouses and no stock reques
   mount()
   await userEvent.click(screen.getByRole('button', { name: 'Create Transfer' }))
   const dialog = within(screen.getByRole('dialog'))
-  await userEvent.click(dialog.getByRole('button', { name: 'Create Transfer' }))
+  await userEvent.click(dialog.getByRole('button', { name: 'Save Transfer' }))
   expect(writes()).toHaveLength(0)
   await userEvent.click(dialog.getByRole('button', { name: 'Choose source warehouse' }))
   await userEvent.click(await screen.findByRole('menuitem', { name: 'Source' }))
@@ -178,7 +178,7 @@ it('supports manager draft creation with distinct warehouses and no stock reques
   await userEvent.click(dialog.getByRole('button', { name: 'Choose item 1' }))
   await userEvent.click(await screen.findByRole('menuitem', { name: 'Test Item' }))
   await userEvent.type(dialog.getByRole('textbox', { name: 'Quantity for item 1' }), '10.00')
-  await userEvent.click(dialog.getByRole('button', { name: 'Create Transfer' }))
+  await userEvent.click(dialog.getByRole('button', { name: 'Save Transfer' }))
   await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
   expect(writes()).toEqual([
     {
@@ -201,7 +201,7 @@ it('edits notes without replacing saved lines and submits the saved revision', a
   await open()
   await userEvent.click(screen.getByRole('button', { name: 'Edit Draft' }))
   await userEvent.type(screen.getByLabelText('Notes'), 'Handle with care')
-  await userEvent.click(screen.getByRole('button', { name: 'Save draft' }))
+  await userEvent.click(screen.getByRole('button', { name: 'Save Transfer' }))
   await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
   expect(writes()[0].body).toEqual({ expectedRevision: 1, notes: 'Handle with care' })
   expect(record.items).toHaveLength(1)
@@ -218,9 +218,9 @@ it('lets Staff dispatch with confirmation and blocks duplicate submissions', asy
   await open()
   expect(screen.queryByRole('button', { name: 'Create Transfer' })).toBeNull()
   expect(screen.queryByRole('button', { name: 'Edit Draft' })).toBeNull()
-  await userEvent.click(screen.getByRole('button', { name: 'Dispatch Transfer' }))
+  await userEvent.click(screen.getByRole('button', { name: 'Send Goods' }))
   expect(writes()).toHaveLength(0)
-  const confirm = screen.getByRole('button', { name: 'Confirm Dispatch' })
+  const confirm = screen.getByRole('button', { name: 'Send Goods' })
   fireEvent.click(confirm)
   fireEvent.click(confirm)
   await waitFor(() => expect(writes()).toHaveLength(1))
@@ -245,20 +245,20 @@ it.each([
   conflict = code
   mount()
   await open()
-  await userEvent.click(screen.getByRole('button', { name: 'Dispatch Transfer' }))
-  await userEvent.click(screen.getByRole('button', { name: 'Confirm Dispatch' }))
+  await userEvent.click(screen.getByRole('button', { name: 'Send Goods' }))
+  await userEvent.click(screen.getByRole('button', { name: 'Send Goods' }))
   await screen.findByRole('alert')
   expect(writes()).toHaveLength(1)
-  expect(screen.getByRole('button', { name: 'Confirm Dispatch' }).hasAttribute('disabled')).toBe(
+  expect(screen.getByRole('button', { name: 'Send Goods' }).hasAttribute('disabled')).toBe(
     true,
   )
   expect(record.status).toBe('DRAFT')
   conflict = ''
   record = { ...record, revision: 2 }
   await userEvent.click(screen.getByRole('button', { name: 'Review saved transfers' }))
-  await screen.findByRole('button', { name: 'Dispatch Transfer' })
-  await userEvent.click(screen.getByRole('button', { name: 'Dispatch Transfer' }))
-  await userEvent.click(screen.getByRole('button', { name: 'Confirm Dispatch' }))
+  await screen.findByRole('button', { name: 'Send Goods' })
+  await userEvent.click(screen.getByRole('button', { name: 'Send Goods' }))
+  await userEvent.click(screen.getByRole('button', { name: 'Send Goods' }))
   await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
   expect(writes()[1].body).toEqual({ expectedRevision: 2 })
 })
@@ -269,22 +269,22 @@ it('reconciles mixed outcomes with saved line IDs, required reason, and final qu
   mount()
   await open()
   await userEvent.click(
-    within(screen.getByRole('dialog')).getByRole('button', { name: 'Reconcile Transfer' }),
+    within(screen.getByRole('dialog')).getByRole('button', { name: 'Receive Goods' }),
   )
   const set = (label: string, value: string) =>
     fireEvent.change(screen.getByRole('textbox', { name: `${label} for item 10` }), {
       target: { value },
     })
-  set('Received (including damage)', '6.00')
+  set('Received at destination', '6.00')
   set('Damaged at destination', '1.00')
-  set('Returned sellable', '2.00')
+  set('Returned in good condition', '2.00')
   set('Returned damaged', '1.00')
   set('Missing', '1.00')
-  await userEvent.click(screen.getByRole('button', { name: 'Confirm Reconciliation' }))
+  await userEvent.click(screen.getByRole('button', { name: 'Save Receipt' }))
   expect(writes()).toHaveLength(0)
   expect(screen.getByText(/Explain the damage/)).toBeTruthy()
-  await userEvent.type(screen.getByLabelText('Discrepancy reason for item 10'), 'Damaged and short')
-  await userEvent.click(screen.getByRole('button', { name: 'Confirm Reconciliation' }))
+  await userEvent.type(screen.getByLabelText('Reason for difference for item 10'), 'Damaged and short')
+  await userEvent.click(screen.getByRole('button', { name: 'Save Receipt' }))
   await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
   const payload = writes()[0].body!
   expect(payload.expectedRevision).toBe(2)
@@ -295,10 +295,10 @@ it('requires a cancellation reason for drafts and never exposes cancellation for
   mount()
   await open()
   await userEvent.click(screen.getByRole('button', { name: 'Cancel Transfer' }))
-  await userEvent.click(screen.getByRole('button', { name: 'Confirm Cancellation' }))
+  await userEvent.click(screen.getByRole('button', { name: 'Cancel Transfer' }))
   expect(writes()).toHaveLength(0)
   await userEvent.type(screen.getByLabelText('Cancellation reason'), 'Not required')
-  await userEvent.click(screen.getByRole('button', { name: 'Confirm Cancellation' }))
+  await userEvent.click(screen.getByRole('button', { name: 'Cancel Transfer' }))
   await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
   expect(record.status).toBe('CANCELLED')
 })

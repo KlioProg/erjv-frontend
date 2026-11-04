@@ -179,14 +179,14 @@ export function DeliveryRunsHub() {
   const preparation = (run: DeliveryRunRecord) =>
     run.status === 'DRAFT'
       ? !run.deliveries.length
-        ? 'No deliveries assigned'
+        ? 'No deliveries in this trip'
         : !run.driverEmployeeId || !run.deliveryVehicleId
           ? 'Assign driver / vehicle, then review load'
-          : 'Review load and eligibility before dispatch'
+          : 'Review load and eligibility before departure'
       : run.status === 'DISPATCHED'
-        ? `${run.deliveries.filter((member) => member.status === 'DISPATCHED').length} awaiting reconciliation`
+        ? `${run.deliveries.filter((member) => member.status === 'DISPATCHED').length} awaiting results`
         : run.status === 'COMPLETED'
-          ? 'Run completed · review member outcomes'
+          ? 'Trip completed · review delivery results'
           : 'Cancelled'
   const filterHeaders = {
     warehouse: (
@@ -293,7 +293,7 @@ export function DeliveryRunsHub() {
         active={status !== 'ALL'}
         onClear={() => setStatus('ALL')}
       >
-        <Label htmlFor="run-status-filter">Run status</Label>
+        <Label htmlFor="run-status-filter">Trip status</Label>
         <Select value={status} onValueChange={setStatus}>
           <SelectTrigger id="run-status-filter">
             <SelectValue />
@@ -313,7 +313,7 @@ export function DeliveryRunsHub() {
   const columns: ColumnDef<DeliveryRunRecord>[] = [
     {
       id: 'run',
-      header: 'Run',
+      header: 'Trip',
       cell: ({ row }) => (
         <div>
           <Button
@@ -349,11 +349,11 @@ export function DeliveryRunsHub() {
     },
     {
       id: 'progress',
-      header: 'Member Progress',
+      header: 'Delivery Progress',
       className: 'hidden sm:table-cell',
       headerClassName: 'hidden sm:table-cell',
       cell: ({ row }) =>
-        `${row.deliveries.filter((member) => member.status === 'RECONCILED').length} / ${row.deliveries.length} reconciled`,
+        `${row.deliveries.filter((member) => member.status === 'RECONCILED').length} / ${row.deliveries.length} results recorded`,
     },
     {
       header: filterHeaders.status,
@@ -367,11 +367,11 @@ export function DeliveryRunsHub() {
       cell: ({ row }) => (
         <Button variant="outline" size="sm" onClick={() => select(row.id)}>
           {row.status === 'DRAFT' && (isAdmin || isManager || isStaff)
-            ? 'Review / Dispatch'
+            ? 'Review Trip'
             : row.status === 'DISPATCHED' &&
                 row.deliveries.some((member) => member.status === 'DISPATCHED') &&
                 (isAdmin || isManager || isStaff)
-              ? 'Reconcile Deliveries'
+              ? 'Record Results'
               : 'View Details'}
         </Button>
       ),
@@ -379,14 +379,14 @@ export function DeliveryRunsHub() {
   ]
   return (
     <div className="flex min-w-0 flex-col gap-4">
-      <PageHeader description="Group customer deliveries, review departure loads, then reconcile each delivery after dispatch.">
-        Delivery Runs
+      <PageHeader description="Group customer deliveries, review departure loads, then record results after departure.">
+        Delivery Trips
       </PageHeader>
       <DeliveryTableToolbar
         search={q}
         onSearch={setQ}
-        searchLabel="Search delivery runs"
-        placeholder="Search delivery run..."
+        searchLabel="Search delivery trips"
+        placeholder="Search delivery trip..."
       >
         {hasFilters && (
           <Button variant="ghost" size="sm" onClick={clearFilters}>
@@ -395,7 +395,7 @@ export function DeliveryRunsHub() {
         )}
         {(isAdmin || isManager) && (
           <Button size="sm" onClick={() => setCreating(true)}>
-            Create Delivery Run
+            Create Delivery Trip
           </Button>
         )}
       </DeliveryTableToolbar>
@@ -415,13 +415,13 @@ export function DeliveryRunsHub() {
             <AlertDescription>
               {getErrorMessage(query.error)}{' '}
               <Button variant="link" onClick={() => void query.reload()}>
-                Refresh runs
+                Refresh trips
               </Button>
             </AlertDescription>
           </Alert>
         )}
         {query.isError && !runs.length ? (
-          <p role="status">Delivery runs are unavailable. Refresh to try again.</p>
+          <p role="status">Delivery trips are unavailable. Refresh to try again.</p>
         ) : (
           <DataTable
             className="rounded-none border-0"
@@ -433,10 +433,10 @@ export function DeliveryRunsHub() {
             pagination={false}
             manualSorting
             getRowKey={(run) => run.id}
-            emptyContent="No delivery runs match these filters."
+            emptyContent="No delivery trips match these filters."
           />
         )}
-        <DeliveryPageFooter query={query} count={runs.length} unit="run" label="Run" />
+        <DeliveryPageFooter query={query} count={runs.length} unit="trip" label="Trip" />
       </div>
       {creating && (
         <RunEditor
@@ -570,10 +570,10 @@ function RunEditor({
       ) {
         setReview(true)
         throw Error(
-          'Run membership was not confirmed. Review the saved run before submitting again.',
+          'Trip membership was not confirmed. Review the saved trip before submitting again.',
         )
       }
-      toast.success(run ? 'Run updated.' : 'Run created.')
+      toast.success(run ? 'Trip updated.' : 'Trip created.')
       if (mounted.current) onSaved(saved)
     } catch (cause) {
       if (!mounted.current) return
@@ -593,10 +593,10 @@ function RunEditor({
     <Dialog open onOpenChange={(open) => !open && !busy && onClose()}>
       <DialogContent closeDisabled={busy} className="gap-4 sm:max-w-xl">
         <DialogHeader>
-          <DialogTitle>{run ? `Edit ${run.runNumber}` : 'Create Delivery Run'}</DialogTitle>
+          <DialogTitle>{run ? `Edit ${run.runNumber}` : 'Create Delivery Trip'}</DialogTitle>
           <DialogDescription>
-            Assignments and departure apply to every included delivery. Choose READY deliveries now
-            or add them after saving.
+            Driver, vehicle, and scheduled departure apply to every delivery in this trip. Choose
+            ready deliveries now or add them after saving.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={(event) => void submit(event)} className="flex flex-col gap-3">
@@ -605,7 +605,7 @@ function RunEditor({
               <AlertDescription>
                 {error}
                 {review &&
-                  ' Close and reopen the latest run to review before submitting again. Your input remains here.'}
+                  ' Close and reopen the latest trip to review before submitting again. Your input remains here.'}
               </AlertDescription>
             </Alert>
           )}
@@ -713,7 +713,7 @@ function RunEditor({
               Close
             </Button>
             <Button disabled={busy || review || (!run && !selection.canSave)}>
-              {busy ? 'Saving…' : 'Save Run'}
+              {busy ? 'Saving…' : 'Save Trip'}
             </Button>
           </DialogFooter>
         </form>
@@ -752,7 +752,7 @@ function RunDetails({ id, onClose }: { id: number; onClose: () => void }) {
     [changeMembers, reopen, cancelMember, cancelRun].some((mutation) => mutation.isPending)
   async function perform(action: () => Promise<unknown>) {
     if (pendingAction.current || busy || review)
-      throw Error('Refresh and review this run before continuing.')
+      throw Error('Refresh and review this trip before continuing.')
     pendingAction.current = true
     setActing(true)
     try {
@@ -826,7 +826,7 @@ function RunDetails({ id, onClose }: { id: number; onClose: () => void }) {
                 }
               >
                 {action === 'remove'
-                  ? 'Remove from run'
+                  ? 'Remove from Trip'
                   : action === 'reopen'
                     ? 'Reopen draft'
                     : 'Cancel delivery'}
@@ -834,7 +834,7 @@ function RunDetails({ id, onClose }: { id: number; onClose: () => void }) {
             ))}
           {canOperate && run?.status === 'DISPATCHED' && row.status === 'DISPATCHED' && (
             <Button size="sm" onClick={() => setReconcileId(row.id)}>
-              Reconcile delivery
+              Record Results
             </Button>
           )}
         </div>
@@ -849,13 +849,13 @@ function RunDetails({ id, onClose }: { id: number; onClose: () => void }) {
           className="flex max-h-[90dvh] flex-col overflow-y-auto sm:max-w-4xl"
         >
           <DialogHeader>
-            <DialogTitle>{run?.runNumber ?? 'Delivery Run'}</DialogTitle>
+            <DialogTitle>{run?.runNumber ?? 'Delivery Trip'}</DialogTitle>
             <DialogDescription>
-              Dispatch moves goods into transit. A run completes only after every member delivery is
-              reconciled.
+              Starting a trip records its departure and moves goods into transit. The trip completes
+              only after results are recorded for every delivery.
             </DialogDescription>
           </DialogHeader>
-          {query.isPending && <p role="status">Loading run…</p>}
+          {query.isPending && <p role="status">Loading trip…</p>}
           {(query.isError || error) && (
             <Alert variant="destructive">
               <AlertDescription>{error || getErrorMessage(query.error)}</AlertDescription>
@@ -875,7 +875,7 @@ function RunDetails({ id, onClose }: { id: number; onClose: () => void }) {
               })
             }
           >
-            Refresh run for review
+            Refresh trip for review
           </Button>
           {run && (
             <>
@@ -912,14 +912,14 @@ function RunDetails({ id, onClose }: { id: number; onClose: () => void }) {
               {run.status === 'DRAFT' && (
                 <p className="text-sm text-muted-foreground">
                   {!run.deliveries.length
-                    ? 'Add READY deliveries before reviewing dispatch.'
-                    : 'Review driver, vehicle and every loaded quantity in Dispatch Run. Capacity and availability are verified there before departure.'}
+                    ? 'Add ready deliveries before reviewing departure.'
+                    : 'Review the driver, vehicle, and every loaded quantity before departure. Capacity and availability are checked in the departure review.'}
                 </p>
               )}
               {run.status === 'DISPATCHED' && (
                 <p className="text-sm font-medium">
                   {run.deliveries.filter((member) => member.status === 'DISPATCHED').length}{' '}
-                  deliveries awaiting reconciliation.
+                  deliveries awaiting results.
                 </p>
               )}
               {run.notes && <p className="text-sm">{run.notes}</p>}
@@ -928,7 +928,7 @@ function RunDetails({ id, onClose }: { id: number; onClose: () => void }) {
                 columns={columns}
                 getRowKey={(member) => member.id}
                 pagination={false}
-                emptyContent="No deliveries in this run."
+                emptyContent="No deliveries in this trip."
               />
               {canManage && run.status === 'DRAFT' && (
                 <div className="flex flex-col gap-3 border-t pt-4">
@@ -969,21 +969,18 @@ function RunDetails({ id, onClose }: { id: number; onClose: () => void }) {
                           )
                         )
                           throw Error(
-                            'Membership was not confirmed. Refresh and review the run before trying again.',
+                            'Trip membership was not confirmed. Refresh and review the trip before trying again.',
                           )
                         selection.clear()
                         toast.success(
                           selection.selected.length === 1
-                            ? 'Delivery added to run.'
-                            : 'Deliveries added to run.',
+                            ? 'Delivery added to trip.'
+                            : 'Deliveries added to trip.',
                         )
                       }).catch(() => undefined)
                     }
                   >
-                    Add{' '}
-                    {selection.selected.length > 1
-                      ? `${selection.selected.length} Deliveries`
-                      : 'Delivery'}
+                    Add to Trip
                   </Button>
                 </div>
               )}
@@ -995,7 +992,7 @@ function RunDetails({ id, onClose }: { id: number; onClose: () => void }) {
                       disabled={busy || review}
                       onClick={() => setEditing(run)}
                     >
-                      Edit Run
+                      Edit Trip
                     </Button>
                     <Button
                       variant="destructive"
@@ -1004,7 +1001,7 @@ function RunDetails({ id, onClose }: { id: number; onClose: () => void }) {
                         setConfirmation({ action: 'cancel-run', expectedRunRevision: run.revision })
                       }
                     >
-                      Cancel Run
+                      Cancel Trip
                     </Button>
                   </>
                 )}
@@ -1013,7 +1010,7 @@ function RunDetails({ id, onClose }: { id: number; onClose: () => void }) {
                     disabled={busy || review || !run.deliveries.length}
                     onClick={() => setDispatching(true)}
                   >
-                    Dispatch Run
+                    Review Departure
                   </Button>
                 )}
                 <Button variant="outline" disabled={busy} onClick={onClose}>
@@ -1045,12 +1042,32 @@ function RunDetails({ id, onClose }: { id: number; onClose: () => void }) {
         onConfirm={confirm}
         title={
           confirmation?.action === 'cancel-run'
-            ? 'Cancel Delivery Run'
-            : `${confirmation?.action ?? ''} delivery`
+            ? 'Cancel Delivery Trip'
+            : confirmation?.action === 'remove'
+              ? 'Remove Delivery from Trip?'
+              : confirmation?.action === 'reopen'
+                ? 'Reopen Delivery Draft?'
+                : 'Cancel Delivery?'
         }
-        description="This changes the run membership or delivery lifecycle. Review the selected record before confirming."
+        description={
+          confirmation?.action === 'cancel-run'
+            ? 'This cancels the draft delivery trip.'
+            : confirmation?.action === 'remove'
+              ? 'This removes the delivery from the draft trip. Its Ready status does not change.'
+              : confirmation?.action === 'reopen'
+                ? 'This returns the delivery to Draft for planning.'
+                : 'This cancels the delivery.'
+        }
         itemName={confirmation?.member?.deliveryNumber ?? run?.runNumber}
-        confirmText="Confirm change"
+        confirmText={
+          confirmation?.action === 'cancel-run'
+            ? 'Cancel Trip'
+            : confirmation?.action === 'remove'
+              ? 'Remove from Trip'
+              : confirmation?.action === 'reopen'
+                ? 'Reopen Draft'
+                : 'Cancel Delivery'
+        }
       />
     </>
   )

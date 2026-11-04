@@ -527,7 +527,7 @@ export function DeliveriesHub({
         ? {
             date: (
               <DeliveryHeaderFilter
-                label="Run assignment"
+                label="Delivery trip"
                 active={unassigned}
                 onClear={() => setUnassigned(false)}
               >
@@ -603,7 +603,7 @@ export function DeliveriesHub({
             ? 'Review completed and cancelled deliveries.'
             : view === 'incoming'
               ? 'Arrange supplier shipments and receive goods into a destination warehouse.'
-              : 'Plan customer shipments, mark them ready, then assign them to a delivery run.'
+              : 'Plan customer shipments, mark them ready, then add them to a delivery trip.'
         }
       >
         {view === 'history'
@@ -615,7 +615,7 @@ export function DeliveriesHub({
       <div
         className={
           view === 'history'
-            ? 'flex min-w-0 flex-wrap items-center gap-3 [&_input]:h-11! pointer-coarse:[&_input]:h-13!'
+            ? 'flex min-w-0 flex-col items-start gap-3 [&_input]:h-11! pointer-coarse:[&_input]:h-13!'
             : undefined
         }
       >
@@ -637,9 +637,7 @@ export function DeliveriesHub({
           </div>
         )}
         <div
-          className={
-            view === 'history' ? 'w-full min-w-0 sm:w-auto sm:flex-1 sm:basis-80' : undefined
-          }
+          className={view === 'history' ? 'w-full min-w-0' : undefined}
         >
           {toolbar}
         </div>
@@ -912,7 +910,7 @@ export function DeliveriesHub({
         onConfirm={confirm}
         title={
           confirmation?.action === 'schedule'
-            ? 'Schedule Delivery'
+            ? 'Schedule Arrival'
             : confirmation?.action === 'reopen'
               ? 'Reopen Delivery'
               : 'Cancel Delivery'
@@ -927,7 +925,7 @@ export function DeliveriesHub({
         itemName={confirmation?.row.reference}
         confirmText={
           confirmation?.action === 'schedule'
-            ? 'Schedule Delivery'
+            ? 'Schedule Arrival'
             : confirmation?.action === 'reopen'
               ? 'Reopen Delivery'
               : 'Cancel Delivery'

@@ -49,7 +49,7 @@ export function useOutgoingCompletion(runId: number, id: number, onSuccess: () =
   let dataIssue: string | undefined
   if (!loading && !loadError) {
     if (!isAdmin && !isManager && !isStaff)
-      dataIssue = 'You do not have permission to reconcile outgoing deliveries.'
+      dataIssue = 'You do not have permission to record results for outgoing deliveries.'
     else if (!delivery || delivery.id !== id)
       dataIssue = 'The saved shipment could not be loaded. Refresh before confirming delivery.'
     else if (
@@ -62,10 +62,10 @@ export function useOutgoingCompletion(runId: number, id: number, onSuccess: () =
       )
     )
       dataIssue =
-        'Run membership or the member revision changed. Refresh and review before reconciling.'
+        'Trip deliveries or delivery details changed. Refresh and review before saving results.'
     else if (delivery.status !== 'DISPATCHED')
       dataIssue =
-        'Only an in-transit shipment can be completed. Review its current status in Outgoing Deliveries.'
+        'Only a dispatched delivery can be completed. Review its current status in Outgoing Deliveries.'
     else if (!rows.length)
       dataIssue =
         'The confirmed loaded items could not be matched to the sales order. Refresh this shipment before completing it.'
@@ -116,7 +116,7 @@ export function useOutgoingCompletion(runId: number, id: number, onSuccess: () =
         saved.run?.id !== runId
       )
         throw Error(
-          'The server did not confirm reconciliation. Refresh and review before retrying.',
+          'Delivery results were not confirmed. Refresh and review before trying again.',
         )
       onSuccess()
     } catch (cause) {

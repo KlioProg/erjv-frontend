@@ -192,7 +192,7 @@ export function ScheduleIncomingDeliveryModal({
       open={open}
       onClose={onClose}
       busy={isSubmitting}
-      title="Schedule Incoming Delivery"
+      title="Schedule Arrival"
       description="Choose a purchase order and receiving warehouse. Actual counts are confirmed when goods arrive."
     >
       <form onSubmit={handleSubmit} className={deliveryFormStyles.form}>
@@ -373,7 +373,7 @@ export function ScheduleIncomingDeliveryModal({
             }
             className={deliveryFormStyles.button}
           >
-            {isSubmitting ? 'Scheduling...' : 'Schedule Incoming Delivery'}
+            {isSubmitting ? 'Scheduling...' : 'Schedule Arrival'}
           </Button>
         </DeliveryFormFooter>
       </form>

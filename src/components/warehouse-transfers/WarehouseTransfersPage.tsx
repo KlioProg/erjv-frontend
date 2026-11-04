@@ -113,11 +113,9 @@ export function WarehouseTransfersPage() {
       cell: ({ row }) => (
         <DataTableActions>
           <Button variant="outline" size="sm" onClick={() => setOpened(row.id)}>
-            {row.status === 'DRAFT'
-              ? 'Review / Dispatch'
-              : row.status === 'DISPATCHED'
-                ? 'Reconcile Transfer'
-                : 'View Details'}
+            {row.status === 'DRAFT' || row.status === 'DISPATCHED'
+              ? 'Review Transfer'
+              : 'View Details'}
           </Button>
         </DataTableActions>
       ),
@@ -126,7 +124,7 @@ export function WarehouseTransfersPage() {
   const activeFilters = [source, destination, from, before].filter(Boolean).length
   return (
     <div className="flex min-w-0 flex-col gap-4">
-      <PageHeader description="Move inventory between warehouse locations.">
+      <PageHeader description="Move goods between warehouses and record what arrives.">
         Warehouse Transfers
       </PageHeader>
       <StatusTabNav tabs={transferStatuses} activeTab={status} onTabChange={setStatus} />
@@ -313,9 +311,9 @@ function TransferDialog({
       : session?.action === 'draft'
         ? 'Edit Transfer Draft'
         : session?.action === 'dispatch'
-          ? 'Dispatch Transfer'
+          ? 'Send Goods'
           : session?.action === 'reconcile'
-            ? 'Reconcile Transfer'
+            ? 'Receive Goods'
             : session?.action === 'cancel'
               ? 'Cancel Transfer'
               : (record?.transferNumber ?? 'Warehouse Transfer')
@@ -332,7 +330,17 @@ function TransferDialog({
           <DialogDescription>
             {id === 'create' || session?.action === 'draft'
               ? 'Drafts do not move or reserve stock.'
-              : 'Review the saved warehouse movement.'}
+              : session?.action === 'dispatch'
+                ? 'This records that the goods have left the source warehouse and moves source stock into transit.'
+                : session?.action === 'reconcile'
+                  ? 'Record what arrived at the destination, including damaged, returned, or missing goods. Transfer results are final.'
+                    : session?.action === 'cancel'
+                      ? 'This cancels the draft transfer. No stock has moved.'
+                    : record?.status === 'DRAFT'
+                    ? 'Review the items and departure details before sending goods.'
+                    : record?.status === 'DISPATCHED'
+                      ? 'Review the transfer, then record what arrived at the destination.'
+                      : 'Review the completed transfer results.'}
           </DialogDescription>
         </DialogHeader>
         {id === 'create' ? (
@@ -417,7 +425,13 @@ function TransferDialog({
                   ...(record.status === 'COMPLETED'
                     ? outcomeFields.map((field) => ({
                         id: field,
-                        header: field.replace(/([A-Z])/g, ' $1').replace('Quantity', ''),
+                        header: {
+                          receivedQuantity: 'Received at Destination',
+                          damagedQuantity: 'Damaged',
+                          returnedSellableQuantity: 'Returned in Good Condition',
+                          returnedDamagedQuantity: 'Returned Damaged',
+                          missingQuantity: 'Missing',
+                        }[field],
                         accessorKey: field,
                         align: 'right' as const,
                       }))
@@ -451,12 +465,12 @@ function TransferDialog({
                       </>
                     )}
                     {canOperate && (
-                      <Button onClick={() => start('dispatch')}>Dispatch Transfer</Button>
+                      <Button onClick={() => start('dispatch')}>Send Goods</Button>
                     )}
                   </>
                 )}
                 {record.status === 'DISPATCHED' && canOperate && (
-                  <Button onClick={() => start('reconcile')}>Reconcile Transfer</Button>
+                  <Button onClick={() => start('reconcile')}>Receive Goods</Button>
                 )}
               </div>
             </>

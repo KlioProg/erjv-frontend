@@ -93,7 +93,7 @@ export function useOutgoingDispatch(runId: number, onSuccess: () => void) {
         !delivery.plannedItems.length
       )
         throw Error(
-          'A member plan, revision, source warehouse, or order status changed. Refresh and review the run.',
+          'A delivery plan, source warehouse, or order status changed. Refresh and review the trip.',
         )
       for (const plan of delivery.plannedItems) {
         const line = order.items.find((item) => item.id === plan.salesOrderItemId)
@@ -131,7 +131,7 @@ export function useOutgoingDispatch(runId: number, onSuccess: () => void) {
     enabled: !!run,
     staleTime: 0,
     queryFn: () => {
-      if (!run) throw Error('Run details are unavailable.')
+      if (!run) throw Error('Trip details are unavailable.')
       return loadContext(run)
     },
   })
@@ -152,26 +152,26 @@ export function useOutgoingDispatch(runId: number, onSuccess: () => void) {
   const fetching = runQuery.isFetching || context.isFetching
   const busy = mutation.isPending || refreshing
   let issue: string | undefined
-  if (!(isAdmin || isManager || isStaff)) issue = 'You do not have permission to dispatch runs.'
+  if (!(isAdmin || isManager || isStaff)) issue = 'You do not have permission to start trips.'
   else if (runQuery.isError || context.isError)
     issue = getErrorMessage(runQuery.error ?? context.error)
   else if (!run || !context.data || !warehouse)
-    issue = 'Loading current run, member plans, stock, and assignments...'
-  else if (run.status !== 'DRAFT') issue = 'Only a draft run can depart. Review its current status.'
+    issue = 'Loading the current trip, delivery plans, stock, and assignments...'
+  else if (run.status !== 'DRAFT') issue = 'This trip is not in Preparing status. Review its current status.'
   else if (reviewed !== signature)
-    issue = 'The run or a member revision changed. Refresh and review the updated loads.'
+    issue = 'Trip details or a delivery plan changed. Refresh and review the updated loads.'
   else if (!warehouse.isActive || !run.scheduledDepartureAt || !run.deliveries.length)
-    issue = 'An active source warehouse, departure schedule, and members are required.'
+    issue = 'An active source warehouse, departure schedule, and deliveries are required.'
   else if (
     !vehicle?.isActive ||
     vehicle.operationalStatus !== 'SERVICEABLE' ||
     !vehicle.isAvailable ||
     vehicle.activeRunId !== null
   )
-    issue = 'The assigned vehicle is unavailable. Edit the run assignments before departure.'
+    issue = 'The assigned vehicle is unavailable. Edit the trip assignments before departure.'
   else if (!driver?.isActive || !driver.canDrive || context.data.activeDriverRuns?.items.length)
     issue =
-      'The assigned driver is ineligible or already on a dispatched run. Edit the run assignments.'
+      'The assigned driver is ineligible or already assigned to a dispatched trip. Edit the trip assignments.'
   else if (
     parseStockCents(vehicle.capacityKg) === null ||
     parseStockCents(vehicle.capacityKg)! <= 0n
@@ -185,7 +185,7 @@ export function useOutgoingDispatch(runId: number, onSuccess: () => void) {
       const result = await runQuery.refetch()
       const latest = result.data
       if (result.isError || !latest)
-        throw Error('Run details could not be refreshed. Your entries have been kept.')
+        throw Error('Trip details could not be refreshed. Your entries have been kept.')
       const details = await queryClient.fetchQuery({
         queryKey: contextKey(latest),
         queryFn: () => loadContext(latest),
@@ -243,8 +243,8 @@ export function useOutgoingDispatch(runId: number, onSuccess: () => void) {
         !Number.isSafeInteger(saved.revision) ||
         saved.revision <= payload.expectedRevision
       )
-        throw Error('The server did not confirm run departure. Refresh and review before retrying.')
-      toast.success('Run dispatched.')
+        throw Error('Trip departure was not confirmed. Refresh and review before trying again.')
+      toast.success('Trip started.')
       onSuccess()
     } catch (cause) {
       setNeedsRefresh(true)

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
 import { Button } from '@/components/ui/button'
 import { decimalString } from '@/lib/order-amounts'
 import { formatReportMoney } from '@/features/financial-reports/financial-reports.filters'
@@ -101,11 +101,41 @@ export function ReportLineChart({
         ? { month: 'long', year: 'numeric' }
         : { month: 'long', day: 'numeric', year: 'numeric' },
     )
+  const activeDate = active ? dates[pointIndex] : undefined
+  const selectedActiveSeries = active ? seriesWithValues[active.series] : undefined
+  const activeSeries =
+    active && activeDate
+      ? selectedActiveSeries?.values.has(activeDate)
+        ? selectedActiveSeries
+        : seriesWithValues.find((item) => item.values.has(activeDate))
+      : undefined
+  const activeValue = activeDate && activeSeries ? activeSeries.values.get(activeDate) : undefined
+  const tooltipX = active ? (x(pointIndex) / plotWidth) * 100 : 0
+  const tooltipY = activeValue === undefined ? 0 : (y(moneyCents(activeValue)) / 220) * 100
   const setChartPosition = (point: number, activeSeries: number) => {
     setActive({
       point: Math.max(0, Math.min(point, dates.length - 1)),
       series: Math.max(0, Math.min(activeSeries, seriesWithValues.length - 1)),
     })
+  }
+  const handleChartMouseMove = (event: MouseEvent<SVGSVGElement>) => {
+    const bounds = event.currentTarget.getBoundingClientRect()
+    if (!bounds.width || !bounds.height) return
+    const scaleX = bounds.width / plotWidth
+    const scaleY = bounds.height / 220
+    let nearest: { point: number; series: number; distance: number } | undefined
+    seriesWithValues.forEach((item, seriesPosition) => {
+      dates.forEach((date, point) => {
+        const value = item.values.get(date)
+        if (value === undefined) return
+        const dx = event.clientX - (bounds.left + x(point) * scaleX)
+        const dy = event.clientY - (bounds.top + y(moneyCents(value)) * scaleY)
+        const distance = dx * dx + dy * dy
+        if (!nearest || distance < nearest.distance)
+          nearest = { point, series: seriesPosition, distance }
+      })
+    })
+    if (nearest) setChartPosition(nearest.point, nearest.series)
   }
   return (
     <section ref={chartRef} className="min-w-0" aria-labelledby="trend-chart-heading">
@@ -161,153 +191,188 @@ export function ReportLineChart({
               </li>
             ))}
           </ul>
-          <svg
-            role="img"
-            aria-label="Financial trends in pesos"
-            aria-describedby="trend-chart-legend trend-chart-help trend-chart-value"
-            aria-keyshortcuts="ArrowLeft ArrowRight ArrowUp ArrowDown Escape"
-            tabIndex={0}
-            viewBox={`0 0 ${plotWidth} 220`}
-            preserveAspectRatio="none"
-            className="block h-[200px] w-full rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            onFocus={() => setActive((current) => current ?? { point: 0, series: 0 })}
-            onMouseLeave={(event) => {
-              if (document.activeElement !== event.currentTarget) setActive(null)
-            }}
-            onKeyDown={(event) => {
-              if (event.key === 'Escape') {
-                event.preventDefault()
-                setActive(null)
-              } else if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
-                event.preventDefault()
-                const currentPoint = active?.point ?? 0
-                setChartPosition(
-                  currentPoint + (event.key === 'ArrowRight' ? 1 : -1),
-                  active?.series ?? 0,
+          <div className="relative">
+            <svg
+              role="img"
+              aria-label="Financial trends in pesos"
+              aria-describedby="trend-chart-legend trend-chart-help trend-chart-value"
+              aria-keyshortcuts="ArrowLeft ArrowRight ArrowUp ArrowDown Escape"
+              tabIndex={0}
+              viewBox={`0 0 ${plotWidth} 220`}
+              preserveAspectRatio="none"
+              className="block h-[200px] w-full rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              onFocus={() => setActive((current) => current ?? { point: 0, series: 0 })}
+              onMouseMove={handleChartMouseMove}
+              onMouseLeave={(event) => {
+                if (document.activeElement !== event.currentTarget) setActive(null)
+              }}
+              onKeyDown={(event) => {
+                if (event.key === 'Escape') {
+                  event.preventDefault()
+                  setActive(null)
+                } else if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+                  event.preventDefault()
+                  const currentPoint = active?.point ?? 0
+                  setChartPosition(
+                    currentPoint + (event.key === 'ArrowRight' ? 1 : -1),
+                    active?.series ?? 0,
+                  )
+                } else if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+                  event.preventDefault()
+                  const currentSeries = active?.series ?? 0
+                  setChartPosition(
+                    active?.point ?? 0,
+                    currentSeries + (event.key === 'ArrowDown' ? 1 : -1),
+                  )
+                }
+              }}
+            >
+              <title>
+                {['annual', 'semiannual', 'quarterly'].includes(period)
+                  ? 'Monthly totals: '
+                  : 'Daily amounts: '}
+                {series.map((item) => item.label).join(', ')}
+              </title>
+              {[0, 1, 2, 3, 4].map((i) => {
+                const value = low + (range * BigInt(i)) / 4n
+                return (
+                  <g key={i}>
+                    <line
+                      x1="80"
+                      x2={plotWidth - 20}
+                      y1={y(value)}
+                      y2={y(value)}
+                      stroke="currentColor"
+                      className="text-border"
+                    />
+                    <text
+                      x="70"
+                      y={y(value) + 4}
+                      textAnchor="end"
+                      fontSize="12"
+                      fill="currentColor"
+                      className="text-muted-foreground"
+                    >
+                      {compactPeso(value)}
+                    </text>
+                  </g>
                 )
-              } else if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
-                event.preventDefault()
-                const currentSeries = active?.series ?? 0
-                setChartPosition(
-                  active?.point ?? 0,
-                  currentSeries + (event.key === 'ArrowDown' ? 1 : -1),
+              })}
+              <line
+                data-zero-baseline="true"
+                x1="80"
+                x2={plotWidth - 20}
+                y1={y(0n)}
+                y2={y(0n)}
+                stroke="currentColor"
+                className="text-muted-foreground"
+                strokeWidth="1.25"
+              />
+              {seriesWithValues.map((s, seriesPosition) => {
+                let connected = false
+                const path = dates
+                  .map((d, i) => {
+                    const value = s.values.get(d)
+                    if (value === undefined) {
+                      connected = false
+                      return ''
+                    }
+                    const prefix = connected ? 'L' : 'M'
+                    connected = true
+                    return `${prefix}${x(i)},${y(moneyCents(value))}`
+                  })
+                  .join(' ')
+                return (
+                  <g key={s.kind}>
+                    <path
+                      d={path}
+                      data-series={s.kind}
+                      fill="none"
+                      stroke={s.color}
+                      strokeWidth="2.5"
+                      vectorEffect="non-scaling-stroke"
+                    />
+                    {dates.map((date, i) => {
+                      const value = s.values.get(date)
+                      return value === undefined ? null : (
+                        <g key={date}>
+                          <circle
+                            data-series={s.kind}
+                            data-point-key={date}
+                            cx={x(i)}
+                            cy={y(moneyCents(value))}
+                            r={
+                              active?.point === i && active?.series === seriesPosition
+                                ? 4
+                                : dates.length < 40
+                                  ? 2.5
+                                  : 1.5
+                            }
+                            fill={s.color}
+                          >
+                            <title>
+                              {pointLabel(date)}: {s.label} {formatReportMoney(value)}
+                            </title>
+                          </circle>
+                        </g>
+                      )
+                    })}
+                  </g>
                 )
-              }
-            }}
-          >
-            <title>
-              {['annual', 'semiannual', 'quarterly'].includes(period)
-                ? 'Monthly totals: '
-                : 'Daily amounts: '}
-              {series.map((item) => item.label).join(', ')}
-            </title>
-            {[0, 1, 2, 3, 4].map((i) => {
-              const value = low + (range * BigInt(i)) / 4n
-              return (
-                <g key={i}>
-                  <line
-                    x1="80"
-                    x2={plotWidth - 20}
-                    y1={y(value)}
-                    y2={y(value)}
-                    stroke="currentColor"
-                    className="text-border"
-                  />
-                  <text
-                    x="70"
-                    y={y(value) + 4}
-                    textAnchor="end"
-                    fontSize="12"
-                    fill="currentColor"
-                    className="text-muted-foreground"
-                  >
-                    {compactPeso(value)}
-                  </text>
-                </g>
-              )
-            })}
-            <line
-              data-zero-baseline="true"
-              x1="80"
-              x2={plotWidth - 20}
-              y1={y(0n)}
-              y2={y(0n)}
-              stroke="currentColor"
-              className="text-muted-foreground"
-              strokeWidth="1.25"
-            />
-            {seriesWithValues.map((s, seriesPosition) => {
-              let connected = false
-              const path = dates
-                .map((d, i) => {
-                  const value = s.values.get(d)
-                  if (value === undefined) {
-                    connected = false
-                    return ''
-                  }
-                  const prefix = connected ? 'L' : 'M'
-                  connected = true
-                  return `${prefix}${x(i)},${y(moneyCents(value))}`
-                })
-                .join(' ')
-              return (
-                <g key={s.kind}>
-                  <path
-                    d={path}
-                    data-series={s.kind}
-                    fill="none"
-                    stroke={s.color}
-                    strokeWidth="2.5"
-                    vectorEffect="non-scaling-stroke"
-                  />
-                  {dates.map((date, i) => {
-                    const value = s.values.get(date)
-                    return value === undefined ? null : (
-                      <g key={date} onMouseEnter={() => setChartPosition(i, seriesPosition)}>
-                        <circle
-                          data-series={s.kind}
-                          data-point-key={date}
-                          cx={x(i)}
-                          cy={y(moneyCents(value))}
-                          r={
-                            active?.point === i && active?.series === seriesPosition
-                              ? 4
-                              : dates.length < 40
-                                ? 2.5
-                                : 1.5
-                          }
-                          fill={s.color}
-                          onMouseEnter={() => setChartPosition(i, seriesPosition)}
-                        >
-                          <title>
-                            {pointLabel(date)}: {s.label} {formatReportMoney(value)}
-                          </title>
-                        </circle>
-                      </g>
+              })}
+              {[...new Set([0, Math.floor((dates.length - 1) / 2), dates.length - 1])].map((i) => (
+                <text
+                  key={i}
+                  x={x(i)}
+                  y="211"
+                  textAnchor={i === 0 ? 'start' : i === dates.length - 1 ? 'end' : 'middle'}
+                  fill="currentColor"
+                  className="text-muted-foreground"
+                  fontSize="12"
+                >
+                  {reportDateLabel(
+                    dates[i],
+                    ['annual', 'semiannual', 'quarterly'].includes(period)
+                      ? { month: 'short', year: '2-digit' }
+                      : { month: 'short', day: 'numeric' },
+                  )}
+                </text>
+              ))}
+            </svg>
+            {active && activeDate && (
+              <div
+                data-testid="trend-chart-tooltip"
+                aria-hidden="true"
+                className="pointer-events-none absolute z-10 w-56 max-w-[calc(100%-1rem)] rounded-md border bg-popover p-3 text-popover-foreground shadow-md"
+                style={{
+                  left: `clamp(0.5rem, calc(${tooltipX}% - 7rem), calc(100% - 14.5rem))`,
+                  top: `clamp(0.5rem, calc(${tooltipY}% - 6rem), calc(100% - 6rem))`,
+                }}
+              >
+                <p className="mb-2 text-xs font-semibold">{pointLabel(activeDate)}</p>
+                <ul className="space-y-1 text-xs tabular-nums">
+                  {seriesWithValues.map((item) => {
+                    const value = item.values.get(activeDate)
+                    return (
+                      <li key={item.kind} className="flex items-center justify-between gap-3">
+                        <span className="flex min-w-0 items-center gap-2">
+                          <span
+                            aria-hidden="true"
+                            className="size-2 shrink-0 rounded-full"
+                            style={{ backgroundColor: item.color }}
+                          />
+                          <span className="truncate">{item.label}</span>
+                        </span>
+                        <span className="shrink-0">
+                          {value === undefined ? 'Not available' : formatReportMoney(value)}
+                        </span>
+                      </li>
                     )
                   })}
-                </g>
-              )
-            })}
-            {[...new Set([0, Math.floor((dates.length - 1) / 2), dates.length - 1])].map((i) => (
-              <text
-                key={i}
-                x={x(i)}
-                y="211"
-                textAnchor={i === 0 ? 'start' : i === dates.length - 1 ? 'end' : 'middle'}
-                fill="currentColor"
-                className="text-muted-foreground"
-                fontSize="12"
-              >
-                {reportDateLabel(
-                  dates[i],
-                  ['annual', 'semiannual', 'quarterly'].includes(period)
-                    ? { month: 'short', year: '2-digit' }
-                    : { month: 'short', day: 'numeric' },
-                )}
-              </text>
-            ))}
-          </svg>
+                </ul>
+              </div>
+            )}
+          </div>
           {amounts.length > 0 && amounts.every((amount) => amount === 0n) && (
             <p className="text-xs text-muted-foreground">All reported amounts are zero.</p>
           )}
@@ -321,7 +386,7 @@ export function ReportLineChart({
             id="trend-chart-value"
             role="status"
             aria-live="polite"
-            className="mt-2 min-h-5 break-words text-xs font-medium tabular-nums"
+            className="sr-only"
           >
             {active
               ? `${pointLabel(pointDate)} · ${seriesWithValues
@@ -330,7 +395,7 @@ export function ReportLineChart({
                     return `${item.label} · ${value === undefined ? 'Not available' : formatReportMoney(value)}`
                   })
                   .join(' · ')}`
-              : 'Hover or focus the chart to inspect exact amounts.'}
+              : ''}
           </p>
         </>
       )}

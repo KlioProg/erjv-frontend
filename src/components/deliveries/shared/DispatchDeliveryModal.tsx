@@ -23,9 +23,9 @@ export function DispatchDeliveryModal({ runId, onClose }: { runId: number; onClo
         className="flex max-h-[calc(100svh-2rem)] flex-col overflow-hidden p-0 sm:max-w-3xl"
       >
         <DialogHeader className="shrink-0 px-6 pr-14 pt-6">
-          <DialogTitle>Dispatch Run</DialogTitle>
+          <DialogTitle>Review Trip Departure</DialogTitle>
           <DialogDescription>
-            {form.run?.runNumber || 'Loading run...'} � Confirm all member loads before departure.
+            {form.run?.runNumber || 'Loading trip...'} · Confirm all delivery loads before departure.
           </DialogDescription>
         </DialogHeader>
         <form
@@ -42,7 +42,7 @@ export function DispatchDeliveryModal({ runId, onClose }: { runId: number; onClo
               disabled={form.busy}
               onClick={() => void form.refresh()}
             >
-              Refresh run and review current data
+              Refresh trip and review current data
             </Button>
             {form.error && (
               <Alert variant={form.fetching ? 'default' : 'destructive'}>
@@ -78,7 +78,7 @@ export function DispatchDeliveryModal({ runId, onClose }: { runId: number; onClo
             <section className="flex min-w-0 flex-col gap-3" aria-labelledby="run-loading-heading">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h3 id="run-loading-heading" className="text-sm font-medium">
-                  Member product loading
+                  Delivery product loading
                 </h3>
                 <Button
                   type="button"
@@ -143,8 +143,8 @@ export function DispatchDeliveryModal({ runId, onClose }: { runId: number; onClo
               />
               <p className="text-xs text-muted-foreground">
                 Partial loading is allowed. Leave unloaded product lines blank or enter zero. Each
-                member needs at least one loaded product; remove fully unloaded members before
-                departure. Availability is shared across this run.
+                delivery needs at least one loaded product; remove fully unloaded deliveries before
+                departure. Availability is shared across this trip.
               </p>
             </section>
             <div className="flex max-w-sm flex-col gap-2">
@@ -161,12 +161,12 @@ export function DispatchDeliveryModal({ runId, onClose }: { runId: number; onClo
               {form.fieldErrors.loadedWeightKg && <p id="run-weight-error" role="alert" className="text-xs text-destructive">{form.fieldErrors.loadedWeightKg}</p>}
               <p id="run-capacity" className="text-xs text-muted-foreground">
                 Vehicle capacity: {formatStockCents(parseStockCents(form.vehicle?.capacityKg))} kg.
-                Confirm the measured total weight of the whole run.
+                Confirm the measured total weight for this trip.
               </p>
             </div>
             <p className="text-xs text-muted-foreground">
-              Dispatch confirms one physical departure for all members. Edit vehicle, driver,
-              schedule, or membership in the draft run before dispatching.
+              Starting this trip records one physical departure for all included deliveries. Edit
+              the vehicle, driver, schedule, or deliveries before departure.
             </p>
           </div>
           <DialogFooter className="shrink-0 border-t px-6 py-4">
@@ -174,7 +174,7 @@ export function DispatchDeliveryModal({ runId, onClose }: { runId: number; onClo
               Cancel
             </Button>
             <Button type="submit" disabled={!form.canSubmit}>
-              {form.busy ? 'Dispatching...' : 'Confirm Run Departure'}
+              {form.busy ? 'Starting trip...' : 'Start Trip'}
             </Button>
           </DialogFooter>
         </form>

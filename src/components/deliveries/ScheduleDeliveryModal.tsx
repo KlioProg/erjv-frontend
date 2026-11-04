@@ -28,7 +28,7 @@ interface ScheduleDeliveryModalProps {
   draftId?: number
 }
 const description =
-  'Choose a sales order and warehouse, then commit planned quantities as READY. Departure is scheduled on a Delivery Run.'
+  'Choose a sales order and warehouse, then save planned quantities. Departure is scheduled on a Delivery Trip.'
 function formatQuantity(value: string | null | undefined): string {
   const parsed = parseOrderDecimal(value ?? '')
   return parsed === null ? 'Unavailable' : decimalString(parsed)
@@ -252,12 +252,12 @@ function OutgoingPlanningForm({
         <div className={deliveryFormStyles.form}>
           <div role="status" className={deliveryFormStyles.body}>
             <p className="font-semibold">
-              {form.completed === 'READY' ? 'Delivery ready for a run' : 'Delivery draft saved'}
+              {form.completed === 'READY' ? 'Delivery ready' : 'Delivery draft saved'}
             </p>
             <p className="mt-1 text-xs leading-5 text-muted-foreground">
               {savedDraft?.deliveryNumber} is available in Outgoing Deliveries.{' '}
               {form.completed === 'READY'
-                ? 'Add it to a Delivery Run to assign a driver, vehicle, and departure.'
+                ? 'Add it to a Delivery Trip to assign a driver, vehicle, and departure.'
                 : 'Mark it ready after reviewing the plan.'}
             </p>
           </div>
@@ -276,7 +276,7 @@ function OutgoingPlanningForm({
               }}
               className={deliveryFormStyles.button}
             >
-              {form.completed === 'READY' && onScheduled ? 'Continue to Delivery Runs' : 'Done'}
+              {form.completed === 'READY' && onScheduled ? 'Add to Trip' : 'Done'}
             </Button>
           </DeliveryFormFooter>
         </div>
@@ -505,7 +505,7 @@ function OutgoingPlanningForm({
                     )}
                     <p className="text-xs text-muted-foreground">
                       READY commits order demand, even when stock has a shortfall. Actual goods
-                      are loaded and moved into transit only when the Delivery Run is dispatched.
+                      are loaded and moved into transit only when the Delivery Trip is dispatched.
                     </p>
                   </section>
                   <div className="flex flex-col gap-4 border-t pt-4">

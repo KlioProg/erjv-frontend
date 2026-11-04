@@ -2,7 +2,7 @@ export type TransferStatus = 'DRAFT' | 'DISPATCHED' | 'COMPLETED' | 'CANCELLED'
 export const transferStatuses: { value: TransferStatus | 'ALL'; label: string }[] = [
   { value: 'ALL', label: 'All Transfers' },
   { value: 'DRAFT', label: 'Draft' },
-  { value: 'DISPATCHED', label: 'In Transit' },
+  { value: 'DISPATCHED', label: 'Dispatched' },
   { value: 'COMPLETED', label: 'Completed' },
   { value: 'CANCELLED', label: 'Cancelled' },
 ]

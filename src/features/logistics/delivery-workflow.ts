@@ -28,27 +28,24 @@ export type DeliveryRow = {
 export const DELIVERY_STATUS_LABELS: Record<string, string> = {
   DRAFT: 'Draft',
   SCHEDULED: 'Awaiting Receipt',
-  READY: 'Ready to Assign',
+  READY: 'Ready',
   RECONCILED: 'Completed',
-  DISPATCHED: 'In Transit',
+  DISPATCHED: 'Dispatched',
   COMPLETED: 'Received',
   CANCELLED: 'Cancelled',
 }
 
 export const RUN_STATUS_LABELS = {
   DRAFT: 'Preparing',
-  DISPATCHED: 'In Transit',
+  DISPATCHED: 'Dispatched',
   COMPLETED: 'Completed',
   CANCELLED: 'Cancelled',
 } as const
 
 export function outgoingStatusLabel(
   status: OutgoingDeliveryRecord['status'],
-  runId?: number | null,
 ) {
-  return status === 'READY' && runId != null
-    ? 'Assigned to Run'
-    : (DELIVERY_STATUS_LABELS[status] ?? status)
+  return DELIVERY_STATUS_LABELS[status] ?? status
 }
 
 export function deliveryHistoryDate(row: DeliveryRow) {
@@ -129,7 +126,7 @@ export function buildDeliveryRows({
                   }),
                 ),
               ].join(', ') || '—',
-        vehicle: record.runId ? `Run #${record.runId}` : 'Unassigned',
+        vehicle: record.runId ? `Trip #${record.runId}` : 'Unassigned',
         driver: '?',
         date: record.reconciledAt || order?.expectedAt || null,
         status: record.status,

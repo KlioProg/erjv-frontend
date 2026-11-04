@@ -26,7 +26,7 @@ let reads: string[]
 const loaded = (name = 'Banana') =>
   screen.getByLabelText(`Quantity loaded for ${name} on OD-90`) as HTMLInputElement
 const weight = () => screen.getByLabelText('Actual total loaded weight (kg)') as HTMLInputElement
-const button = () => screen.getByRole('button', { name: /Confirm Run Departure|Dispatching/ })
+const button = () => screen.getByRole('button', { name: /Start Trip|Starting trip/ })
 function mount() {
   const onClose = vi.fn()
   const client = new QueryClient({
@@ -374,7 +374,7 @@ it.each([400, 403, 404, 409, 'network'] as const)(
     expect(writes).toHaveLength(1)
     expect(onClose).not.toHaveBeenCalled()
     failure = undefined
-    fireEvent.click(screen.getByRole('button', { name: 'Refresh run and review current data' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh trip and review current data' }))
     await waitFor(() => expect(button().hasAttribute('disabled')).toBe(false))
     submit()
     await waitFor(() => expect(onClose).toHaveBeenCalledOnce())
@@ -389,8 +389,8 @@ it('never retries an uncertain departure when refresh shows the run already disp
   submit()
   await waitFor(() => expect(button().hasAttribute('disabled')).toBe(true))
   run.status = 'DISPATCHED'
-  fireEvent.click(screen.getByRole('button', { name: 'Refresh run and review current data' }))
-  expect(await screen.findByText(/Only a draft run can depart/)).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: 'Refresh trip and review current data' }))
+  expect(await screen.findByText(/This trip is not in Preparing status/)).toBeTruthy()
   expect(writes).toHaveLength(1)
   expect(onClose).not.toHaveBeenCalled()
 })
@@ -410,7 +410,7 @@ it('recovers a run load failure by explicit refresh', async () => {
   expect(await screen.findByText(/Run unavailable/)).toBeTruthy()
   expect(writes).toHaveLength(0)
   broken = undefined
-  fireEvent.click(screen.getByRole('button', { name: 'Refresh run and review current data' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Refresh trip and review current data' }))
   await ready()
 })
 it('requires reviewed member revisions after an updated run is fetched', async () => {
@@ -421,7 +421,7 @@ it('requires reviewed member revisions after an updated run is fetched', async (
   await act(async () => {
     client.setQueryData(['delivery-runs', 'id', 40], structuredClone(run))
   })
-  expect(await screen.findByText(/revision changed/)).toBeTruthy()
+  expect(await screen.findByText(/Trip details or a delivery plan changed/)).toBeTruthy()
   expect(button().hasAttribute('disabled')).toBe(true)
   expect(loaded().value).toBe('1.25')
   expect(writes).toHaveLength(0)
@@ -431,7 +431,7 @@ it('preserves explicit quantities after current stock falls instead of clamping'
   await ready()
   fill('2.25')
   available = '1.00'
-  fireEvent.click(screen.getByRole('button', { name: 'Refresh run and review current data' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Refresh trip and review current data' }))
   await waitFor(() => expect(button().hasAttribute('disabled')).toBe(false))
   submit()
   expect((await screen.findByRole('alert')).textContent).toMatch(/Combined loads exceed/)

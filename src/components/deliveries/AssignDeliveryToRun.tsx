@@ -105,7 +105,7 @@ export function AssignDeliveryToRun({
         latestRun.data.deliveries.some((member) => member.id === deliveryId)
       ) {
         setReview(true)
-        throw Error('The delivery or run changed. Refresh and review before confirming again.')
+        throw Error('The delivery or trip changed. Refresh and review before confirming again.')
       }
       const saved = await change.mutateAsync({
         id: run.id,
@@ -121,9 +121,9 @@ export function AssignDeliveryToRun({
         !saved.deliveries?.some((member) => member.id === deliveryId)
       ) {
         setReview(true)
-        throw Error('Assignment was not confirmed. Review the run before submitting again.')
+        throw Error('The delivery was not added. Review the trip before trying again.')
       }
-      toast.success('Delivery added to run.')
+      toast.success('Delivery added to trip.')
       onAssigned(saved.id)
     } catch (cause) {
       setError(getErrorMessage(cause))
@@ -142,14 +142,14 @@ export function AssignDeliveryToRun({
     <Dialog open onOpenChange={(open) => !open && !busy && onClose()}>
       <DialogContent closeDisabled={busy}>
         <DialogHeader>
-          <DialogTitle>Assign Delivery</DialogTitle>
+          <DialogTitle>Add Delivery to Trip</DialogTitle>
           <DialogDescription>Choose which delivery trip will carry this order.</DialogDescription>
         </DialogHeader>
         {deliveryQuery.isPending && <p role="status">Loading delivery…</p>}
         {(error || deliveryQuery.isError || runQuery.isError) && (
           <Alert variant="destructive">
             <AlertDescription>
-              {error || 'Could not load the selected delivery or run.'}
+              {error || 'Could not load the selected delivery or trip.'}
             </AlertDescription>
           </Alert>
         )}
@@ -168,12 +168,12 @@ export function AssignDeliveryToRun({
         {delivery && !eligible && (
           <p role="status" className="text-sm">
             {delivery.runId != null
-              ? 'This delivery has already been assigned.'
+              ? 'This delivery has already been added to a trip.'
               : 'This delivery is not available for assignment. Refresh to check its current status.'}
           </p>
         )}
         {delivery?.runId != null && (
-          <Button onClick={() => onAssigned(delivery.runId!)}>Open Run</Button>
+          <Button onClick={() => onAssigned(delivery.runId!)}>View Trip</Button>
         )}
         {eligible && step === 'choice' && (
           <div className="grid gap-3">
@@ -182,26 +182,26 @@ export function AssignDeliveryToRun({
               disabled={busy || review}
               onClick={() => setStep('existing')}
             >
-              Use Existing Run
+              Use Existing Trip
             </Button>
             <Button variant="outline" disabled={busy || review} onClick={() => onCreate(delivery!)}>
-              Create New Run
+              Create New Trip
             </Button>
           </div>
         )}
         {eligible && step === 'existing' && (
           <>
-            <Label htmlFor="assignment-run">Choose an existing delivery run</Label>
+            <Label htmlFor="assignment-run">Choose an existing delivery trip</Label>
             <CursorLookup<DeliveryRunRecord>
               id="assignment-run"
               path="/delivery-runs"
               value={runId}
-              label="Run"
+              label="Delivery Trip"
               filter={{ statuses: ['DRAFT'], warehouseId: delivery!.warehouseId }}
               getLabel={(entry) =>
                 `${entry.runNumber} · ${warehouses.data.find((warehouse) => warehouse.id === entry.warehouseId)?.name ?? `Warehouse #${entry.warehouseId}`} · ${entry.deliveries?.length ?? 'Unknown'} ${entry.deliveries?.length === 1 ? 'delivery' : 'deliveries'} assigned`
               }
-              emptyMessage="No eligible runs on this page. Create a new run or check another page."
+              emptyMessage="No eligible trips on this page. Create a new trip or check another page."
               accept={(entry) =>
                 entry.status === 'DRAFT' &&
                 Array.isArray(entry.deliveries) &&
@@ -218,7 +218,7 @@ export function AssignDeliveryToRun({
                 <p>
                   {eligibleRun
                     ? `${run.deliveries.length} ${run.deliveries.length === 1 ? 'delivery' : 'deliveries'} assigned`
-                    : 'This run is no longer available. Refresh to review it.'}
+                    : 'This trip is no longer available. Refresh to review it.'}
                 </p>
                 {run.driverEmployeeId != null && (
                   <p>
@@ -246,14 +246,14 @@ export function AssignDeliveryToRun({
                 disabled={busy || review}
                 onClick={() => onCreate(delivery!)}
               >
-                Create New Run
+                Create New Trip
               </Button>
             )}
           </>
         )}
         {review && run && (
           <Button variant="outline" disabled={busy} onClick={() => onAssigned(run.id)}>
-            Open run for review
+            Review Trip
           </Button>
         )}
         {(review || deliveryQuery.isError || runQuery.isError) && (
@@ -295,7 +295,7 @@ export function AssignDeliveryToRun({
               }
               onClick={() => void assign()}
             >
-              {busy ? 'Assigning…' : 'Assign Delivery'}
+              {busy ? 'Adding…' : 'Add to Trip'}
             </Button>
           )}
         </DialogFooter>

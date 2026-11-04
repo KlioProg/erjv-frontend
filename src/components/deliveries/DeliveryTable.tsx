@@ -24,12 +24,12 @@ import {
 } from '@/features/logistics/delivery-workflow'
 
 const actions = {
-  schedule: { label: 'Schedule', Icon: CalendarCheck },
-  ready: { label: 'Continue Planning', Icon: Check },
+  schedule: { label: 'Schedule Arrival', Icon: CalendarCheck },
+  ready: { label: 'Edit Delivery', Icon: Check },
   reopen: { label: 'Reopen Draft', Icon: CalendarCheck },
-  run: { label: 'Assign to Run', Icon: Send },
+  run: { label: 'Add to Trip', Icon: Send },
   receive: { label: 'Receive Goods', Icon: PackageCheck },
-  reconcile: { label: 'Reconcile Delivery', Icon: Check },
+  reconcile: { label: 'Record Results', Icon: Check },
   cancel: { label: 'Cancel Delivery', Icon: X },
 }
 
@@ -79,7 +79,7 @@ export function DeliveryTable({
           </span>
           <span className="block text-xs text-muted-foreground sm:hidden">
             {row.type === 'Outgoing'
-              ? outgoingStatusLabel(row.record.status, row.record.runId)
+              ? outgoingStatusLabel(row.record.status)
               : DELIVERY_STATUS_LABELS[row.status]}{' '}
             · {row.warehouse}
           </span>
@@ -138,7 +138,7 @@ export function DeliveryTable({
           ? 'Recorded event'
           : view === 'incoming'
             ? 'Scheduled / Expected Date'
-            : 'Run Assignment'),
+            : 'Delivery Trip'),
       className: headerFilters?.date ? undefined : 'hidden lg:table-cell',
       headerClassName: headerFilters?.date ? undefined : 'hidden lg:table-cell',
       sortable: false,
@@ -147,7 +147,7 @@ export function DeliveryTable({
         if (view === 'outgoing' && row.type === 'Outgoing')
           return row.record.runId != null ? (
             <Button variant="link" size="sm" onClick={() => onAction(row, 'run')}>
-              Open Run #{row.record.runId}
+              Open Trip #{row.record.runId}
             </Button>
           ) : (
             'Unassigned'
@@ -195,10 +195,14 @@ export function DeliveryTable({
         )
         const label =
           primary === 'run' && row.type === 'Outgoing' && row.record.runId != null
-            ? 'Open Run'
+            ? 'View Trip'
             : primary
               ? actions[primary].label
-              : 'View Details'
+              : view === 'history' &&
+                  row.type === 'Incoming' &&
+                  row.status === 'COMPLETED'
+                ? 'View Receipt'
+                : 'View Details'
         return (
           <DataTableActions>
             <Button

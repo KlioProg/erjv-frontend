@@ -65,6 +65,7 @@ function ReceiveProductsForm({
           <DialogTitle>Receive Goods</DialogTitle>
           <DialogDescription>
             {delivery.deliveryNumber} / {form.purchase?.orderNumber ?? 'Purchase order unavailable'}
+            {' · '}Saving a receipt updates warehouse stock.
           </DialogDescription>
         </DialogHeader>
         <form
@@ -294,8 +295,8 @@ function ReceiveProductsForm({
               {busy
                 ? 'Checking receipt...'
                 : form.outcome === 'none'
-                  ? 'Confirm No Receipt'
-                  : 'Confirm Receipt'}
+                  ? 'Record No Receipt'
+                  : 'Save Receipt'}
             </Button>
           </DialogFooter>
         </form>

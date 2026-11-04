@@ -228,7 +228,7 @@ function overrideGet(url: string, data: unknown | (() => unknown)) {
 function reconcile(name: string, delivered: string, sellable = '0', damaged = '0', missing = '0') {
   for (const [label, amount] of [
     ['Delivered', delivered],
-    ['Returned sellable', sellable],
+    ['Returned in good condition', sellable],
     ['Returned damaged', damaged],
     ['Missing', missing],
   ])
@@ -265,7 +265,7 @@ function setupDispatch() {
     canDrive: true,
   })
 }
-const departure = () => screen.getByRole('button', { name: 'Confirm Run Departure' })
+const departure = () => screen.getByRole('button', { name: 'Start Trip' })
 function dispatchValue(valueToLoad: string, kg = '10.00') {
   value('Quantity loaded for Rice on OUT-8', valueToLoad)
   value('Actual total loaded weight (kg)', kg)
@@ -275,7 +275,7 @@ it('loads current PO lines for an empty scheduled delivery and records a partial
   const close = vi.fn()
   const client = mount(<ReceiveProductsModal delivery={incoming} onClose={close} />)
   await chooseReceipt('partial')
-  const button = screen.getByRole('button', { name: 'Confirm Receipt' })
+  const button = screen.getByRole('button', { name: 'Save Receipt' })
   expect((screen.getByLabelText('Received now for Rice (1)') as HTMLInputElement).value).toBe('')
   value('Received now for Rice (1)', '40.5')
   value('Damaged now for Rice (1)', '2')
@@ -303,7 +303,7 @@ it('loads current PO lines for an empty scheduled delivery and records a partial
 
 it('requires an explicit no-receipt choice and reason', async () => {
   mount(<ReceiveProductsModal delivery={incoming} onClose={vi.fn()} />)
-  expect(screen.getByRole('button', { name: 'Confirm Receipt' }).hasAttribute('disabled')).toBe(
+  expect(screen.getByRole('button', { name: 'Save Receipt' }).hasAttribute('disabled')).toBe(
     true,
   )
   expect(screen.getAllByRole('radio').every((radio) => !(radio as HTMLInputElement).checked)).toBe(
@@ -311,7 +311,7 @@ it('requires an explicit no-receipt choice and reason', async () => {
   )
   expect(screen.queryByRole('textbox')).toBeNull()
   await chooseReceipt('none')
-  const button = screen.getByRole('button', { name: 'Confirm No Receipt' })
+  const button = screen.getByRole('button', { name: 'Record No Receipt' })
   expect(button.hasAttribute('disabled')).toBe(true)
   value('Reason no goods arrived', 'Supplier did not arrive')
   fireEvent.click(button)
@@ -326,7 +326,7 @@ it('requires an explicit no-receipt choice and reason', async () => {
 it('rejects invalid receipt decimals and damaged quantities greater than received', async () => {
   mount(<ReceiveProductsModal delivery={incoming} onClose={vi.fn()} />)
   await chooseReceipt('partial')
-  const button = screen.getByRole('button', { name: 'Confirm Receipt' })
+  const button = screen.getByRole('button', { name: 'Save Receipt' })
   for (const [received, damaged] of [
     ['1.234', '0'],
     ['1', '2'],
@@ -347,7 +347,7 @@ it('rejects invalid receipt decimals and damaged quantities greater than receive
 it('requires all reconciliation categories, matching totals, and reasons for damage or missing goods', async () => {
   const close = vi.fn()
   const client = mount(<CompleteDeliveryModal runId={40} deliveryId={8} onClose={close} />)
-  const button = await screen.findByRole('button', { name: 'Confirm Completion' })
+  const button = await screen.findByRole('button', { name: 'Save Results' })
   await chooseOutcome(false)
   await waitFor(() =>
     expect(screen.getByLabelText('Delivered for Rice (1)').hasAttribute('disabled')).toBe(false),
@@ -355,7 +355,7 @@ it('requires all reconciliation categories, matching totals, and reasons for dam
   fireEvent.click(button)
   expect(writes).toHaveLength(0)
   value('Delivered for Rice (1)', '1')
-  value('Returned sellable for Rice (1)', '0')
+  value('Returned in good condition for Rice (1)', '0')
   value('Returned damaged for Rice (1)', '0.5')
   value('Missing for Rice (1)', '0')
   fireEvent.click(button)
@@ -364,8 +364,8 @@ it('requires all reconciliation categories, matching totals, and reasons for dam
   value('Missing for Rice (1)', '0.5')
   fireEvent.click(button)
   expect(button.hasAttribute('disabled')).toBe(true)
-  expect(screen.getByText('Discrepancy Reason (required)')).toBeTruthy()
-  value('Discrepancy Reason for Rice (1)', 'Broken and missing')
+  expect(screen.getByText('Reason for Difference (required)')).toBeTruthy()
+  value('Reason for Difference for Rice (1)', 'Broken and missing')
   fireEvent.click(button)
   await waitFor(() => expect(close).toHaveBeenCalledOnce())
   expect(writes[0].body).toEqual({
@@ -387,7 +387,7 @@ it('requires all reconciliation categories, matching totals, and reasons for dam
 
 it('rejects completion without persisted loaded lines', async () => {
   mount(<CompleteDeliveryModal runId={40} deliveryId={9} onClose={vi.fn()} />)
-  const button = await screen.findByRole('button', { name: 'Confirm Completion' })
+  const button = await screen.findByRole('button', { name: 'Save Results' })
   expect(button.hasAttribute('disabled')).toBe(true)
   expect(await screen.findByText(/Loaded products are missing/)).toBeTruthy()
   expect(writes).toHaveLength(0)
@@ -399,7 +399,7 @@ it('keeps the receipt form open and refreshes state on a 409', async () => {
   const client = mount(<ReceiveProductsModal delivery={incoming} onClose={close} />)
   await chooseReceipt('partial')
   value('Received now for Rice (1)', '1')
-  fireEvent.click(screen.getByRole('button', { name: 'Confirm Receipt' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Save Receipt' }))
   expect((await screen.findByRole('alert')).textContent).toContain('Counts changed')
   expect(close).not.toHaveBeenCalled()
   expect(client.getQueryState(['incoming-deliveries', 'check'])?.isInvalidated).toBe(true)
@@ -474,7 +474,7 @@ it('respects accepted receipt capacity while allowing physically received damage
       : base(config)
   mount(<ReceiveProductsModal delivery={incoming} onClose={vi.fn()} />)
   await chooseReceipt('partial')
-  const button = screen.getByRole('button', { name: 'Confirm Receipt' })
+  const button = screen.getByRole('button', { name: 'Save Receipt' })
   value('Received now for Rice (1)', '2')
   fireEvent.click(button)
   expect((await screen.findByRole('alert')).textContent).toMatch(/remaining purchase order/i)
@@ -506,7 +506,7 @@ it('rejects duplicate member plan lines before dispatch and refreshes conflicts 
   expect((await screen.findByRole('alert')).textContent).toMatch(/duplicate/i)
   expect(writes).toHaveLength(0)
   duplicate = false
-  fireEvent.click(screen.getByRole('button', { name: 'Refresh run and review current data' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Refresh trip and review current data' }))
   await ready('Use Planned Quantities')
   dispatchValue('1')
   fail = true
@@ -604,12 +604,12 @@ it('shows full saved assignment labels and supports keyboard departure without s
 
 it('starts completion with neither outcome selected and sends the explicit all-delivered payload only on confirmation', async () => {
   mount(<CompleteDeliveryModal runId={40} deliveryId={8} onClose={vi.fn()} />)
-  const button = screen.getByRole('button', { name: 'Confirm Completion' })
+  const button = screen.getByRole('button', { name: 'Save Results' })
   expect(screen.getAllByRole('radio').every((radio) => !(radio as HTMLInputElement).checked)).toBe(
     true,
   )
   expect(button.hasAttribute('disabled')).toBe(true)
-  expect(screen.queryByRole('region', { name: 'Product reconciliation' })).toBeNull()
+  expect(screen.queryByRole('region', { name: 'Delivery results' })).toBeNull()
   await chooseOutcome(true)
   expect(screen.getByText('Rice')).toBeTruthy()
   expect(screen.getByText('Jasmine · kg · Main')).toBeTruthy()
@@ -662,12 +662,12 @@ it('balances products separately with different units and requires reasons only 
   reconcile('Oil (2)', '0.10', '0', '0', '0.20')
   expect(screen.getByText(/Accounted for: 2 \/ 2 kg/)).toBeTruthy()
   expect(screen.getByText(/Accounted for: 0.3 \/ 0.3 L/)).toBeTruthy()
-  expect(screen.queryByLabelText('Discrepancy Reason for Rice (1)')).toBeNull()
-  expect(screen.getByRole('button', { name: 'Confirm Completion' }).hasAttribute('disabled')).toBe(
+  expect(screen.queryByLabelText('Reason for Difference for Rice (1)')).toBeNull()
+  expect(screen.getByRole('button', { name: 'Save Results' }).hasAttribute('disabled')).toBe(
     true,
   )
-  value('Discrepancy Reason for Oil (2)', 'Bottle missing')
-  fireEvent.click(await ready('Confirm Completion'))
+  value('Reason for Difference for Oil (2)', 'Bottle missing')
+  fireEvent.click(await ready('Save Results'))
   await waitFor(() => expect(writes).toHaveLength(1))
   expect(writes[0].body).toEqual({
     expectedRevision: 4,
@@ -695,9 +695,9 @@ it('warns before switching away from exceptions and restores entered quantities 
   mount(<CompleteDeliveryModal runId={40} deliveryId={8} onClose={vi.fn()} />)
   await chooseOutcome(false)
   reconcile('Rice (1)', '1', '0', '1')
-  value('Discrepancy Reason for Rice (1)', 'Damaged packaging')
+  value('Reason for Difference for Rice (1)', 'Damaged packaging')
   await chooseOutcome(true)
-  expect(screen.getByRole('button', { name: 'Confirm Completion' }).hasAttribute('disabled')).toBe(
+  expect(screen.getByRole('button', { name: 'Save Results' }).hasAttribute('disabled')).toBe(
     true,
   )
   fireEvent.click(screen.getByRole('button', { name: 'Keep exceptions' }))
@@ -712,7 +712,7 @@ it('warns before switching away from exceptions and restores entered quantities 
   expect((screen.getByLabelText('Returned damaged for Rice (1)') as HTMLInputElement).value).toBe(
     '1',
   )
-  expect((screen.getByLabelText('Discrepancy Reason for Rice (1)') as HTMLInputElement).value).toBe(
+  expect((screen.getByLabelText('Reason for Difference for Rice (1)') as HTMLInputElement).value).toBe(
     'Damaged packaging',
   )
 })
@@ -723,7 +723,7 @@ it('keeps completion entries after a recoverable conflict and prevents duplicate
   const client = mount(<CompleteDeliveryModal runId={40} deliveryId={8} onClose={close} />)
   await chooseOutcome(false)
   reconcile('Rice (1)', '1.5', '0.5')
-  fireEvent.click(await ready('Confirm Completion'))
+  fireEvent.click(await ready('Save Results'))
   expect(await screen.findByText('Counts changed. Review the current delivery.')).toBeTruthy()
   expect((screen.getByLabelText('Delivered for Rice (1)') as HTMLInputElement).value).toBe('1.5')
   expect(close).not.toHaveBeenCalled()
@@ -740,7 +740,7 @@ it('keeps completion entries after a recoverable conflict and prevents duplicate
     return base(config)
   }
   fireEvent.click(screen.getByRole('button', { name: 'Refresh delivery data' }))
-  const button = await ready('Confirm Completion')
+  const button = await ready('Save Results')
   fireEvent.submit(button.closest('form')!)
   fireEvent.submit(button.closest('form')!)
   await waitFor(() => expect(button.hasAttribute('disabled')).toBe(true))
@@ -762,11 +762,11 @@ it('requires a new explicit outcome after persisted loaded quantities change dur
   loaded = '1.25'
   await client.invalidateQueries({ queryKey: ['outgoing-deliveries'] })
   expect(await screen.findByText(/Loaded quantities changed/)).toBeTruthy()
-  expect(screen.getByRole('button', { name: 'Confirm Completion' }).hasAttribute('disabled')).toBe(
+  expect(screen.getByRole('button', { name: 'Save Results' }).hasAttribute('disabled')).toBe(
     true,
   )
   await chooseOutcome(true)
-  fireEvent.click(await ready('Confirm Completion'))
+  fireEvent.click(await ready('Save Results'))
   await waitFor(() => expect(writes).toHaveLength(1))
   expect(writes[0].body).toMatchObject({ items: [{ deliveredQuantity: '1.25' }] })
 })
@@ -775,7 +775,7 @@ it('blocks completion when product lookup data is unavailable without fabricatin
   overrideGet('/inventory-items', [])
   mount(<CompleteDeliveryModal runId={40} deliveryId={8} onClose={vi.fn()} />)
   expect(await screen.findByText('Product unavailable')).toBeTruthy()
-  expect(screen.getByRole('button', { name: 'Confirm Completion' }).hasAttribute('disabled')).toBe(
+  expect(screen.getByRole('button', { name: 'Save Results' }).hasAttribute('disabled')).toBe(
     true,
   )
   expect(screen.getByRole('dialog').textContent).not.toMatch(/Line #|Stock #/)
@@ -796,8 +796,8 @@ it('retains dispatch input and blocks mutation after current source stock change
   fireEvent.click(await ready('Use Planned Quantities'))
   value('Actual total loaded weight (kg)', '10')
   available = '1.00'
-  fireEvent.click(screen.getByRole('button', { name: 'Refresh run and review current data' }))
-  await ready('Confirm Run Departure')
+  fireEvent.click(screen.getByRole('button', { name: 'Refresh trip and review current data' }))
+  await ready('Start Trip')
   fireEvent.click(departure())
   expect((await screen.findByRole('alert')).textContent).toMatch(/exceed/)
   expect(
@@ -821,7 +821,7 @@ it('prevents duplicate run departure while the inventory mutation is pending', a
   mount(<DispatchDeliveryModal runId={40} onClose={close} />)
   fireEvent.click(await ready('Use Planned Quantities'))
   value('Actual total loaded weight (kg)', '10')
-  const button = await ready('Confirm Run Departure')
+  const button = await ready('Start Trip')
   fireEvent.submit(button.closest('form')!)
   fireEvent.submit(button.closest('form')!)
   await waitFor(() => expect(button.hasAttribute('disabled')).toBe(true))
@@ -841,7 +841,7 @@ it('rejects invalid reconciliation decimals without silently allocating the diff
       'true',
     )
     expect(
-      screen.getByRole('button', { name: 'Confirm Completion' }).hasAttribute('disabled'),
+      screen.getByRole('button', { name: 'Save Results' }).hasAttribute('disabled'),
     ).toBe(true)
   }
   expect((screen.getByLabelText('Missing for Rice (1)') as HTMLInputElement).value).toBe('0')
@@ -894,7 +894,7 @@ it('builds the full receipt only after an explicit choice and records exact curr
   const close = vi.fn()
   mount(<ReceiveProductsModal delivery={incoming} onClose={close} />)
   await chooseReceipt('all')
-  const button = await ready('Confirm Receipt')
+  const button = await ready('Save Receipt')
   expect(writes).toHaveLength(0)
   expect(screen.queryByRole('textbox')).toBeNull()
   expect(screen.getByText('0.99 kg outstanding')).toBeTruthy()
@@ -933,13 +933,13 @@ it('retains partial quantities across confirmed switches and submits only the ch
   )
   await chooseReceipt('all')
   fireEvent.click(screen.getByRole('button', { name: 'Use selected outcome' }))
-  await ready('Confirm Receipt')
+  await ready('Save Receipt')
   await chooseReceipt('partial')
   expect((screen.getByLabelText('Damaged now for Rice (1)') as HTMLInputElement).value).toBe('2.50')
   await chooseReceipt('none')
   fireEvent.click(screen.getByRole('button', { name: 'Use selected outcome' }))
   value('Reason no goods arrived', 'No delivery')
-  fireEvent.click(screen.getByRole('button', { name: 'Confirm No Receipt' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Record No Receipt' }))
   await waitFor(() => expect(writes).toHaveLength(1))
   expect(writes[0].body).toEqual({ expectedRevision: 4, items: [], noReceiptReason: 'No delivery' })
 })
@@ -959,13 +959,13 @@ it('blocks a stale full receipt and allows a fresh review without silently chang
   }))
   mount(<ReceiveProductsModal delivery={incoming} onClose={vi.fn()} />)
   await chooseReceipt('all')
-  const button = await ready('Confirm Receipt')
+  const button = await ready('Save Receipt')
   accepted = '99.99'
   fireEvent.click(button)
   expect((await screen.findByRole('alert')).textContent).toContain('Outstanding quantities changed')
   expect(writes).toHaveLength(0)
   fireEvent.click(await ready('Recheck full receipt'))
-  fireEvent.click(await ready('Confirm Receipt'))
+  fireEvent.click(await ready('Save Receipt'))
   await waitFor(() => expect(writes).toHaveLength(1))
   expect(
     (writes[0].body as { items: { receivedQuantity: string }[] }).items[0].receivedQuantity,
@@ -1019,7 +1019,7 @@ it.each(['missing', 'duplicate', 'zero'] as const)(
           .matches(':disabled'),
       ).toBe(true)
     }
-    expect(screen.getByRole('button', { name: 'Confirm Receipt' }).hasAttribute('disabled')).toBe(
+    expect(screen.getByRole('button', { name: 'Save Receipt' }).hasAttribute('disabled')).toBe(
       true,
     )
     expect(writes).toHaveLength(0)
@@ -1089,7 +1089,7 @@ it('records independent exact receipt quantities and checks capacity again befor
   value('Received now for Rice (2)', '2.22')
   value('Damaged now for Rice (2)', '0.22')
   accepted = '99.50'
-  fireEvent.click(screen.getByRole('button', { name: 'Confirm Receipt' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Save Receipt' }))
   await screen.findByText(
     'Review the received and damaged quantities against current outstanding goods.',
   )
@@ -1098,7 +1098,7 @@ it('records independent exact receipt quantities and checks capacity again befor
     '1.01',
   )
   value('Received now for Rice (1)', '0.51')
-  fireEvent.click(await ready('Confirm Receipt'))
+  fireEvent.click(await ready('Save Receipt'))
   await waitFor(() => expect(writes).toHaveLength(1))
   expect(writes[0].body).toEqual({
     expectedRevision: 4,

@@ -266,9 +266,9 @@ it('continues to explicit dispatch only after the user finishes scheduling', asy
   await selectWarehouse(user)
   await user.type(quantity(), '1')
   await user.click(screen.getByRole('button', { name: 'Mark Ready' }))
-  await screen.findByText('Delivery ready for a run')
+  await screen.findByText('Delivery ready')
   expect(onScheduled).not.toHaveBeenCalled()
-  await user.click(screen.getByRole('button', { name: 'Continue to Delivery Runs' }))
+  await user.click(screen.getByRole('button', { name: 'Add to Trip' }))
   expect(onScheduled).toHaveBeenCalledWith(expect.objectContaining({ id: 90 }))
   expect(close).not.toHaveBeenCalled()
   expect(requests.some((request) => request.url.endsWith('/dispatch'))).toBe(false)
@@ -337,7 +337,7 @@ describe('outgoing delivery warehouse planning', () => {
     await user.type(quantity(), '21')
     expect(quantity().value).toBe('21')
     await user.click(screen.getByRole('button', { name: 'Mark Ready' }))
-    expect(await screen.findByText('Delivery ready for a run')).toBeTruthy()
+    expect(await screen.findByText('Delivery ready')).toBeTruthy()
     expect(creates()[0].body).toEqual({ salesOrderId: 1 })
     expect(updates()[0].body).toEqual(
       expect.objectContaining({
@@ -371,7 +371,7 @@ describe('outgoing delivery warehouse planning', () => {
     await user.clear(quantity())
     await user.type(quantity(), '1.25')
     await user.click(screen.getByRole('button', { name: 'Mark Ready' }))
-    expect(await screen.findByText('Delivery ready for a run')).toBeTruthy()
+    expect(await screen.findByText('Delivery ready')).toBeTruthy()
     expect(updates()[0].body.warehouseId).toBe(2)
   })
 
@@ -423,7 +423,7 @@ describe('outgoing delivery warehouse planning', () => {
     await waitFor(() => expect(quantity().disabled).toBe(false))
     expect(screen.getByText('Saved instructions')).toBeTruthy()
     await user.click(screen.getByRole('button', { name: 'Mark Ready' }))
-    expect(await screen.findByText('Delivery ready for a run')).toBeTruthy()
+    expect(await screen.findByText('Delivery ready')).toBeTruthy()
     expect(creates()).toHaveLength(0)
     expect(updates()[0].body.expectedRevision).toBe(7)
     expect(schedules()[0].body.expectedRevision).toBe(8)
@@ -507,7 +507,7 @@ describe('outgoing delivery warehouse planning', () => {
     expect(await screen.findByText('Schedule unavailable.')).toBeTruthy()
     expect(quantity().value).toBe('1.25')
     await user.click(screen.getByRole('button', { name: 'Mark Ready' }))
-    expect(await screen.findByText('Delivery ready for a run')).toBeTruthy()
+    expect(await screen.findByText('Delivery ready')).toBeTruthy()
     expect(creates()).toHaveLength(1)
     expect(updates().map((request) => request.body.expectedRevision)).toEqual([1, 2])
     expect(schedules().map((request) => request.body.expectedRevision)).toEqual([2, 3])
@@ -577,7 +577,7 @@ describe('outgoing delivery warehouse planning', () => {
       await user.clear(quantity())
       await user.type(quantity(), '1')
       await user.click(screen.getByRole('button', { name: 'Mark Ready' }))
-      expect(await screen.findByText('Delivery ready for a run')).toBeTruthy()
+      expect(await screen.findByText('Delivery ready')).toBeTruthy()
       expect(creates()).toHaveLength(1)
     },
   )
@@ -671,7 +671,7 @@ describe('outgoing delivery warehouse planning', () => {
       gate = undefined
       release()
     })
-    expect(await screen.findByText('Delivery ready for a run')).toBeTruthy()
+    expect(await screen.findByText('Delivery ready')).toBeTruthy()
     expect(creates()).toHaveLength(1)
   })
 
@@ -727,7 +727,7 @@ it('hides only known exhausted lines in a new plan while preserving positive qua
   expect(screen.queryByRole('textbox', { name: 'Quantity to ship for Rice' })).toBeNull()
   await user.type(input, '0.01')
   await user.click(screen.getByRole('button', { name: 'Mark Ready' }))
-  await screen.findByText('Delivery ready for a run')
+  await screen.findByText('Delivery ready')
   expect(updates()[0].body.plannedItems).toEqual([
     { salesOrderItemId: 12, plannedQuantity: '0.01' },
   ])
@@ -811,7 +811,7 @@ async function finishHubSchedule(user: ReturnType<typeof userEvent.setup>) {
   await selectWarehouse(user)
   await user.type(quantity(), '1.25')
   await user.click(screen.getByRole('button', { name: 'Mark Ready' }))
-  await screen.findByText('Delivery ready for a run')
+  await screen.findByText('Delivery ready')
   await user.click(screen.getByRole('button', { name: 'Done' }))
 }
 
@@ -913,7 +913,7 @@ it('waits for the active outgoing list refresh while preventing another schedule
   })
   await user.click(screen.getByRole('button', { name: 'Mark Ready' }))
   await waitFor(() => expect(schedules()).toHaveLength(1))
-  expect(screen.queryByText('Delivery ready for a run')).toBeNull()
+  expect(screen.queryByText('Delivery ready')).toBeNull()
   const busy = screen.getByRole('button', { name: 'Marking ready...' })
   expect(busy.hasAttribute('disabled')).toBe(true)
   fireEvent.submit(busy.closest('form')!)
@@ -921,7 +921,7 @@ it('waits for the active outgoing list refresh while preventing another schedule
     refreshGate = undefined
     release()
   })
-  await screen.findByText('Delivery ready for a run')
+  await screen.findByText('Delivery ready')
   await user.click(screen.getByRole('button', { name: 'Done' }))
   expect(await screen.findByRole('button', { name: 'View delivery OD-90' })).toBeTruthy()
   expect(schedules()).toHaveLength(1)
@@ -951,7 +951,7 @@ it('retains unsaved counts until explicitly clearing a line that became fully pl
   expect(screen.getByText(/Some entered quantities are no longer available/)).toBeTruthy()
   await user.click(screen.getByRole('button', { name: 'Clear quantities no longer available' }))
   await user.click(screen.getByRole('button', { name: 'Mark Ready' }))
-  await screen.findByText('Delivery ready for a run')
+  await screen.findByText('Delivery ready')
   expect(updates()[0].body.plannedItems).toEqual([
     { salesOrderItemId: 12, plannedQuantity: '1.25' },
   ])

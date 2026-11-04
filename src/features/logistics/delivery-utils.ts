@@ -28,21 +28,21 @@ export class DeliveryUtils {
       label: 'Ready',
       badgeClass: 'bg-status-info text-status-info-foreground border-status-info-foreground/20',
       dotClass: 'bg-status-info-foreground',
-      description: 'Ready for assignment to a delivery run',
+      description: 'Ready to add to a delivery trip',
     },
     DISPATCHED: {
-      label: 'In Transit',
+      label: 'Dispatched',
       badgeClass:
         'bg-status-warning text-status-warning-foreground border-status-warning-foreground/20',
       dotClass: 'bg-status-warning-foreground',
-      description: 'Vehicle & driver dispatched, en route to destination',
+      description: 'Departure recorded for this delivery trip',
     },
     RECONCILED: {
-      label: 'Reconciled',
+      label: 'Results recorded',
       badgeClass:
         'bg-status-success text-status-success-foreground border-status-success-foreground/20',
       dotClass: 'bg-status-success-foreground',
-      description: 'Loaded goods reconciled against deliveries and returns',
+      description: 'Delivery results recorded, including returns',
     },
     CANCELLED: {
       label: 'Cancelled',
@@ -182,9 +182,9 @@ export class DeliveryUtils {
     const assigned = runs.find((run) =>
       run.id !== currentRunId && run.deliveryVehicleId === vehicle.id && run.status === 'DISPATCHED',
     )
-    if (assigned) return { isAvailable: false, reason: `In Transit (${assigned.runNumber})` }
+    if (assigned) return { isAvailable: false, reason: `Assigned to Trip (${assigned.runNumber})` }
     if (!vehicle.isAvailable && (currentRunId === undefined || vehicle.activeRunId !== currentRunId))
-      return { isAvailable: false, reason: 'In Transit' }
+      return { isAvailable: false, reason: 'Assigned to a delivery trip' }
     return { isAvailable: true }
   }
 
@@ -198,7 +198,7 @@ export class DeliveryUtils {
       run.id !== currentRunId && run.driverEmployeeId === driver.id && run.status === 'DISPATCHED',
     )
     return assigned
-      ? { isAvailable: false, reason: `On Route (${assigned.runNumber})` }
+      ? { isAvailable: false, reason: `Assigned to a dispatched trip (${assigned.runNumber})` }
       : { isAvailable: true }
   }
 }

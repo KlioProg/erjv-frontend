@@ -37,7 +37,7 @@ export function useRunDeliverySelection(warehouseId?: number, existingIds: numbe
         : getErrorMessage(error)
     if (latest === undefined) return undefined
     if (!latest || latest.id !== delivery.id) return 'This delivery is no longer available.'
-    if (latest.runId !== null) return 'This delivery belongs to another run.'
+    if (latest.runId !== null) return 'This delivery belongs to another trip.'
     if (latest.status !== 'READY' || latest.warehouseId !== warehouseId)
       return 'This delivery is no longer eligible for this warehouse.'
     if (

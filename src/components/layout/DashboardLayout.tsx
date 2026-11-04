@@ -4,6 +4,7 @@ import { Link, NavLink } from 'react-router'
 import {
   Boxes,
   Warehouse as WarehouseIcon,
+  ArrowLeftRight,
   Truck,
   Users,
   Briefcase,
@@ -78,8 +79,8 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { key: 'inventory', label: 'Inventory', icon: Boxes },
       { key: 'warehouses', label: 'Warehouses', icon: WarehouseIcon },
+      { key: 'warehouse-transfers', label: 'Warehouse Transfers', icon: ArrowLeftRight },
       { key: 'deliveries', label: 'Deliveries', icon: MapPinned },
-      { key: 'warehouse-transfers', label: 'Warehouse Transfers', icon: Truck },
       { key: 'fleet', label: 'Vehicles', icon: Truck },
     ],
   },
@@ -397,7 +398,7 @@ export function DashboardLayout({
                     )}
                     <span aria-current="page" className="font-medium text-foreground">
                       {deliveryView
-                        ? `Deliveries / ${deliveryView === 'incoming' ? 'Incoming' : deliveryView === 'outgoing' ? 'Outgoing' : deliveryView === 'runs' ? 'Runs' : 'History'}`
+                        ? `Deliveries / ${deliveryView === 'incoming' ? 'Incoming' : deliveryView === 'outgoing' ? 'Outgoing' : deliveryView === 'runs' ? 'Delivery Trips' : 'History'}`
                         : currentItem?.label}
                     </span>
                   </div>

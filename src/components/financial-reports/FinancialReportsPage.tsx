@@ -156,15 +156,6 @@ function VisualSession({
                 <TabsTrigger value="breakdown">Details</TabsTrigger>
                 <TabsTrigger value="calendar">Calendar</TabsTrigger>
               </TabsList>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={query.fetching.length > 0}
-                onClick={() => query.restart()}
-              >
-                Refresh totals
-              </Button>
             </div>
           </div>
           <div className="min-w-0 p-4">
