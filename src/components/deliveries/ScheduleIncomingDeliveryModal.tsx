@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, type FormEvent } from 'react'
-import { Calendar } from 'lucide-react'
+import { LogisticsDateTimeInput } from '@/components/ui/LogisticsDateTimeInput'
+import { toManilaSchedule, manilaScheduleToIso } from '@/lib/manila-schedule'
 import { DeliveryFormDialog, DeliveryFormFooter } from './shared/DeliveryFormDialog'
 import { deliveryFormStyles } from './shared/delivery-form.styles'
 import { Spinner } from '@/components/ui/spinner'
@@ -16,7 +17,6 @@ import { useQueries } from '@tanstack/react-query'
 import { fetchProductByIdApi } from '@/features/products/products.api'
 import { productKeys } from '@/features/products/products.hooks'
 import { useIncomingDeliveries } from '@/features/logistics/incoming-deliveries.hooks'
-import { DeliveryUtils } from '@/features/logistics/delivery-utils'
 import type { PurchaseOrderRecord } from '@/features/logistics/purchase-orders.types'
 import type { Warehouse } from '@/features/logistics/warehouses.types'
 import type { Supplier } from '@/features/logistics/suppliers.types'
@@ -45,14 +45,12 @@ export function ScheduleIncomingDeliveryModal({
   open,
   onClose,
   onSubmit,
-  purchaseOrders,
-  warehouses,
   suppliers,
   products,
   preselectedOrderId,
 }: ScheduleIncomingDeliveryModalProps) {
   const [selectedPOId, setSelectedPOId] = useState(preselectedOrderId ? String(preselectedOrderId) : '')
-  const [selectedWarehouseId, setSelectedWarehouseId] = useState(String(warehouses.find((warehouse) => warehouse.isActive)?.id ?? ''))
+  const [selectedWarehouseId, setSelectedWarehouseId] = useState('')
   const [search, setSearch] = useState('')
   const purchaseLookup = useCursorLookup<PurchaseOrderRecord>('/purchase-orders', {
     statuses: ['CONFIRMED', 'PARTIALLY_RECEIVED'], ...(search.trim() ? { q: search.trim() } : {}),
@@ -68,10 +66,9 @@ export function ScheduleIncomingDeliveryModal({
   const selectionFailed = !!selectedPOId && (selectedQuery.isError || (!selectedRecord && !selectedQuery.isPending))
   const balanceFailed = selectionFailed || incomingQuery.isError
   const eligiblePOs = purchaseLookup.items.filter((po) => ['CONFIRMED', 'PARTIALLY_RECEIVED'].includes(po.status) && !(po.id === selectedRecord?.id && !unavailable && selectedRemaining === '0.00'))
-  const [defaultArrival] = useState(() => DeliveryUtils.toDateTimeInput(new Date(Date.now() + 24 * 60 * 60 * 1000)))
   const [arrival, setArrival] = useState<{ orderId: string; value: string } | null>(null)
-  const expectedArrival = selectedRecord?.expectedAt ?? purchaseOrders.find((order) => String(order.id) === selectedPOId)?.expectedAt
-  const scheduledAt = arrival?.orderId === selectedPOId ? arrival.value : expectedArrival ? DeliveryUtils.toDateTimeInput(expectedArrival) : defaultArrival
+  const expectedArrival = selectedRecord?.expectedAt
+  const scheduledAt = arrival?.orderId === selectedPOId ? arrival.value : toManilaSchedule(expectedArrival)
   const [supplierRef, setSupplierRef] = useState('')
   const [notes, setNotes] = useState('')
   const [errorMessage, setErrorMessage] = useState('')
@@ -145,11 +142,12 @@ export function ScheduleIncomingDeliveryModal({
       return
     }
     if (!wId || warehouseQuery.data?.id !== wId || !warehouseQuery.data.isActive) {
-      setErrorMessage('Please select a target intake warehouse.')
+      setErrorMessage('Choose a receiving warehouse.')
       return
     }
 
     lock.current = true
+    let submissionStarted = false
     try {
       setIsSubmitting(true)
       setErrorMessage('')
@@ -157,17 +155,18 @@ export function ScheduleIncomingDeliveryModal({
       if (freshOrder.isError || freshWarehouse.isError || freshReceipts.isError || !freshOrder.data || !freshWarehouse.data || !freshReceipts.data) throw Error('Current purchase order, warehouse or receiving balance could not be checked. Retry before scheduling.')
       const remaining = incomingOrderRemainingQuantity(freshOrder.data, freshReceipts.data)
       if (freshOrder.data.id !== pId || !['CONFIRMED', 'PARTIALLY_RECEIVED'].includes(freshOrder.data.status) || remaining === null || remaining === '0.00') throw Error('This purchase order is no longer available to arrange. Choose another purchase order.')
-      if (freshWarehouse.data.id !== wId || !freshWarehouse.data.isActive) throw Error('Please select an active target intake warehouse.')
+      if (freshWarehouse.data.id !== wId || !freshWarehouse.data.isActive) throw Error('Choose an active receiving warehouse.')
+      submissionStarted = true
       await onSubmit({
         purchaseOrderId: pId,
         warehouseId: wId,
-        scheduledAt: scheduledAt ? new Date(scheduledAt).toISOString() : null,
+        scheduledAt: expectedArrival && arrival?.orderId !== selectedPOId && scheduledAt ? new Date(expectedArrival).toISOString() : manilaScheduleToIso(scheduledAt),
         supplierReference: supplierRef.trim() || undefined,
         notes: notes.trim() || undefined,
       })
       onClose()
     } catch (err: unknown) {
-      const uncertain = isAxiosError(err) && (!err.response || err.response.status >= 500)
+      const uncertain = submissionStarted && (!isAxiosError(err) || !err.response || err.response.status >= 500)
       setNeedsReview(uncertain)
       setErrorMessage(
         uncertain
@@ -277,16 +276,13 @@ export function ScheduleIncomingDeliveryModal({
                 <Label htmlFor="sched-date" className={deliveryFormStyles.label}>
                   Expected Arrival Date & Time
                 </Label>
-                <div className="relative">
-                  <Calendar className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    id="sched-date"
-                    type="datetime-local"
-                    value={scheduledAt}
-                    onChange={(e) => setArrival({ orderId: selectedPOId, value: e.target.value })}
-                    className={`${deliveryFormStyles.control} pl-9`}
-                  />
-                </div>
+                <LogisticsDateTimeInput key={selectedPOId} id="sched-date" label="Expected Arrival Date & Time" value={scheduledAt}
+                  onChange={(value) => setArrival({ orderId: selectedPOId, value })} disabled={isSubmitting || needsReview} describedBy="arrival-help" />
+                <p id="arrival-help" className="text-xs text-muted-foreground">
+                  {scheduledAt && arrival?.orderId !== selectedPOId
+                    ? 'From the purchase order. Change or clear it if needed.'
+                    : 'Optional. Leave blank if the supplier has not confirmed an arrival time.'}
+                </p>
               </div>
 
               <div className={deliveryFormStyles.field}>

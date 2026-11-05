@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
 import { toast } from 'sonner'
-import { MemoryRouter } from 'react-router'
+import { MemoryRouter, useLocation } from 'react-router'
 import { apiClient } from '@/lib/api-client'
 import { getAdapter } from 'axios'
 import { DeliveriesHub } from './DeliveriesHub'
@@ -247,7 +247,7 @@ const updates = () =>
 const schedules = () =>
   requests.filter((request) => request.method === 'patch' && request.url.endsWith('/ready'))
 
-it('continues to explicit dispatch only after the user finishes scheduling', async () => {
+it('continues to trip assignment only after the user finishes preparation', async () => {
   const onScheduled = vi.fn()
   const close = vi.fn()
   render(
@@ -791,12 +791,16 @@ it('retains saved draft lines and values even when additional order planning cap
 })
 
 function mountHub(salesOrderId?: number) {
+  function Location() {
+    const location = useLocation()
+    return <output data-testid="delivery-location">{location.pathname}{location.search}</output>
+  }
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: Infinity }, mutations: { retry: false } },
   })
   render(
     <QueryClientProvider client={client}>
-      <MemoryRouter><DeliveriesHub initialTab="outgoing" salesOrderId={salesOrderId} /></MemoryRouter>
+      <MemoryRouter><DeliveriesHub initialTab="outgoing" salesOrderId={salesOrderId} /><Location /></MemoryRouter>
     </QueryClientProvider>,
   )
   return client
@@ -996,4 +1000,36 @@ it('loads later order and warehouse pages, searches on the server, and validates
   expect(lookupReads.some(({ url, params }) => url === '/sales-orders' && params.q === '0002')).toBe(true)
   expect(lookupReads.filter(({ url }) => url === '/sales-orders').every(({ params }) => JSON.stringify(params.statuses) === JSON.stringify(['CONFIRMED', 'PARTIALLY_DELIVERED']))).toBe(true)
   expect(lookupReads.filter(({ url }) => url === '/warehouses').every(({ params }) => params.includeInactive === 'false')).toBe(true)
+})
+
+
+it('continues preparing the saved draft without creating another delivery', async () => {
+  mount()
+  const user = userEvent.setup()
+  await selectWarehouse(user)
+  await user.type(quantity(), '1.25')
+  await user.click(screen.getByRole('button', { name: 'Save Draft' }))
+  await screen.findByText('Delivery draft saved')
+  await user.click(screen.getByRole('button', { name: 'Continue Preparing' }))
+  expect(quantity().value).toBe('1.25')
+  await user.click(screen.getByRole('button', { name: 'Mark Ready' }))
+  await screen.findByText('Delivery ready')
+  expect(creates()).toHaveLength(1)
+  expect(schedules()).toHaveLength(1)
+})
+
+
+it('opens assignment for the delivery just prepared from Outgoing without another lookup', async () => {
+  mountHub(1)
+  const user = userEvent.setup()
+  await scheduleFromHub(user)
+  await selectWarehouse(user)
+  await user.type(quantity(), '1.25')
+  await user.click(screen.getByRole('button', { name: 'Mark Ready' }))
+  await screen.findByText('Delivery ready')
+  expect(schedules()).toHaveLength(1)
+  await user.click(screen.getByRole('button', { name: 'Add to Trip' }))
+  expect(screen.getByTestId('delivery-location').textContent).toBe('/deliveries/runs?assign=90')
+  expect(screen.queryByRole('dialog', { name: 'Plan Outgoing Delivery' })).toBeNull()
+  expect(requests.some((entry) => entry.url === '/delivery-runs' && entry.method === 'post' || entry.url.endsWith('/dispatch'))).toBe(false)
 })

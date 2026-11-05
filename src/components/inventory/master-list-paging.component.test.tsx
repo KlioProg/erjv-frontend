@@ -121,3 +121,36 @@ it('resolves focused products by ID when they are outside the loaded catalog pag
   expect(screen.queryByText(/product is archived or no longer available/)).toBeNull()
   await waitFor(() => expect(screen.getByText('Product 1')).toBeTruthy())
 })
+
+it('offers an explicitly scoped out-of-stock view without claiming a global priority order', async () => {
+  const stocks = [
+    { id: 1, inventoryItemId: 1, warehouseId: 1, quantity: '10.00', availableQuantity: '10.00', stockStatus: 'NORMAL' },
+    { id: 2, inventoryItemId: 2, warehouseId: 1, quantity: '0.00', availableQuantity: '0.00', stockStatus: 'OUT' },
+    { id: 3, inventoryItemId: 3, warehouseId: 1, quantity: '0.00', availableQuantity: '0.00', stockStatus: 'OUT' },
+    { id: 5, inventoryItemId: 5, warehouseId: 1, quantity: '0.00', availableQuantity: '0.00', stockStatus: null },
+  ]
+  apiClient.defaults.adapter = async (config) => {
+    const params = config.params ?? {}
+    requests.push({ url: config.url!, params })
+    let data: unknown = { items: [], nextCursor: null }
+    if (config.url === '/inventory-items') data = { items: params.cursor ? [product(3, 'Later empty rice')] : [product(1, 'Available rice'), product(2, 'Empty rice'), product(4, 'Unassigned rice'), product(5, 'Unknown rice')], nextCursor: params.cursor ? null : 'page-2' }
+    if (config.url === '/warehouses') data = { items: [product(1, 'Main')], nextCursor: null }
+    if (config.url === '/stock-items') data = { items: stocks, nextCursor: null }
+    if (config.url?.startsWith('/stock-items/inventory-items/')) data = { items: stocks.filter((stock) => stock.inventoryItemId === Number(config.url!.split('/').at(-1))).map((stock) => ({ ...stock, warehouse: product(1, 'Main') })), nextCursor: null }
+    return { config, data, status: 200, statusText: '', headers: {} }
+  }
+  mount(<InventoryItemCatalog />)
+  await screen.findByText('Available rice')
+  expect(screen.queryByText('Later empty rice')).toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: 'Out of stock' }))
+  await screen.findByText('Warning filters apply to this product page and loaded stock records.')
+  await screen.findByText('Empty rice')
+  for (const name of ['Available rice', 'Unassigned rice', 'Unknown rice']) expect(screen.queryByText(name)).toBeNull()
+  expect(requests.filter(({ url }) => url === '/inventory-items').every(({ params }) => params.cursor === undefined)).toBe(true)
+  fireEvent.click(screen.getAllByRole('button', { name: 'Next page' }).find((button) => !button.hasAttribute('disabled'))!)
+  await screen.findByText('Later empty rice')
+  expect(requests).toContainEqual({ url: '/inventory-items', params: { includeInactive: 'false', limit: 50, cursor: 'page-2' } })
+  expect(requests.filter(({ url }) => url === '/stock-items')).toHaveLength(1)
+  fireEvent.click(screen.getByRole('button', { name: 'Clear warning filters' }))
+  await screen.findByText('Available rice')
+})

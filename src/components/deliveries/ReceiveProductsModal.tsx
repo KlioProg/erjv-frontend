@@ -7,6 +7,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
+import { useEffect, useRef, useState } from 'react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -15,23 +16,24 @@ import {
   useIncomingReceiving,
   type ReceiptOutcome,
 } from '@/features/logistics/use-incoming-receiving'
-import { formatStockCents } from '@/features/logistics/stock-display'
+import { formatStockCents, parseStockCents } from '@/features/logistics/stock-display'
 import type { IncomingDeliveryRecord } from '@/features/logistics/incoming-deliveries.types'
 import { useIncomingDeliveryById } from '@/features/logistics/incoming-deliveries.hooks'
 import { deliveryFormStyles } from './shared/delivery-form.styles'
 
 const outcomes = [
-  ['all', 'All remaining goods arrived in good condition'],
-  ['partial', 'Some goods arrived or were damaged'],
-  ['none', 'No goods arrived'],
+  ['all', 'All remaining goods received in good condition'],
+  ['partial', 'Some goods received or damaged'],
+  ['none', 'No goods received'],
 ] as const
 
 export function ReceiveProductsModal(props: {
   onClose: () => void
+  onSaved?: (saved: IncomingDeliveryRecord) => void
 } & ({ delivery: IncomingDeliveryRecord; deliveryId?: never } | { deliveryId: number; delivery?: never })) {
   const current = useIncomingDeliveryById(props.deliveryId)
   const delivery = props.delivery ?? current.data
-  if (delivery) return <ReceiveProductsForm key={delivery.id} delivery={delivery} onClose={props.onClose} />
+  if (delivery) return <ReceiveProductsForm key={delivery.id} delivery={delivery} onClose={props.onClose} onSaved={props.onSaved} />
   return (
     <Dialog open onOpenChange={(open) => !open && props.onClose()}>
       <DialogContent>
@@ -49,11 +51,27 @@ export function ReceiveProductsModal(props: {
 function ReceiveProductsForm({
   delivery,
   onClose,
+  onSaved,
 }: {
   delivery: IncomingDeliveryRecord
   onClose: () => void
+  onSaved?: (saved: IncomingDeliveryRecord) => void
 }) {
-  const form = useIncomingReceiving(delivery, onClose)
+  const form = useIncomingReceiving(delivery, onClose, onSaved)
+  const [reviewSignature, setReviewSignature] = useState<string | null>(null)
+  const signature = JSON.stringify([form.signature, form.outcome, form.counts, form.reason])
+  const reviewing = reviewSignature === signature && !form.error && !form.fullNeedsReview
+  const reviewHeading = useRef<HTMLHeadingElement>(null)
+  useEffect(() => {
+    if (reviewing) reviewHeading.current?.focus()
+  }, [reviewing])
+  const reviewRows = form.rows.map((row) => {
+    const entry = form.receiptItems.find((item) => item.purchaseOrderItemId === row.item.id)
+    const received = parseStockCents(entry?.receivedQuantity ?? '0')!
+    const damaged = parseStockCents(entry?.damagedQuantity ?? '0')!
+    return { ...row, received, damaged, accepted: received - damaged,
+      notReceived: row.outstanding === null ? null : row.outstanding > received ? row.outstanding - received : 0n }
+  })
   const busy = form.checking || form.pending
   return (
     <Dialog open onOpenChange={(open) => !open && !busy && onClose()}>
@@ -70,9 +88,14 @@ function ReceiveProductsForm({
         </DialogHeader>
         <form
           className="flex min-h-0 flex-col overflow-hidden"
-          onSubmit={(event) => {
+          onSubmit={async (event) => {
             event.preventDefault()
-            void form.submit()
+            if (!form.canSubmit || busy) return
+            if (!reviewing) setReviewSignature(signature)
+            else {
+              await form.submit()
+              setReviewSignature(null)
+            }
           }}
         >
           <div className="flex min-h-0 flex-col gap-5 overflow-y-auto px-6 pb-6">
@@ -116,7 +139,7 @@ function ReceiveProductsForm({
                 quantities.
               </p>
             )}
-            {form.outcome !== 'partial' && (
+            {form.outcome !== 'partial' && !reviewing && (
               <div className="flex min-w-0 flex-col gap-2" aria-label="Outstanding products">
                 {form.outcome === 'all' && (
                   <p className="text-sm font-medium">To receive in good condition</p>
@@ -143,9 +166,9 @@ function ReceiveProductsForm({
                 ))}
               </div>
             )}
-            <fieldset disabled={form.disabled} className="flex min-w-0 flex-col gap-3">
+            <fieldset hidden={reviewing} disabled={form.disabled || reviewing} className="flex min-w-0 flex-col gap-3">
               <legend className="mb-3 text-sm font-medium">
-                What happened when the goods arrived?
+                What was received?
               </legend>
               {outcomes.map(([value, label]) => (
                 <Label key={value} className={deliveryFormStyles.outcomeChoice}>
@@ -162,6 +185,14 @@ function ReceiveProductsForm({
                 </Label>
               ))}
             </fieldset>
+            {!reviewing && <p className="text-xs text-muted-foreground">
+              If the delivery is only delayed and the result is unknown, close this form and keep it scheduled.
+            </p>}
+            {form.outcome === 'all' && !reviewing && (
+              <Button type="button" variant="outline" disabled={form.disabled || form.fullNeedsReview} onClick={() => form.chooseOutcome('partial')}>
+                Edit Quantities
+              </Button>
+            )}
             {form.pendingOutcome && (
               <Alert>
                 <AlertDescription className="flex flex-col gap-3">
@@ -198,9 +229,9 @@ function ReceiveProductsForm({
               </Button>
             )}
             {form.outcome === 'partial' && (
-              <fieldset disabled={form.disabled || form.regularUnavailable} className="min-w-0">
+              <fieldset hidden={reviewing} disabled={form.disabled || form.regularUnavailable || reviewing} className="min-w-0">
                 <p className="mb-3 text-xs text-muted-foreground">
-                  Received now includes damaged goods. Leave skipped products blank or enter zero.
+                  Received includes damaged goods. Leave products not received blank or enter zero.
                 </p>
                 <DataTable
                   data={form.rows}
@@ -230,7 +261,7 @@ function ReceiveProductsForm({
                     },
                     ...(['received', 'damaged'] as const).map((field) => ({
                       id: field,
-                      header: field === 'received' ? 'Received now' : 'Damaged now',
+                      header: field === 'received' ? 'Received' : 'Damaged',
                       className: 'w-full sm:w-[28%]',
                       headerClassName: 'sm:w-[28%]',
                       cell: ({
@@ -274,26 +305,47 @@ function ReceiveProductsForm({
               </fieldset>
             )}
             {form.outcome === 'none' && (
-              <div className="flex flex-col gap-2">
+              <div hidden={reviewing} className="flex flex-col gap-2">
                 <Label htmlFor="no-receipt-reason">Reason no goods arrived</Label>
                 <Input
                   id="no-receipt-reason"
                   required
-                  disabled={form.disabled}
+                  disabled={form.disabled || reviewing}
                   value={form.reason}
                   onChange={(event) => form.setReason(event.target.value)}
                   placeholder="Supplier did not deliver"
                 />
               </div>
             )}
+            {reviewing && (
+              <section aria-label="Review receipt" className="flex flex-col gap-3">
+                <h3 ref={reviewHeading} tabIndex={-1} className="text-sm font-medium">Review Receipt</h3>
+                <DataTable data={reviewRows} pagination={false} getRowKey={(row) => row.item.id}
+                  columns={[
+                    { id: 'product', header: 'Product', cell: ({ row }) => `${row.product?.name ?? 'Product unavailable'} (${row.product?.unit ?? 'Unit unavailable'})` },
+                    ...([['outstanding', 'Expected'], ['received', 'Received'], ['accepted', 'Good condition'], ['damaged', 'Damaged'], ['notReceived', 'Not received']] as const).map(([field, header]) => ({
+                      id: field, header, align: 'right' as const, cell: ({ row }: { row: (typeof reviewRows)[number] }) => formatStockCents(row[field]),
+                    })),
+                  ]}
+                />
+                {form.outcome === 'none' && <p className="text-sm">No goods received. Reason: {form.reason.trim()}</p>}
+                <p className="text-xs text-muted-foreground">
+                  {form.outcome === 'none'
+                    ? 'This records that no goods were received and completes this delivery without adding stock. If the arrival is only delayed, close this form and leave the delivery scheduled.'
+                    : 'Saving records the actual arrival and updates inventory. Good-condition goods are accepted; damaged goods are recorded separately. Completing this delivery does not necessarily complete the purchase order.'}
+                </p>
+              </section>
+            )}
           </div>
           <DialogFooter className="shrink-0 border-t px-6 py-4">
             <Button type="button" variant="outline" disabled={busy} onClick={onClose}>
               Cancel
             </Button>
+            {reviewing && <Button type="button" variant="outline" disabled={busy} onClick={() => setReviewSignature(null)}>Back</Button>}
             <Button type="submit" disabled={!form.canSubmit}>
               {busy
                 ? 'Checking receipt...'
+                : !reviewing ? 'Review Receipt'
                 : form.outcome === 'none'
                   ? 'Record No Receipt'
                   : 'Save Receipt'}

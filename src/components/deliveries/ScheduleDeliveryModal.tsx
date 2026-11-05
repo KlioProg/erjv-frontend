@@ -262,13 +262,23 @@ function OutgoingPlanningForm({
             </p>
           </div>
           <DeliveryFormFooter>
+            {form.completed === 'DRAFT' && (
+              <Button variant="primary-contrast" onClick={form.continuePreparing}>
+                Continue Preparing
+              </Button>
+            )}
             {savedDraft && onViewDelivery && (
               <Button variant="outline" onClick={() => onViewDelivery(savedDraft)}>
                 View Delivery
               </Button>
             )}
+            {form.completed === 'READY' && onScheduled && (
+              <Button variant="outline" onClick={dismiss}>
+                Done
+              </Button>
+            )}
             <Button
-              variant="primary-contrast"
+              variant={form.completed === 'DRAFT' ? 'outline' : 'primary-contrast'}
               onClick={() => {
                 if (form.completed === 'READY' && savedDraft && onScheduled)
                   onScheduled(savedDraft)
@@ -276,7 +286,11 @@ function OutgoingPlanningForm({
               }}
               className={deliveryFormStyles.button}
             >
-              {form.completed === 'READY' && onScheduled ? 'Add to Trip' : 'Done'}
+              {form.completed === 'READY' && onScheduled
+                ? savedDraft?.runId != null
+                  ? 'View Trip'
+                  : 'Add to Trip'
+                : 'Done'}
             </Button>
           </DeliveryFormFooter>
         </div>

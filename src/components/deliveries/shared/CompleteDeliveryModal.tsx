@@ -1,5 +1,5 @@
 import { deliveryFormStyles } from './delivery-form.styles'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { decimalLimitError, QUANTITY_MAX } from '@/lib/decimal-limits'
 import { toast } from 'sonner'
 import {
@@ -13,6 +13,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { DataTable } from '@/components/ui/data-table'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useOutgoingDeliveryById } from '@/features/logistics/outgoing-deliveries.hooks'
 import { useSalesOrderById } from '@/features/crm/sales-orders.hooks'
@@ -22,6 +23,7 @@ import { parseStockCents, formatStockCents } from '@/features/logistics/stock-di
 import { decimalString } from '@/features/logistics/purchase-pricing'
 import { getApiFieldErrors, getErrorMessage } from '@/lib/api-client'
 import { useDeliveryRunById, useReconcileRunMember } from '@/features/logistics/delivery-runs.hooks'
+import type { RunMemberReconciliationResponse } from '@/features/logistics/delivery-runs.types'
 
 const fields = [
   ['deliveredQuantity', 'Delivered'],
@@ -36,10 +38,12 @@ export function CompleteDeliveryModal({
   runId,
   deliveryId,
   onClose,
+  onSaved,
 }: {
   runId: number
   deliveryId: number
   onClose: () => void
+  onSaved?: (saved: RunMemberReconciliationResponse) => void
 }) {
   const query = useOutgoingDeliveryById(deliveryId)
   const complete = useReconcileRunMember()
@@ -55,6 +59,7 @@ export function CompleteDeliveryModal({
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [needsRefresh, setNeedsRefresh] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
+  const [reviewSignature, setReviewSignature] = useState<string | null>(null)
   const inFlight = useRef(false)
   const signature = JSON.stringify([
     runId,
@@ -65,6 +70,12 @@ export function CompleteDeliveryModal({
     delivery?.items.map((item) => [item.id, item.loadedQuantity ?? item.quantity]),
   ])
   const outcome = selection?.signature === signature ? selection.outcome : null
+  const currentReview = JSON.stringify([signature, outcome, counts])
+  const reviewing = reviewSignature === currentReview
+  const reviewHeading = useRef<HTMLHeadingElement>(null)
+  useEffect(() => {
+    if (reviewing) reviewHeading.current?.focus()
+  }, [reviewing])
   const rows = (delivery?.items ?? []).map((item) => {
     const line = order.data?.items.find((line) => line.id === item.salesOrderItemId)
     const product = products.data?.find((product) => product.id === line?.inventoryItemId)
@@ -120,6 +131,14 @@ export function CompleteDeliveryModal({
           row.balanced && (!row.reasonRequired || counts[row.item.id]?.discrepancyReason?.trim()),
       ))
   const chooseOutcome = (next: Outcome) => {
+    if (next === 'exceptions' && outcome === 'all') {
+      setCounts((current) => Object.fromEntries(rows.map((row) => [row.item.id,
+        current[row.item.id] ?? {
+          deliveredQuantity: decimalString(row.loaded!),
+          returnedSellableQuantity: '0.00', returnedDamagedQuantity: '0.00', missingQuantity: '0.00',
+        },
+      ])))
+    }
     if (
       next === 'all' &&
       outcome === 'exceptions' &&
@@ -146,8 +165,7 @@ export function CompleteDeliveryModal({
             {delivery?.deliveryNumber || 'Loading delivery...'} ·{' '}
             {clients.data?.find((client) => client.id === order.data?.clientId)?.name ||
               'Customer unavailable'}.{' '}
-            Record delivered, returned, damaged, and missing quantities. Saving these results
-            updates order fulfillment.
+            Review the actual quantities before saving. Delivered goods count toward the sales order.
           </DialogDescription>
         </DialogHeader>
         <form
@@ -155,6 +173,10 @@ export function CompleteDeliveryModal({
           onSubmit={async (event) => {
             event.preventDefault()
             if (disabled || inFlight.current || confirmAll || !validOutcome) return
+            if (!reviewing) {
+              setReviewSignature(currentReview)
+              return
+            }
             setError('')
             setFieldErrors({})
             try {
@@ -193,17 +215,30 @@ export function CompleteDeliveryModal({
                 !Number.isSafeInteger(saved.delivery.revision) ||
                 saved.delivery.revision <= delivery!.revision ||
                 !saved.delivery.reconciledAt ||
-                saved.run?.id !== runId
+                saved.run?.id !== runId ||
+                !Number.isSafeInteger(saved.run.revision) ||
+                saved.run.revision <= runQuery.data!.revision ||
+                !['DISPATCHED', 'COMPLETED'].includes(saved.run.status) ||
+                (saved.run.status === 'COMPLETED' && saved.run.deliveries?.some((member) => member.status === 'DISPATCHED')) ||
+                !saved.run.deliveries?.some((member) => member.id === deliveryId &&
+                  member.status === 'RECONCILED' && member.revision === saved.delivery.revision)
               )
                 throw Error(
                   'Delivery results were not confirmed. Refresh and review before trying again.',
                 )
-              toast.success('Delivery results saved.')
+              const remaining = saved.run.deliveries.filter((member) => member.status === 'DISPATCHED').length
+              toast.success(`Results saved for ${saved.delivery.deliveryNumber}.`, {
+                description: remaining
+                  ? `${remaining} ${remaining === 1 ? 'delivery still needs' : 'deliveries still need'} results.`
+                  : saved.run.status === 'COMPLETED' ? 'This trip is completed.' : 'No deliveries are awaiting results. Review the trip status.',
+              })
+              onSaved?.(saved)
               onClose()
             } catch (cause) {
               const issues = getApiFieldErrors(cause)
               setFieldErrors(Object.fromEntries(rows.flatMap((row, index) => [...fields.map(([field]) => field), 'discrepancyReason'].flatMap((field) => issues[`items.${index}.${field}`] ? [[`${row.item.id}.${field}`, issues[`items.${index}.${field}`]]] : []))))
               setNeedsRefresh(true)
+              setReviewSignature(null)
               setError(getErrorMessage(cause))
             } finally {
               inFlight.current = false
@@ -300,7 +335,7 @@ export function CompleteDeliveryModal({
                 </AlertDescription>
               </Alert>
             )}
-            <section aria-labelledby="completion-loaded-heading" className="flex flex-col gap-3">
+            <section hidden={reviewing} aria-labelledby="completion-loaded-heading" className="flex flex-col gap-3">
               <h3 id="completion-loaded-heading" className="text-sm font-medium">
                 Loaded products
               </h3>
@@ -328,32 +363,36 @@ export function CompleteDeliveryModal({
                 ))}
               </ul>
             </section>
-            <fieldset disabled={disabled} className="flex min-w-0 flex-col gap-3">
+            <fieldset hidden={reviewing} disabled={disabled || reviewing} className="flex min-w-0 flex-col gap-3">
               <legend className="mb-3 text-sm font-medium">
-                Did the customer receive all the goods?
+                Were all items delivered?
               </legend>
               <Label className={deliveryFormStyles.outcomeChoice}>
                 <input
                   type="radio"
                   name="delivery-outcome"
                   value="all"
+                  aria-describedby="completion-all-help"
                   checked={outcome === 'all'}
                   onChange={() => chooseOutcome('all')}
                   className={deliveryFormStyles.outcomeRadio}
                 />
-                Yes, everything was delivered
+                All items delivered
               </Label>
+              <p id="completion-all-help" className="text-xs text-muted-foreground">All listed items were delivered to the customer.</p>
               <Label className={deliveryFormStyles.outcomeChoice}>
                 <input
                   type="radio"
                   name="delivery-outcome"
                   value="exceptions"
+                  aria-describedby="completion-exceptions-help"
                   checked={outcome === 'exceptions'}
                   onChange={() => chooseOutcome('exceptions')}
                   className={deliveryFormStyles.outcomeRadio}
                 />
-                No, there were returns or missing goods
+                Some items were returned or missing
               </Label>
+              <p id="completion-exceptions-help" className="text-xs text-muted-foreground">Enter the quantities delivered, returned, or missing.</p>
             </fieldset>
             {confirmAll && (
               <Alert>
@@ -387,20 +426,23 @@ export function CompleteDeliveryModal({
                 </AlertDescription>
               </Alert>
             )}
-            {outcome === 'all' && (
+            {outcome === 'all' && !reviewing && (
               <Alert>
                 <AlertDescription>
                   All loaded goods will be recorded as delivered. No sellable returns, damaged
                   returns, or missing goods.
+                  <Button type="button" variant="link" disabled={disabled} onClick={() => chooseOutcome('exceptions')}>
+                    Edit Quantities
+                  </Button>
                 </AlertDescription>
               </Alert>
             )}
             {outcome === 'exceptions' && (
-              <section className="flex flex-col gap-5" aria-label="Delivery results">
+              <section hidden={reviewing} className="flex flex-col gap-5" aria-label="Delivery results">
                 {rows.map((row, index) => (
                   <fieldset
                     key={row.item.id}
-                    disabled={disabled || confirmAll}
+                    disabled={disabled || confirmAll || reviewing}
                     className="flex min-w-0 flex-col gap-3 border-t pt-4"
                   >
                     <legend className="max-w-full break-words pr-3 text-sm font-medium">
@@ -485,6 +527,24 @@ export function CompleteDeliveryModal({
                 ))}
               </section>
             )}
+            {reviewing && (
+              <section aria-label="Review delivery results" className="flex flex-col gap-3">
+                <h3 ref={reviewHeading} tabIndex={-1} className="text-sm font-medium">Review Results</h3>
+                <DataTable data={rows} pagination={false} getRowKey={(row) => row.item.id}
+                  columns={[
+                    { id: 'product', header: 'Product', cell: ({ row }) => <span>{row.product?.name} ({row.product?.unit})</span> },
+                    { id: 'loaded', header: 'Loaded', cell: ({ row }) => formatStockCents(row.loaded) },
+                    ...fields.map(([field, label], index) => ({
+                      id: field, header: label, cell: ({ row }: { row: (typeof rows)[number] }) =>
+                        formatStockCents(outcome === 'all' ? index === 0 ? row.loaded : 0n : row.values[index]),
+                    })),
+                  ]}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Saving records these quantities and updates inventory. Cancel if the results are not yet known.
+                </p>
+              </section>
+            )}
             {outcome && (
               <p className="text-xs text-muted-foreground">
                 Delivered goods count toward order fulfillment. These results record returns,
@@ -497,8 +557,9 @@ export function CompleteDeliveryModal({
             <Button type="button" variant="outline" disabled={complete.isPending} onClick={onClose}>
               Cancel
             </Button>
+            {reviewing && <Button type="button" variant="outline" disabled={complete.isPending} onClick={() => setReviewSignature(null)}>Back</Button>}
             <Button type="submit" disabled={disabled || !validOutcome || confirmAll}>
-              {complete.isPending ? 'Saving...' : 'Save Results'}
+              {complete.isPending ? 'Saving...' : reviewing ? 'Save Results' : 'Review Results'}
             </Button>
           </DialogFooter>
         </form>

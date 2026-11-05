@@ -5,13 +5,14 @@ import { AxiosError } from 'axios'
 import { afterEach, expect, it, vi } from 'vitest'
 import { apiClient } from '@/lib/api-client'
 import type { PurchaseOrderRecord } from '@/features/logistics/purchase-orders.types'
+import type { Warehouse } from '@/features/logistics/warehouses.types'
 import { ScheduleIncomingDeliveryModal } from './ScheduleIncomingDeliveryModal'
 
 const original = apiClient.defaults.adapter
 afterEach(() => { apiClient.defaults.adapter = original })
 const orders = [1, 2].map((id) => ({ id, revision: 3, orderNumber: `PO-${id}`, status: 'CONFIRMED', supplierId: id, expectedAt: `2026-11-0${id}T08:00:00Z`, items: [{ id: id * 100, inventoryItemId: id * 11, quantity: '5.00' }] })) as PurchaseOrderRecord[]
 const warehouses = [{ id: 10, name: 'Dock A', isActive: true }, { id: 20, name: 'Dock B', isActive: true }]
-function mount({ selected, fail = '', empty = false }: { selected?: number; fail?: string; empty?: boolean } = {}) {
+function mount({ selected, fail = '', empty = false, arrival }: { selected?: number; fail?: string; empty?: boolean; arrival?: string | null } = {}) {
   const calls: { url: string; params: Record<string, unknown> }[] = []
   let failure = fail
   let inactive = false
@@ -25,7 +26,7 @@ function mount({ selected, fail = '', empty = false }: { selected?: number; fail
     let data: unknown
     if (url === '/purchase-orders') data = { items: empty ? [] : params.q ? (String(params.q).includes('Second') ? [orders[1]] : []) : params.cursor ? orders : [orders[0]], nextCursor: empty || params.q || params.cursor ? null : 'po-2' }
     else if (url === '/warehouses') data = { items: params.q ? (String(params.q).includes('Dock B') ? [warehouses[1]] : []) : params.cursor ? warehouses : [warehouses[0]], nextCursor: params.q || params.cursor ? null : 'wh-2' }
-    else if (url.startsWith('/purchase-orders/')) data = orders.find((order) => order.id === Number(url.split('/').pop()))
+    else if (url.startsWith('/purchase-orders/')) data = { ...orders.find((order) => order.id === Number(url.split('/').pop())), ...(arrival !== undefined ? { expectedAt: arrival } : {}) }
     else if (url.startsWith('/warehouses/')) data = { ...warehouses.find((warehouse) => warehouse.id === Number(url.split('/').pop())), isActive: !inactive }
     else if (url === '/incoming-deliveries') data = { items: [], nextCursor: null }
     else if (url.startsWith('/suppliers/')) data = { id: Number(url.split('/').pop()), name: `Supplier ${url.split('/').pop()}` }
@@ -34,7 +35,7 @@ function mount({ selected, fail = '', empty = false }: { selected?: number; fail
     return { config, data, status: 200, statusText: '', headers: {} }
   }
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
-  render(<QueryClientProvider client={client}><ScheduleIncomingDeliveryModal open onClose={vi.fn()} onSubmit={onSubmit} purchaseOrders={[]} suppliers={[]} products={[]} warehouses={[]} preselectedOrderId={selected} /></QueryClientProvider>)
+  render(<QueryClientProvider client={client}><ScheduleIncomingDeliveryModal open onClose={vi.fn()} onSubmit={onSubmit} purchaseOrders={orders} suppliers={[]} products={[]} warehouses={warehouses as Warehouse[]} preselectedOrderId={selected} /></QueryClientProvider>)
   return { calls, onSubmit, recover: () => { failure = '' }, deactivate: () => { inactive = true }, client }
 }
 async function chooseWarehouse() {
@@ -133,7 +134,7 @@ it('does not submit an inactive warehouse discovered during scheduling preflight
   await waitFor(() => expect(submit.hasAttribute('disabled')).toBe(false))
   deactivate()
   await userEvent.click(submit)
-  await screen.findByText(/active target intake warehouse/)
+  await screen.findByText(/active receiving warehouse/)
   expect(onSubmit).not.toHaveBeenCalled()
 })
 
@@ -172,4 +173,69 @@ it('keeps a failed selected warehouse visible and permits explicit recovery', as
   await userEvent.click(screen.getByRole('button', { name: 'Reload selected warehouse' }))
   await waitFor(() => expect(screen.getByRole('button', { name: 'Schedule Arrival' }).hasAttribute('disabled')).toBe(false))
   expect(screen.getByRole('button', { name: 'Destination Warehouse' }).textContent).toContain('Dock A')
+})
+
+
+it.each([null, 'invalid-date'])('keeps an unknown arrival and an unverified destination blank (%s)', async (arrival) => {
+  const { onSubmit, calls } = mount({ selected: 1, arrival })
+  await screen.findByText('Product 11')
+  expect(screen.getByRole('button', { name: 'Purchase Order' }).textContent).toContain('PO-1')
+  expect(screen.getByText(/Supplier: Supplier 1/)).toBeTruthy()
+  expect((screen.getByLabelText('Expected Arrival Date & Time') as HTMLInputElement).value).toBe('')
+  expect(screen.getByRole('button', { name: 'Destination Warehouse' }).textContent).toContain('Choose warehouse')
+  expect(screen.getByRole('button', { name: 'Schedule Arrival' }).hasAttribute('disabled')).toBe(true)
+  expect(calls.some((entry) => entry.url === '/warehouses/10')).toBe(false)
+  await chooseWarehouse()
+  const schedule = screen.getByRole('button', { name: 'Schedule Arrival' })
+  await waitFor(() => expect(schedule.hasAttribute('disabled')).toBe(false))
+  await userEvent.click(schedule)
+  await waitFor(() => expect(onSubmit).toHaveBeenCalledOnce())
+  expect(onSubmit.mock.calls[0]).toEqual([expect.objectContaining({ purchaseOrderId: 1, warehouseId: 10, scheduledAt: null })])
+  expect(calls.some((entry) => entry.url.includes('/complete') || entry.url.includes('/stock-items'))).toBe(false)
+})
+
+it('uses the verified purchase arrival and allows an explicit correction or clearing', async () => {
+  const { onSubmit } = mount({ selected: 2 })
+  await screen.findByText('Product 22')
+  const arrival = screen.getByLabelText('Expected Arrival Date & Time') as HTMLInputElement
+  expect(arrival.value).toBe('2026-11-02')
+  expect(screen.getByText('From the purchase order. Change or clear it if needed.')).toBeTruthy()
+  fireEvent.change(arrival, { target: { value: '2026-12-01' } })
+  expect(arrival.value).toBe('2026-12-01')
+  await userEvent.click(screen.getByRole('button', { name: 'Clear expected arrival date & time' }))
+  await chooseWarehouse()
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Schedule Arrival' }).hasAttribute('disabled')).toBe(false))
+  await userEvent.click(screen.getByRole('button', { name: 'Schedule Arrival' }))
+  await waitFor(() => expect(onSubmit).toHaveBeenCalledOnce())
+  expect(onSubmit.mock.calls[0]).toEqual([expect.objectContaining({ purchaseOrderId: 2, scheduledAt: null })])
+})
+
+
+it('blocks another scheduling submission after an uncertain save', async () => {
+  const { onSubmit } = mount({ selected: 1 })
+  onSubmit.mockRejectedValueOnce(new Error('Connection lost after submitting'))
+  await screen.findByText('Product 11')
+  await chooseWarehouse()
+  const schedule = screen.getByRole('button', { name: 'Schedule Arrival' })
+  await waitFor(() => expect(schedule.hasAttribute('disabled')).toBe(false))
+  await userEvent.click(schedule)
+  await screen.findByText(/save may have succeeded/)
+  expect(schedule.hasAttribute('disabled')).toBe(true)
+  fireEvent.click(schedule)
+  expect(onSubmit).toHaveBeenCalledOnce()
+})
+
+it('submits a typed arbitrary-minute arrival as Manila time', async () => {
+  const { onSubmit } = mount({ selected: 2 })
+  await screen.findByText('Product 22')
+  fireEvent.change(screen.getByLabelText('Expected Arrival Date & Time'), { target: { value: '2026-12-01' } })
+  fireEvent.change(screen.getByRole('textbox', { name: 'Expected Arrival Date & Time hour' }), { target: { value: '9' } })
+  fireEvent.change(screen.getByRole('textbox', { name: 'Expected Arrival Date & Time minute' }), { target: { value: '40' } })
+  await userEvent.click(screen.getByRole('combobox', { name: 'Expected Arrival Date & Time AM or PM' }))
+  await userEvent.click(screen.getByRole('option', { name: 'AM' }))
+  await chooseWarehouse()
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Schedule Arrival' }).hasAttribute('disabled')).toBe(false))
+  await userEvent.click(screen.getByRole('button', { name: 'Schedule Arrival' }))
+  await waitFor(() => expect(onSubmit).toHaveBeenCalledOnce())
+  expect(onSubmit.mock.calls[0]).toEqual([expect.objectContaining({ scheduledAt: '2026-12-01T01:40:00.000Z' })])
 })

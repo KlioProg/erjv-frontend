@@ -83,7 +83,7 @@ export function DeliveryDetailModal({ deliveryId, open, onClose }: DeliveryDetai
     {
       id: 'product',
       header: 'Item',
-      width: '70%',
+      width: delivery?.status === 'RECONCILED' ? undefined : '70%',
       cell: ({ row, index }) => {
         const { product, orderItem } = cargoProduct(row)
         return (
@@ -110,7 +110,7 @@ export function DeliveryDetailModal({ deliveryId, open, onClose }: DeliveryDetai
     {
       id: 'quantity',
       header: 'Loaded Quantity',
-      width: '30%',
+      width: delivery?.status === 'RECONCILED' ? undefined : '30%',
       align: 'right',
       cell: ({ row }) => (
         <div className="[overflow-wrap:anywhere]">
@@ -121,6 +121,14 @@ export function DeliveryDetailModal({ deliveryId, open, onClose }: DeliveryDetai
         </div>
       ),
     },
+    ...(delivery?.status === 'RECONCILED' ? ([
+      ['deliveredQuantity', 'Delivered'],
+      ['returnedSellableQuantity', 'Returned in Good Condition'],
+      ['returnedDamagedQuantity', 'Returned Damaged'],
+      ['missingQuantity', 'Missing'],
+    ] as const).map(([field, header]): ColumnDef<OutgoingDeliveryItemRecord> => ({
+      id: field, header, align: 'right', cell: ({ row }) => row[field] ?? 'Not recorded',
+    })) : []),
   ]
 
   return (
@@ -278,7 +286,7 @@ export function DeliveryDetailModal({ deliveryId, open, onClose }: DeliveryDetai
                 className="border-t border-border pt-4"
               >
                 <h2 id="delivery-cargo-heading" className="mb-3 text-base font-semibold">
-                  Cargo items ({delivery.items.length})
+                  {delivery.status === 'RECONCILED' ? 'Delivery Results' : 'Cargo items'} ({delivery.items.length})
                 </h2>
                 <DataTable
                   data={delivery.items}
@@ -286,9 +294,12 @@ export function DeliveryDetailModal({ deliveryId, open, onClose }: DeliveryDetai
                   getRowKey={(item) => item.id}
                   pagination={false}
                   appearance="subtle"
-                  tableClassName="w-full table-fixed"
+                  tableClassName={delivery.status === 'RECONCILED' ? 'min-w-[720px] w-full' : 'w-full table-fixed'}
                   emptyContent="No cargo items recorded."
                 />
+                {delivery.status === 'RECONCILED' && delivery.items.filter((item) => item.discrepancyReason).map((item) =>
+                  <p key={item.id} className="mt-2 text-sm">{cargoProduct(item).product?.name ?? 'Product'}: {item.discrepancyReason}</p>,
+                )}
               </section>
 
               {delivery.notes && (

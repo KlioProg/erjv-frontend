@@ -23,7 +23,7 @@ export function DispatchDeliveryModal({ runId, onClose }: { runId: number; onClo
         className="flex max-h-[calc(100svh-2rem)] flex-col overflow-hidden p-0 sm:max-w-3xl"
       >
         <DialogHeader className="shrink-0 px-6 pr-14 pt-6">
-          <DialogTitle>Review Trip Departure</DialogTitle>
+          <DialogTitle>Confirm Departure?</DialogTitle>
           <DialogDescription>
             {form.run?.runNumber || 'Loading trip...'} · Confirm all delivery loads before departure.
           </DialogDescription>
@@ -58,7 +58,7 @@ export function DispatchDeliveryModal({ runId, onClose }: { runId: number; onClo
                 <dt className="text-xs text-muted-foreground">Departure</dt>
                 <dd>
                   {form.run?.scheduledDepartureAt
-                    ? new Date(form.run.scheduledDepartureAt).toLocaleString()
+                    ? new Date(form.run.scheduledDepartureAt).toLocaleString('en-PH', { timeZone: 'Asia/Manila' })
                     : 'Not scheduled'}
                 </dd>
               </div>
@@ -165,8 +165,8 @@ export function DispatchDeliveryModal({ runId, onClose }: { runId: number; onClo
               </p>
             </div>
             <p className="text-xs text-muted-foreground">
-              Starting this trip records one physical departure for all included deliveries. Edit
-              the vehicle, driver, schedule, or deliveries before departure.
+              Send Trip records departure for all included deliveries. Loaded goods move from
+              on-hand stock to in transit. Confirm the actual quantities before sending.
             </p>
           </div>
           <DialogFooter className="shrink-0 border-t px-6 py-4">
@@ -174,7 +174,7 @@ export function DispatchDeliveryModal({ runId, onClose }: { runId: number; onClo
               Cancel
             </Button>
             <Button type="submit" disabled={!form.canSubmit}>
-              {form.busy ? 'Starting trip...' : 'Start Trip'}
+              {form.busy ? 'Sending...' : 'Send Trip'}
             </Button>
           </DialogFooter>
         </form>

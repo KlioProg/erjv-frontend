@@ -37,7 +37,7 @@ const receiptSignature = (
     lines.map(({ item, outstanding }) => [item.id, outstanding?.toString() ?? null]),
   ])
 
-export function useIncomingReceiving(delivery: IncomingDeliveryRecord, onClose: () => void) {
+export function useIncomingReceiving(delivery: IncomingDeliveryRecord, onClose: () => void, onSaved?: (saved: IncomingDeliveryRecord) => void) {
   const latest = useIncomingDeliveryById(delivery.id)
   const purchase = usePurchaseOrderById(delivery.purchaseOrderId)
   const receipts = useIncomingDeliveries({
@@ -141,6 +141,14 @@ export function useIncomingReceiving(delivery: IncomingDeliveryRecord, onClose: 
     if (disabled || inFlight.current) return
     setError('')
     setPendingOutcome(null)
+    if (next === 'partial' && outcome === 'all' && fullReceipt?.signature === signature) {
+      setCounts((current) => Object.fromEntries(lines.map(({ item }) => [item.id,
+        current[item.id] ?? {
+          received: fullReceipt.items.find((entry) => entry.purchaseOrderItemId === item.id)?.receivedQuantity ?? '0.00',
+          damaged: '0.00',
+        },
+      ])))
+    }
     setOutcome(next)
     if (next !== 'all') return
     inFlight.current = true
@@ -198,7 +206,7 @@ export function useIncomingReceiving(delivery: IncomingDeliveryRecord, onClose: 
     let items: CompleteIncomingDeliveryPayload['items'] = []
     try {
       const fresh = await currentReceipt()
-      if (fresh.revision !== latest.data?.revision) {
+      if (fresh.revision !== latest.data?.revision || (outcome === 'partial' && fresh.signature !== signature)) {
         setNeedsRefresh(true)
         throw Error('The delivery or outstanding quantities changed. Your input is preserved. Refresh and review the receipt before confirming again.')
       }
@@ -219,12 +227,13 @@ export function useIncomingReceiving(delivery: IncomingDeliveryRecord, onClose: 
         items = current.items
       }
       mutationStarted = true
-      await complete.mutateAsync({
+      const saved = await complete.mutateAsync({
         id: delivery.id,
         expectedRevision: fresh.revision,
         items,
         ...(outcome === 'none' ? { noReceiptReason: reason.trim() } : {}),
       })
+      onSaved?.(saved)
       onClose()
     } catch (cause) {
       const issues = getApiFieldErrors(cause)
@@ -262,6 +271,8 @@ export function useIncomingReceiving(delivery: IncomingDeliveryRecord, onClose: 
     latest: latest.data,
     rows,
     counts,
+    signature,
+    receiptItems: outcome === 'all' ? fullReceipt?.items ?? [] : outcome === 'partial' ? validation.items : [],
     reason,
     setReason,
     outcome,

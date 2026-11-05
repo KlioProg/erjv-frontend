@@ -1,10 +1,13 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { apiClient, getErrorMessage } from '@/lib/api-client'
 import { getAdapter } from 'axios'
 import { CompleteDeliveryModal } from './shared/CompleteDeliveryModal'
+import { DeliveryRunsHub } from './DeliveryRunsHub'
+import { MemoryRouter } from 'react-router'
+import { toast } from 'sonner'
 import type { OutgoingDeliveryRecord } from '@/features/logistics/outgoing-deliveries.types'
 import type { DeliveryRunRecord } from '@/features/logistics/delivery-runs.types'
 
@@ -23,22 +26,23 @@ const input = (category = 'Delivered', product = 'Banana') =>
   screen.getByLabelText(
     `${category} for ${product} (${product === 'Banana' ? 1 : 2})`,
   ) as HTMLInputElement
-const button = () => screen.getByRole('button', { name: /Save Results|Saving/ })
+const button = () => screen.getByRole('button', { name: /Review Results|Save Results|Saving/ })
 function mount() {
   const onClose = vi.fn()
+  const onSaved = vi.fn()
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   })
   render(
     <QueryClientProvider client={client}>
-      <CompleteDeliveryModal runId={40} deliveryId={90} onClose={onClose} />
+      <CompleteDeliveryModal runId={40} deliveryId={90} onClose={onClose} onSaved={onSaved} />
     </QueryClientProvider>,
   )
-  return { client, onClose }
+  return { client, onClose, onSaved }
 }
 async function choose(all = true) {
   const radio = screen.getByRole('radio', {
-    name: all ? 'Yes, everything was delivered' : 'No, there were returns or missing goods',
+    name: all ? 'All items delivered' : 'Some items were returned or missing',
   })
   await waitFor(() => expect(radio.matches(':disabled')).toBe(false))
   fireEvent.click(radio)
@@ -56,6 +60,8 @@ async function fill() {
 }
 function submit() {
   fireEvent.submit(button().closest('form')!)
+  if (screen.queryByRole('button', { name: 'Save Results' }))
+    fireEvent.submit(button().closest('form')!)
 }
 beforeEach(() => {
   auth.isAdmin = true
@@ -467,7 +473,7 @@ it('does not fabricate product labels when required lookups are absent', async (
 })
 it('supports keyboard outcome selection, focus trapping and safe Escape dismissal', async () => {
   const { onClose } = mount()
-  const radio = screen.getByRole('radio', { name: 'Yes, everything was delivered' })
+  const radio = screen.getByRole('radio', { name: 'All items delivered' })
   await waitFor(() => expect(radio.matches(':disabled')).toBe(false))
   const user = userEvent.setup()
   radio.focus()
@@ -530,4 +536,131 @@ it('binds reconciliation item validation to its original loaded row', async () =
   expect(document.getElementById('completion-902-deliveredQuantity-error')?.textContent).toBe('Review Mango delivery count.')
   expect(input('Delivered', 'Mango').value).toBe('1.00')
   expect(onClose).not.toHaveBeenCalled()
+})
+
+
+it('shows one exact loaded-quantity review and saves only after explicit confirmation', async () => {
+  const { onSaved } = mount()
+  await choose()
+  fireEvent.click(screen.getByRole('button', { name: 'Review Results' }))
+  const review = within(screen.getByRole('region', { name: 'Review delivery results' }))
+  expect(screen.getAllByRole('dialog')).toHaveLength(1)
+  expect(screen.getByRole('dialog').textContent).toContain('Saved customer')
+  const rows = review.getAllByRole('row').slice(1)
+  expect(within(rows[0]).getAllByRole('cell').map((cell) => cell.textContent)).toEqual(['Banana (kg)', '2.25', '2.25', '0', '0', '0'])
+  expect(within(rows[1]).getAllByRole('cell').map((cell) => cell.textContent)).toEqual(['Mango (boxes)', '1', '1', '0', '0', '0'])
+  expect(writes).toHaveLength(0)
+  fireEvent.click(screen.getByRole('button', { name: 'Save Results' }))
+  await waitFor(() => expect(onSaved).toHaveBeenCalledOnce())
+  expect(onSaved).toHaveBeenCalledWith(expect.objectContaining({ delivery: expect.objectContaining({ id: 90, status: 'RECONCILED' }), run: expect.objectContaining({ id: 40, status: 'COMPLETED' }) }))
+})
+
+it('carries explicit all-delivered quantities into individual corrections and keeps them through review', async () => {
+  mount()
+  await choose()
+  fireEvent.click(screen.getByRole('button', { name: 'Edit Quantities' }))
+  expect(input().value).toBe('2.25')
+  expect(input('Delivered', 'Mango').value).toBe('1.00')
+  expect(input('Missing').value).toBe('0.00')
+  fireEvent.change(input(), { target: { value: '1.75' } })
+  fireEvent.change(input('Returned in good condition'), { target: { value: '0.50' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Review Results' }))
+  expect(writes).toHaveLength(0)
+  const review = within(screen.getByRole('region', { name: 'Review delivery results' }))
+  expect(within(review.getAllByRole('row')[1]).getAllByRole('cell').map((cell) => cell.textContent)).toEqual(['Banana (kg)', '2.25', '1.75', '0.5', '0', '0'])
+  fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+  expect(input().value).toBe('1.75')
+  expect(input('Returned in good condition').value).toBe('0.50')
+  submit()
+  await waitFor(() => expect(writes).toHaveLength(1))
+  expect((writes[0].body.items as Record<string, unknown>[])[0]).toMatchObject({ deliveredQuantity: '1.75', returnedSellableQuantity: '0.50', returnedDamagedQuantity: '0.00', missingQuantity: '0.00' })
+})
+
+it('invalidates a reviewed result when the loaded revision changes and makes no automatic request', async () => {
+  const { client } = mount()
+  await choose()
+  fireEvent.click(screen.getByRole('button', { name: 'Review Results' }))
+  expect(screen.getByRole('button', { name: 'Save Results' })).toBeTruthy()
+  delivery = { ...delivery, revision: 5 }
+  run = { ...run, revision: 3, deliveries: run.deliveries.map((member) => ({ ...member, revision: 5 })) }
+  await act(async () => {
+    await client.invalidateQueries({ queryKey: ['outgoing-deliveries'] })
+    await client.invalidateQueries({ queryKey: ['delivery-runs'] })
+  })
+  await screen.findByText(/Loaded quantities changed/)
+  expect(screen.queryByRole('button', { name: 'Save Results' })).toBeNull()
+  expect(screen.getByRole('button', { name: 'Review Results' }).hasAttribute('disabled')).toBe(true)
+  expect(writes).toHaveLength(0)
+})
+
+it('rejects an inconsistent member confirmation without reporting success or advancing the trip', async () => {
+  const success = vi.spyOn(toast, 'success')
+  const base = getAdapter(apiClient.defaults.adapter)
+  apiClient.defaults.adapter = async (config) => {
+    const response = await base(config)
+    if (config.method === 'patch') return { ...response, data: { ...response.data, run: { ...response.data.run, deliveries: [] } } }
+    return response
+  }
+  const { onSaved, onClose } = mount()
+  await choose()
+  submit()
+  await screen.findByText(/Delivery results were not confirmed/)
+  expect(onSaved).not.toHaveBeenCalled()
+  expect(onClose).not.toHaveBeenCalled()
+  expect(success).not.toHaveBeenCalled()
+  expect(writes).toHaveLength(1)
+})
+
+it.each([true, false])('records trip members independently and uses backend completion=%s', async (completes) => {
+  run = { ...run, driverEmployeeId: null, deliveryVehicleId: null,
+    deliveries: [...run.deliveries, { ...run.deliveries[0], id: 91, deliveryNumber: 'OD-91' }] }
+  const memberDeliveries = [structuredClone(delivery), { ...structuredClone(delivery), id: 91, deliveryNumber: 'OD-91', items: delivery.items.map((item) => ({ ...item, id: item.id + 100, outgoingDeliveryId: 91 })) }]
+  const base = getAdapter(apiClient.defaults.adapter)
+  apiClient.defaults.adapter = async (config) => {
+    const url = config.url ?? ''
+    let data: unknown
+    if (config.method === 'get' && url === '/delivery-runs') data = { items: [run], nextCursor: null }
+    else if (config.method === 'get' && /^\/outgoing-deliveries\/9[01]$/.test(url)) data = memberDeliveries.find((member) => url.endsWith(`/${member.id}`))
+    else if (config.method === 'patch' && url.endsWith('/reconcile')) {
+      const member = memberDeliveries.find((entry) => url.includes(`/deliveries/${entry.id}/`))!
+      writes.push({ url, body: JSON.parse(config.data) })
+      member.status = 'RECONCILED'
+      member.revision++
+      member.reconciledAt = '2026-11-05T08:00:00Z'
+      run = { ...run, revision: run.revision + 1, deliveries: run.deliveries.map((entry) => entry.id === member.id ? { ...entry, revision: member.revision, status: 'RECONCILED' } : entry) }
+      if (completes && run.deliveries.every((entry) => entry.status === 'RECONCILED')) run.status = 'COMPLETED'
+      data = { delivery: member, run }
+    } else return base(config)
+    return { config, data: structuredClone(data), status: 200, statusText: '', headers: {} }
+  }
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
+  render(<QueryClientProvider client={client}><MemoryRouter initialEntries={['/deliveries/runs?run=40']}><DeliveryRunsHub /></MemoryRouter></QueryClientProvider>)
+  const user = userEvent.setup()
+  const trip = within(await screen.findByRole('dialog', { name: 'Delivery Trip RUN-40' }))
+  await trip.findByText('0 of 2 deliveries recorded')
+  const first = trip.getByText('OD-90').closest('tr')!
+  await user.click(within(first).getByRole('button', { name: 'Record Results' }))
+  expect(screen.queryByRole('dialog', { name: 'Delivery Trip RUN-40' })).toBeNull()
+  expect(screen.getAllByRole('dialog')).toHaveLength(1)
+  await choose()
+  submit()
+  const afterFirst = within(await screen.findByRole('dialog', { name: 'Delivery Trip RUN-40' }))
+  await afterFirst.findByText('1 of 2 deliveries recorded')
+  expect(afterFirst.getByText('Results saved for OD-90. 1 delivery still needs results.')).toBeTruthy()
+  expect(memberDeliveries[1].status).toBe('DISPATCHED')
+  expect(writes).toHaveLength(1)
+  await user.click(afterFirst.getByRole('button', { name: 'Record Next' }))
+  await screen.findByRole('dialog', { name: 'Record Delivery Results' })
+  expect(screen.getByRole('dialog').textContent).toContain('OD-91')
+  expect(screen.getAllByRole('radio').every((radio) => !(radio as HTMLInputElement).checked)).toBe(true)
+  await choose()
+  submit()
+  const afterBoth = within(await screen.findByRole('dialog', { name: 'Delivery Trip RUN-40' }))
+  await afterBoth.findByText('2 of 2 deliveries recorded')
+  expect(afterBoth.queryByRole('button', { name: 'Record Next' })).toBeNull()
+  expect(afterBoth.queryByRole('button', { name: 'Record Results' })).toBeNull()
+  expect(run.status).toBe(completes ? 'COMPLETED' : 'DISPATCHED')
+  expect(within(afterBoth.getByRole('heading', { name: 'Delivery Trip RUN-40' }).parentElement!).queryByText('Completed') !== null).toBe(completes)
+  expect(writes.map((entry) => entry.url)).toEqual(['/delivery-runs/40/deliveries/90/reconcile', '/delivery-runs/40/deliveries/91/reconcile'])
+  client.clear()
 })

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { useRecordsById } from '@/lib/use-records-by-id'
 import { useOutgoingDeliveryById } from '@/features/logistics/outgoing-deliveries.hooks'
@@ -6,7 +6,9 @@ import { useChangeRunMembers, useDeliveryRunById } from '@/features/logistics/de
 import type { DeliveryRunRecord } from '@/features/logistics/delivery-runs.types'
 import type { OutgoingDeliveryRecord } from '@/features/logistics/outgoing-deliveries.types'
 import { getApiError, getErrorMessage } from '@/lib/api-client'
-import { CursorLookup } from '@/components/ui/CursorLookup'
+import { useCursorLookup } from '@/lib/use-cursor-lookup'
+import { DataTable } from '@/components/ui/data-table'
+import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -36,15 +38,7 @@ export function AssignDeliveryToRun({
     delivery?.warehouseId,
   ])
   const [runId, setRunId] = useState('')
-  const [step, setStep] = useState<'choice' | 'existing'>('choice')
-  const previousStep = useRef(step)
-  useEffect(() => {
-    if (previousStep.current !== step)
-      document
-        .getElementById(step === 'existing' ? 'assignment-run' : 'assignment-existing')
-        ?.focus()
-    previousStep.current = step
-  }, [step])
+  const [search, setSearch] = useState('')
   const runQuery = useDeliveryRunById(Number(runId) || undefined)
   const change = useChangeRunMembers()
   const [error, setError] = useState('')
@@ -59,16 +53,31 @@ export function AssignDeliveryToRun({
     delivery.runId === null &&
     Number.isSafeInteger(delivery.warehouseId) &&
     Number(delivery.warehouseId) > 0
+  const trips = useCursorLookup<DeliveryRunRecord>(
+    '/delivery-runs',
+    {
+      statuses: ['DRAFT'],
+      warehouseId: delivery?.warehouseId,
+      ...(search.trim() ? { q: search.trim() } : {}),
+    },
+    eligible,
+  )
+  const acceptsTrip = (entry: DeliveryRunRecord) =>
+    entry.status === 'DRAFT' &&
+    Array.isArray(entry.deliveries) &&
+    entry.warehouseId === delivery?.warehouseId &&
+    entry.deliveries.length < 100 &&
+    !entry.deliveries.some((member) => member.id === deliveryId)
+  const availableTrips = trips.items.filter(acceptsTrip)
   const run = runQuery.data
   const drivers = useRecordsById<{ id: number; firstName: string; lastName: string }>(
     '/employees',
-    [run?.driverEmployeeId],
+    [run?.driverEmployeeId, ...availableTrips.map((trip) => trip.driverEmployeeId)],
   )
   const vehicles = useRecordsById<{ id: number; plateNumber: string }>('/delivery-vehicles', [
     run?.deliveryVehicleId,
+    ...availableTrips.map((trip) => trip.deliveryVehicleId),
   ])
-  const driver = drivers.data.find((record) => record.id === run?.driverEmployeeId)
-  const vehicle = vehicles.data.find((record) => record.id === run?.deliveryVehicleId)
   const eligibleRun =
     !runQuery.isError &&
     run?.status === 'DRAFT' &&
@@ -140,10 +149,10 @@ export function AssignDeliveryToRun({
   }
   return (
     <Dialog open onOpenChange={(open) => !open && !busy && onClose()}>
-      <DialogContent closeDisabled={busy}>
+      <DialogContent closeDisabled={busy} className="sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>Add Delivery to Trip</DialogTitle>
-          <DialogDescription>Choose which delivery trip will carry this order.</DialogDescription>
+          <DialogDescription>Select a trip from this warehouse, or create a new one.</DialogDescription>
         </DialogHeader>
         {deliveryQuery.isPending && <p role="status">Loading delivery…</p>}
         {(error || deliveryQuery.isError || runQuery.isError) && (
@@ -175,72 +184,20 @@ export function AssignDeliveryToRun({
         {delivery?.runId != null && (
           <Button onClick={() => onAssigned(delivery.runId!)}>View Trip</Button>
         )}
-        {eligible && step === 'choice' && (
-          <div className="grid gap-3">
-            <Button
-              id="assignment-existing"
-              disabled={busy || review}
-              onClick={() => setStep('existing')}
-            >
-              Use Existing Trip
-            </Button>
-            <Button variant="outline" disabled={busy || review} onClick={() => onCreate(delivery!)}>
-              Create New Trip
-            </Button>
-          </div>
-        )}
-        {eligible && step === 'existing' && (
+        {eligible && (
           <>
-            <Label htmlFor="assignment-run">Choose an existing delivery trip</Label>
-            <CursorLookup<DeliveryRunRecord>
-              id="assignment-run"
-              path="/delivery-runs"
-              value={runId}
-              label="Delivery Trip"
-              filter={{ statuses: ['DRAFT'], warehouseId: delivery!.warehouseId }}
-              getLabel={(entry) =>
-                `${entry.runNumber} · ${warehouses.data.find((warehouse) => warehouse.id === entry.warehouseId)?.name ?? `Warehouse #${entry.warehouseId}`} · ${entry.deliveries?.length ?? 'Unknown'} ${entry.deliveries?.length === 1 ? 'delivery' : 'deliveries'} assigned`
-              }
-              emptyMessage="No eligible trips on this page. Create a new trip or check another page."
-              accept={(entry) =>
-                entry.status === 'DRAFT' &&
-                Array.isArray(entry.deliveries) &&
-                entry.warehouseId === delivery!.warehouseId &&
-                entry.deliveries.length < 100 &&
-                !entry.deliveries.some((member) => member.id === deliveryId)
-              }
-              onChange={setRunId}
-              disabled={busy || review}
-            />
-            {run && (
-              <div className="rounded-md border bg-muted/30 p-3 text-sm" role="status">
-                <p className="font-medium">{run.runNumber}</p>
-                <p>
-                  {eligibleRun
-                    ? `${run.deliveries.length} ${run.deliveries.length === 1 ? 'delivery' : 'deliveries'} assigned`
-                    : 'This trip is no longer available. Refresh to review it.'}
-                </p>
-                {run.driverEmployeeId != null && (
-                  <p>
-                    {driver
-                      ? `${driver.firstName} ${driver.lastName}`
-                      : 'Driver details unavailable'}
-                  </p>
-                )}
-                {run.deliveryVehicleId != null && (
-                  <p>{vehicle?.plateNumber ?? 'Vehicle details unavailable'}</p>
-                )}
-                {run.scheduledDepartureAt && (
-                  <p>
-                    Departure:{' '}
-                    {new Date(run.scheduledDepartureAt).toLocaleString('en-PH', {
-                      timeZone: 'Asia/Manila',
-                    })}
-                  </p>
-                )}
+            <div className="flex items-end justify-between gap-3">
+              <div className="flex min-w-0 flex-col gap-1.5">
+                <Label htmlFor="assignment-search">Available trips</Label>
+                <Input
+                  id="assignment-search"
+                  aria-label="Search delivery trips"
+                  placeholder="Search trip number..."
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  disabled={busy || review}
+                />
               </div>
-            )}
-            {!eligibleRun && (
               <Button
                 variant="outline"
                 disabled={busy || review}
@@ -248,6 +205,106 @@ export function AssignDeliveryToRun({
               >
                 Create New Trip
               </Button>
+            </div>
+            {trips.isError && (
+              <Alert variant="destructive">
+                <AlertDescription>
+                  {getErrorMessage(trips.error)}{' '}
+                  <Button
+                    variant="link"
+                    disabled={busy || trips.isFetching}
+                    onClick={() => void trips.reload()}
+                  >
+                    Reload trips
+                  </Button>
+                </AlertDescription>
+              </Alert>
+            )}
+            <div className="max-h-64 overflow-auto">
+              <DataTable<DeliveryRunRecord>
+                data={availableTrips}
+                pagination={false}
+                isLoading={trips.isPending}
+                getRowKey={(trip) => trip.id}
+                emptyContent={
+                  trips.isError
+                    ? 'Trips could not be loaded.'
+                    : 'No eligible trips shown. Create a new trip or load more results.'
+                }
+                columns={[
+                  {
+                    id: 'trip',
+                    header: 'Trip',
+                    cell: ({ row }) => {
+                      const tripDriver = drivers.data.find(
+                        (entry) => entry.id === row.driverEmployeeId,
+                      )
+                      const tripVehicle = vehicles.data.find(
+                        (entry) => entry.id === row.deliveryVehicleId,
+                      )
+                      return (
+                        <div className="flex flex-col gap-1 text-sm">
+                          <Button
+                            variant={runId === String(row.id) ? 'secondary' : 'outline'}
+                            aria-pressed={runId === String(row.id)}
+                            disabled={busy || review || trips.isFetching}
+                            onClick={() => setRunId(String(row.id))}
+                          >
+                            {row.runNumber}
+                          </Button>
+                          <span className="text-xs text-muted-foreground">
+                            {warehouses.data.find((entry) => entry.id === row.warehouseId)?.name ??
+                              `Warehouse #${row.warehouseId}`}{' '}
+                            &middot; {row.deliveries.length}{' '}
+                            {row.deliveries.length === 1 ? 'delivery' : 'deliveries'} assigned
+                          </span>
+                          {(row.driverEmployeeId || row.deliveryVehicleId) && (
+                            <span className="text-xs text-muted-foreground">
+                              {[
+                                tripDriver
+                                  ? `${tripDriver.firstName} ${tripDriver.lastName}`
+                                  : row.driverEmployeeId
+                                    ? `Driver #${row.driverEmployeeId}`
+                                    : null,
+                                tripVehicle?.plateNumber ??
+                                  (row.deliveryVehicleId
+                                    ? `Vehicle #${row.deliveryVehicleId}`
+                                    : null),
+                              ]
+                                .filter(Boolean)
+                                .join(' / ')}
+                            </span>
+                          )}
+                          {row.scheduledDepartureAt && (
+                            <span className="text-xs text-muted-foreground">
+                              Departure:{' '}
+                              {new Date(row.scheduledDepartureAt).toLocaleString('en-PH', {
+                                timeZone: 'Asia/Manila',
+                              })}
+                            </span>
+                          )}
+                        </div>
+                      )
+                    },
+                  },
+                ]}
+              />
+            </div>
+            {trips.hasNextPage && (
+              <Button
+                variant="outline"
+                disabled={busy || review || trips.isFetching}
+                onClick={() => void trips.fetchNextPage()}
+              >
+                {trips.isFetching ? 'Loading...' : 'Load more results'}
+              </Button>
+            )}
+            {run && (
+              <p className="text-sm" role="status">
+                {eligibleRun
+                  ? `Selected trip: ${run.runNumber}`
+                  : 'This trip is no longer available. Refresh to review it.'}
+              </p>
             )}
           </>
         )}
@@ -276,14 +333,10 @@ export function AssignDeliveryToRun({
           </Button>
         )}
         <DialogFooter>
-          <Button
-            variant="outline"
-            disabled={busy}
-            onClick={() => (step === 'existing' && eligible ? setStep('choice') : onClose())}
-          >
-            {step === 'existing' && eligible ? 'Back' : 'Cancel'}
+          <Button variant="outline" disabled={busy} onClick={onClose}>
+            Cancel
           </Button>
-          {step === 'existing' && eligibleRun && (
+          {eligible && (
             <Button
               disabled={
                 !eligible ||

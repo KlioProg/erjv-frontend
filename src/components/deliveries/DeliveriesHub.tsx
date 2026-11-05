@@ -10,6 +10,7 @@ import type { InventoryItemResponse } from '@/features/products/products.types'
 import { PageHeader } from '@/components/ui/ManagementPage'
 import { StatusTabNav } from '@/components/ui/StatusTabNav'
 import { IncomingDeliveryDetailModal } from './shared/IncomingDeliveryDetailModal'
+import { DeliveryRunsHub } from './DeliveryRunsHub'
 import {
   buildDeliveryRows,
   deliveryHistoryDate,
@@ -129,6 +130,7 @@ export function DeliveriesHub({
   const view: DeliveryView =
     initialTab === 'history' ? 'history' : initialTab === 'incoming' ? 'incoming' : 'outgoing'
   const [type, setType] = useState('ALL')
+  const tripsHistory = view === 'history' && type === 'Trips'
   const [status, setStatus] = useState('ALL')
   const [warehouseId, setWarehouseId] = useState('ALL')
   const [search, setSearch] = useState('')
@@ -144,6 +146,7 @@ export function DeliveriesHub({
   const [outgoingDraftId, setOutgoingDraftId] = useState<number | undefined>()
   const [lastSavedOutgoing, setLastSavedOutgoing] = useState<OutgoingDeliveryRecord | null>(null)
   const [incomingScheduleFailure, setIncomingScheduleFailure] = useState('')
+  const [lastSavedIncoming, setLastSavedIncoming] = useState<IncomingDeliveryRecord | null>(null)
   const [viewIncomingId, setViewIncomingId] = useState<number | null>(null)
   const [viewOutgoingId, setViewOutgoingId] = useState<number | null>(null)
   const [viewOrder, setViewOrder] = useState<{ type: 'Incoming' | 'Outgoing'; id: number } | null>(
@@ -160,10 +163,12 @@ export function DeliveriesHub({
     view === 'history' ? ['RECONCILED', 'CANCELLED'] : ['DRAFT', 'READY', 'DISPATCHED']
   const incomingEnabled =
     view !== 'outgoing' &&
+    !tripsHistory &&
     (view !== 'history' || type !== 'Outgoing') &&
     (status === 'ALL' || incomingStatuses.includes(status))
   const outgoingEnabled =
     view !== 'incoming' &&
+    !tripsHistory &&
     (view !== 'history' || type !== 'Incoming') &&
     (status === 'ALL' || outgoingStatuses.includes(status))
   const allHistory = view === 'history' && type === 'ALL'
@@ -231,6 +236,7 @@ export function DeliveriesHub({
   const outgoing = outgoingQuery.items
   const { data: purchaseOrders } = useRecordsById<PurchaseOrderRecord>('/purchase-orders', [
     ...incoming.map((delivery) => delivery.purchaseOrderId),
+    lastSavedIncoming?.purchaseOrderId,
     viewOrder?.type === 'Incoming' ? viewOrder.id : undefined,
   ])
   const { data: salesOrders } = useRecordsById<SalesOrderRecord>('/sales-orders', [
@@ -344,7 +350,11 @@ export function DeliveriesHub({
       (outgoingEnabled && !!loadedOutgoing.hasNextPage),
     fetchMore: loadMoreHistory,
   })
-  const viewRow = rows.find((row) => row.type === 'Incoming' && row.record.id === viewIncomingId)
+  const listedViewRow = rows.find((row) => row.type === 'Incoming' && row.record.id === viewIncomingId)
+  const viewRow = lastSavedIncoming?.id === viewIncomingId &&
+    (!listedViewRow || lastSavedIncoming.revision >= listedViewRow.record.revision) ? buildDeliveryRows({
+      incoming: [lastSavedIncoming], outgoing: [], purchaseOrders, salesOrders, suppliers, clients, warehouses, vehicles, employees,
+    })[0] : listedViewRow
   const selectedPurchase = usePurchaseOrderById(
     viewOrder?.type === 'Incoming' ? viewOrder.id : undefined,
   )
@@ -390,9 +400,11 @@ export function DeliveriesHub({
   }
   const handleCreateIncoming = async (payload: CreateIncomingDeliveryPayload) => {
     const created = await createIncoming.mutateAsync(payload)
+    setLastSavedIncoming(created)
     setIncomingScheduleFailure('')
     try {
-      await scheduleIncoming.mutateAsync({ id: created.id, expectedRevision: created.revision })
+      const scheduled = await scheduleIncoming.mutateAsync({ id: created.id, expectedRevision: created.revision })
+      setLastSavedIncoming(scheduled)
     } catch (error) {
       setIncomingScheduleFailure(
         `${created.deliveryNumber || `Incoming delivery #${created.id}`} was created, but scheduling was not confirmed. ${getErrorMessage(error)} Refresh the delivery list and review this draft before scheduling it again. Do not create a duplicate shipment.`,
@@ -632,16 +644,35 @@ export function DeliveriesHub({
                 { value: 'ALL', label: 'All Deliveries' },
                 { value: 'Incoming', label: 'Incoming' },
                 { value: 'Outgoing', label: 'Outgoing' },
+                { value: 'Trips', label: 'Trips' },
               ]}
             />
           </div>
         )}
-        <div
+        {!tripsHistory && <div
           className={view === 'history' ? 'w-full min-w-0' : undefined}
         >
           {toolbar}
-        </div>
+        </div>}
       </div>
+      {tripsHistory ? <DeliveryRunsHub history /> : <>
+      {view === 'incoming' && lastSavedIncoming && (
+        <Alert>
+          <AlertDescription>
+            {lastSavedIncoming.status === 'COMPLETED'
+              ? `Receipt recorded for ${lastSavedIncoming.deliveryNumber}.`
+              : lastSavedIncoming.status === 'SCHEDULED'
+                ? `Arrival scheduled for ${lastSavedIncoming.deliveryNumber}.`
+                : `Draft created for ${lastSavedIncoming.deliveryNumber}.`}{' '}
+            {canManage && lastSavedIncoming.status === 'SCHEDULED' && (
+              <Button variant="link" size="sm" onClick={() => setReceiveId(lastSavedIncoming.id)}>Receive Goods</Button>
+            )}
+            <Button variant="link" size="sm" onClick={() => setViewIncomingId(lastSavedIncoming.id)}>
+              {lastSavedIncoming.status === 'COMPLETED' ? 'View Receipt' : 'View Details'}
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
       {incomingScheduleFailure && (
         <Alert variant="destructive">
           <AlertDescription>{incomingScheduleFailure}</AlertDescription>
@@ -813,6 +844,13 @@ export function DeliveriesHub({
             if (orderScope !== null && orderScope !== delivery.salesOrderId)
               setOrderScope(delivery.salesOrderId)
           }}
+          onScheduled={(delivery) => {
+            setCreateType(null)
+            setOutgoingDraftId(undefined)
+            navigate(
+              `/deliveries/runs?${delivery.runId != null ? `run=${delivery.runId}` : `assign=${delivery.id}`}`,
+            )
+          }}
           onViewDelivery={(delivery) => {
             setCreateType(null)
             setOutgoingDraftId(undefined)
@@ -825,10 +863,11 @@ export function DeliveriesHub({
           }}
         />
       )}
-      {receiveId !== null && incoming.find((d) => d.id === receiveId) && (
+      {receiveId !== null && (
         <ReceiveProductsModal
           key={receiveId}
-          delivery={incoming.find((d) => d.id === receiveId)!}
+          deliveryId={receiveId}
+          onSaved={setLastSavedIncoming}
           onClose={() => setReceiveId(null)}
         />
       )}
@@ -932,6 +971,7 @@ export function DeliveriesHub({
         }
         variant={confirmation?.action === 'cancel' ? 'destructive' : 'warning'}
       />
+      </>}
     </div>
   )
 }

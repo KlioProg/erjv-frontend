@@ -119,7 +119,8 @@ export async function writeTransfer(command: TransferCommand) {
         : command.action === 'cancel'
           ? ['CANCELLED']
           : ['DRAFT']
-  if (!validState.includes(data.status))
+  if (!validState.includes(data.status) ||
+    ((command.action === 'dispatch' || command.action === 'reconcile') && data.revision <= command.payload.expectedRevision))
     throw Error('The server did not confirm the action. Reload the transfer before continuing.')
   return data
 }

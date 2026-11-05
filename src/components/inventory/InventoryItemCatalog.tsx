@@ -522,6 +522,7 @@ export function InventoryItemCatalog({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {!warningScope && activeTab === 'ACTIVE' && <Button variant="outline" size="sm" onClick={() => { setWarningScope({ warningFilter: 'OUT' }); setSelectedPage(1) }}>Out of stock</Button>}
           {reportAction}
           {(isAdmin || isManager) && activeTab === 'ACTIVE' && (
             <Button

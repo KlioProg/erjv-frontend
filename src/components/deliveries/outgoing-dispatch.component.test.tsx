@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+import { toast } from 'sonner'
 import { apiClient } from '@/lib/api-client'
 import { dispatchDeliveryRunApi } from '@/features/logistics/delivery-runs.api'
 import { validateRunLoad, type RunLoadRow } from '@/features/logistics/run-load-validation'
@@ -26,7 +27,7 @@ let reads: string[]
 const loaded = (name = 'Banana') =>
   screen.getByLabelText(`Quantity loaded for ${name} on OD-90`) as HTMLInputElement
 const weight = () => screen.getByLabelText('Actual total loaded weight (kg)') as HTMLInputElement
-const button = () => screen.getByRole('button', { name: /Start Trip|Starting trip/ })
+const button = () => screen.getByRole('button', { name: /Send Trip|Sending/ })
 function mount() {
   const onClose = vi.fn()
   const client = new QueryClient({
@@ -243,8 +244,11 @@ it('serializes one run departure with run and member revisions, measured weight 
   ])
 })
 it('skips zero lines and refreshes every operational cache only after confirmed departure', async () => {
+  const success = vi.spyOn(toast, 'success')
   const { client, onClose } = mount()
   await ready()
+  expect(screen.getByRole('dialog', { name: 'Confirm Departure?' })).toBeTruthy()
+  expect(success).not.toHaveBeenCalled()
   const keys = [
     'stock-items',
     'sales-orders',
@@ -259,6 +263,9 @@ it('skips zero lines and refreshes every operational cache only after confirmed 
   fireEvent.change(loaded('Mango'), { target: { value: '0' } })
   submit()
   await waitFor(() => expect(onClose).toHaveBeenCalledOnce())
+  expect(success).toHaveBeenCalledWith('Trip Sent', {
+    description: 'The departure has been recorded. The goods are now listed as in transit.',
+  })
   expect(writes).toHaveLength(1)
   expect(writes[0].body.loads).toEqual([
     {
@@ -395,6 +402,7 @@ it('never retries an uncertain departure when refresh shows the run already disp
   expect(onClose).not.toHaveBeenCalled()
 })
 it('does not close on an unconfirmed departure response', async () => {
+  const success = vi.spyOn(toast, 'success')
   unconfirmed = true
   const { onClose } = mount()
   await ready()
@@ -402,6 +410,7 @@ it('does not close on an unconfirmed departure response', async () => {
   submit()
   await waitFor(() => expect(screen.getByRole('alert').textContent).toMatch(/confirm|Refresh/))
   expect(onClose).not.toHaveBeenCalled()
+  expect(success).not.toHaveBeenCalled()
   expect(writes).toHaveLength(1)
 })
 it('recovers a run load failure by explicit refresh', async () => {

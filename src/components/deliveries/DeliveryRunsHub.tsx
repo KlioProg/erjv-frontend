@@ -1,3 +1,5 @@
+import { LogisticsDateTimeInput } from '@/components/ui/LogisticsDateTimeInput'
+import { toManilaSchedule, manilaScheduleToIso } from '@/lib/manila-schedule'
 import { useResourcePage } from '@/lib/use-cursor-page'
 import { DeliveryHeaderFilter } from './DeliveryHeaderFilter'
 import { DeliveryTableToolbar, DeliveryPageFooter } from './DeliveryTableToolbar'
@@ -16,6 +18,8 @@ import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { DeliveryStatusBadge } from './shared/DeliveryStatusBadge'
+import { DeliveryDetailModal } from './shared/DeliveryDetailModal'
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   Dialog,
@@ -56,6 +60,7 @@ import { DispatchDeliveryModal } from './shared/DispatchDeliveryModal'
 import { CompleteDeliveryModal } from './shared/CompleteDeliveryModal'
 
 const statuses: DeliveryRunStatus[] = ['DRAFT', 'DISPATCHED', 'COMPLETED', 'CANCELLED']
+const historyStatuses: DeliveryRunStatus[] = ['COMPLETED', 'CANCELLED']
 
 function RunStatusBadge({ status }: { status: DeliveryRunStatus }) {
   return (
@@ -114,15 +119,16 @@ function useRunNames(runs: DeliveryRunRecord[]) {
   }
 }
 
-export function DeliveryRunsHub() {
+export function DeliveryRunsHub({ history = false }: { history?: boolean }) {
   const { isAdmin, isManager, isStaff } = useAuth()
+  const canViewHistory = isAdmin || isManager || isStaff
   const [params, setParams] = useSearchParams()
   const runValue = Number(params.get('run'))
   const assignmentValue = Number(params.get('assign'))
   const selectedId = Number.isSafeInteger(runValue) && runValue > 0 ? runValue : undefined
   const assignmentId =
     Number.isSafeInteger(assignmentValue) && assignmentValue > 0 ? assignmentValue : undefined
-  const invalidLink = (params.has('run') && !selectedId) || (params.has('assign') && !assignmentId)
+  const invalidLink = (params.has('run') && !selectedId) || (!history && params.has('assign') && !assignmentId)
   const [creating, setCreating] = useState(false)
   const [initialDelivery, setInitialDelivery] = useState<OutgoingDeliveryRecord>()
   const [q, setQ] = useState('')
@@ -134,7 +140,8 @@ export function DeliveryRunsHub() {
   const [scheduledThrough, setScheduledThrough] = useState('')
   const query = useResourcePage<DeliveryRunRecord>('/delivery-runs', {
     ...(q.trim() ? { q: q.trim() } : {}),
-    ...(status !== 'ALL' ? { statuses: [status as DeliveryRunStatus] } : {}),
+    ...(history ? { statuses: status === 'ALL' ? historyStatuses : [status as DeliveryRunStatus] }
+      : status !== 'ALL' ? { statuses: [status as DeliveryRunStatus] } : {}),
     ...(warehouseFilter ? { warehouseId: Number(warehouseFilter) } : {}),
     ...(driverFilter ? { driverEmployeeId: Number(driverFilter) } : {}),
     ...(vehicleFilter ? { deliveryVehicleId: Number(vehicleFilter) } : {}),
@@ -148,7 +155,7 @@ export function DeliveryRunsHub() {
           ).toISOString(),
         }
       : {}),
-  })
+  }, !history || canViewHistory)
   const hasFilters =
     !!q.trim() ||
     status !== 'ALL' ||
@@ -166,7 +173,7 @@ export function DeliveryRunsHub() {
     setScheduledFrom('')
     setScheduledThrough('')
   }
-  const runs = query.items
+  const runs = history ? canViewHistory ? query.items.filter((run) => historyStatuses.includes(run.status)) : [] : query.items
   const names = useRunNames(runs)
   const select = (id?: number) =>
     setParams((previous) => {
@@ -184,7 +191,7 @@ export function DeliveryRunsHub() {
           ? 'Assign driver / vehicle, then review load'
           : 'Review load and eligibility before departure'
       : run.status === 'DISPATCHED'
-        ? `${run.deliveries.filter((member) => member.status === 'DISPATCHED').length} awaiting results`
+        ? `${run.deliveries.filter((member) => member.status === 'RECONCILED').length} of ${run.deliveries.length} deliveries recorded`
         : run.status === 'COMPLETED'
           ? 'Trip completed · review delivery results'
           : 'Cancelled'
@@ -259,6 +266,7 @@ export function DeliveryRunsHub() {
     departure: (
       <DeliveryHeaderFilter
         label="Scheduled departure"
+        header={history ? 'Departure Date' : undefined}
         active={!!scheduledFrom || !!scheduledThrough}
         onClear={() => {
           setScheduledFrom('')
@@ -300,7 +308,7 @@ export function DeliveryRunsHub() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="ALL">All statuses</SelectItem>
-            {statuses.map((value) => (
+            {(history ? historyStatuses : statuses).map((value) => (
               <SelectItem key={value} value={value}>
                 {RUN_STATUS_LABELS[value]}
               </SelectItem>
@@ -313,7 +321,7 @@ export function DeliveryRunsHub() {
   const columns: ColumnDef<DeliveryRunRecord>[] = [
     {
       id: 'run',
-      header: 'Trip',
+      header: history ? 'Trip Number' : 'Trip',
       cell: ({ row }) => (
         <div>
           <Button
@@ -323,7 +331,7 @@ export function DeliveryRunsHub() {
           >
             {row.runNumber}
           </Button>
-          <p className="text-xs text-muted-foreground">{preparation(row)}</p>
+          {!history && <p className="text-xs text-muted-foreground">{preparation(row)}</p>}
         </div>
       ),
     },
@@ -345,15 +353,18 @@ export function DeliveryRunsHub() {
     {
       id: 'departure',
       header: filterHeaders.departure,
-      cell: ({ row }) => dateText(row.scheduledDepartureAt),
+      cell: ({ row }) => history ? <div className="flex flex-col gap-1 text-sm">
+        <p>Actual: {row.dispatchedAt ? <time dateTime={row.dispatchedAt}>{dateText(row.dispatchedAt)}</time> : 'Not recorded'}</p>
+        {row.scheduledDepartureAt && <p className="text-xs text-muted-foreground">Scheduled: {dateText(row.scheduledDepartureAt)}</p>}
+      </div> : dateText(row.scheduledDepartureAt),
     },
     {
       id: 'progress',
-      header: 'Delivery Progress',
+      header: history ? 'Deliveries' : 'Delivery Progress',
       className: 'hidden sm:table-cell',
       headerClassName: 'hidden sm:table-cell',
       cell: ({ row }) =>
-        `${row.deliveries.filter((member) => member.status === 'RECONCILED').length} / ${row.deliveries.length} results recorded`,
+        history ? row.deliveries.length : `${row.deliveries.filter((member) => member.status === 'RECONCILED').length} / ${row.deliveries.length} results recorded`,
     },
     {
       header: filterHeaders.status,
@@ -362,11 +373,11 @@ export function DeliveryRunsHub() {
     },
     {
       id: 'next',
-      header: 'Next Action',
+      header: history ? 'Action' : 'Next Action',
       align: 'right',
       cell: ({ row }) => (
         <Button variant="outline" size="sm" onClick={() => select(row.id)}>
-          {row.status === 'DRAFT' && (isAdmin || isManager || isStaff)
+          {history ? 'View Trip' : row.status === 'DRAFT' && (isAdmin || isManager || isStaff)
             ? 'Review Trip'
             : row.status === 'DISPATCHED' &&
                 row.deliveries.some((member) => member.status === 'DISPATCHED') &&
@@ -377,11 +388,12 @@ export function DeliveryRunsHub() {
       ),
     },
   ]
+  if (history && !canViewHistory) return <Alert><AlertDescription>You do not have permission to view Delivery Trips.</AlertDescription></Alert>
   return (
     <div className="flex min-w-0 flex-col gap-4">
-      <PageHeader description="Group customer deliveries, review departure loads, then record results after departure.">
+      {!history && <PageHeader description="Group customer deliveries, review departure loads, then record results after departure.">
         Delivery Trips
-      </PageHeader>
+      </PageHeader>}
       <DeliveryTableToolbar
         search={q}
         onSearch={setQ}
@@ -393,7 +405,7 @@ export function DeliveryRunsHub() {
             Clear filters
           </Button>
         )}
-        {(isAdmin || isManager) && (
+        {!history && (isAdmin || isManager) && (
           <Button size="sm" onClick={() => setCreating(true)}>
             Create Delivery Trip
           </Button>
@@ -433,14 +445,15 @@ export function DeliveryRunsHub() {
             pagination={false}
             manualSorting
             getRowKey={(run) => run.id}
-            emptyContent="No delivery trips match these filters."
+            emptyContent={history ? 'No historical trips shown on this page. Try another page or change the filters.' : 'No delivery trips match these filters.'}
           />
         )}
         <DeliveryPageFooter query={query} count={runs.length} unit="trip" label="Trip" />
       </div>
-      {creating && (
+      {!history && creating && (
         <RunEditor
           initialDelivery={initialDelivery}
+          onReview={select}
           onClose={() => {
             setCreating(false)
             setInitialDelivery(undefined)
@@ -452,7 +465,7 @@ export function DeliveryRunsHub() {
           }}
         />
       )}
-      {assignmentId && !creating && (isAdmin || isManager) && (
+      {!history && assignmentId && !creating && (isAdmin || isManager) && (
         <AssignDeliveryToRun
           key={assignmentId}
           deliveryId={assignmentId}
@@ -464,15 +477,15 @@ export function DeliveryRunsHub() {
           }}
         />
       )}
-      {assignmentId && !(isAdmin || isManager) && (
+      {!history && assignmentId && !(isAdmin || isManager) && (
         <Alert>
           <AlertDescription>
             Only administrators and managers can assign deliveries to runs.
           </AlertDescription>
         </Alert>
       )}
-      {selectedId && !assignmentId && (
-        <RunDetails key={selectedId} id={selectedId} onClose={() => select()} />
+      {selectedId && (history || !assignmentId) && (
+        <RunDetails key={selectedId} id={selectedId} readOnly={history} onClose={() => select()} />
       )}
     </div>
   )
@@ -480,11 +493,13 @@ export function DeliveryRunsHub() {
 function RunEditor({
   run,
   initialDelivery,
+  onReview,
   onClose,
   onSaved,
 }: {
   run?: DeliveryRunRecord
   initialDelivery?: OutgoingDeliveryRecord
+  onReview?: (id: number) => void
   onClose: () => void
   onSaved: (run: DeliveryRunRecord) => void
 }) {
@@ -504,13 +519,12 @@ function RunEditor({
     run?.deliveryVehicleId ? String(run.deliveryVehicleId) : '',
   )
   const [departure, setDeparture] = useState(() => {
-    if (!run?.scheduledDepartureAt) return ''
-    const date = new Date(run.scheduledDepartureAt)
-    return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16)
+    return toManilaSchedule(run?.scheduledDepartureAt)
   })
   const [notes, setNotes] = useState(run?.notes ?? '')
   const [error, setError] = useState('')
   const [review, setReview] = useState(false)
+  const [savedTripId, setSavedTripId] = useState<number>()
   const selection = useRunDeliverySelection(Number(warehouseId) || undefined)
   const seeded = useRef(false)
   useEffect(() => {
@@ -537,13 +551,18 @@ function RunEditor({
     setSaving(true)
     try {
       setError('')
+      if (
+        !run && initialDelivery &&
+        !selection.selected.some((entry) => entry.id === initialDelivery.id)
+      )
+        return setError('Keep the original delivery selected before saving this trip.')
       if (!run && !(await selection.verify())) {
         if (mounted.current) setError('Review the selected deliveries before saving.')
         return
       }
       const payload = {
         warehouseId: Number(warehouseId),
-        scheduledDepartureAt: departure ? new Date(departure).toISOString() : null,
+        scheduledDepartureAt: run?.scheduledDepartureAt && departure === toManilaSchedule(run.scheduledDepartureAt) ? run.scheduledDepartureAt : manilaScheduleToIso(departure),
         driverEmployeeId: driverId ? Number(driverId) : null,
         deliveryVehicleId: vehicleId ? Number(vehicleId) : null,
         notes: notes.trim() || null,
@@ -564,10 +583,14 @@ function RunEditor({
         : await create.mutateAsync(payload)
       if (
         !run &&
-        selection.selected.some(
-          (delivery) => !saved.deliveries?.some((member) => member.id === delivery.id),
-        )
+        (!Number.isSafeInteger(saved.id) || saved.id < 1 ||
+          !Number.isSafeInteger(saved.revision) || saved.revision < 1 ||
+          saved.warehouseId !== Number(warehouseId) ||
+          selection.selected.some(
+            (delivery) => !saved.deliveries?.some((member) => member.id === delivery.id),
+          ))
       ) {
+        if (Number.isSafeInteger(saved.id) && saved.id > 0) setSavedTripId(saved.id)
         setReview(true)
         throw Error(
           'Trip membership was not confirmed. Review the saved trip before submitting again.',
@@ -591,7 +614,7 @@ function RunEditor({
   }
   return (
     <Dialog open onOpenChange={(open) => !open && !busy && onClose()}>
-      <DialogContent closeDisabled={busy} className="gap-4 sm:max-w-xl">
+      <DialogContent closeDisabled={busy} className="max-h-[90dvh] gap-4 overflow-y-auto sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>{run ? `Edit ${run.runNumber}` : 'Create Delivery Trip'}</DialogTitle>
           <DialogDescription>
@@ -618,18 +641,13 @@ function RunEditor({
                 value={warehouseId}
                 label="Warehouse"
                 getLabel={(warehouse) => warehouse.name}
-                disabled={!!run?.deliveries.length}
+                disabled={!!run?.deliveries.length || !!initialDelivery}
                 onChange={setWarehouseId}
               />
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="run-departure">Scheduled departure</Label>
-              <Input
-                id="run-departure"
-                type="datetime-local"
-                value={departure}
-                onChange={(event) => setDeparture(event.target.value)}
-              />
+              <LogisticsDateTimeInput id="run-departure" label="Scheduled departure" value={departure} onChange={setDeparture} disabled={busy || review} />
             </div>
             <div className="flex flex-col gap-1.5">
               <div className="flex min-h-6 items-center justify-between gap-2">
@@ -709,6 +727,14 @@ function RunEditor({
             )}
           </fieldset>
           <DialogFooter>
+            {savedTripId && onReview && (
+              <Button type="button" variant="outline" disabled={busy} onClick={() => {
+                onClose()
+                onReview(savedTripId)
+              }}>
+                Review Trip
+              </Button>
+            )}
             <Button type="button" variant="outline" disabled={busy} onClick={onClose}>
               Close
             </Button>
@@ -722,13 +748,16 @@ function RunEditor({
   )
 }
 
-function RunDetails({ id, onClose }: { id: number; onClose: () => void }) {
+function RunDetails({ id, onClose, readOnly = false }: { id: number; onClose: () => void; readOnly?: boolean }) {
   const { isAdmin, isManager, isStaff } = useAuth()
-  const canManage = isAdmin || isManager
-  const canOperate = canManage || isStaff
+  const canManage = !readOnly && (isAdmin || isManager)
+  const canOperate = !readOnly && (isAdmin || isManager || isStaff)
   const query = useDeliveryRunById(id)
   const run = query.data
   const names = useRunNames(run ? [run] : [])
+  const orders = useRecordsById<{ id: number; clientId: number | null }>('/sales-orders', readOnly ? run?.deliveries.map((member) => member.salesOrderId) ?? [] : [])
+  const clients = useRecordsById<NamedRecord>('/clients', orders.data.map((order) => order.clientId))
+  const [viewDeliveryId, setViewDeliveryId] = useState<number>()
   const changeMembers = useChangeRunMembers()
   const reopen = useReopenRunMember()
   const cancelMember = useCancelRunMember()
@@ -736,6 +765,8 @@ function RunDetails({ id, onClose }: { id: number; onClose: () => void }) {
   const [editing, setEditing] = useState<DeliveryRunRecord>()
   const [dispatching, setDispatching] = useState(false)
   const [reconcileId, setReconcileId] = useState<number>()
+  const [resultsFeedback, setResultsFeedback] = useState('')
+  const nextDelivery = run?.deliveries.find((member) => member.status === 'DISPATCHED')
   const existingIds = run?.deliveries.map((delivery) => delivery.id) ?? []
   const selection = useRunDeliverySelection(run?.warehouseId, existingIds)
   const pendingAction = useRef(false)
@@ -751,7 +782,7 @@ function RunDetails({ id, onClose }: { id: number; onClose: () => void }) {
     acting ||
     [changeMembers, reopen, cancelMember, cancelRun].some((mutation) => mutation.isPending)
   async function perform(action: () => Promise<unknown>) {
-    if (pendingAction.current || busy || review)
+    if (readOnly || pendingAction.current || busy || review)
       throw Error('Refresh and review this trip before continuing.')
     pendingAction.current = true
     setActing(true)
@@ -807,31 +838,38 @@ function RunDetails({ id, onClose }: { id: number; onClose: () => void }) {
       cell: ({ row }) => <DeliveryStatusBadge status={row.status} runId={run?.id} />,
     },
     { id: 'order', header: 'Sales order', cell: ({ row }) => `#${row.salesOrderId}` },
+    ...(readOnly ? [{ id: 'customer', header: 'Customer', cell: ({ row }: { row: DeliveryRunMember }) =>
+      clients.data.find((client) => client.id === orders.data.find((order) => order.id === row.salesOrderId)?.clientId)?.name ?? 'Customer unavailable' }] : []),
     {
       id: 'actions',
       header: 'Actions',
       cell: ({ row }) => (
         <div className="flex flex-wrap gap-1">
-          {canManage &&
-            run?.status === 'DRAFT' &&
-            row.status === 'READY' &&
-            (['remove', 'reopen', 'cancel'] as const).map((action) => (
-              <Button
-                key={action}
-                variant="outline"
-                size="sm"
-                disabled={busy || review}
-                onClick={() =>
-                  setConfirmation({ member: row, expectedRunRevision: run.revision, action })
-                }
-              >
-                {action === 'remove'
-                  ? 'Remove from Trip'
-                  : action === 'reopen'
-                    ? 'Reopen draft'
-                    : 'Cancel delivery'}
-              </Button>
-            ))}
+          {(readOnly || row.status !== 'DISPATCHED') && <Button variant="outline" size="sm" onClick={() => setViewDeliveryId(row.id)}>
+            {row.status === 'RECONCILED' ? 'View Results' : 'View Delivery'}
+          </Button>}
+          {canManage && run?.status === 'DRAFT' && row.status === 'READY' && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" disabled={busy || review} aria-label={`Manage ${row.deliveryNumber}`}>Manage</Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuGroup>
+                  {(['remove', 'reopen', 'cancel'] as const).map((action) => (
+                    <div key={action}>
+                      {action === 'cancel' && <DropdownMenuSeparator />}
+                      <DropdownMenuItem
+                        className={action === 'cancel' ? 'text-destructive' : undefined}
+                        onSelect={() => setConfirmation({ member: row, expectedRunRevision: run.revision, action })}
+                      >
+                        {action === 'remove' ? 'Remove from Trip' : action === 'reopen' ? 'Reopen draft' : 'Cancel delivery'}
+                      </DropdownMenuItem>
+                    </div>
+                  ))}
+                </DropdownMenuGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
           {canOperate && run?.status === 'DISPATCHED' && row.status === 'DISPATCHED' && (
             <Button size="sm" onClick={() => setReconcileId(row.id)}>
               Record Results
@@ -843,18 +881,18 @@ function RunDetails({ id, onClose }: { id: number; onClose: () => void }) {
   ]
   return (
     <>
-      <Dialog open onOpenChange={(open) => !open && !busy && onClose()}>
+      <Dialog open={!editing && !dispatching && !reconcileId && !viewDeliveryId} onOpenChange={(open) => !open && !busy && onClose()}>
         <DialogContent
           closeDisabled={busy}
-          className="flex max-h-[90dvh] flex-col overflow-y-auto sm:max-w-4xl"
+          className="flex max-h-[90dvh] flex-col overflow-hidden sm:max-w-5xl"
         >
           <DialogHeader>
-            <DialogTitle>{run?.runNumber ?? 'Delivery Trip'}</DialogTitle>
+            <div className="flex items-center gap-3 pr-6"><DialogTitle>{run ? readOnly ? run.runNumber : `Delivery Trip ${run.runNumber}` : 'Delivery Trip'}</DialogTitle>{run && <RunStatusBadge status={run.status} />}</div>
             <DialogDescription>
-              Starting a trip records its departure and moves goods into transit. The trip completes
-              only after results are recorded for every delivery.
+              {readOnly ? 'Review the saved trip and its member deliveries.' : run?.status === 'DRAFT' ? 'Review the deliveries and load before sending this trip.' : run?.status === 'DISPATCHED' ? 'Record results for each delivery after departure.' : 'Review the saved trip and delivery information.'}
             </DialogDescription>
           </DialogHeader>
+          <div className="flex min-h-0 flex-col gap-4 overflow-y-auto">
           {query.isPending && <p role="status">Loading trip…</p>}
           {(query.isError || error) && (
             <Alert variant="destructive">
@@ -865,6 +903,8 @@ function RunDetails({ id, onClose }: { id: number; onClose: () => void }) {
             type="button"
             variant="outline"
             size="sm"
+            className="self-end"
+            aria-label="Refresh trip for review"
             disabled={busy || query.isFetching}
             onClick={() =>
               void query.refetch().then((result) => {
@@ -875,17 +915,15 @@ function RunDetails({ id, onClose }: { id: number; onClose: () => void }) {
               })
             }
           >
-            Refresh trip for review
+            Refresh
           </Button>
-          {run && (
+          {readOnly && run && !historyStatuses.includes(run.status) && <Alert><AlertDescription>This trip is not completed or cancelled.</AlertDescription></Alert>}
+          {readOnly && (orders.isError || clients.isError) && <Alert variant="destructive"><AlertDescription>Some customer details could not be loaded.</AlertDescription></Alert>}
+          {run && (!readOnly || historyStatuses.includes(run.status)) && (
             <>
-              <dl className="grid gap-3 text-sm sm:grid-cols-3">
-                <div>
-                  <dt>Status</dt>
-                  <dd>
-                    <RunStatusBadge status={run.status} />
-                  </dd>
-                </div>
+              <section aria-label="Trip Summary" className="flex flex-col gap-3">
+              <h2 className="font-semibold">Trip Summary</h2>
+              <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-3 [&_dt]:text-xs [&_dt]:text-muted-foreground [&_dd]:mt-1 [&_dd]:font-medium">
                 <div>
                   <dt>Warehouse</dt>
                   <dd>{names.warehouse(run.warehouseId)}</dd>
@@ -894,6 +932,7 @@ function RunDetails({ id, onClose }: { id: number; onClose: () => void }) {
                   <dt>Scheduled departure</dt>
                   <dd>{dateText(run.scheduledDepartureAt)}</dd>
                 </div>
+                {readOnly && <div><dt>Actual departure</dt><dd>{run.dispatchedAt ? dateText(run.dispatchedAt) : 'Not recorded'}</dd></div>}
                 <div>
                   <dt>Driver</dt>
                   <dd>{names.driver(run.driverEmployeeId)}</dd>
@@ -905,24 +944,27 @@ function RunDetails({ id, onClose }: { id: number; onClose: () => void }) {
                 <div>
                   <dt>Loaded weight / capacity at departure</dt>
                   <dd>
-                    {run.loadedWeightKg ?? '—'} / {run.capacityKgAtDeparture ?? '—'} kg
+                    {run.loadedWeightKg != null && run.capacityKgAtDeparture != null ? `${run.loadedWeightKg} / ${run.capacityKgAtDeparture} kg` : run.status === 'DRAFT' ? 'Checked during departure review' : 'Not recorded'}
                   </dd>
                 </div>
               </dl>
-              {run.status === 'DRAFT' && (
+              </section>
+              {!readOnly && run.status === 'DRAFT' && (
                 <p className="text-sm text-muted-foreground">
                   {!run.deliveries.length
                     ? 'Add ready deliveries before reviewing departure.'
                     : 'Review the driver, vehicle, and every loaded quantity before departure. Capacity and availability are checked in the departure review.'}
                 </p>
               )}
-              {run.status === 'DISPATCHED' && (
-                <p className="text-sm font-medium">
-                  {run.deliveries.filter((member) => member.status === 'DISPATCHED').length}{' '}
-                  deliveries awaiting results.
+              {(run.status === 'DISPATCHED' || run.status === 'COMPLETED') && (
+                <p role="status" className="text-sm font-medium">
+                  {run.deliveries.filter((member) => member.status === 'RECONCILED').length} of {run.deliveries.length} deliveries recorded
                 </p>
               )}
+              {resultsFeedback && <Alert><AlertDescription><p role="status">{resultsFeedback}</p></AlertDescription></Alert>}
               {run.notes && <p className="text-sm">{run.notes}</p>}
+              <section aria-label="Deliveries in This Trip" className="flex flex-col gap-3">
+              <h2 className="font-semibold">Deliveries in This Trip</h2>
               <DataTable
                 data={run.deliveries}
                 columns={columns}
@@ -930,8 +972,10 @@ function RunDetails({ id, onClose }: { id: number; onClose: () => void }) {
                 pagination={false}
                 emptyContent="No deliveries in this trip."
               />
+              </section>
               {canManage && run.status === 'DRAFT' && (
-                <div className="flex flex-col gap-3 border-t pt-4">
+                <section aria-label="Add Deliveries" className="flex flex-col gap-3 border-t pt-4">
+                  <h2 className="font-semibold">Add Deliveries</h2>
                   <RunDeliveryPicker
                     selection={selection}
                     warehouseId={run.warehouseId}
@@ -939,6 +983,8 @@ function RunDetails({ id, onClose }: { id: number; onClose: () => void }) {
                     disabled={busy || review}
                   />
                   <Button
+                    variant="outline"
+                    className="self-start"
                     disabled={
                       !selection.selected.length ||
                       !selection.canSave ||
@@ -982,9 +1028,14 @@ function RunDetails({ id, onClose }: { id: number; onClose: () => void }) {
                   >
                     Add to Trip
                   </Button>
-                </div>
+                </section>
               )}
-              <DialogFooter className="flex-wrap">
+              <DialogFooter className="sticky bottom-0 flex-wrap border-t bg-background py-3">
+                {canOperate && run.status === 'DISPATCHED' && nextDelivery && (
+                  <Button disabled={busy || review || query.isFetching || query.isError} onClick={() => setReconcileId(nextDelivery.id)}>
+                    {resultsFeedback ? 'Record Next' : 'Record Results'}
+                  </Button>
+                )}
                 {canManage && run.status === 'DRAFT' && (
                   <>
                     <Button
@@ -995,7 +1046,8 @@ function RunDetails({ id, onClose }: { id: number; onClose: () => void }) {
                       Edit Trip
                     </Button>
                     <Button
-                      variant="destructive"
+                      variant="ghost"
+                      className="text-destructive"
                       disabled={busy || review}
                       onClick={() =>
                         setConfirmation({ action: 'cancel-run', expectedRunRevision: run.revision })
@@ -1019,25 +1071,34 @@ function RunDetails({ id, onClose }: { id: number; onClose: () => void }) {
               </DialogFooter>
             </>
           )}
+          </div>
         </DialogContent>
       </Dialog>
-      {editing && (
+      {viewDeliveryId && <DeliveryDetailModal deliveryId={viewDeliveryId} open onClose={() => setViewDeliveryId(undefined)} />}
+      {!readOnly && editing && (
         <RunEditor
           run={editing}
           onClose={() => setEditing(undefined)}
           onSaved={() => setEditing(undefined)}
         />
       )}
-      {dispatching && <DispatchDeliveryModal runId={id} onClose={() => setDispatching(false)} />}
-      {reconcileId && (
+      {!readOnly && dispatching && <DispatchDeliveryModal runId={id} onClose={() => setDispatching(false)} />}
+      {!readOnly && reconcileId && (
         <CompleteDeliveryModal
+          key={reconcileId}
           runId={id}
           deliveryId={reconcileId}
+          onSaved={(saved) => {
+            const remaining = saved.run.deliveries.filter((member) => member.status === 'DISPATCHED').length
+            setResultsFeedback(`Results saved for ${saved.delivery.deliveryNumber}. ${remaining
+              ? `${remaining} ${remaining === 1 ? 'delivery still needs' : 'deliveries still need'} results.`
+              : saved.run.status === 'COMPLETED' ? 'This trip is completed.' : 'No deliveries are awaiting results. Review the trip status.'}`)
+          }}
           onClose={() => setReconcileId(undefined)}
         />
       )}
       <ConfirmDeleteModal
-        open={!!confirmation}
+        open={!readOnly && !!confirmation}
         onClose={() => setConfirmation(undefined)}
         onConfirm={confirm}
         title={

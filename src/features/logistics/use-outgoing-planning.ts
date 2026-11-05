@@ -317,6 +317,7 @@ export function useOutgoingPlanning(
     busy,
     phase,
     completed,
+    continuePreparing: () => setCompleted(null),
     savedDraft,
     latestDraft,
     reviewRequired,

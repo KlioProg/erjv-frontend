@@ -56,6 +56,7 @@ export function WarehouseTransfersPage() {
   const [before, setBefore] = useState('')
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [opened, setOpened] = useState<number | 'create' | null>(null)
+  const [entryAction, setEntryAction] = useState<'dispatch' | 'reconcile'>()
   const dateError = Boolean(from && before && from >= before)
   const query = useResourcePage<WarehouseTransfer>(
     '/warehouse-transfers',
@@ -78,7 +79,10 @@ export function WarehouseTransfersPage() {
     {
       header: 'Transfer Number',
       accessorKey: 'transferNumber',
-      cell: ({ row }) => <span className="font-medium break-words">{row.transferNumber}</span>,
+      cell: ({ row }) => <Button variant="link" aria-label={`View transfer ${row.transferNumber}`} onClick={() => {
+        setEntryAction(undefined)
+        setOpened(row.id)
+      }}>{row.transferNumber}</Button>,
     },
     { header: 'Source Warehouse', cell: ({ row }) => name(row.sourceWarehouseId) },
     { header: 'Destination Warehouse', cell: ({ row }) => name(row.destinationWarehouseId) },
@@ -112,10 +116,13 @@ export function WarehouseTransfersPage() {
       align: 'right',
       cell: ({ row }) => (
         <DataTableActions>
-          <Button variant="outline" size="sm" onClick={() => setOpened(row.id)}>
-            {row.status === 'DRAFT' || row.status === 'DISPATCHED'
-              ? 'Review Transfer'
-              : 'View Details'}
+          <Button variant="outline" size="sm" onClick={() => {
+            setEntryAction(isAdmin || isManager || isStaff ? row.status === 'DRAFT' ? 'dispatch' : row.status === 'DISPATCHED' ? 'reconcile' : undefined : undefined)
+            setOpened(row.id)
+          }}>
+            {row.status === 'DRAFT' && (isAdmin || isManager || isStaff)
+              ? 'Review & Send'
+              : row.status === 'DISPATCHED' && (isAdmin || isManager || isStaff) ? 'Receive Goods' : 'View Details'}
           </Button>
         </DataTableActions>
       ),
@@ -152,7 +159,7 @@ export function WarehouseTransfersPage() {
             Filters{activeFilters ? ` (${activeFilters} active)` : ''}
           </Button>
           {(isAdmin || isManager) && (
-            <Button onClick={() => setOpened('create')}>Create Transfer</Button>
+            <Button onClick={() => { setEntryAction(undefined); setOpened('create') }}>Create Transfer</Button>
           )}
         </div>
       </PageToolbar>
@@ -249,7 +256,10 @@ export function WarehouseTransfersPage() {
       </DataTableFrame>
       {opened !== null && (
         <TransferDialog
+          key={opened}
           id={opened}
+          onOpen={setOpened}
+          initialAction={entryAction}
           onClose={() => setOpened(null)}
           canEdit={isAdmin || isManager}
           canOperate={isAdmin || isManager || isStaff}
@@ -265,17 +275,28 @@ function TransferDialog({
   onClose,
   canEdit,
   canOperate,
+  onOpen,
+  initialAction,
 }: {
   id: number | 'create'
   onClose: () => void
   canEdit: boolean
   canOperate: boolean
+  onOpen: (id: number) => void
+  initialAction?: 'dispatch' | 'reconcile'
 }) {
   const query = useTransfer(typeof id === 'number' ? id : undefined)
   const [busy, setBusy] = useState(false)
   const [session, setSession] = useState<{ action: Action; record: WarehouseTransfer } | null>(null)
   const [reviewing, setReviewing] = useState(false)
+  const [feedback, setFeedback] = useState('')
   const record = query.data
+  const [entered, setEntered] = useState(false)
+  if (!entered && initialAction && record && !query.isFetching && !query.isError) {
+    setEntered(true)
+    if (canOperate && record.status === (initialAction === 'dispatch' ? 'DRAFT' : 'DISPATCHED'))
+      setSession({ action: initialAction, record })
+  }
   const { data: warehouses } = useRecordsById<Warehouse>(
     '/warehouses',
     record ? [record.sourceWarehouseId, record.destinationWarehouseId] : [],
@@ -287,7 +308,7 @@ function TransferDialog({
   const warehouseName = (id: number) =>
     warehouses.find((item) => item.id === id)?.name ?? `Warehouse #${id}`
   const start = (action: Action) => {
-    if (record && !query.isFetching && !query.isError) setSession({ action, record })
+    if (record && !busy && !query.isFetching && !query.isError) setSession({ action, record })
   }
   const review = async () => {
     setReviewing(true)
@@ -296,7 +317,12 @@ function TransferDialog({
     setReviewing(false)
   }
   const formProps = {
-    onSaved: onClose,
+    onSaved: (saved: WarehouseTransfer) => {
+      if (session?.action === 'cancel') return onClose()
+      setFeedback(`${saved.transferNumber}: ${saved.status === 'DRAFT' ? 'draft saved. Review before sending.' : saved.status === 'DISPATCHED' ? 'departure recorded. Goods are In Transit.' : 'receipt saved.'}`)
+      setSession(null)
+      if (id === 'create') onOpen(saved.id)
+    },
     onCancel:
       id === 'create'
         ? onClose
@@ -311,9 +337,9 @@ function TransferDialog({
       : session?.action === 'draft'
         ? 'Edit Transfer Draft'
         : session?.action === 'dispatch'
-          ? 'Send Goods'
+          ? 'Send Goods?'
           : session?.action === 'reconcile'
-            ? 'Receive Goods'
+            ? 'Record Goods Received'
             : session?.action === 'cancel'
               ? 'Cancel Transfer'
               : (record?.transferNumber ?? 'Warehouse Transfer')
@@ -324,7 +350,7 @@ function TransferDialog({
         if (!open && !busy) onClose()
       }}
     >
-      <DialogContent className="max-w-3xl" closeDisabled={busy}>
+      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-4xl" closeDisabled={busy}>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
@@ -343,6 +369,7 @@ function TransferDialog({
                       : 'Review the completed transfer results.'}
           </DialogDescription>
         </DialogHeader>
+        {feedback && !session && <p role="status" className="text-sm">{feedback}</p>}
         {id === 'create' ? (
           canEdit && <TransferDraftForm {...formProps} />
         ) : session ? (
@@ -407,6 +434,7 @@ function TransferDialog({
                 </div>
               </dl>
               {record.notes && <p className="break-words text-sm">{record.notes}</p>}
+              {record.status === 'COMPLETED' && <p className="text-xs text-muted-foreground">Received includes damaged goods. Returned and missing quantities are recorded separately.</p>}
               <DataTable
                 data={record.items}
                 columns={[
@@ -456,21 +484,21 @@ function TransferDialog({
                   <>
                     {canEdit && (
                       <>
-                        <Button variant="outline" onClick={() => start('draft')}>
+                        <Button variant="outline" disabled={busy || query.isFetching} onClick={() => start('draft')}>
                           Edit Draft
                         </Button>
-                        <Button variant="outline" onClick={() => start('cancel')}>
+                        <Button variant="outline" disabled={busy || query.isFetching} onClick={() => start('cancel')}>
                           Cancel Transfer
                         </Button>
                       </>
                     )}
                     {canOperate && (
-                      <Button onClick={() => start('dispatch')}>Send Goods</Button>
+                      <Button disabled={busy || query.isFetching} onClick={() => start('dispatch')}>Review &amp; Send</Button>
                     )}
                   </>
                 )}
                 {record.status === 'DISPATCHED' && canOperate && (
-                  <Button onClick={() => start('reconcile')}>Receive Goods</Button>
+                  <Button disabled={busy || query.isFetching} onClick={() => start('reconcile')}>Receive Goods</Button>
                 )}
               </div>
             </>

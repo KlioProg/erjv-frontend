@@ -72,7 +72,7 @@ const writes = () => requests.filter((request) => request.method !== 'get')
 it('uses a warning badge for an in-transit run in both the list and detail view', async () => {
   run.status = 'DISPATCHED'
   const client = mount()
-  await screen.findByRole('dialog', { name: 'RUN-1' })
+  await screen.findByRole('dialog', { name: 'Delivery Trip RUN-1' })
   const statuses = screen.getAllByText('Dispatched')
   expect(statuses.length).toBeGreaterThanOrEqual(2)
   for (const status of statuses)
@@ -86,18 +86,17 @@ it('reviews an incoming assignment context and confirms membership without autom
   const assignment = within(await screen.findByRole('dialog', { name: 'Add Delivery to Trip' }))
   await assignment.findByText('OUT-8 · Sales Order #11')
   expect(writes()).toHaveLength(0)
-  expect(assignment.queryByRole('button', { name: 'Add to Trip' })).toBeNull()
+  expect(assignment.getByRole('button', { name: 'Add to Trip' }).hasAttribute('disabled')).toBe(true)
+  expect(assignment.queryByRole('button', { name: 'Use Existing Trip' })).toBeNull()
   expect(assignment.queryByRole('button', { name: /Refresh/ })).toBeNull()
-  await user.click(assignment.getByRole('button', { name: 'Use Existing Trip' }))
-  await user.click(assignment.getByRole('button', { name: 'Choose delivery trip' }))
-  await user.click(await screen.findByRole('menuitem', { name: 'RUN-1 · Main · 1 delivery assigned' }))
+  await user.click(await within(screen.getByRole('dialog', { name: 'Add Delivery to Trip' })).findByRole('button', { name: 'RUN-1' }))
   await waitFor(() => expect(assignment.getByRole('button', { name: 'Add to Trip' }).hasAttribute('disabled')).toBe(false))
   const confirm = assignment.getByRole('button', { name: 'Add to Trip' })
   fireEvent.click(confirm)
   fireEvent.click(confirm)
   await waitFor(() => expect(writes()).toHaveLength(1))
   expect(writes()[0]).toMatchObject({ url: '/delivery-runs/1/deliveries', body: { expectedRevision: 4, add: [{ deliveryId: 8, expectedRevision: 3 }] } })
-  await screen.findByRole('dialog', { name: 'RUN-1' })
+  await screen.findByRole('dialog', { name: 'Delivery Trip RUN-1' })
   const params = new URLSearchParams(screen.getByTestId('run-location').textContent!)
   expect(params.get('keep')).toBe('yes')
   expect(params.get('run')).toBe('1')
@@ -119,18 +118,19 @@ it('preserves a handoff delivery when creating a new run and waits for explicit 
   expect(writes()[0]).toMatchObject({ method: 'post', url: '/delivery-runs', body: { warehouseId: 2, deliveries: [{ deliveryId: 8, expectedRevision: 3 }] } })
 })
 
-it('returns to the choice step with keyboard focus and preserves a selected run', async () => {
-  mount('?assign=8')
+it('returns from cancelled creation to assignment without writing', async () => {
+  mount('?assign=8&keep=yes')
   const user = userEvent.setup()
-  await user.click(await screen.findByRole('button', { name: 'Use Existing Trip' }))
-  await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Choose delivery trip' })))
-  await user.click(screen.getByRole('button', { name: 'Choose delivery trip' }))
-  await user.click(await screen.findByRole('menuitem', { name: 'RUN-1 · Main · 1 delivery assigned' }))
-  await user.click(screen.getByRole('button', { name: 'Back' }))
-  expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Use Existing Trip' }))
-  await user.click(screen.getByRole('button', { name: 'Use Existing Trip' }))
-  expect(screen.getByRole('button', { name: 'Choose delivery trip' }).textContent).toContain('RUN-1')
-  expect(screen.getByText('OUT-8 · Sales Order #11')).toBeTruthy()
+  await user.click(await screen.findByRole('button', { name: 'Create New Trip' }))
+  expect(screen.queryByRole('dialog', { name: 'Add Delivery to Trip' })).toBeNull()
+  const editor = within(await screen.findByRole('dialog', { name: 'Create Delivery Trip' }))
+  await editor.findByText('OUT-8')
+  expect(editor.getByRole('button', { name: 'Choose warehouse' }).hasAttribute('disabled')).toBe(true)
+  await user.click(within(editor.getByRole('button', { name: 'Save Trip' }).closest('form')!).getByRole('button', { name: 'Close' }))
+  const assignment = within(await screen.findByRole('dialog', { name: 'Add Delivery to Trip' }))
+  await assignment.findByText('OUT-8 \u00b7 Sales Order #11')
+  await assignment.findByRole('button', { name: 'RUN-1' })
+  expect(screen.getAllByRole('dialog')).toHaveLength(1)
   expect(writes()).toHaveLength(0)
 })
 
@@ -185,9 +185,7 @@ it('offers review rather than a nonexistent reconciliation when no run members a
 it('blocks a changed assignment revision until the user refreshes and reviews', async () => {
   mount('?assign=8')
   const user = userEvent.setup()
-  await user.click(await screen.findByRole('button', { name: 'Use Existing Trip' }))
-  await user.click(await screen.findByRole('button', { name: 'Choose delivery trip' }))
-  await user.click(await screen.findByRole('menuitem', { name: 'RUN-1 · Main · 1 delivery assigned' }))
+  await user.click(await within(screen.getByRole('dialog', { name: 'Add Delivery to Trip' })).findByRole('button', { name: 'RUN-1' }))
   await waitFor(() => expect(screen.getByRole('button', { name: 'Add to Trip' }).hasAttribute('disabled')).toBe(false))
   run = { ...run, revision: 5 }
   await user.click(screen.getByRole('button', { name: 'Add to Trip' }))
@@ -213,13 +211,10 @@ it('does not allow staff assignment writes', async () => {
 it('excludes preparing runs from another warehouse from the assignment picker', async () => {
   run = { ...run, warehouseId: 3 }
   mount('?assign=8')
-  const user = userEvent.setup()
-  await user.click(await screen.findByRole('button', { name: 'Use Existing Trip' }))
-  await user.click(await screen.findByRole('button', { name: 'Choose delivery trip' }))
-  await screen.findByText('No eligible trips on this page. Create a new trip or check another page.')
-  expect(screen.queryByRole('menuitem', { name: /RUN-1/ })).toBeNull()
-  await user.keyboard('{Escape}')
-  expect(screen.queryByRole('button', { name: 'Add to Trip' })).toBeNull()
+  await screen.findByText('No eligible trips shown. Create a new trip or load more results.')
+  const assignment = within(screen.getByRole('dialog', { name: 'Add Delivery to Trip' }))
+  expect(assignment.queryByRole('button', { name: 'RUN-1' })).toBeNull()
+  expect(assignment.getByRole('button', { name: 'Add to Trip' }).hasAttribute('disabled')).toBe(true)
   expect(writes()).toHaveLength(0)
 })
 
@@ -228,7 +223,7 @@ it('keeps an already assigned delivery read-only and opens its run', async () =>
   mount('?assign=8')
   const user = userEvent.setup()
   await user.click(await screen.findByRole('button', { name: 'View Trip' }))
-  await screen.findByRole('dialog', { name: 'RUN-1' })
+  await screen.findByRole('dialog', { name: 'Delivery Trip RUN-1' })
   expect(writes()).toHaveLength(0)
 })
 
@@ -240,16 +235,14 @@ it('preserves assignment review after an ambiguous response and prevents blind r
   }
   mount('?assign=8')
   const user = userEvent.setup()
-  await user.click(await screen.findByRole('button', { name: 'Use Existing Trip' }))
-  await user.click(await screen.findByRole('button', { name: 'Choose delivery trip' }))
-  await user.click(await screen.findByRole('menuitem', { name: 'RUN-1 · Main · 1 delivery assigned' }))
+  await user.click(await within(screen.getByRole('dialog', { name: 'Add Delivery to Trip' })).findByRole('button', { name: 'RUN-1' }))
   await waitFor(() => expect(screen.getByRole('button', { name: 'Add to Trip' }).hasAttribute('disabled')).toBe(false))
   await user.click(screen.getByRole('button', { name: 'Add to Trip' }))
   await screen.findByText(/The delivery was not added/)
   expect(writes()).toHaveLength(1)
   expect(screen.queryByRole('button', { name: 'Add to Trip' })).toBeNull()
   await user.click(screen.getByRole('button', { name: 'Review Trip' }))
-  await screen.findByRole('dialog', { name: 'RUN-1' })
+  await screen.findByRole('dialog', { name: 'Delivery Trip RUN-1' })
   expect(writes()).toHaveLength(1)
 })
 
@@ -284,7 +277,8 @@ it('adds an eligible READY member using distinct run and delivery revisions', as
 it('reopens an assigned member with the reviewed paired revisions', async () => {
   mount()
   const user = userEvent.setup()
-  await user.click(await screen.findByRole('button', { name: 'Reopen draft' }))
+  await user.click(await screen.findByRole('button', { name: 'Manage OUT-7' }))
+  await user.click(await screen.findByRole('menuitem', { name: 'Reopen draft' }))
   await user.click(screen.getByRole('button', { name: 'Reopen Draft' }))
   await waitFor(() => expect(writes()).toHaveLength(1))
   expect(writes()[0]).toMatchObject({ url: '/delivery-runs/1/deliveries/7/reopen', body: { expectedRunRevision: 4, expectedDeliveryRevision: 9 } })
@@ -294,7 +288,7 @@ it('does not expose draft mutation or dispatch actions on a completed run', asyn
   run.status = 'COMPLETED'
   run.deliveries[0].status = 'RECONCILED'
   mount()
-  await screen.findByRole('dialog', { name: 'RUN-1' })
+  await screen.findByRole('dialog', { name: 'Delivery Trip RUN-1' })
   expect(screen.queryByRole('button', { name: 'Edit Trip' })).toBeNull()
   expect(screen.queryByRole('button', { name: 'Review Departure' })).toBeNull()
   expect(screen.queryByRole('button', { name: 'Cancel Trip' })).toBeNull()
@@ -402,7 +396,7 @@ it('creates one run from multiple cursor pages while retaining search, assignmen
   expect(selected.getAllByRole('listitem')).toHaveLength(2)
   await waitFor(() => expect(screen.getByRole('button', { name: 'Save Trip' }).hasAttribute('disabled')).toBe(false))
   await user.click(screen.getByRole('button', { name: 'Save Trip' }))
-  await screen.findByRole('dialog', { name: 'RUN-1' })
+  await screen.findByRole('dialog', { name: 'Delivery Trip RUN-1' })
   expect(writes()).toHaveLength(1)
   expect(writes()[0].body).toMatchObject({ warehouseId: 2, driverEmployeeId: 3, deliveryVehicleId: 4, notes: 'Review both stops', deliveries: [{ deliveryId: 8, expectedRevision: 3 }, { deliveryId: 9, expectedRevision: 3 }] })
   expect(screen.getByRole('cell', { name: 'OUT-8' })).toBeTruthy()
@@ -611,4 +605,148 @@ it('does not reopen a run after the user navigates away during a pending create'
   await act(async () => { release(); await waitFor(() => expect(client.isMutating()).toBe(0)) })
   expect(screen.getByRole('heading', { name: 'Other workflow' })).toBeTruthy()
   expect(screen.getByTestId('location').textContent).toBe('/other')
+})
+
+
+it.each(['DISPATCHED', 'COMPLETED', 'CANCELLED', 'FULL'] as const)('excludes %s trips from assignment', async (status) => {
+  run = status === 'FULL'
+    ? { ...run, deliveries: Array.from({ length: 100 }, (_, index) => ({ ...run.deliveries[0], id: index + 100 })) }
+    : { ...run, status }
+  mount('?assign=8')
+  const assignment = within(await screen.findByRole('dialog', { name: 'Add Delivery to Trip' }))
+  await assignment.findByText('No eligible trips shown. Create a new trip or load more results.')
+  expect(assignment.queryByRole('button', { name: 'RUN-1' })).toBeNull()
+  expect(assignment.getByRole('button', { name: 'Add to Trip' }).hasAttribute('disabled')).toBe(true)
+  expect(assignment.getByRole('button', { name: 'Create New Trip' })).toBeTruthy()
+  expect(writes()).toHaveLength(0)
+})
+
+it('loads another cursor page after an ineligible page and searches with warehouse filters', async () => {
+  const adapter = apiClient.defaults.adapter as AxiosAdapter
+  apiClient.defaults.adapter = async (config) => {
+    const response = await adapter(config)
+    if (config.method === 'get' && config.url === '/delivery-runs' && config.params.limit === 50) {
+      const later = config.params.cursor || config.params.q
+      return { ...response, data: { items: later ? [structuredClone(run)] : [{ ...run, warehouseId: 3 }], nextCursor: later ? null : 'next-trip' } }
+    }
+    return response
+  }
+  mount('?assign=8')
+  const user = userEvent.setup()
+  const assignment = within(await screen.findByRole('dialog', { name: 'Add Delivery to Trip' }))
+  await assignment.findByText('No eligible trips shown. Create a new trip or load more results.')
+  await user.click(assignment.getByRole('button', { name: 'Load more results' }))
+  await assignment.findByRole('button', { name: 'RUN-1' })
+  expect(requests.some((entry) => entry.params.cursor === 'next-trip')).toBe(true)
+  await user.type(assignment.getByRole('textbox', { name: 'Search delivery trips' }), 'RUN')
+  await waitFor(() => expect(requests.some((entry) => entry.params.q === 'RUN' && entry.params.warehouseId === 2 && (entry.params.statuses as string[])?.[0] === 'DRAFT' && !entry.params.cursor)).toBe(true))
+  expect(writes()).toHaveLength(0)
+})
+
+it('offers the saved trip for review when creation does not confirm the handoff member', async () => {
+  const adapter = apiClient.defaults.adapter as AxiosAdapter
+  apiClient.defaults.adapter = async (config) => {
+    const response = await adapter(config)
+    return config.method === 'post' && config.url === '/delivery-runs'
+      ? { ...response, data: { ...response.data, deliveries: [] } } : response
+  }
+  mount('?assign=8')
+  const user = userEvent.setup()
+  await user.click(await screen.findByRole('button', { name: 'Create New Trip' }))
+  const editor = within(await screen.findByRole('dialog', { name: 'Create Delivery Trip' }))
+  await waitFor(() => expect(editor.getByRole('button', { name: 'Save Trip' }).hasAttribute('disabled')).toBe(false))
+  await user.click(editor.getByRole('button', { name: 'Save Trip' }))
+  await editor.findByText(/Trip membership was not confirmed/)
+  expect(editor.getByRole('button', { name: 'Save Trip' }).hasAttribute('disabled')).toBe(true)
+  await user.click(editor.getByRole('button', { name: 'Review Trip' }))
+  await screen.findByRole('dialog', { name: 'Delivery Trip RUN-1' })
+  expect(writes()).toHaveLength(1)
+})
+
+it('does not save a handoff trip after its original delivery is removed', async () => {
+  mount('?assign=8')
+  const user = userEvent.setup()
+  await user.click(await screen.findByRole('button', { name: 'Create New Trip' }))
+  const editor = within(await screen.findByRole('dialog', { name: 'Create Delivery Trip' }))
+  await user.click(await editor.findByRole('button', { name: 'Remove OUT-8 from selection' }))
+  await user.click(editor.getByRole('button', { name: 'Save Trip' }))
+  await editor.findByText('Keep the original delivery selected before saving this trip.')
+  expect(writes()).toHaveLength(0)
+})
+
+
+it.each(['STALE_REVISION', 'NETWORK', 'REJECTED'])('keeps assignment reviewable after %s errors without reporting success', async (code) => {
+  const adapter = apiClient.defaults.adapter as AxiosAdapter
+  let attempts = 0
+  apiClient.defaults.adapter = async (config) => {
+    if (config.method === 'patch' && config.url === '/delivery-runs/1/deliveries') {
+      attempts++
+      if (code === 'NETWORK') throw Error('Connection lost')
+      throw { isAxiosError: true, response: { status: code === 'STALE_REVISION' ? 409 : 422, data: { detail: 'Review required', code } } }
+    }
+    return adapter(config)
+  }
+  mount('?assign=8')
+  const user = userEvent.setup()
+  const assignment = within(await screen.findByRole('dialog', { name: 'Add Delivery to Trip' }))
+  await user.click(await assignment.findByRole('button', { name: 'RUN-1' }))
+  const add = assignment.getByRole('button', { name: 'Add to Trip' })
+  await waitFor(() => expect(add.hasAttribute('disabled')).toBe(false))
+  await user.click(add)
+  await assignment.findByRole('alert')
+  expect(screen.getByTestId('run-location').textContent).toBe('?assign=8')
+  expect(deliveries[0].runId).toBeNull()
+  if (code !== 'REJECTED') {
+    expect(add.hasAttribute('disabled')).toBe(true)
+    fireEvent.click(add)
+  }
+  expect(attempts).toBe(1)
+})
+
+it('requires a READY delivery before showing assignment options', async () => {
+  deliveries[0].status = 'DRAFT'
+  mount('?assign=8')
+  const assignment = within(await screen.findByRole('dialog', { name: 'Add Delivery to Trip' }))
+  await assignment.findByText(/This delivery is not available for assignment/)
+  expect(assignment.queryByRole('button', { name: 'Create New Trip' })).toBeNull()
+  expect(assignment.queryByRole('button', { name: 'Add to Trip' })).toBeNull()
+  expect(writes()).toHaveLength(0)
+})
+
+it.each([['Remove from Trip', 'Remove from Trip'], ['Cancel delivery', 'Cancel Delivery']])('keeps %s behind a keyboard-accessible menu and confirmation', async (action, confirm) => {
+  mount()
+  const manage = await screen.findByRole('button', { name: 'Manage OUT-7' })
+  manage.focus()
+  await userEvent.keyboard('{Enter}')
+  await userEvent.click(await screen.findByRole('menuitem', { name: action }))
+  expect(writes()).toHaveLength(0)
+  await userEvent.click(screen.getByRole('button', { name: confirm }))
+  await waitFor(() => expect(writes()).toHaveLength(1))
+  expect(writes()[0]).toMatchObject(action === 'Remove from Trip'
+    ? { url: '/delivery-runs/1/deliveries', body: { expectedRevision: 4, remove: [{ deliveryId: 7, expectedRevision: 9 }] } }
+    : { url: '/delivery-runs/1/deliveries/7/cancel', body: { expectedRunRevision: 4, expectedDeliveryRevision: 9 } })
+})
+it('keeps stored departure precision when editing other trip information', async () => {
+  run.scheduledDepartureAt = '2026-11-05T01:40:27.123Z'
+  mount()
+  await userEvent.click(await screen.findByRole('button', { name: 'Edit Trip' }))
+  expect(screen.getAllByRole('dialog')).toHaveLength(1)
+  expect((screen.getByLabelText('Scheduled departure') as HTMLInputElement).value).toBe('2026-11-05')
+  await userEvent.type(screen.getByLabelText('Notes'), ' More instructions')
+  await userEvent.click(screen.getByRole('button', { name: 'Save Trip' }))
+  await waitFor(() => expect(writes()).toHaveLength(1))
+  expect(writes()[0].body.scheduledDepartureAt).toBe('2026-11-05T01:40:27.123Z')
+  expect(writes()[0].url).toBe('/delivery-runs/1/draft')
+})
+
+it('groups the draft workspace and uses an honest load explanation until departure review', async () => {
+  mount()
+  const trip = within(await screen.findByRole('dialog', { name: 'Delivery Trip RUN-1' }))
+  for (const section of ['Trip Summary', 'Deliveries in This Trip', 'Add Deliveries']) expect(trip.getByRole('region', { name: section })).toBeTruthy()
+  expect(trip.getByText('Checked during departure review')).toBeTruthy()
+  expect(trip.getByText('Preparing')).toBeTruthy()
+  expect(trip.getByRole('button', { name: 'Review Departure' })).toBeTruthy()
+  expect(trip.getByRole('button', { name: 'Add to Trip' }).classList.contains('self-start')).toBe(true)
+  expect(trip.queryByRole('button', { name: 'Remove from Trip' })).toBeNull()
+  expect(writes()).toHaveLength(0)
 })

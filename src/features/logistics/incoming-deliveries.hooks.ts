@@ -52,7 +52,13 @@ export function useCreateIncomingDelivery() {
   const queryClient = useQueryClient()
   return useMutation({
     retry: false,
-    mutationFn: (payload: CreateIncomingDeliveryPayload) => createIncomingDeliveryApi(payload),
+    mutationFn: async (payload: CreateIncomingDeliveryPayload) => {
+      const saved = await createIncomingDeliveryApi(payload)
+      if (!Number.isSafeInteger(saved?.id) || saved.id < 1 || !Number.isSafeInteger(saved.revision) || saved.revision < 1 ||
+        saved.status !== 'DRAFT' || saved.purchaseOrderId !== payload.purchaseOrderId || saved.warehouseId !== payload.warehouseId)
+        throw Error('Arrival creation was not confirmed. Review Incoming Deliveries before creating another arrival.')
+      return saved
+    },
     onSuccess: (delivery) => {
       void queryClient.invalidateQueries({ queryKey: INCOMING_DELIVERIES_QUERY_KEY })
       void queryClient.invalidateQueries({ queryKey: PURCHASE_ORDERS_QUERY_KEY })
@@ -74,7 +80,12 @@ export function useScheduleIncomingDelivery() {
   const queryClient = useQueryClient()
   return useMutation({
     retry: false,
-    mutationFn: ({ id, expectedRevision }: { id: number; expectedRevision: number }) => scheduleIncomingDeliveryApi(id, expectedRevision),
+    mutationFn: async ({ id, expectedRevision }: { id: number; expectedRevision: number }) => {
+      const saved = await scheduleIncomingDeliveryApi(id, expectedRevision)
+      if (saved?.id !== id || saved.status !== 'SCHEDULED' || !Number.isSafeInteger(saved.revision) || saved.revision <= expectedRevision)
+        throw Error('Arrival scheduling was not confirmed. Refresh and review the saved delivery before trying again.')
+      return saved
+    },
     onSuccess: (delivery) => {
       void queryClient.invalidateQueries({ queryKey: INCOMING_DELIVERIES_QUERY_KEY })
       toast.success(`Incoming Delivery "${delivery.deliveryNumber}" scheduled`)
@@ -117,8 +128,8 @@ export function useCompleteIncomingDelivery() {
       )
       toast.success(
         delivery.outcome === 'NO_RECEIPT'
-          ? `Incoming Delivery "${delivery.deliveryNumber}" completed with no receipt`
-          : `Incoming Delivery "${delivery.deliveryNumber}" receipt confirmed`,
+          ? `Receipt Saved: ${delivery.deliveryNumber} (no receipt).`
+          : `Receipt Saved: ${delivery.deliveryNumber}.`,
       )
     },
     onError: (err) => {

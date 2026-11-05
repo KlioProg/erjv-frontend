@@ -244,7 +244,9 @@ export function useOutgoingDispatch(runId: number, onSuccess: () => void) {
         saved.revision <= payload.expectedRevision
       )
         throw Error('Trip departure was not confirmed. Refresh and review before trying again.')
-      toast.success('Trip started.')
+      toast.success('Trip Sent', {
+        description: 'The departure has been recorded. The goods are now listed as in transit.',
+      })
       onSuccess()
     } catch (cause) {
       setNeedsRefresh(true)
