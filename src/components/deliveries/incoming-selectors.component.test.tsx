@@ -39,7 +39,7 @@ function mount({ selected, fail = '', empty = false, arrival }: { selected?: num
   return { calls, onSubmit, recover: () => { failure = '' }, deactivate: () => { inactive = true }, client }
 }
 async function chooseWarehouse() {
-  await userEvent.click(screen.getByRole('button', { name: 'Destination Warehouse' }))
+  await userEvent.click(screen.getByRole('button', { name: 'Receiving Warehouse' }))
   await userEvent.click(await screen.findByRole('menuitem', { name: 'Dock A' }))
 }
 
@@ -56,7 +56,7 @@ it('loads pages only on demand, preserves filters and deduplicates selector opti
   await userEvent.click(screen.getByRole('menuitem', { name: 'PO-2 / Supplier #2' }))
   await screen.findByText('Product 22')
   expect(calls.filter((call) => call.url === '/incoming-deliveries').every((call) => call.params.purchaseOrderId === 2 && JSON.stringify(call.params.statuses) === '["COMPLETED"]')).toBe(true)
-  await userEvent.click(screen.getByRole('button', { name: 'Destination Warehouse' }))
+  await userEvent.click(screen.getByRole('button', { name: 'Receiving Warehouse' }))
   await userEvent.click(await screen.findByRole('button', { name: 'Load more results' }))
   await screen.findByRole('menuitem', { name: 'Dock B' })
   expect(screen.getAllByRole('menuitem', { name: 'Dock A' })).toHaveLength(1)
@@ -74,14 +74,14 @@ it('searches both selectors on the server and retains off-page selected records'
   await screen.findByText('No eligible purchase orders found.')
   fireEvent.keyDown(screen.getByRole('searchbox'), { key: 'Escape' })
   expect(screen.getByRole('button', { name: 'Purchase Order' }).textContent).toContain('PO-2')
-  await userEvent.click(screen.getByRole('button', { name: 'Destination Warehouse' }))
+  await userEvent.click(screen.getByRole('button', { name: 'Receiving Warehouse' }))
   await user.type(screen.getByRole('searchbox', { name: 'Search warehouse' }), 'Dock B')
   await userEvent.click(await screen.findByRole('menuitem', { name: 'Dock B' }))
-  await userEvent.click(screen.getByRole('button', { name: 'Destination Warehouse' }))
+  await userEvent.click(screen.getByRole('button', { name: 'Receiving Warehouse' }))
   fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'No match' } })
   await screen.findByText('No matching results.')
   fireEvent.keyDown(screen.getByRole('searchbox'), { key: 'Escape' })
-  expect(screen.getByRole('button', { name: 'Destination Warehouse' }).textContent).toContain('Dock B')
+  expect(screen.getByRole('button', { name: 'Receiving Warehouse' }).textContent).toContain('Dock B')
   const submit = screen.getByRole('button', { name: 'Schedule Arrival' })
   await waitFor(() => expect(submit.hasAttribute('disabled')).toBe(false))
   await userEvent.click(submit)
@@ -92,6 +92,7 @@ it('searches both selectors on the server and retains off-page selected records'
 
 it('shows an empty initial result without issuing an unscoped receiving query', async () => {
   const { calls } = mount({ empty: true })
+  await screen.findByText('No purchase orders have remaining quantities to arrange. Review existing Incoming Deliveries.')
   await userEvent.click(screen.getByRole('button', { name: 'Purchase Order' }))
   await screen.findByText('No eligible purchase orders found.')
   fireEvent.keyDown(screen.getByRole('searchbox'), { key: 'Escape' })
@@ -115,14 +116,14 @@ it('allows changing a failed order selection and clears PO-dependent reference a
   mount({ selected: 1 })
   await screen.findByText('Product 11')
   fireEvent.change(screen.getByLabelText('Supplier Reference (optional)'), { target: { value: 'Old supplier reference' } })
-  fireEvent.change(screen.getByLabelText('Expected Arrival Date & Time'), { target: { value: '2026-12-01T10:00' } })
+  fireEvent.change(screen.getByLabelText('Arrival Date'), { target: { value: '2026-12-01' } })
   await userEvent.click(screen.getByRole('button', { name: 'Purchase Order' }))
   await userEvent.click(await screen.findByRole('button', { name: 'Load more purchase orders' }))
   await userEvent.click(await screen.findByRole('menuitem', { name: 'PO-2 / Supplier #2' }))
   await screen.findByText('Product 22')
   expect(screen.queryByText('Product 11')).toBeNull()
   expect((screen.getByLabelText('Supplier Reference (optional)') as HTMLInputElement).value).toBe('')
-  expect((screen.getByLabelText('Expected Arrival Date & Time') as HTMLInputElement).value).not.toBe('2026-12-01T10:00')
+  expect((screen.getByLabelText('Arrival Date') as HTMLInputElement).value).not.toBe('2026-12-01')
   expect(screen.getByText(/Supplier: Supplier 2/)).toBeTruthy()
 })
 
@@ -166,13 +167,13 @@ it('keeps a failed selected warehouse visible and permits explicit recovery', as
   await screen.findByText('Product 11')
   await chooseWarehouse()
   await screen.findByRole('button', { name: 'Reload selected warehouse' })
-  expect(screen.getByRole('button', { name: 'Destination Warehouse' }).textContent).toContain('Dock A')
+  expect(screen.getByRole('button', { name: 'Receiving Warehouse' }).textContent).toContain('Dock A')
   expect(screen.getByRole('button', { name: 'Schedule Arrival' }).hasAttribute('disabled')).toBe(true)
   expect(onSubmit).not.toHaveBeenCalled()
   recover()
   await userEvent.click(screen.getByRole('button', { name: 'Reload selected warehouse' }))
   await waitFor(() => expect(screen.getByRole('button', { name: 'Schedule Arrival' }).hasAttribute('disabled')).toBe(false))
-  expect(screen.getByRole('button', { name: 'Destination Warehouse' }).textContent).toContain('Dock A')
+  expect(screen.getByRole('button', { name: 'Receiving Warehouse' }).textContent).toContain('Dock A')
 })
 
 
@@ -181,8 +182,9 @@ it.each([null, 'invalid-date'])('keeps an unknown arrival and an unverified dest
   await screen.findByText('Product 11')
   expect(screen.getByRole('button', { name: 'Purchase Order' }).textContent).toContain('PO-1')
   expect(screen.getByText(/Supplier: Supplier 1/)).toBeTruthy()
-  expect((screen.getByLabelText('Expected Arrival Date & Time') as HTMLInputElement).value).toBe('')
-  expect(screen.getByRole('button', { name: 'Destination Warehouse' }).textContent).toContain('Choose warehouse')
+  expect((screen.getByLabelText('Arrival Date') as HTMLInputElement).value).toBe('')
+  expect((screen.getByLabelText('Arrival Time') as HTMLInputElement).value).toBe('')
+  expect(screen.getByRole('button', { name: 'Receiving Warehouse' }).textContent).toContain('Choose warehouse')
   expect(screen.getByRole('button', { name: 'Schedule Arrival' }).hasAttribute('disabled')).toBe(true)
   expect(calls.some((entry) => entry.url === '/warehouses/10')).toBe(false)
   await chooseWarehouse()
@@ -194,15 +196,39 @@ it.each([null, 'invalid-date'])('keeps an unknown arrival and an unverified dest
   expect(calls.some((entry) => entry.url.includes('/complete') || entry.url.includes('/stock-items'))).toBe(false)
 })
 
+it('shows a neutral summary prompt before a purchase order is selected', () => {
+  mount()
+  expect(
+    screen.getByText('Select a purchase order to view its supplier and remaining items.'),
+  ).toBeTruthy()
+  expect(screen.queryByText(/Supplier: No supplier/)).toBeNull()
+})
+
+it('displays and submits the purchase order arrival schedule without changing it', async () => {
+  const { onSubmit } = mount({ selected: 1 })
+  await screen.findByText('Product 11')
+  expect((screen.getByLabelText('Arrival Date') as HTMLInputElement).value).toBe('2026-11-01')
+  expect((screen.getByLabelText('Arrival Time') as HTMLInputElement).value).toBe('4:00')
+  expect(screen.getByRole('combobox', { name: 'Arrival AM or PM' }).textContent).toContain('PM')
+  await chooseWarehouse()
+  const submit = screen.getByRole('button', { name: 'Schedule Arrival' })
+  await waitFor(() => expect(submit.hasAttribute('disabled')).toBe(false))
+  await userEvent.click(submit)
+  await waitFor(() => expect(onSubmit).toHaveBeenCalledOnce())
+  expect(onSubmit.mock.calls[0]).toEqual([
+    expect.objectContaining({ scheduledAt: '2026-11-01T08:00:00.000Z' }),
+  ])
+})
+
 it('uses the verified purchase arrival and allows an explicit correction or clearing', async () => {
   const { onSubmit } = mount({ selected: 2 })
   await screen.findByText('Product 22')
-  const arrival = screen.getByLabelText('Expected Arrival Date & Time') as HTMLInputElement
+  const arrival = screen.getByLabelText('Arrival Date') as HTMLInputElement
   expect(arrival.value).toBe('2026-11-02')
-  expect(screen.getByText('From the purchase order. Change or clear it if needed.')).toBeTruthy()
+  expect(screen.getByText(/From the purchase order. Change or clear it if needed. Manila time./)).toBeTruthy()
   fireEvent.change(arrival, { target: { value: '2026-12-01' } })
   expect(arrival.value).toBe('2026-12-01')
-  await userEvent.click(screen.getByRole('button', { name: 'Clear expected arrival date & time' }))
+  await userEvent.click(screen.getByRole('button', { name: 'Clear arrival schedule' }))
   await chooseWarehouse()
   await waitFor(() => expect(screen.getByRole('button', { name: 'Schedule Arrival' }).hasAttribute('disabled')).toBe(false))
   await userEvent.click(screen.getByRole('button', { name: 'Schedule Arrival' }))
@@ -228,10 +254,9 @@ it('blocks another scheduling submission after an uncertain save', async () => {
 it('submits a typed arbitrary-minute arrival as Manila time', async () => {
   const { onSubmit } = mount({ selected: 2 })
   await screen.findByText('Product 22')
-  fireEvent.change(screen.getByLabelText('Expected Arrival Date & Time'), { target: { value: '2026-12-01' } })
-  fireEvent.change(screen.getByRole('textbox', { name: 'Expected Arrival Date & Time hour' }), { target: { value: '9' } })
-  fireEvent.change(screen.getByRole('textbox', { name: 'Expected Arrival Date & Time minute' }), { target: { value: '40' } })
-  await userEvent.click(screen.getByRole('combobox', { name: 'Expected Arrival Date & Time AM or PM' }))
+  fireEvent.change(screen.getByLabelText('Arrival Date'), { target: { value: '2026-12-01' } })
+  fireEvent.change(screen.getByLabelText('Arrival Time'), { target: { value: '9:40' } })
+  await userEvent.click(screen.getByRole('combobox', { name: 'Arrival AM or PM' }))
   await userEvent.click(screen.getByRole('option', { name: 'AM' }))
   await chooseWarehouse()
   await waitFor(() => expect(screen.getByRole('button', { name: 'Schedule Arrival' }).hasAttribute('disabled')).toBe(false))

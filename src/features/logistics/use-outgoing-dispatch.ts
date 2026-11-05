@@ -160,8 +160,9 @@ export function useOutgoingDispatch(runId: number, onSuccess: () => void) {
   else if (run.status !== 'DRAFT') issue = 'This trip is not in Preparing status. Review its current status.'
   else if (reviewed !== signature)
     issue = 'Trip details or a delivery plan changed. Refresh and review the updated loads.'
-  else if (!warehouse.isActive || !run.scheduledDepartureAt || !run.deliveries.length)
-    issue = 'An active source warehouse, departure schedule, and deliveries are required.'
+  else if (!warehouse.isActive) issue = 'The source warehouse is inactive.'
+  else if (!run.scheduledDepartureAt) issue = 'Set a departure date and time.'
+  else if (!run.deliveries.length) issue = 'Add at least one delivery.'
   else if (
     !vehicle?.isActive ||
     vehicle.operationalStatus !== 'SERVICEABLE' ||

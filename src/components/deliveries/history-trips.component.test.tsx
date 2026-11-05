@@ -1,11 +1,13 @@
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, renderHook, screen, waitFor, within } from '@testing-library/react'
+import { getAdapter } from 'axios'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { MemoryRouter } from 'react-router'
+import { MemoryRouter, Route, Routes } from 'react-router'
 import { apiClient } from '@/lib/api-client'
 import { DeliveriesHub } from './DeliveriesHub'
 import { DeliveryRunsHub } from './DeliveryRunsHub'
+import { useCancelDeliveryRun, useReconcileRunMember } from '@/features/logistics/delivery-runs.hooks'
 import type { DeliveryRunRecord, DeliveryRunStatus } from '@/features/logistics/delivery-runs.types'
 import type { OutgoingDeliveryRecord } from '@/features/logistics/outgoing-deliveries.types'
 
@@ -72,9 +74,12 @@ beforeEach(() => {
   }
 })
 afterEach(() => { apiClient.defaults.adapter = original })
-function mount({ direct = false, search = '' } = {}) {
+function mount({ direct = false, active = false, search = '' } = {}) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
-  render(<QueryClientProvider client={client}><MemoryRouter initialEntries={[`/deliveries/history${search}`]}>{direct ? <DeliveryRunsHub history /> : <DeliveriesHub initialTab="history" />}</MemoryRouter></QueryClientProvider>)
+  render(<QueryClientProvider client={client}><MemoryRouter initialEntries={[`/deliveries/${active ? 'runs' : 'history'}${search}`]}><Routes>
+    <Route path="/deliveries/runs" element={<DeliveryRunsHub />} />
+    <Route path="/deliveries/history" element={direct ? <DeliveryRunsHub history /> : <DeliveriesHub initialTab="history" />} />
+  </Routes></MemoryRouter></QueryClientProvider>)
   return client
 }
 async function openTrips() {
@@ -140,6 +145,7 @@ it('shows actual departure first and does not turn a cancelled trip schedule int
   await completed.findByText('Ana Cruz')
   await completed.findByText('ABC-123')
   expect(completed.getByText('2')).toBeTruthy()
+  expect(completed.getByText('2 / 2 results recorded')).toBeTruthy()
   expect(screen.getByRole('button', { name: 'TRIP-31' }).closest('tr')!.querySelector('time')?.getAttribute('datetime')).toBe(trips[0].dispatchedAt)
   await userEvent.click(screen.getByRole('button', { name: 'Next page' }))
   const cancelled = within((await screen.findByRole('button', { name: 'TRIP-32' })).closest('tr')!)
@@ -226,7 +232,8 @@ it('does not fetch or expose trip records for unauthorized users', async () => {
 it('keeps an empty trip history honest and shows a retryable error on lookup failure', async () => {
   trips = []
   mount({ direct: true })
-  await screen.findByText('No historical trips shown on this page. Try another page or change the filters.')
+  await screen.findByText('No past trips found')
+  expect(screen.getByText('Completed and cancelled trips will appear here.')).toBeTruthy()
   failure = '/delivery-runs'
   fireEvent.change(screen.getByRole('textbox', { name: 'Search delivery trips' }), { target: { value: 'missing' } })
   await screen.findByText(/The service is temporarily offline/)
@@ -242,9 +249,127 @@ it('shows loading without claiming a confirmed empty history', async () => {
   gate = new Promise<void>((resolve) => { release = resolve })
   mount({ direct: true })
   expect(screen.queryByText('No historical trips shown on this page. Try another page or change the filters.')).toBeNull()
+  expect(screen.queryByText('No past trips found')).toBeNull()
   await act(async () => release())
   await screen.findByRole('button', { name: 'TRIP-31' })
   expect(writes()).toHaveLength(0)
+})
+
+it('paginates and searches only active trips even when finished trips precede them in storage', async () => {
+  trips.push(trip(33, 'DRAFT'), trip(34, 'DISPATCHED'))
+  mount({ active: true })
+  await screen.findByRole('button', { name: 'TRIP-33' })
+  expect(requests.find((entry) => entry.url === '/delivery-runs')?.params.statuses).toEqual(['DRAFT', 'DISPATCHED'])
+  expect(screen.queryByRole('button', { name: 'TRIP-31' })).toBeNull()
+  expect(screen.queryByRole('button', { name: 'TRIP-32' })).toBeNull()
+  expect(screen.getByRole('button', { name: 'Review Trip' })).toBeTruthy()
+  await userEvent.click(screen.getByRole('button', { name: 'Next page' }))
+  await screen.findByRole('button', { name: 'TRIP-34' })
+  expect(screen.getByText('Dispatched')).toBeTruthy()
+  expect(screen.getByRole('button', { name: 'Record Results' })).toBeTruthy()
+  expect(requests.filter((entry) => entry.url === '/delivery-runs').at(-1)?.params.cursor).toBe('trips-next')
+  fireEvent.change(screen.getByRole('textbox', { name: 'Search delivery trips' }), { target: { value: 'TRIP-33' } })
+  await screen.findByRole('button', { name: 'TRIP-33' })
+  expect(requests.filter((entry) => entry.url === '/delivery-runs').at(-1)?.params).toMatchObject({ q: 'TRIP-33', statuses: ['DRAFT', 'DISPATCHED'] })
+  expect(requests.filter((entry) => entry.url === '/delivery-runs').at(-1)?.params.cursor).toBeUndefined()
+  expect(screen.getByText('Page 1')).toBeTruthy()
+  expect(writes()).toHaveLength(0)
+})
+
+it('limits active status choices and resets the cursor when a status is chosen', async () => {
+  trips = [trip(33, 'DRAFT'), trip(34, 'DISPATCHED')]
+  mount({ active: true })
+  await screen.findByRole('button', { name: 'TRIP-33' })
+  await userEvent.click(screen.getByRole('button', { name: 'Next page' }))
+  await screen.findByRole('button', { name: 'TRIP-34' })
+  await userEvent.click(screen.getByRole('button', { name: 'Filter by status' }))
+  await userEvent.click(screen.getByRole('combobox', { name: 'Trip status' }))
+  expect(screen.queryByRole('option', { name: 'Completed' })).toBeNull()
+  expect(screen.queryByRole('option', { name: 'Cancelled' })).toBeNull()
+  await userEvent.click(screen.getByRole('option', { name: 'Preparing' }))
+  await screen.findByRole('button', { name: 'TRIP-33' })
+  expect(requests.filter((entry) => entry.url === '/delivery-runs').at(-1)?.params.statuses).toEqual(['DRAFT'])
+  expect(requests.filter((entry) => entry.url === '/delivery-runs').at(-1)?.params.cursor).toBeUndefined()
+  expect(screen.getByText('Page 1')).toBeTruthy()
+  expect(writes()).toHaveLength(0)
+})
+
+it('shows helpful empty states and links directly between active trips and Trips history', async () => {
+  trips = []
+  mount({ active: true })
+  await screen.findByText('No active delivery trips')
+  expect(screen.getByText('Create a delivery trip or add a ready delivery to a new trip.')).toBeTruthy()
+  expect(screen.queryByRole('button', { name: 'Create Delivery Trip' })).toBeNull()
+  await userEvent.click(screen.getByRole('link', { name: 'Delivery History' }))
+  await screen.findByText('No past trips found')
+  expect(screen.getByRole('button', { name: 'Trips' }).getAttribute('aria-pressed')).toBe('true')
+  expect(requests.filter((entry) => entry.url === '/delivery-runs').at(-1)?.params.statuses).toEqual(['COMPLETED', 'CANCELLED'])
+  await userEvent.click(screen.getByRole('link', { name: 'Active Delivery Trips' }))
+  await screen.findByText('No active delivery trips')
+  expect(writes()).toHaveLength(0)
+})
+
+it('uses helpful text instead of zero-over-zero progress for a trip without deliveries', async () => {
+  trips = [{ ...trip(33, 'DRAFT'), deliveries: [] }]
+  mount({ active: true })
+  const row = within((await screen.findByRole('button', { name: 'TRIP-33' })).closest('tr')!)
+  expect(row.getByText('No deliveries added')).toBeTruthy()
+  expect(row.queryByText('0 / 0 results recorded')).toBeNull()
+})
+
+it.each(['COMPLETED', 'CANCELLED'] as const)('moves a trip to history only after backend-confirmed %s and preserves read-only details', async (status) => {
+  trips = [trip(33, status === 'COMPLETED' ? 'DISPATCHED' : 'DRAFT')]
+  const client = mount({ active: true })
+  await screen.findByRole('button', { name: 'TRIP-33' })
+  // Prime the independent history cache before changing the trip.
+  await userEvent.click(screen.getByRole('link', { name: 'Delivery History' }))
+  await screen.findByText('No past trips found')
+  await userEvent.click(screen.getByRole('link', { name: 'Active Delivery Trips' }))
+  await screen.findByRole('button', { name: 'TRIP-33' })
+  let release!: () => void
+  const confirmation = new Promise<void>((resolve) => { release = resolve })
+  const base = getAdapter(apiClient.defaults.adapter)
+  apiClient.defaults.adapter = async (config) => {
+    if (config.method === 'get') return base(config)
+    requests.push({ url: config.url!, method: config.method!, params: JSON.parse(config.data) })
+    await confirmation
+    trips[0] = { ...trips[0], revision: 5, status,
+      completedAt: status === 'COMPLETED' ? stamps.updatedAt : null,
+      cancelledAt: status === 'CANCELLED' ? stamps.updatedAt : null,
+      deliveries: trips[0].deliveries.map((member) => ({ ...member, status: status === 'COMPLETED' ? 'RECONCILED' : member.status })) }
+    const data = status === 'COMPLETED' ? { run: trips[0], delivery: outgoing[0] } : trips[0]
+    return { config, status: 200, statusText: '', headers: {}, data: structuredClone(data) }
+  }
+  const mutation = renderHook(() => ({ cancel: useCancelDeliveryRun(), complete: useReconcileRunMember() }), {
+    wrapper: ({ children }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>,
+  })
+  let saved!: Promise<unknown>
+  await act(async () => {
+    saved = status === 'CANCELLED'
+      ? mutation.result.current.cancel.mutateAsync({ id: 33, expectedRevision: 4 })
+      : mutation.result.current.complete.mutateAsync({ id: 33, deliveryId: 8, payload: { expectedRevision: 5, items: [
+          { outgoingDeliveryItemId: 800, deliveredQuantity: '6.00', returnedSellableQuantity: '1.00', returnedDamagedQuantity: '1.00', missingQuantity: '2.00', discrepancyReason: 'Damaged and missing bags' },
+        ] } })
+  })
+  await waitFor(() => expect(writes()).toHaveLength(1))
+  expect(screen.getByRole('button', { name: 'TRIP-33' })).toBeTruthy()
+  await act(async () => { release(); await saved })
+  await screen.findByText('No active delivery trips')
+  expect(screen.queryByRole('button', { name: 'TRIP-33' })).toBeNull()
+  await userEvent.click(screen.getByRole('link', { name: 'Delivery History' }))
+  await screen.findByRole('button', { name: 'TRIP-33' })
+  await userEvent.click(screen.getByRole('button', { name: 'View Trip' }))
+  const view = within(await screen.findByRole('dialog', { name: 'TRIP-33' }))
+  expect(view.getByText('OD-8')).toBeTruthy()
+  expect(view.getByText('OD-9')).toBeTruthy()
+  noOperationalControls()
+  if (status === 'COMPLETED') {
+    await userEvent.click(within(view.getByText('OD-8').closest('tr')!).getByRole('button', { name: 'View Results' }))
+    const results = within(await screen.findByRole('dialog', { name: 'OD-8' }))
+    expect(results.getByRole('table').textContent).toContain('6.00')
+    noOperationalControls()
+  }
+  expect(writes()).toHaveLength(1)
 })
 
 it('keeps absent saved result quantities distinct from recorded zero', async () => {

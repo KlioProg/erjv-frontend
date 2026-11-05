@@ -1,5 +1,6 @@
 import { getAdapter } from 'axios'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { MemoryRouter } from 'react-router'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
@@ -9,6 +10,7 @@ import { dispatchDeliveryRunApi } from '@/features/logistics/delivery-runs.api'
 import { validateRunLoad, type RunLoadRow } from '@/features/logistics/run-load-validation'
 import type { DeliveryRunRecord } from '@/features/logistics/delivery-runs.types'
 import { DispatchDeliveryModal } from './shared/DispatchDeliveryModal'
+import { DeliveryRunsHub } from './DeliveryRunsHub'
 
 const auth = vi.hoisted(() => ({ isAdmin: true, isManager: false, isStaff: false }))
 vi.mock('@/features/auth/AuthContext', () => ({ useAuth: () => auth }))
@@ -27,15 +29,15 @@ let reads: string[]
 const loaded = (name = 'Banana') =>
   screen.getByLabelText(`Quantity loaded for ${name} on OD-90`) as HTMLInputElement
 const weight = () => screen.getByLabelText('Actual total loaded weight (kg)') as HTMLInputElement
-const button = () => screen.getByRole('button', { name: /Send Trip|Sending/ })
-function mount() {
+const button = () => screen.getByRole('button', { name: /^(Review Departure|Send Trip|Sending\.\.\.)$/ })
+function mount(integrated = false) {
   const onClose = vi.fn()
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   })
   render(
     <QueryClientProvider client={client}>
-      <DispatchDeliveryModal runId={40} onClose={onClose} />
+      {integrated ? <MemoryRouter initialEntries={['/deliveries/runs?run=40']}><DeliveryRunsHub /></MemoryRouter> : <DispatchDeliveryModal runId={40} onClose={onClose} />}
     </QueryClientProvider>,
   )
   return { client, onClose }
@@ -50,6 +52,8 @@ function fill(quantity = '1.25', kg = '10.00') {
 }
 function submit() {
   fireEvent.submit(button().closest('form')!)
+  if (screen.queryByRole('button', { name: 'Send Trip' }))
+    fireEvent.submit(button().closest('form')!)
 }
 beforeEach(() => {
   auth.isAdmin = true
@@ -100,6 +104,10 @@ beforeEach(() => {
     if (config.method === 'patch') {
       const body = JSON.parse(config.data)
       writes.push({ url, body })
+      if (url.endsWith('/draft')) {
+        run = { ...run, ...body, revision: run.revision + 1 }
+        return { config, data: structuredClone(run), status: 200, statusText: '', headers: {} }
+      }
       await gate
       if (failure)
         throw {
@@ -121,7 +129,8 @@ beforeEach(() => {
         throw new Error('Run unavailable')
       if (url === '/delivery-runs/40') data = run
       else if (url === '/delivery-runs')
-        data = { items: broken === 'active driver' ? [{ id: 99 }] : [], nextCursor: null }
+        data = { items: config.params?.driverEmployeeId ? broken === 'active driver' ? [{ id: 99 }] : [] : [run], nextCursor: null }
+      else if (url === '/outgoing-deliveries') data = { items: [], nextCursor: null }
       else if (url === '/outgoing-deliveries/90')
         data = {
           id: 90,
@@ -192,7 +201,7 @@ beforeEach(() => {
           isActive: true,
           canDrive: driverAvailable,
         }
-      else if (url === '/warehouses/2') data = { id: 2, name: 'Saved warehouse', isActive: true }
+      else if (url === '/warehouses/2') data = { id: 2, name: 'Saved warehouse', isActive: broken !== 'inactive warehouse' }
       else throw new Error(`Unexpected request ${url}`)
     }
     return { config, data: structuredClone(data), status: 200, statusText: '', headers: {} }
@@ -213,6 +222,80 @@ it('loads the persisted run, member plan, exact warehouse stock and saved assign
   expect(reads).toContain('/stock-items/pair/1/2')
   expect(screen.queryByRole('combobox')).toBeNull()
   expect(writes).toHaveLength(0)
+})
+it('identifies a missing schedule without claiming that an active warehouse is inactive', async () => {
+  run.scheduledDepartureAt = null
+  mount()
+  await screen.findByText('Set a departure date and time.')
+  expect(screen.queryByText('The source warehouse is inactive.')).toBeNull()
+  expect(button().hasAttribute('disabled')).toBe(true)
+  expect(writes).toHaveLength(0)
+})
+it('reports an inactive warehouse separately from the recorded schedule and assigned deliveries', async () => {
+  broken = 'inactive warehouse'
+  mount()
+  await screen.findByText('The source warehouse is inactive.')
+  expect(screen.queryByText('Set a departure date and time.')).toBeNull()
+  expect(screen.queryByText('Add at least one delivery.')).toBeNull()
+  expect(button().hasAttribute('disabled')).toBe(true)
+  expect(writes).toHaveLength(0)
+})
+it('identifies a trip with no member deliveries', async () => {
+  run.deliveries = []
+  mount()
+  await screen.findByText('Add at least one delivery.')
+  expect(writes).toHaveLength(0)
+})
+it('explains zero stock and permits a partial load of another stocked product in the same delivery', async () => {
+  available = '0.00'
+  const { onClose } = mount()
+  await ready()
+  expect(screen.getByText('Banana: No stock available at this warehouse.')).toBeTruthy()
+  fill('0')
+  fireEvent.change(loaded('Mango'), { target: { value: '1.00' } })
+  submit()
+  await waitFor(() => expect(onClose).toHaveBeenCalledOnce())
+  expect((writes[0].body.loads as { items: unknown[] }[])[0].items).toEqual([
+    { salesOrderItemId: 20, stockItemId: 302, loadedQuantity: '1.00' },
+  ])
+})
+it('requires review before Send Trip and invalidates that review when an entered quantity changes', async () => {
+  mount()
+  await ready()
+  fill()
+  fireEvent.click(screen.getByRole('button', { name: 'Review Departure' }))
+  expect(screen.getByRole('button', { name: 'Send Trip' })).toBeTruthy()
+  expect(writes).toHaveLength(0)
+  fireEvent.change(loaded(), { target: { value: '2.00' } })
+  expect(screen.queryByRole('button', { name: 'Send Trip' })).toBeNull()
+  expect(screen.getByRole('button', { name: 'Review Departure' })).toBeTruthy()
+})
+it('sets the departure through the existing trip editor and returns with fresh data and load entries intact', async () => {
+  run.scheduledDepartureAt = null
+  mount(true)
+  const user = userEvent.setup()
+  await user.click(await screen.findByRole('button', { name: 'Review Departure' }))
+  await screen.findByRole('dialog', { name: 'Confirm Departure?' })
+  await screen.findByText('Set a departure date and time.')
+  fill()
+  await user.click(screen.getByRole('button', { name: 'Set Departure' }))
+  const editor = within(await screen.findByRole('dialog', { name: 'Edit RUN-40' }))
+  expect(screen.getAllByRole('dialog')).toHaveLength(1)
+  fireEvent.change(document.getElementById('run-departure')!, { target: { value: '2026-11-06' } })
+  fireEvent.change(editor.getByLabelText('Scheduled Departure time'), { target: { value: '9:30' } })
+  await user.click(editor.getByRole('combobox', { name: 'Scheduled Departure AM or PM' }))
+  await user.click(screen.getByRole('option', { name: 'AM' }))
+  await user.click(editor.getByRole('button', { name: 'Save Trip' }))
+  await screen.findByRole('dialog', { name: 'Confirm Departure?' })
+  await waitFor(() => expect(button().hasAttribute('disabled')).toBe(false))
+  expect(run.scheduledDepartureAt).toBe('2026-11-06T01:30:00.000Z')
+  expect(screen.queryByText('Not scheduled')).toBeNull()
+  expect(loaded().value).toBe('1.25')
+  expect(weight().value).toBe('10.00')
+  expect(writes.map((entry) => entry.url)).toEqual(['/delivery-runs/40/draft'])
+  submit()
+  await screen.findByRole('dialog', { name: 'Delivery Trip RUN-40' })
+  expect(writes[1]).toMatchObject({ url: '/delivery-runs/40/dispatch', body: { expectedRevision: 3, loadedWeightKg: '10.00' } })
 })
 it('serializes one run departure with run and member revisions, measured weight and partial loads', async () => {
   await dispatchDeliveryRunApi(40, {
@@ -381,7 +464,7 @@ it.each([400, 403, 404, 409, 'network'] as const)(
     expect(writes).toHaveLength(1)
     expect(onClose).not.toHaveBeenCalled()
     failure = undefined
-    fireEvent.click(screen.getByRole('button', { name: 'Refresh trip and review current data' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh trip data' }))
     await waitFor(() => expect(button().hasAttribute('disabled')).toBe(false))
     submit()
     await waitFor(() => expect(onClose).toHaveBeenCalledOnce())
@@ -396,7 +479,7 @@ it('never retries an uncertain departure when refresh shows the run already disp
   submit()
   await waitFor(() => expect(button().hasAttribute('disabled')).toBe(true))
   run.status = 'DISPATCHED'
-  fireEvent.click(screen.getByRole('button', { name: 'Refresh trip and review current data' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Refresh trip data' }))
   expect(await screen.findByText(/This trip is not in Preparing status/)).toBeTruthy()
   expect(writes).toHaveLength(1)
   expect(onClose).not.toHaveBeenCalled()
@@ -419,7 +502,7 @@ it('recovers a run load failure by explicit refresh', async () => {
   expect(await screen.findByText(/Run unavailable/)).toBeTruthy()
   expect(writes).toHaveLength(0)
   broken = undefined
-  fireEvent.click(screen.getByRole('button', { name: 'Refresh trip and review current data' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Refresh trip data' }))
   await ready()
 })
 it('requires reviewed member revisions after an updated run is fetched', async () => {
@@ -440,7 +523,7 @@ it('preserves explicit quantities after current stock falls instead of clamping'
   await ready()
   fill('2.25')
   available = '1.00'
-  fireEvent.click(screen.getByRole('button', { name: 'Refresh trip and review current data' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Refresh trip data' }))
   await waitFor(() => expect(button().hasAttribute('disabled')).toBe(false))
   submit()
   expect((await screen.findByRole('alert')).textContent).toMatch(/Combined loads exceed/)

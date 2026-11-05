@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -14,8 +15,25 @@ import { DataTable } from '@/components/ui/data-table'
 import { useOutgoingDispatch } from '@/features/logistics/use-outgoing-dispatch'
 import { formatStockCents, parseStockCents } from '@/features/logistics/stock-display'
 
-export function DispatchDeliveryModal({ runId, onClose }: { runId: number; onClose: () => void }) {
+export function DispatchDeliveryModal({
+  runId,
+  onClose,
+  onSetDeparture,
+  reviewRequest = 0,
+}: {
+  runId: number
+  onClose: () => void
+  onSetDeparture?: () => void
+  reviewRequest?: number
+}) {
   const form = useOutgoingDispatch(runId, onClose)
+  const refresh = useRef(form.refresh)
+  useEffect(() => {
+    refresh.current = form.refresh
+  }, [form.refresh])
+  useEffect(() => {
+    if (reviewRequest > 0) void refresh.current()
+  }, [reviewRequest])
   return (
     <Dialog open onOpenChange={(open) => !open && !form.busy && onClose()}>
       <DialogContent
@@ -57,9 +75,26 @@ export function DispatchDeliveryModal({ runId, onClose }: { runId: number; onClo
               <div>
                 <dt className="text-xs text-muted-foreground">Departure</dt>
                 <dd>
-                  {form.run?.scheduledDepartureAt
-                    ? new Date(form.run.scheduledDepartureAt).toLocaleString('en-PH', { timeZone: 'Asia/Manila' })
-                    : 'Not scheduled'}
+                  {!form.run
+                    ? 'Unavailable'
+                    : form.run.scheduledDepartureAt
+                      ? new Date(form.run.scheduledDepartureAt).toLocaleString('en-PH', { timeZone: 'Asia/Manila' })
+                      : (
+                      <span className="flex flex-wrap items-center gap-x-2">
+                        <span>Not scheduled</span>
+                        {onSetDeparture && (
+                          <Button
+                            type="button"
+                            variant="link"
+                            className="h-auto p-0"
+                            disabled={form.busy || form.fetching}
+                            onClick={onSetDeparture}
+                          >
+                            Set Departure
+                          </Button>
+                        )}
+                      </span>
+                      )}
                 </dd>
               </div>
               <div>

@@ -184,7 +184,12 @@ export function ScheduleIncomingDeliveryModal({
     ? selectedPO.supplierId == null
       ? 'No supplier'
       : supplierMap.get(selectedPO.supplierId)?.name || `Supplier #${selectedPO.supplierId}`
-    : 'No supplier'
+    : undefined
+  const noEligiblePurchaseOrders =
+    !purchaseLookup.isPending &&
+    !purchaseLookup.isError &&
+    eligiblePOs.length === 0 &&
+    !purchaseLookup.hasNextPage
 
   return (
     <DeliveryFormDialog
@@ -193,6 +198,7 @@ export function ScheduleIncomingDeliveryModal({
       busy={isSubmitting}
       title="Schedule Arrival"
       description="Choose a purchase order and receiving warehouse. Actual counts are confirmed when goods arrive."
+      contentClassName={deliveryFormStyles.naturalDialog}
     >
       <form onSubmit={handleSubmit} className={deliveryFormStyles.form}>
         <div className={deliveryFormStyles.body}>
@@ -256,11 +262,11 @@ export function ScheduleIncomingDeliveryModal({
 
               <div className={deliveryFormStyles.field}>
                 <Label htmlFor="incoming-warehouse" className={deliveryFormStyles.label}>
-                  Destination Warehouse <span className="text-primary">*</span>
+                  Receiving Warehouse <span className="text-primary">*</span>
                 </Label>
                 <CursorLookup<Warehouse>
                   id="incoming-warehouse" path="/warehouses" filter={{ includeInactive: 'false' }}
-                  label="warehouse" ariaLabel="Destination Warehouse" value={selectedWarehouseId}
+                  label="warehouse" ariaLabel="Receiving Warehouse" value={selectedWarehouseId}
                   onChange={setSelectedWarehouseId} getLabel={(warehouse) => warehouse.name}
                   selectedLabel={warehouseQuery.data?.name} accept={(warehouse) => warehouse.isActive}
                   disabled={isSubmitting || needsReview} className={deliveryFormStyles.control}
@@ -271,20 +277,21 @@ export function ScheduleIncomingDeliveryModal({
               </div>
             </div>
 
-            <div className={deliveryFormStyles.grid}>
-              <div className={deliveryFormStyles.field}>
-                <Label htmlFor="sched-date" className={deliveryFormStyles.label}>
-                  Expected Arrival Date & Time
-                </Label>
-                <LogisticsDateTimeInput key={selectedPOId} id="sched-date" label="Expected Arrival Date & Time" value={scheduledAt}
-                  onChange={(value) => setArrival({ orderId: selectedPOId, value })} disabled={isSubmitting || needsReview} describedBy="arrival-help" />
-                <p id="arrival-help" className="text-xs text-muted-foreground">
-                  {scheduledAt && arrival?.orderId !== selectedPOId
-                    ? 'From the purchase order. Change or clear it if needed.'
-                    : 'Optional. Leave blank if the supplier has not confirmed an arrival time.'}
-                </p>
-              </div>
-
+            <fieldset
+              aria-label="Arrival schedule and supplier reference"
+              disabled={isSubmitting || needsReview}
+              className={deliveryFormStyles.arrivalGrid}
+            >
+              <LogisticsDateTimeInput
+                key={selectedPOId}
+                id="sched-date"
+                label="Arrival"
+                value={scheduledAt}
+                onChange={(value) => setArrival({ orderId: selectedPOId, value })}
+                disabled={isSubmitting || needsReview}
+                describedBy="arrival-help"
+                compact
+              />
               <div className={deliveryFormStyles.field}>
                 <Label htmlFor="supplier-ref" className={deliveryFormStyles.label}>
                   Supplier Reference (optional)
@@ -297,28 +304,44 @@ export function ScheduleIncomingDeliveryModal({
                   className={deliveryFormStyles.control}
                 />
               </div>
-            </div>
+              <p id="arrival-help" className="col-span-full text-xs text-muted-foreground">
+                {scheduledAt && arrival?.orderId !== selectedPOId
+                  ? 'From the purchase order. Change or clear it if needed. Manila time.'
+                  : 'Optional. Leave blank if the supplier has not confirmed an arrival time. Manila time.'}
+              </p>
+            </fieldset>
 
             {/* PO Materials Intake Breakdown */}
             <section
               className="flex min-w-0 flex-col gap-3"
               aria-label="Purchase order receiving summary"
             >
-              <p className={deliveryFormStyles.sectionTitle}>Purchase order summary</p>
-              <p className="text-xs text-muted-foreground">
-                Supplier: {selectedSupplierName}. This schedules the delivery only. Enter actual
-                received and damaged counts in Receive Goods.
-              </p>
+              <p className={deliveryFormStyles.sectionTitle}>Purchase Order Summary</p>
+              {selectedPO && (
+                <p className="text-xs text-muted-foreground">
+                  Supplier: {selectedSupplierName}. This schedules the delivery only. Enter actual
+                  received and damaged counts in Receive Goods.
+                </p>
+              )}
               {lines.length === 0 ? (
-                <div role="status" className={deliveryFormStyles.empty}>
-                  {unavailable
-                    ? 'Incoming delivery balances are unavailable.'
-                    : eligiblePOs.length === 0 && !purchaseLookup.hasNextPage
-                      ? 'No purchase orders have remaining quantities to arrange. Review existing Incoming Deliveries.'
-                      : selectedPOId
-                        ? 'This purchase order is no longer available to arrange. Choose another purchase order.'
-                        : 'Select an order to view its remaining quantities.'}
-                </div>
+                noEligiblePurchaseOrders ? (
+                  <div role="status" className={deliveryFormStyles.empty}>
+                    No purchase orders have remaining quantities to arrange. Review existing
+                    Incoming Deliveries.
+                  </div>
+                ) : !selectedPOId ? (
+                  <p role="status" className="text-xs text-muted-foreground">
+                    Select a purchase order to view its supplier and remaining items.
+                  </p>
+                ) : (
+                  <div role="status" className={deliveryFormStyles.empty}>
+                    {unavailable
+                      ? balanceFailed
+                        ? 'Incoming delivery balances are unavailable.'
+                        : 'Loading supplier and remaining items...'
+                      : 'This purchase order is no longer available to arrange. Choose another purchase order.'}
+                  </div>
+                )
               ) : (
                 <DataTable
                   data={lines}
@@ -328,19 +351,19 @@ export function ScheduleIncomingDeliveryModal({
                   tableClassName="min-w-[560px] w-full table-fixed"
                 />
               )}
+              <div className={deliveryFormStyles.field}>
+                <Label htmlFor="intake-notes" className={deliveryFormStyles.label}>
+                  Notes (optional)
+                </Label>
+                <Input
+                  id="intake-notes"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="e.g. Inspect bags for tearing, check expiration codes, etc."
+                  className={deliveryFormStyles.control}
+                />
+              </div>
             </section>
-            <div className={deliveryFormStyles.field}>
-              <Label htmlFor="intake-notes" className={deliveryFormStyles.label}>
-                Notes (optional)
-              </Label>
-              <Input
-                id="intake-notes"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="e.g. Inspect bags for tearing, check expiration codes, etc."
-                className={deliveryFormStyles.control}
-              />
-            </div>
           </fieldset>
         </div>
         <DeliveryFormFooter>

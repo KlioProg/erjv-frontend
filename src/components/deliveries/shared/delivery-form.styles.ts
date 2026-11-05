@@ -7,13 +7,16 @@ export const deliveryFormStyles = {
 
   dialog:
     'flex h-[min(880px,90dvh)] min-h-0 max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] flex-col gap-4 overflow-hidden p-6 sm:max-w-3xl [&>button:last-child]:grid [&>button:last-child]:size-8 [&>button:last-child]:place-items-center pointer-coarse:[&>button:last-child]:size-11',
+  naturalDialog: 'h-auto',
   header: 'shrink-0 gap-1.5 pr-8 text-left',
   title: 'text-xl font-semibold leading-6 [overflow-wrap:anywhere]',
   description: 'text-xs leading-5',
   form: 'grid min-h-0 min-w-0 flex-1 grid-rows-[minmax(0,1fr)_auto] gap-4',
-  body: 'min-h-0 min-w-0 overflow-y-auto overscroll-contain [scrollbar-gutter:stable]',
+  body: 'min-h-0 min-w-0 overflow-y-auto overscroll-contain',
   fields: 'flex min-w-0 flex-col gap-4',
   grid: 'grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2',
+  arrivalGrid:
+    'grid min-w-0 grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2 md:grid-cols-[minmax(0,1.05fr)_minmax(11rem,0.8fr)_minmax(0,1.15fr)]',
   field: 'flex min-w-0 flex-col gap-1.5',
   label: 'text-[13px] font-medium leading-5',
   control: 'h-10 min-w-0 text-[13px] sm:h-10 pointer-coarse:h-11 sm:pointer-coarse:h-11',

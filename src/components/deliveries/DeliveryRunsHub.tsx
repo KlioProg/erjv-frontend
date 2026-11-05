@@ -4,7 +4,8 @@ import { useResourcePage } from '@/lib/use-cursor-page'
 import { DeliveryHeaderFilter } from './DeliveryHeaderFilter'
 import { DeliveryTableToolbar, DeliveryPageFooter } from './DeliveryTableToolbar'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { useSearchParams } from 'react-router'
+import { Link, useSearchParams } from 'react-router'
+import { ROUTES } from '@/routes'
 import { toast } from 'sonner'
 import { useRecordsById } from '@/lib/use-records-by-id'
 import { RUN_STATUS_LABELS } from '@/features/logistics/delivery-workflow'
@@ -32,6 +33,7 @@ import {
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -59,7 +61,7 @@ import { RunDeliveryPicker } from './RunDeliveryPicker'
 import { DispatchDeliveryModal } from './shared/DispatchDeliveryModal'
 import { CompleteDeliveryModal } from './shared/CompleteDeliveryModal'
 
-const statuses: DeliveryRunStatus[] = ['DRAFT', 'DISPATCHED', 'COMPLETED', 'CANCELLED']
+const activeStatuses: DeliveryRunStatus[] = ['DRAFT', 'DISPATCHED']
 const historyStatuses: DeliveryRunStatus[] = ['COMPLETED', 'CANCELLED']
 
 function RunStatusBadge({ status }: { status: DeliveryRunStatus }) {
@@ -138,10 +140,10 @@ export function DeliveryRunsHub({ history = false }: { history?: boolean }) {
   const [vehicleFilter, setVehicleFilter] = useState('')
   const [scheduledFrom, setScheduledFrom] = useState('')
   const [scheduledThrough, setScheduledThrough] = useState('')
+  const statuses = history ? historyStatuses : activeStatuses
   const query = useResourcePage<DeliveryRunRecord>('/delivery-runs', {
     ...(q.trim() ? { q: q.trim() } : {}),
-    ...(history ? { statuses: status === 'ALL' ? historyStatuses : [status as DeliveryRunStatus] }
-      : status !== 'ALL' ? { statuses: [status as DeliveryRunStatus] } : {}),
+    statuses: statuses.includes(status as DeliveryRunStatus) ? [status as DeliveryRunStatus] : statuses,
     ...(warehouseFilter ? { warehouseId: Number(warehouseFilter) } : {}),
     ...(driverFilter ? { driverEmployeeId: Number(driverFilter) } : {}),
     ...(vehicleFilter ? { deliveryVehicleId: Number(vehicleFilter) } : {}),
@@ -307,12 +309,14 @@ export function DeliveryRunsHub({ history = false }: { history?: boolean }) {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="ALL">All statuses</SelectItem>
-            {(history ? historyStatuses : statuses).map((value) => (
-              <SelectItem key={value} value={value}>
-                {RUN_STATUS_LABELS[value]}
-              </SelectItem>
-            ))}
+            <SelectGroup>
+              <SelectItem value="ALL">All statuses</SelectItem>
+              {statuses.map((value) => (
+                <SelectItem key={value} value={value}>
+                  {RUN_STATUS_LABELS[value]}
+                </SelectItem>
+              ))}
+            </SelectGroup>
           </SelectContent>
         </Select>
       </DeliveryHeaderFilter>
@@ -363,8 +367,16 @@ export function DeliveryRunsHub({ history = false }: { history?: boolean }) {
       header: history ? 'Deliveries' : 'Delivery Progress',
       className: 'hidden sm:table-cell',
       headerClassName: 'hidden sm:table-cell',
-      cell: ({ row }) =>
-        history ? row.deliveries.length : `${row.deliveries.filter((member) => member.status === 'RECONCILED').length} / ${row.deliveries.length} results recorded`,
+      cell: ({ row }) => (
+        <div>
+          {history && <p>{row.deliveries.length}</p>}
+          <p className={history ? 'text-xs text-muted-foreground' : undefined}>
+            {row.deliveries.length
+              ? `${row.deliveries.filter((member) => member.status === 'RECONCILED').length} / ${row.deliveries.length} results recorded`
+              : 'No deliveries added'}
+          </p>
+        </div>
+      ),
     },
     {
       header: filterHeaders.status,
@@ -403,6 +415,13 @@ export function DeliveryRunsHub({ history = false }: { history?: boolean }) {
         {hasFilters && (
           <Button variant="ghost" size="sm" onClick={clearFilters}>
             Clear filters
+          </Button>
+        )}
+        {canViewHistory && (
+          <Button variant="outline" size="sm" asChild>
+            <Link to={history ? ROUTES.deliveryRuns : `${ROUTES.deliveryHistory}?tab=trips`}>
+              {history ? 'Active Delivery Trips' : 'Delivery History'}
+            </Link>
           </Button>
         )}
         {!history && (isAdmin || isManager) && (
@@ -445,7 +464,16 @@ export function DeliveryRunsHub({ history = false }: { history?: boolean }) {
             pagination={false}
             manualSorting
             getRowKey={(run) => run.id}
-            emptyContent={history ? 'No historical trips shown on this page. Try another page or change the filters.' : 'No delivery trips match these filters.'}
+            emptyContent={hasFilters || query.hasPrevious || query.hasNext || query.items.length ? (
+              history ? 'No historical trips shown on this page. Try another page or change the filters.' : 'No active delivery trips match these filters.'
+            ) : (
+              <div className="flex flex-col gap-1">
+                <p className="font-medium">{history ? 'No past trips found' : 'No active delivery trips'}</p>
+                <p className="text-sm text-muted-foreground">
+                  {history ? 'Completed and cancelled trips will appear here.' : 'Create a delivery trip or add a ready delivery to a new trip.'}
+                </p>
+              </div>
+            )}
           />
         )}
         <DeliveryPageFooter query={query} count={runs.length} unit="trip" label="Trip" />
@@ -526,6 +554,11 @@ function RunEditor({
   const [review, setReview] = useState(false)
   const [savedTripId, setSavedTripId] = useState<number>()
   const selection = useRunDeliverySelection(Number(warehouseId) || undefined)
+  const warehouseLocked = !!run?.deliveries.length || !!initialDelivery
+  const fixedWarehouse = useRecordsById<NamedRecord>(
+    '/warehouses',
+    [warehouseLocked ? Number(warehouseId) || undefined : undefined],
+  )
   const seeded = useRef(false)
   useEffect(() => {
     if (initialDelivery && !seeded.current) {
@@ -543,10 +576,14 @@ function RunEditor({
   }, [])
   const [saving, setSaving] = useState(false)
   const busy = saving || create.isPending || update.isPending
+  const [warehouseError, setWarehouseError] = useState('')
   async function submit(event: FormEvent) {
     event.preventDefault()
     if (submitting.current || busy || review) return
-    if (!warehouseId) return setError('Choose an active warehouse.')
+    if (!warehouseId) {
+      setWarehouseError('Choose an active warehouse.')
+      return
+    }
     submitting.current = true
     setSaving(true)
     try {
@@ -614,119 +651,175 @@ function RunEditor({
   }
   return (
     <Dialog open onOpenChange={(open) => !open && !busy && onClose()}>
-      <DialogContent closeDisabled={busy} className="max-h-[90dvh] gap-4 overflow-y-auto sm:max-w-3xl">
+      <DialogContent
+        closeDisabled={busy}
+        className="flex h-auto min-h-0 max-h-[calc(100dvh-2rem)] flex-col gap-4 overflow-hidden sm:max-w-3xl"
+      >
         <DialogHeader>
           <DialogTitle>{run ? `Edit ${run.runNumber}` : 'Create Delivery Trip'}</DialogTitle>
           <DialogDescription>
-            Driver, vehicle, and scheduled departure apply to every delivery in this trip. Choose
-            ready deliveries now or add them after saving.
+            Choose a warehouse, schedule, transport, and deliveries for this trip.
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={(event) => void submit(event)} className="flex flex-col gap-3">
-          {error && (
-            <Alert variant="destructive">
-              <AlertDescription>
-                {error}
-                {review &&
-                  ' Close and reopen the latest trip to review before submitting again. Your input remains here.'}
-              </AlertDescription>
-            </Alert>
-          )}
-          <fieldset disabled={busy || review} className="grid min-w-0 gap-3 sm:grid-cols-2">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="run-warehouse">Warehouse</Label>
-              <CursorLookup<NamedRecord>
-                id="run-warehouse"
-                path="/warehouses"
-                value={warehouseId}
-                label="Warehouse"
-                getLabel={(warehouse) => warehouse.name}
-                disabled={!!run?.deliveries.length || !!initialDelivery}
-                onChange={setWarehouseId}
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="run-departure">Scheduled departure</Label>
-              <LogisticsDateTimeInput id="run-departure" label="Scheduled departure" value={departure} onChange={setDeparture} disabled={busy || review} />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <div className="flex min-h-6 items-center justify-between gap-2">
-                <Label htmlFor="run-driver">Eligible available driver</Label>
-                {driverId && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 px-1 text-xs"
-                    aria-label="Clear driver"
-                    onClick={() => setDriverId('')}
-                  >
-                    Clear
-                  </Button>
+        <form
+          onSubmit={(event) => void submit(event)}
+          className="flex min-h-0 min-w-0 flex-1 flex-col gap-3"
+        >
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+            <div className="flex flex-col gap-4">
+              {error && (
+                <Alert variant="destructive">
+                  <AlertDescription>
+                    {error}
+                    {review &&
+                      ' Close and reopen the latest trip to review before submitting again. Your input remains here.'}
+                  </AlertDescription>
+                </Alert>
+              )}
+              <fieldset disabled={busy || review} className="flex min-w-0 flex-col gap-4">
+                <div className="grid min-w-0 gap-4 sm:grid-cols-2">
+                  <div className="flex min-w-0 flex-col gap-1.5">
+                    <Label
+                      id="run-warehouse-label"
+                      htmlFor={warehouseLocked ? undefined : 'run-warehouse'}
+                    >
+                      Warehouse {!warehouseLocked && <span className="text-primary">*</span>}
+                    </Label>
+                    {warehouseLocked ? (
+                      <output
+                        id="run-warehouse"
+                        aria-labelledby="run-warehouse-label"
+                        className="flex h-10 min-w-0 items-center rounded-md border border-input bg-muted/40 px-3 text-sm"
+                      >
+                        {fixedWarehouse.data[0]?.name ?? `Warehouse #${warehouseId}`}
+                      </output>
+                    ) : (
+                      <CursorLookup<NamedRecord>
+                        id="run-warehouse"
+                        path="/warehouses"
+                        value={warehouseId}
+                        label="Warehouse"
+                        getLabel={(warehouse) => warehouse.name}
+                        error={warehouseError}
+                        onChange={(value) => {
+                          setWarehouseId(value)
+                          setWarehouseError('')
+                        }}
+                      />
+                    )}
+                    {warehouseLocked ? (
+                      <p className="text-xs text-muted-foreground">
+                        {initialDelivery
+                          ? 'Fixed by the selected outgoing delivery.'
+                          : 'Fixed by the deliveries in this trip.'}
+                      </p>
+                    ) : null}
+                    {warehouseLocked && fixedWarehouse.isError && (
+                      <p role="alert" className="text-xs text-destructive">
+                        Warehouse name could not be loaded. The trip warehouse is #{warehouseId}.
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex min-w-0 flex-col gap-1.5">
+                    <LogisticsDateTimeInput
+                      id="run-departure"
+                      label="Scheduled Departure"
+                      value={departure}
+                      onChange={setDeparture}
+                      disabled={busy || review}
+                      compact
+                      inline
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Optional · Asia/Manila time
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid min-w-0 gap-4 sm:grid-cols-2">
+                  <div className="flex min-w-0 flex-col gap-1.5">
+                    <div className="flex min-h-5 items-center justify-between gap-2">
+                      <Label htmlFor="run-driver">Driver</Label>
+                      {driverId && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-5 px-1 text-[11px]"
+                          aria-label="Clear driver"
+                          onClick={() => setDriverId('')}
+                        >
+                          Clear
+                        </Button>
+                      )}
+                    </div>
+                    <CursorLookup<DriverRecord>
+                      id="run-driver"
+                      path="/employees"
+                      filter={{ canDrive: 'true', available: 'true' }}
+                      value={driverId}
+                      label="Driver"
+                      getLabel={(driver) => `${driver.firstName} ${driver.lastName}`}
+                      accept={(driver) => driver.canDrive && driver.isActive}
+                      onChange={setDriverId}
+                    />
+                  </div>
+                  <div className="flex min-w-0 flex-col gap-1.5">
+                    <div className="flex min-h-5 items-center justify-between gap-2">
+                      <Label htmlFor="run-vehicle">Vehicle</Label>
+                      {vehicleId && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-5 px-1 text-[11px]"
+                          aria-label="Clear vehicle"
+                          onClick={() => setVehicleId('')}
+                        >
+                          Clear
+                        </Button>
+                      )}
+                    </div>
+                    <CursorLookup<VehicleRecord>
+                      id="run-vehicle"
+                      path="/delivery-vehicles/available"
+                      value={vehicleId}
+                      label="Vehicle"
+                      getLabel={(vehicle) =>
+                        `${vehicle.plateNumber} · ${vehicle.capacityKg ?? 'Capacity not set'} kg`
+                      }
+                      accept={(vehicle) =>
+                        vehicle.isAvailable && vehicle.operationalStatus === 'SERVICEABLE'
+                      }
+                      onChange={setVehicleId}
+                    />
+                  </div>
+                </div>
+
+                {!run && (
+                  <RunDeliveryPicker
+                    selection={selection}
+                    warehouseId={Number(warehouseId) || undefined}
+                    disabled={busy || review}
+                    heading="Deliveries in This Trip"
+                    scrollSelected={false}
+                  />
                 )}
-              </div>
-              <CursorLookup<DriverRecord>
-                id="run-driver"
-                path="/employees"
-                filter={{ canDrive: 'true', available: 'true' }}
-                value={driverId}
-                label="Driver"
-                getLabel={(driver) => `${driver.firstName} ${driver.lastName}`}
-                accept={(driver) => driver.canDrive && driver.isActive}
-                onChange={setDriverId}
-              />
+
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="run-notes">Notes (optional)</Label>
+                  <Textarea
+                    id="run-notes"
+                    rows={2}
+                    className="min-h-14 resize-y text-sm focus-visible:ring-2 focus-visible:ring-ring"
+                    value={notes}
+                    onChange={(event) => setNotes(event.target.value)}
+                  />
+                </div>
+              </fieldset>
             </div>
-            <div className="flex flex-col gap-1.5">
-              <div className="flex min-h-6 items-center justify-between gap-2">
-                <Label htmlFor="run-vehicle">Available vehicle</Label>
-                {vehicleId && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 px-1 text-xs"
-                    aria-label="Clear vehicle"
-                    onClick={() => setVehicleId('')}
-                  >
-                    Clear
-                  </Button>
-                )}
-              </div>
-              <CursorLookup<VehicleRecord>
-                id="run-vehicle"
-                path="/delivery-vehicles/available"
-                value={vehicleId}
-                label="Vehicle"
-                getLabel={(vehicle) =>
-                  `${vehicle.plateNumber} · ${vehicle.capacityKg ?? 'Capacity not set'} kg`
-                }
-                accept={(vehicle) =>
-                  vehicle.isAvailable && vehicle.operationalStatus === 'SERVICEABLE'
-                }
-                onChange={setVehicleId}
-              />
-            </div>
-            <div className="flex flex-col gap-1.5 sm:col-span-2">
-              <Label htmlFor="run-notes">Notes</Label>
-              <Textarea
-                id="run-notes"
-                rows={2}
-                className="min-h-14 resize-y focus-visible:ring-2 focus-visible:ring-ring"
-                value={notes}
-                onChange={(event) => setNotes(event.target.value)}
-              />
-            </div>
-            {!run && (
-              <div className="sm:col-span-2">
-                <RunDeliveryPicker
-                  selection={selection}
-                  warehouseId={Number(warehouseId) || undefined}
-                  disabled={busy || review}
-                />
-              </div>
-            )}
-          </fieldset>
-          <DialogFooter>
+          </div>
+          <DialogFooter className="shrink-0 border-t border-border pt-3">
             {savedTripId && onReview && (
               <Button type="button" variant="outline" disabled={busy} onClick={() => {
                 onClose()
@@ -736,10 +829,10 @@ function RunEditor({
               </Button>
             )}
             <Button type="button" variant="outline" disabled={busy} onClick={onClose}>
-              Close
+              Cancel
             </Button>
             <Button disabled={busy || review || (!run && !selection.canSave)}>
-              {busy ? 'Saving…' : 'Save Trip'}
+              {busy ? 'Saving…' : run ? 'Save Trip' : 'Create Trip'}
             </Button>
           </DialogFooter>
         </form>
@@ -763,7 +856,9 @@ function RunDetails({ id, onClose, readOnly = false }: { id: number; onClose: ()
   const cancelMember = useCancelRunMember()
   const cancelRun = useCancelDeliveryRun()
   const [editing, setEditing] = useState<DeliveryRunRecord>()
+  const [editingDeparture, setEditingDeparture] = useState(false)
   const [dispatching, setDispatching] = useState(false)
+  const [dispatchReviewRequest, setDispatchReviewRequest] = useState(0)
   const [reconcileId, setReconcileId] = useState<number>()
   const [resultsFeedback, setResultsFeedback] = useState('')
   const nextDelivery = run?.deliveries.find((member) => member.status === 'DISPATCHED')
@@ -1075,14 +1170,35 @@ function RunDetails({ id, onClose, readOnly = false }: { id: number; onClose: ()
         </DialogContent>
       </Dialog>
       {viewDeliveryId && <DeliveryDetailModal deliveryId={viewDeliveryId} open onClose={() => setViewDeliveryId(undefined)} />}
+      {!readOnly && dispatching && (
+        <DispatchDeliveryModal
+          runId={id}
+          reviewRequest={dispatchReviewRequest}
+          onClose={() => setDispatching(false)}
+          onSetDeparture={canManage && run
+            ? () => {
+                setEditingDeparture(true)
+                setEditing(run)
+              }
+            : undefined}
+        />
+      )}
       {!readOnly && editing && (
         <RunEditor
           run={editing}
-          onClose={() => setEditing(undefined)}
-          onSaved={() => setEditing(undefined)}
+          onClose={() => {
+            setEditing(undefined)
+            setEditingDeparture(false)
+          }}
+          onSaved={() => {
+            setEditing(undefined)
+            if (editingDeparture) {
+              setEditingDeparture(false)
+              setDispatchReviewRequest((request) => request + 1)
+            }
+          }}
         />
       )}
-      {!readOnly && dispatching && <DispatchDeliveryModal runId={id} onClose={() => setDispatching(false)} />}
       {!readOnly && reconcileId && (
         <CompleteDeliveryModal
           key={reconcileId}

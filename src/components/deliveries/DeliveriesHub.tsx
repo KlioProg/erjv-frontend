@@ -23,7 +23,7 @@ import {
 } from '@/features/logistics/delivery-workflow'
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { useNavigate } from 'react-router'
+import { useNavigate, useSearchParams } from 'react-router'
 import { ArrowDownToLine, Plus } from 'lucide-react'
 import { DeliveryTable } from './DeliveryTable'
 import { OrderDetailDrawer } from '@/components/orders/OrderDetailDrawer'
@@ -127,9 +127,10 @@ export function DeliveriesHub({
   const { isAdmin, isManager } = useAuth()
   const canManage = isAdmin || isManager
   const navigate = useNavigate()
+  const [params] = useSearchParams()
   const view: DeliveryView =
     initialTab === 'history' ? 'history' : initialTab === 'incoming' ? 'incoming' : 'outgoing'
-  const [type, setType] = useState('ALL')
+  const [type, setType] = useState(view === 'history' && params.get('tab') === 'trips' ? 'Trips' : 'ALL')
   const tripsHistory = view === 'history' && type === 'Trips'
   const [status, setStatus] = useState('ALL')
   const [warehouseId, setWarehouseId] = useState('ALL')

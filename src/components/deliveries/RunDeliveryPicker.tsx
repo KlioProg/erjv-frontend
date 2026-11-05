@@ -9,15 +9,36 @@ export function RunDeliveryPicker({
   warehouseId,
   disabled = false,
   existingIds = [],
+  heading,
+  scrollSelected = true,
 }: {
   selection: ReturnType<typeof useRunDeliverySelection>
   warehouseId?: number
   disabled?: boolean
   existingIds?: number[]
+  heading?: string
+  scrollSelected?: boolean
 }) {
   return (
-    <section className="flex min-w-0 flex-col gap-2" aria-label="Delivery selection">
-      <Label htmlFor="run-ready-delivery">Ready deliveries from this warehouse</Label>
+    <section
+      className="flex min-w-0 flex-col gap-2"
+      aria-label={heading ?? 'Delivery selection'}
+    >
+      {heading ? (
+        <div className="flex items-center justify-between gap-3">
+          <h3 className="text-sm font-semibold leading-5">{heading}</h3>
+          <p role="status" className="text-xs text-muted-foreground">
+            {selection.selected.length} selected
+            {selection.checking ? ' · Checking availability…' : ''}
+            {selection.selected.length + existingIds.length >= 100
+              ? ' · Trip limit: 100 deliveries'
+              : ''}
+          </p>
+        </div>
+      ) : (
+        <Label htmlFor="run-ready-delivery">Ready deliveries from this warehouse</Label>
+      )}
+      {heading && <Label htmlFor="run-ready-delivery">Add Delivery</Label>}
       <CursorLookup<OutgoingDeliveryRecord>
         id="run-ready-delivery"
         path="/outgoing-deliveries"
@@ -37,13 +58,10 @@ export function RunDeliveryPicker({
         }
         onChange={(_, delivery) => selection.toggle(delivery)}
       />
-      <p role="status" className="text-xs text-muted-foreground">
-        {selection.selected.length} selected{selection.checking ? ' · Checking availability…' : ''}
-        {selection.selected.length + existingIds.length >= 100
-          ? ' · Trip limit: 100 deliveries'
-          : ''}
-      </p>
-      <ul className="flex max-h-44 flex-col gap-2 overflow-y-auto" aria-label="Selected deliveries">
+      <ul
+        className={`flex flex-col gap-2${scrollSelected ? ' max-h-44 overflow-y-auto' : ''}`}
+        aria-label="Selected deliveries"
+      >
         {selection.selected.map((delivery, index) => (
           <li
             key={delivery.id}

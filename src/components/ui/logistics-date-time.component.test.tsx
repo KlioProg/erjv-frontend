@@ -5,7 +5,7 @@ import { expect, it, vi } from 'vitest'
 import { LogisticsDateTimeInput } from './LogisticsDateTimeInput'
 import { manilaScheduleToIso, toManilaSchedule } from '@/lib/manila-schedule'
 
-function mount(initial = '') {
+function mount(initial = '', compact = false, inline = false) {
   const submit = vi.fn()
   function Form() {
     const [value, setValue] = useState(initial)
@@ -16,7 +16,14 @@ function mount(initial = '') {
           submit(manilaScheduleToIso(value))
         }}
       >
-        <LogisticsDateTimeInput id="schedule" label="Schedule" value={value} onChange={setValue} />
+        <LogisticsDateTimeInput
+          id="schedule"
+          label={compact ? 'Arrival' : 'Schedule'}
+          value={value}
+          onChange={setValue}
+          compact={compact}
+          inline={inline}
+        />
         <output aria-label="Saved value">{value}</output>
         <button>Save</button>
       </form>
@@ -46,6 +53,55 @@ it.each([
     `2026-11-${period === 'AM' && hour === '12' ? '04' : '05'}T${utc}:00.000Z`,
   )
 })
+
+it.each([
+  ['9:40', 'AM', '09:40'],
+  ['10:17', 'AM', '10:17'],
+  ['12:00', 'PM', '12:00'],
+  ['12:00', 'AM', '00:00'],
+])('accepts compact time %s %s in Manila', async (time, period, hour24) => {
+  const submit = mount('', true)
+  fireEvent.change(screen.getByLabelText('Arrival Date'), { target: { value: '2026-11-05' } })
+  await userEvent.type(screen.getByLabelText('Arrival Time'), time)
+  await userEvent.click(screen.getByRole('combobox', { name: 'Arrival AM or PM' }))
+  await userEvent.click(screen.getByRole('option', { name: period }))
+  await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+  expect(submit).toHaveBeenCalledWith(manilaScheduleToIso(`2026-11-05T${hour24}`))
+})
+
+it.each([
+  ['12:00', 'AM', '00:00'],
+  ['12:00', 'PM', '12:00'],
+])('accepts inline %s %s without changing noon or midnight', async (time, period, hour24) => {
+  const submit = mount('', true, true)
+  fireEvent.change(screen.getByLabelText('Arrival date'), { target: { value: '2026-11-05' } })
+  await userEvent.type(screen.getByLabelText('Arrival time'), time)
+  await userEvent.click(screen.getByRole('combobox', { name: 'Arrival AM or PM' }))
+  await userEvent.click(screen.getByRole('option', { name: period }))
+  await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+  expect(submit).toHaveBeenCalledWith(manilaScheduleToIso(`2026-11-05T${hour24}`))
+})
+
+it('keeps compact schedules optional but requires both date and time when started', async () => {
+  const submit = mount('', true)
+  await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+  expect(submit).toHaveBeenLastCalledWith(null)
+  submit.mockClear()
+
+  fireEvent.change(screen.getByLabelText('Arrival Date'), { target: { value: '2026-11-05' } })
+  await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+  expect(submit).not.toHaveBeenCalled()
+
+  await userEvent.type(screen.getByLabelText('Arrival Time'), '10:17')
+  await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+  expect(submit).not.toHaveBeenCalled()
+
+  await userEvent.click(screen.getByRole('combobox', { name: 'Arrival AM or PM' }))
+  await userEvent.click(screen.getByRole('option', { name: 'AM' }))
+  await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+  expect(submit).toHaveBeenCalledWith(manilaScheduleToIso('2026-11-05T10:17'))
+})
+
 it('accepts every minute without a fixed interval', () => {
   for (let minute = 0; minute < 60; minute++) {
     const value = `2026-11-05T09:${String(minute).padStart(2, '0')}`
