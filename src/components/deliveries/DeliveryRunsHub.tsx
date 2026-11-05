@@ -1,7 +1,7 @@
 import { DateTimeField } from '@/components/common/DateTimeField'
 import { toManilaSchedule, manilaScheduleToIso } from '@/lib/manila-schedule'
 import { useResourcePage } from '@/lib/use-cursor-page'
-import { DeliveryHeaderFilter } from './DeliveryHeaderFilter'
+import { DataTableFilters, DataTableFilterChips, type DataTableFilter } from '@/components/ui/data-table-filters'
 import { DeliveryTableToolbar, DeliveryPageFooter } from './DeliveryTableToolbar'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, useSearchParams } from 'react-router'
@@ -167,15 +167,7 @@ export function DeliveryRunsHub({ history = false }: { history?: boolean }) {
     !!vehicleFilter ||
     !!scheduledFrom ||
     !!scheduledThrough
-  const clearFilters = () => {
-    setQ('')
-    setStatus('ALL')
-    setWarehouseFilter('')
-    setDriverFilter('')
-    setVehicleFilter('')
-    setScheduledFrom('')
-    setScheduledThrough('')
-  }
+
   const accessDenied = [401, 403].includes(getApiError(query.error)?.status ?? 0)
   const hasTripData = query.data !== undefined && !accessDenied
   const runs = accessDenied || (history && !canViewHistory) ? []
@@ -201,137 +193,152 @@ export function DeliveryRunsHub({ history = false }: { history?: boolean }) {
         : run.status === 'COMPLETED'
           ? 'Trip completed · review delivery results'
           : 'Cancelled'
-  const filterHeaders = {
-    warehouse: (
-      <DeliveryHeaderFilter
-        label="Warehouse"
-        active={!!warehouseFilter}
-        onClear={() => setWarehouseFilter('')}
-      >
-        <Label htmlFor="run-filter-warehouse">Warehouse</Label>
-        <CursorLookup<NamedRecord>
-          id="run-filter-warehouse"
-          path="/warehouses"
-          filter={{ includeInactive: 'true' }}
-          value={warehouseFilter}
-          label="Warehouse"
-          getLabel={(warehouse) => warehouse.name}
-          onChange={setWarehouseFilter}
-        />
-      </DeliveryHeaderFilter>
-    ),
-    crew: (
-      <DeliveryHeaderFilter
-        label="Driver / Vehicle"
-        active={!!driverFilter || !!vehicleFilter}
-        onClear={() => {
-          setDriverFilter('')
-          setVehicleFilter('')
-        }}
-      >
-        <div className="grid gap-1.5">
-          <div className="flex items-center justify-between">
-            <Label htmlFor="run-filter-driver">Driver</Label>
-            {driverFilter && (
-              <Button variant="ghost" size="sm" onClick={() => setDriverFilter('')}>
-                Clear driver
-              </Button>
-            )}
-          </div>
-          <CursorLookup<DriverRecord>
-            id="run-filter-driver"
-            path="/employees"
+  const filterHeaders: Record<string, DataTableFilter> = {
+    warehouse: {
+      kind: 'custom',
+      id: 'warehouse',
+      valueLabel: warehouseFilter ? names.warehouse(Number(warehouseFilter)) : undefined,
+      label: 'Warehouse',
+      active: !!warehouseFilter,
+      onClear: () => setWarehouseFilter(''),
+      content: (
+        <>
+          <Label htmlFor="run-filter-warehouse">Warehouse</Label>
+          <CursorLookup<NamedRecord>
+            id="run-filter-warehouse"
+            path="/warehouses"
             filter={{ includeInactive: 'true' }}
-            value={driverFilter}
-            label="Driver"
-            getLabel={(driver) => driver.firstName + ' ' + driver.lastName}
-            onChange={setDriverFilter}
+            value={warehouseFilter}
+            label="Warehouse"
+            getLabel={(warehouse) => warehouse.name}
+            onChange={setWarehouseFilter}
           />
-        </div>
-        <div className="grid gap-1.5">
-          <div className="flex items-center justify-between">
-            <Label htmlFor="run-filter-vehicle">Vehicle</Label>
-            {vehicleFilter && (
-              <Button variant="ghost" size="sm" onClick={() => setVehicleFilter('')}>
-                Clear vehicle
-              </Button>
-            )}
+        </>
+      ),
+    },
+    crew: {
+      kind: 'custom',
+      id: 'crew',
+      valueLabel: [driverFilter && names.driver(Number(driverFilter)), vehicleFilter && names.vehicle(Number(vehicleFilter))].filter(Boolean).join(' / '),
+      label: 'Driver / Vehicle',
+      active: !!driverFilter || !!vehicleFilter,
+      onClear: () => {
+        setDriverFilter('')
+        setVehicleFilter('')
+      },
+      content: (
+        <>
+          <div className="grid gap-1.5">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="run-filter-driver">Driver</Label>
+              {driverFilter && (
+                <Button variant="ghost" size="sm" onClick={() => setDriverFilter('')}>
+                  Clear driver
+                </Button>
+              )}
+            </div>
+            <CursorLookup<DriverRecord>
+              id="run-filter-driver"
+              path="/employees"
+              filter={{ includeInactive: 'true' }}
+              value={driverFilter}
+              label="Driver"
+              getLabel={(driver) => driver.firstName + ' ' + driver.lastName}
+              onChange={setDriverFilter}
+            />
           </div>
-          <CursorLookup<VehicleRecord>
-            id="run-filter-vehicle"
-            path="/delivery-vehicles"
-            filter={{ includeInactive: 'true' }}
-            value={vehicleFilter}
-            label="Vehicle"
-            getLabel={(vehicle) => vehicle.plateNumber}
-            onChange={setVehicleFilter}
-          />
-        </div>
-      </DeliveryHeaderFilter>
-    ),
-    departure: (
-      <DeliveryHeaderFilter
-        label="Scheduled departure"
-        header={history ? 'Departure Date' : undefined}
-        active={!!scheduledFrom || !!scheduledThrough}
-        onClear={() => {
-          setScheduledFrom('')
-          setScheduledThrough('')
-        }}
-      >
-        <div className="grid gap-1.5">
-          <Label htmlFor="run-filter-from">Departure from</Label>
-          <Input
-            id="run-filter-from"
-            type="date"
-            value={scheduledFrom}
-            onChange={(event) => setScheduledFrom(event.target.value)}
-          />
-        </div>
-        <div className="grid gap-1.5">
-          <Label htmlFor="run-filter-through">Departure through</Label>
-          <Input
-            id="run-filter-through"
-            type="date"
-            value={scheduledThrough}
-            min={scheduledFrom || undefined}
-            onChange={(event) => setScheduledThrough(event.target.value)}
-          />
-        </div>
-        <p className="text-xs text-muted-foreground">Scheduled departure dates use Asia/Manila.</p>
-      </DeliveryHeaderFilter>
-    ),
-    status: (
-      <DeliveryHeaderFilter
-        label="Status"
-        active={status !== 'ALL'}
-        onClear={() => setStatus('ALL')}
-      >
-        <Label htmlFor="run-status-filter">Trip status</Label>
-        <Select value={status} onValueChange={setStatus}>
-          <SelectTrigger id="run-status-filter">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectGroup>
-              <SelectItem value="ALL">All statuses</SelectItem>
-              {statuses.map((value) => (
-                <SelectItem key={value} value={value}>
-                  {RUN_STATUS_LABELS[value]}
-                </SelectItem>
-              ))}
-            </SelectGroup>
-          </SelectContent>
-        </Select>
-      </DeliveryHeaderFilter>
-    ),
+          <div className="grid gap-1.5">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="run-filter-vehicle">Vehicle</Label>
+              {vehicleFilter && (
+                <Button variant="ghost" size="sm" onClick={() => setVehicleFilter('')}>
+                  Clear vehicle
+                </Button>
+              )}
+            </div>
+            <CursorLookup<VehicleRecord>
+              id="run-filter-vehicle"
+              path="/delivery-vehicles"
+              filter={{ includeInactive: 'true' }}
+              value={vehicleFilter}
+              label="Vehicle"
+              getLabel={(vehicle) => vehicle.plateNumber}
+              onChange={setVehicleFilter}
+            />
+          </div>
+        </>
+      ),
+    },
+    departure: {
+      kind: 'custom',
+      id: 'departure',
+      valueLabel: [scheduledFrom, scheduledThrough].filter(Boolean).join(' to '),
+      label: 'Scheduled departure',
+      active: !!scheduledFrom || !!scheduledThrough,
+      onClear: () => {
+        setScheduledFrom('')
+        setScheduledThrough('')
+      },
+      content: (
+        <>
+          <div className="grid gap-1.5">
+            <Label htmlFor="run-filter-from">Departure from</Label>
+            <Input
+              id="run-filter-from"
+              type="date"
+              value={scheduledFrom}
+              onChange={(event) => setScheduledFrom(event.target.value)}
+            />
+          </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor="run-filter-through">Departure through</Label>
+            <Input
+              id="run-filter-through"
+              type="date"
+              value={scheduledThrough}
+              min={scheduledFrom || undefined}
+              onChange={(event) => setScheduledThrough(event.target.value)}
+            />
+          </div>
+          <p className="text-xs text-muted-foreground">Scheduled departure dates use Asia/Manila.</p>
+        </>
+      ),
+    },
+    status: {
+      kind: 'custom',
+      id: 'status',
+      valueLabel: status !== 'ALL' ? RUN_STATUS_LABELS[status as DeliveryRunStatus] : undefined,
+      label: 'Status',
+      active: status !== 'ALL',
+      onClear: () => setStatus('ALL'),
+      content: (
+        <>
+          <Label htmlFor="run-status-filter">Trip status</Label>
+          <Select value={status} onValueChange={setStatus}>
+            <SelectTrigger id="run-status-filter">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                <SelectItem value="ALL">All statuses</SelectItem>
+                {statuses.map((value) => (
+                  <SelectItem key={value} value={value}>
+                    {RUN_STATUS_LABELS[value]}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+        </>
+      ),
+    },
   }
   const columns: ColumnDef<DeliveryRunRecord>[] = [
     {
       id: 'run',
       header: history ? 'Trip Number' : 'Trip',
       cell: ({ row }) => (
-        <div>
+        <OverflowValue asChild value={row.runNumber} fullValue={`${row.runNumber}: ${preparation(row)}`} showFullValueOnHover>
           <Button
             variant="link"
             className="h-auto whitespace-normal break-words px-0 text-left"
@@ -339,29 +346,25 @@ export function DeliveryRunsHub({ history = false }: { history?: boolean }) {
           >
             {row.runNumber}
           </Button>
-          {!history && <p className="text-xs text-muted-foreground">{preparation(row)}</p>}
-        </div>
+        </OverflowValue>
       ),
     },
     {
-      header: filterHeaders.warehouse,
+      header: 'Warehouse',
       accessorKey: 'warehouseId',
       cell: ({ row }) => names.warehouse(row.warehouseId),
     },
     {
       id: 'crew',
-      header: filterHeaders.crew,
+      header: 'Driver / Vehicle',
       cell: ({ row }) => (
-        <div>
-          {names.driver(row.driverEmployeeId)}
-          <p className="text-xs text-muted-foreground">{names.vehicle(row.deliveryVehicleId)}</p>
-        </div>
+        <OverflowValue value={`${names.driver(row.driverEmployeeId)} / ${names.vehicle(row.deliveryVehicleId)}`} />
       ),
     },
     {
       id: 'departure',
-      header: filterHeaders.departure,
-      cell: ({ row }) => history ? <div className="flex flex-col gap-1 text-sm">
+      header: history ? 'Departure Date' : 'Scheduled Departure',
+      cell: ({ row }) => history ? <div className="flex items-center gap-2 whitespace-nowrap text-ui">
         <p>Actual: {row.dispatchedAt ? <time dateTime={row.dispatchedAt}>{dateText(row.dispatchedAt)}</time> : 'Not recorded'}</p>
         {row.scheduledDepartureAt && <p className="text-xs text-muted-foreground">Scheduled: {dateText(row.scheduledDepartureAt)}</p>}
       </div> : dateText(row.scheduledDepartureAt),
@@ -373,7 +376,6 @@ export function DeliveryRunsHub({ history = false }: { history?: boolean }) {
       headerClassName: 'hidden sm:table-cell',
       cell: ({ row }) => (
         <div>
-          {history && <p>{row.deliveries.length}</p>}
           <p className={history ? 'text-xs text-muted-foreground' : undefined}>
             {row.deliveries.length
               ? `${row.deliveries.filter((member) => member.status === 'RECONCILED').length} / ${row.deliveries.length} results recorded`
@@ -383,7 +385,7 @@ export function DeliveryRunsHub({ history = false }: { history?: boolean }) {
       ),
     },
     {
-      header: filterHeaders.status,
+      header: 'Status',
       accessorKey: 'status',
       cell: ({ row }) => <RunStatusBadge status={row.status} />,
     },
@@ -416,15 +418,11 @@ export function DeliveryRunsHub({ history = false }: { history?: boolean }) {
         searchLabel="Search delivery trips"
         placeholder="Search delivery trip..."
       >
-        {hasFilters && (
-          <Button variant="ghost" size="sm" onClick={clearFilters}>
-            Clear filters
-          </Button>
-        )}
-        {canViewHistory && (
+        <DataTableFilters filters={Object.values(filterHeaders)} />
+        {history && canViewHistory && (
           <Button variant="outline" size="sm" asChild>
-            <Link to={history ? ROUTES.deliveryRuns : `${ROUTES.deliveryHistory}?tab=trips`}>
-              {history ? 'Active Delivery Trips' : 'Delivery History'}
+            <Link to={ROUTES.deliveryRuns}>
+              Active Delivery Trips
             </Link>
           </Button>
         )}
@@ -434,6 +432,7 @@ export function DeliveryRunsHub({ history = false }: { history?: boolean }) {
           </Button>
         )}
       </DeliveryTableToolbar>
+      <DataTableFilterChips filters={Object.values(filterHeaders)} />
       {invalidLink && (
         <Alert variant="destructive">
           <AlertDescription>
@@ -462,6 +461,7 @@ export function DeliveryRunsHub({ history = false }: { history?: boolean }) {
         ) : (
           <DataTable
             className="rounded-none border-0"
+            tableClassName="min-w-[1100px]"
             appearance="management"
             retainHeaders
             data={runs}

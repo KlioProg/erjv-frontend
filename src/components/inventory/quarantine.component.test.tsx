@@ -173,7 +173,7 @@ function httpError(status: number, message: string, config: InternalAxiosRequest
 it('loads filtered lots with product, warehouse, source and exact quantities', async () => {
   const { gets } = mount({ stockItemId: 7 })
   await screen.findAllByText(/Rice.*Main/)
-  expect(screen.getByText('INCOMING DELIVERY')).toBeTruthy()
+  expect(screen.getByText('Incoming Delivery')).toBeTruthy()
   expect(screen.getByText('3.25')).toBeTruthy()
   expect(gets.find((request) => request.url.endsWith('quarantine-lots'))?.params).toEqual({
     stockItemId: 7,
@@ -183,6 +183,23 @@ it('loads filtered lots with product, warehouse, source and exact quantities', a
   const dialog = await openLot()
   expect(within(dialog).getByText('4.50 kg')).toBeTruthy()
   expect(within(dialog).getByText('3.25 kg')).toBeTruthy()
+})
+
+it.each([
+  ['MANUAL', 'Manual'],
+  ['INCOMING_DELIVERY', 'Incoming Delivery'],
+  ['OUTGOING_DELIVERY', 'Outgoing Delivery'],
+  ['WAREHOUSE_TRANSFER', 'Warehouse Transfer'],
+] as const)('uses readable condition and source labels for %s', async (sourceKind, sourceLabel) => {
+  mount({ lots: [{ ...baseLot, sourceKind, condition: 'SPOILED' }] })
+  const source = await screen.findByText(sourceLabel)
+  const row = within(source.closest('tr')!)
+  expect(row.getByText('Spoiled')).toBeTruthy()
+  expect(row.getByText('Damaged')).toBeTruthy()
+  expect(row.queryByText('SPOILED')).toBeNull()
+  expect(row.queryByText('DAMAGED')).toBeNull()
+  expect(row.getByText('3.25')).toBeTruthy()
+  expect(row.getByRole('button', { name: 'Review & Resolve' })).toBeTruthy()
 })
 
 it('identifies damaged outgoing returns without suggesting manual stock creation', async () => {
@@ -196,7 +213,7 @@ it('identifies damaged outgoing returns without suggesting manual stock creation
       },
     ],
   })
-  expect(await screen.findByText('OUTGOING DELIVERY')).toBeTruthy()
+  expect(await screen.findByText('Outgoing Delivery')).toBeTruthy()
   expect(
     screen.queryByRole('button', { name: /Add Damaged Stock|Create Quarantine|Tag Stock/i }),
   ).toBeNull()

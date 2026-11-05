@@ -734,7 +734,7 @@ describe('order to delivery workflow', () => {
     const orderRow = (await screen.findByText('SO-TEST')).closest('tr')
     expect(orderRow).toBeTruthy()
     expect(orderRow?.textContent).toContain('Test Customer')
-    expect(orderRow?.textContent).toContain('Test Address')
+    expect(within(orderRow!).getByLabelText(/Test Address/)).toBeTruthy()
     expect(within(orderRow!).getByText('Ready')).toBeTruthy()
     expect(orderRow?.textContent).not.toContain('Oct 1, 2026')
     expect(orderRow?.textContent).not.toContain('Oct 11')
@@ -1350,7 +1350,7 @@ it('keeps history filters keyboard accessible without pretending to filter compl
   await user.tab()
   expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Search deliveries' }))
   expect(screen.queryByRole('button', { name: 'View delivery OUT-7' })).toBeNull()
-  await user.click(screen.getByRole('button', { name: 'Clear filters' }))
+  await user.click(within(screen.getByRole('group', { name: 'Delivery direction' })).getByRole('button', { name: 'All Deliveries' }))
   expect(await screen.findByRole('button', { name: 'View delivery OUT-7' })).toBeTruthy()
 })
 

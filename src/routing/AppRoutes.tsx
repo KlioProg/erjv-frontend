@@ -33,6 +33,7 @@ export function AppRoutes() {
         <Route path="suppliers" element={<PurchasesRoute section="suppliers" />} />
         <Route path="purchase-orders" element={<PurchasesRoute section="orders" />} />
         <Route path="inventory" element={<InventoryRoute />} />
+        <Route path="inventory/quarantined" element={<InventoryRoute quarantine />} />
         <Route path="warehouses" element={<WarehousesRoute />} />
         <Route path="warehouses/:warehouseId" element={<WarehouseDetailsRoute />} />
         <Route path="warehouse-transfers" element={<WarehouseTransfersPage />} />

@@ -344,6 +344,7 @@ it('sends stock, condition, and open/all filters from the quarantine view', asyn
   const user = userEvent.setup()
   await screen.findByRole('button', { name: 'Review & Resolve' })
   expect(filters[0]).toEqual({ openOnly: true, limit: 50 })
+  await user.click(screen.getByRole('button', { name: 'Filters' }))
   await user.click(screen.getByRole('combobox', { name: 'Condition' }))
   await user.click(screen.getByRole('option', { name: 'Spoiled' }))
   await user.click(screen.getByRole('combobox', { name: 'Lot status' }))

@@ -1,3 +1,4 @@
+import { DataTableFilters, DataTableFilterChips, type DataTableFilter } from '@/components/ui/data-table-filters'
 import { useStockMetadata } from '@/features/logistics/use-stock-metadata'
 import { useResourcePage } from '@/lib/use-cursor-page'
 import { DataTableFooter, DataTableFrame } from '@/components/ui/DataTableFooter'
@@ -5,14 +6,7 @@ import { useState } from 'react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+
 import { SearchableDropdown } from '@/components/ui/SearchableDropdown'
 import { DataTable, type ColumnDef } from '@/components/ui/data-table'
 import { DataTableActions } from '@/components/ui/DataTableActions'
@@ -20,6 +14,14 @@ import { useStockItems } from '@/features/logistics/stock-items.hooks'
 import type { QuarantineCondition, QuarantineLot } from '@/features/logistics/quarantine.types'
 import { getErrorMessage } from '@/lib/api-client'
 import { QuarantineLotDialog } from './QuarantineLotDialog'
+
+const conditionLabels: Record<QuarantineCondition, string> = { DAMAGED: 'Damaged', SPOILED: 'Spoiled' }
+const sourceLabels: Record<QuarantineLot['sourceKind'], string> = {
+  MANUAL: 'Manual',
+  INCOMING_DELIVERY: 'Incoming Delivery',
+  OUTGOING_DELIVERY: 'Outgoing Delivery',
+  WAREHOUSE_TRANSFER: 'Warehouse Transfer',
+}
 
 export function QuarantinedStock({ stockItemId }: { stockItemId?: number } = {}) {
   const [stockSearch, setStockSearch] = useState('')
@@ -40,6 +42,76 @@ export function QuarantinedStock({ stockItemId }: { stockItemId?: number } = {})
       ? `${stock.inventoryItem.name} — ${stock.warehouse.name}`
       : 'Stock details unavailable'
   }
+  const stockFilterControl = (
+    <div className="flex min-w-64 flex-1 flex-col gap-2">
+      <Label htmlFor="quarantine-stock-filter">Stock record</Label>
+      <SearchableDropdown
+        id="quarantine-stock-filter"
+        onSearchChange={setStockSearch}
+        footer={
+          stocks.hasNextPage ? (
+            <Button
+              variant="ghost"
+              disabled={stocks.isFetching}
+              onClick={() => void stocks.fetchNextPage()}
+            >
+              Load more stock records
+            </Button>
+          ) : undefined
+        }
+        selectedLabel={stockId === 'ALL' ? undefined : stockLabel(Number(stockId))}
+        value={stockId}
+        onValueChange={setStockId}
+        options={[
+          { value: 'ALL', label: 'All stock records' },
+          ...(stocks.data ?? []).map((stock) => ({
+            value: String(stock.id),
+            label: stockLabel(stock.id),
+          })),
+        ]}
+        getOptionValue={(option) => option.value}
+        getOptionLabel={(option) => option.label}
+        placeholder="All stock records"
+        searchPlaceholder="Search product name"
+        emptyMessage="No matching stock records"
+        ariaLabel="Filter quarantine by stock record"
+      />
+    </div>
+  )
+  const tableFilters: DataTableFilter[] = [
+    {
+      kind: 'custom',
+      id: 'stock-record',
+      label: 'Stock record',
+      active: stockId !== 'ALL',
+      valueLabel: stockId !== 'ALL' ? stockLabel(Number(stockId)) : undefined,
+      onClear: () => setStockId('ALL'),
+      content: stockFilterControl,
+    },
+    {
+      kind: 'select',
+      id: 'condition',
+      label: 'Condition',
+      value: condition,
+      onChange: (value) => setCondition(value as typeof condition),
+      options: [
+        { value: 'ALL', label: 'All conditions' },
+        { value: 'DAMAGED', label: 'Damaged' },
+        { value: 'SPOILED', label: 'Spoiled' },
+      ],
+    },
+    {
+      kind: 'select',
+      id: 'lot-status',
+      label: 'Lot status',
+      value: openOnly ? 'OPEN' : 'ALL',
+      onChange: (value) => setOpenOnly(value === 'OPEN'),
+      options: [
+        { value: 'ALL', label: 'All lots' },
+        { value: 'OPEN', label: 'Open lots' },
+      ],
+    },
+  ]
   const columns: ColumnDef<QuarantineLot>[] = [
     {
       id: 'stock',
@@ -48,11 +120,11 @@ export function QuarantinedStock({ stockItemId }: { stockItemId?: number } = {})
       sortable: false,
       sortKey: (row) => stockLabel(row.stockItemId),
     },
-    { id: 'condition', header: 'Current condition', accessorKey: 'condition', sortable: false },
-    { id: 'reported', header: 'Originally reported', accessorKey: 'reportedCondition' },
+    { id: 'condition', header: 'Current condition', accessorKey: 'condition', sortable: false, cell: ({ row }) => conditionLabels[row.condition] },
+    { id: 'reported', header: 'Originally reported', accessorKey: 'reportedCondition', cell: ({ row }) => conditionLabels[row.reportedCondition] },
     { id: 'source', header: 'Source', cell: ({ row }) => row.sourceKind === 'WAREHOUSE_TRANSFER'
-      ? `Warehouse transfer${row.warehouseTransferItemId ? ` · Line #${row.warehouseTransferItemId}` : ''}`
-      : row.sourceKind.replaceAll('_', ' ') },
+      ? `${sourceLabels[row.sourceKind]}${row.warehouseTransferItemId ? ` · Line #${row.warehouseTransferItemId}` : ''}`
+      : sourceLabels[row.sourceKind] },
     {
       id: 'remaining',
       header: 'Remaining quantity',
@@ -71,76 +143,10 @@ export function QuarantinedStock({ stockItemId }: { stockItemId?: number } = {})
   return (
     <section aria-label="Quarantined Stock" className="flex min-w-0 flex-col gap-4">
       <div className="flex flex-wrap items-end gap-3">
-        <div className="flex min-w-64 flex-1 flex-col gap-2">
-          <Label htmlFor="quarantine-stock-filter">Stock record</Label>
-          <SearchableDropdown
-            id="quarantine-stock-filter"
-            onSearchChange={setStockSearch}
-            footer={
-              stocks.hasNextPage ? (
-                <Button
-                  variant="ghost"
-                  disabled={stocks.isFetching}
-                  onClick={() => void stocks.fetchNextPage()}
-                >
-                  Load more stock records
-                </Button>
-              ) : undefined
-            }
-            selectedLabel={stockId === 'ALL' ? undefined : stockLabel(Number(stockId))}
-            value={stockId}
-            onValueChange={setStockId}
-            options={[
-              { value: 'ALL', label: 'All stock records' },
-              ...(stocks.data ?? []).map((stock) => ({
-                value: String(stock.id),
-                label: stockLabel(stock.id),
-              })),
-            ]}
-            getOptionValue={(option) => option.value}
-            getOptionLabel={(option) => option.label}
-            placeholder="All stock records"
-            searchPlaceholder="Search product name"
-            emptyMessage="No matching stock records"
-            ariaLabel="Filter quarantine by stock record"
-          />
-        </div>
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="quarantine-condition-filter">Condition</Label>
-          <Select
-            value={condition}
-            onValueChange={(value) => setCondition(value as typeof condition)}
-          >
-            <SelectTrigger id="quarantine-condition-filter">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                <SelectItem value="ALL">All conditions</SelectItem>
-                <SelectItem value="DAMAGED">Damaged</SelectItem>
-                <SelectItem value="SPOILED">Spoiled</SelectItem>
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="quarantine-open-filter">Lot status</Label>
-          <Select
-            value={openOnly ? 'OPEN' : 'ALL'}
-            onValueChange={(value) => setOpenOnly(value === 'OPEN')}
-          >
-            <SelectTrigger id="quarantine-open-filter">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                <SelectItem value="OPEN">Open lots</SelectItem>
-                <SelectItem value="ALL">All lots</SelectItem>
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-        </div>
+
+        <DataTableFilters filters={tableFilters} />
       </div>
+      <DataTableFilterChips filters={tableFilters} />
       {stocks.isError && (
         <Alert variant="destructive">
           <AlertDescription>

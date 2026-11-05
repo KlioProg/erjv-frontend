@@ -446,17 +446,12 @@ it('dispatches explicit actual quantities from the run warehouse, not the first 
   })
 })
 
-it('places the outline report action directly before the primary register action and preserves both dialogs', async () => {
+it('keeps report stock condition in Tools and preserves both dialogs', async () => {
   mount(<InventoryHub />)
-  const report = await ready('Report Stock Condition')
-  const register = screen.getByRole('button', { name: 'Register Product' })
-  expect(report.nextElementSibling).toBe(register)
-  expect(report.className).toContain('border-input')
-  expect(report.className).not.toContain('bg-primary-contrast')
-  expect(register.className).toContain('bg-primary-contrast')
-  expect(report.parentElement?.className).toContain('flex-wrap')
+  const register = await ready('Register Product')
   const user = userEvent.setup()
-  await user.click(report)
+  await user.click(screen.getByRole('button', { name: 'Tools' }))
+  await user.click(screen.getByRole('menuitem', { name: 'Report Stock Condition' }))
   expect(await screen.findByRole('dialog')).toBeTruthy()
   await user.click(screen.getAllByRole('button', { name: 'Close' })[0])
   await user.click(register)

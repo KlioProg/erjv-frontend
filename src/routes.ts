@@ -1,6 +1,7 @@
 export const NAV_ITEM_KEYS = [
   'dashboard',
   'inventory',
+  'quarantined-stock',
   'warehouses',
   'fleet',
   'deliveries',
@@ -36,6 +37,7 @@ export const ROUTES = {
   jobPositions: '/job-positions',
   userRoles: '/user-roles',
   inventory: '/inventory',
+  quarantinedStock: '/inventory/quarantined',
   warehouses: '/warehouses',
   vehicles: '/vehicles',
   incomingDeliveries: '/deliveries/incoming',
@@ -56,6 +58,7 @@ const SCREEN_ROUTES: Record<Exclude<NavItemKey, 'deliveries'>, string> = {
   jobs: ROUTES.jobPositions,
   users: ROUTES.userRoles,
   inventory: ROUTES.inventory,
+  'quarantined-stock': ROUTES.quarantinedStock,
   warehouses: ROUTES.warehouses,
   fleet: ROUTES.vehicles,
   'incoming-deliveries': ROUTES.incomingDeliveries,

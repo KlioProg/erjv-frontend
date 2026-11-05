@@ -1,3 +1,5 @@
+import { OverflowValue } from '@/components/ui/OverflowValue'
+import { DataTableFilters, DataTableFilterChips, type DataTableFilter } from '@/components/ui/data-table-filters'
 import { PageHeader, PageToolbar } from '@/components/ui/ManagementPage'
 import { VehicleDetailModal } from '@/components/deliveries/shared/VehicleDetailModal'
 import {
@@ -11,14 +13,6 @@ import { ArchiveTabNav } from '@/components/ui/ArchiveTabNav'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -61,16 +55,24 @@ type VehicleRow = {
 export function VehicleList() {
   const [activeTab, setActiveTab] = useState<'ACTIVE' | 'ARCHIVED'>('ACTIVE')
   const [search, setSearch] = useState('')
+  const [availabilityFilter, setAvailabilityFilter] = useState('ALL')
   const [statusFilter, setStatusFilter] = useState('ALL')
   const [editVehicleId, setEditVehicleId] = useState<number | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [viewVehicleId, setViewVehicleId] = useState<number | null>(null)
   const navigate = useNavigate()
   const [archiveId, setArchiveId] = useState<number | null>(null)
-  const vehicleQuery = useResourcePage<DeliveryVehicle>('/delivery-vehicles', {
-    includeInactive: activeTab === 'ARCHIVED' ? 'only' : 'false',
-    ...(search.trim() ? { q: search.trim() } : {}),
-  }, true, statusFilter)
+  const vehicleQuery = useResourcePage<DeliveryVehicle>(
+    activeTab === 'ACTIVE' && availabilityFilter === 'AVAILABLE'
+      ? '/delivery-vehicles/available'
+      : '/delivery-vehicles',
+    {
+      includeInactive: activeTab === 'ARCHIVED' ? 'only' : 'false',
+      ...(search.trim() ? { q: search.trim() } : {}),
+    },
+    true,
+    [statusFilter, availabilityFilter, activeTab],
+  )
   const vehicles = vehicleQuery.items
   const deliveryQuery = useRecordsById<DeliveryRunRecord>('/delivery-runs', vehicles.map(vehicle => vehicle.activeRunId))
   const deliveries = deliveryQuery.data
@@ -93,6 +95,35 @@ export function VehicleList() {
       driver: [...new Set(drivers)].join(', ') || '—',
     }
   })
+  const tableFilters: DataTableFilter[] =
+    activeTab === 'ACTIVE'
+      ? [
+          {
+            kind: 'select',
+            id: 'availability',
+            label: 'Availability',
+            value: availabilityFilter,
+            onChange: setAvailabilityFilter,
+            options: [
+              { value: 'ALL', label: 'All vehicles' },
+              { value: 'AVAILABLE', label: 'Available for trip' },
+            ],
+          },
+          {
+            kind: 'select',
+            id: 'vehicle-status',
+            label: 'Vehicle status (current page)',
+            value: statusFilter,
+            onChange: setStatusFilter,
+            options: [
+              { value: 'ALL', label: 'All Statuses' },
+              ...Object.entries(STATUS_LABELS)
+                .filter(([value]) => value !== 'ARCHIVED')
+                .map(([value, label]) => ({ value, label })),
+            ],
+          },
+        ]
+      : []
   const active = rows.filter((row) => row.vehicle.isActive)
   const archived = rows.filter((row) => !row.vehicle.isActive)
   const filtered = (activeTab === 'ACTIVE' ? active : archived).filter(
@@ -118,12 +149,10 @@ export function VehicleList() {
       accessorFn: (row) => row.vehicle.model || row.vehicle.vehicleType,
       sortable: false,
       cell: ({ row }) => (
-        <div className="flex flex-col gap-1">
-          <span className="font-medium">{row.vehicle.model || row.vehicle.vehicleType}</span>
-          <span className="text-xs text-muted-foreground">
-            {row.vehicle.capacityKg
-              ? `${Number(row.vehicle.capacityKg).toLocaleString()} kg capacity`
-              : 'Capacity not specified'}
+        <div className="flex items-center gap-2 whitespace-nowrap">
+          <OverflowValue value={row.vehicle.model || row.vehicle.vehicleType} className="max-w-48 font-medium" />
+          <span className="text-sm text-muted-foreground">
+            {row.vehicle.capacityKg ? `${Number(row.vehicle.capacityKg).toLocaleString()} kg capacity` : 'Capacity not specified'}
           </span>
         </div>
       ),
@@ -133,7 +162,7 @@ export function VehicleList() {
       header: 'Plate Number',
       accessorFn: (row) => row.vehicle.plateNumber,
       sortable: false,
-      cell: ({ row }) => <span className="min-w-0 font-medium break-all">{row.vehicle.plateNumber}</span>,
+      cell: ({ row }) => <span className="min-w-0 font-medium whitespace-nowrap">{row.vehicle.plateNumber}</span>,
     },
     {
       id: 'type',
@@ -311,7 +340,7 @@ export function VehicleList() {
         activeIcon={<Truck className="size-3.5" />}
         bannerDescription="Archived ERJV vehicles remain linked to their historical deliveries and can be restored."
       />
-      <p className="text-xs text-muted-foreground">Status filters apply to the current page. Search matches plate, model, or vehicle type.</p>
+      <p className="text-xs text-muted-foreground">Availability uses all matching vehicles. Status and fleet counts apply to the current page. Search matches plate, model, or vehicle type.</p>
       <dl
         aria-label="Fleet status overview"
         className="grid grid-cols-2 gap-3 rounded-lg border border-border bg-secondary/40 p-3 sm:grid-cols-3 lg:grid-cols-5"
@@ -336,25 +365,7 @@ export function VehicleList() {
             className="h-9 pl-9 text-[13px]"
           />
         </div>
-        {activeTab === 'ACTIVE' && (
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger aria-label="Vehicle status filter" className="h-9 text-[13px] sm:w-44">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                <SelectItem value="ALL">All Statuses</SelectItem>
-                {Object.entries(STATUS_LABELS)
-                  .filter(([value]) => value !== 'ARCHIVED')
-                  .map(([value, label]) => (
-                    <SelectItem key={value} value={value}>
-                      {label}
-                    </SelectItem>
-                  ))}
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-        )}
+        <DataTableFilters filters={tableFilters} description="Availability uses all matching vehicles. Vehicle status applies to the current page." />
         {canManage && activeTab === 'ACTIVE' && (
           <Button
             size="sm"
@@ -368,6 +379,7 @@ export function VehicleList() {
           </Button>
         )}
       </PageToolbar>
+      <DataTableFilterChips filters={tableFilters} />
       <DataTableFrame>
       {(vehicleQuery.isError || deliveryQuery.isError) && (
         <Alert variant="destructive">
@@ -393,7 +405,7 @@ export function VehicleList() {
         data={filtered}
         columns={columns}
         getRowKey={(row) => row.vehicle.id}
-        isLoading={vehicleQuery.isFetching || deliveryQuery.isLoading}
+        isLoading={vehicleQuery.isLoading || deliveryQuery.isLoading}
         tableClassName="min-w-[900px]"
         emptyContent={
           <div className="flex flex-col items-center gap-2 py-10 text-center">

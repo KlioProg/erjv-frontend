@@ -1,55 +1,18 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, expect, it, vi } from 'vitest'
-import { DeliveryHeaderFilter } from './DeliveryHeaderFilter'
+import { expect, it, vi } from 'vitest'
+import { DataTableFilters } from '@/components/ui/data-table-filters'
 import { DeliveryTableToolbar, DeliveryPageFooter } from './DeliveryTableToolbar'
 
-const originalWidth = window.innerWidth
-const originalHeight = window.innerHeight
-afterEach(() => {
-  Object.defineProperty(window, 'innerWidth', { configurable: true, value: originalWidth })
-  Object.defineProperty(window, 'innerHeight', { configurable: true, value: originalHeight })
-  vi.restoreAllMocks()
-})
-
-it.each([1440, 1366, 768, 390])('anchors filters within a %ipx viewport and restores keyboard focus when dismissed', async (width) => {
-  Object.defineProperty(window, 'innerWidth', { configurable: true, value: width })
-  Object.defineProperty(window, 'innerHeight', { configurable: true, value: 700 })
-  render(
-    <DeliveryHeaderFilter label="Warehouse" active={false} onClear={vi.fn()}>
-      <label>Warehouse<input /></label>
-    </DeliveryHeaderFilter>,
-  )
-  const trigger = screen.getByRole('button', { name: 'Filter by warehouse' })
-  vi.spyOn(trigger, 'getBoundingClientRect').mockReturnValue({
-    top: 160,
-    bottom: 200,
-    left: 280,
-    right: 360,
-    width: 80,
-    height: 40,
-    x: 280,
-    y: 160,
-    toJSON: () => ({}),
-  })
-  const user = userEvent.setup()
+it('opens the shared custom filter by keyboard and restores toolbar focus', async () => {
+  render(<DataTableFilters filters={[{ kind: 'custom', id: 'warehouse', label: 'Warehouse', active: false, onClear: vi.fn(), content: <label>Warehouse<input /></label> }]} />)
+  const trigger = screen.getByRole('button', { name: 'Filters' })
   trigger.focus()
-  await user.keyboard('{Enter}')
-  const panel = screen.getByRole('dialog', { name: 'Filter by warehouse' })
-  await waitFor(() =>
-    expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Warehouse' })),
-  )
-  expect(panel.style.width).toBe('288px')
-  expect(panel.style.left).toBe('72px')
-  expect(panel.style.top).toBe('208px')
-  Object.defineProperty(window, 'innerWidth', { configurable: true, value: 320 })
-  fireEvent(window, new Event('resize'))
-  expect(panel.style.width).toBe('288px')
-  expect(panel.style.left).toBe('16px')
-  await user.keyboard('{Escape}')
+  await userEvent.keyboard('{Enter}')
+  await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Warehouse' })))
+  await userEvent.keyboard('{Escape}')
   expect(screen.queryByRole('dialog')).toBeNull()
   expect(document.activeElement).toBe(trigger)
-  expect(screen.queryByRole('button', { name: 'Clear filters' })).toBeNull()
 })
 
 it('shows only page counts, keeps useful cursor controls, and never turns a failure into zero', async () => {

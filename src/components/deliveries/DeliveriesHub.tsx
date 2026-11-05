@@ -71,7 +71,7 @@ import { useCursorLookup } from '@/lib/use-cursor-lookup'
 import { useDeliveryHistoryPagination } from '@/features/logistics/delivery-history-pagination'
 import { CursorPageControls } from '@/components/ui/CursorPageControls'
 import { useResourcePage } from '@/lib/use-cursor-page'
-import { DeliveryHeaderFilter } from './DeliveryHeaderFilter'
+import { DataTableFilters, DataTableFilterChips, type DataTableFilter } from '@/components/ui/data-table-filters'
 import { DeliveryTableToolbar, DeliveryPageFooter } from './DeliveryTableToolbar'
 import { Checkbox } from '@/components/ui/checkbox'
 import type { IncomingDeliveryRecord } from '@/features/logistics/incoming-deliveries.types'
@@ -461,102 +461,102 @@ export function DeliveriesHub({
       ]}
     />
   )
-  const headerFilters = {
-    order: (
-      <DeliveryHeaderFilter
-        label="Warehouse"
-        header={
-          view === 'incoming'
-            ? 'Purchase Order / Warehouse'
-            : view === 'outgoing'
-              ? 'Sales Order / Warehouse'
-              : 'Related Order / Warehouse'
-        }
-        active={warehouseId !== 'ALL'}
-        onClear={() => setWarehouseId('ALL')}
-      >
-        <DeliveryFilter
-          label="Warehouse"
-          value={warehouseId}
-          onChange={setWarehouseId}
-          options={[
-            { value: 'ALL', label: 'All Warehouses' },
-            ...warehouses.map((warehouse) => ({
-              value: String(warehouse.id),
-              label: warehouse.name,
-            })),
-          ]}
-        />
-      </DeliveryHeaderFilter>
-    ),
-    status: (
-      <DeliveryHeaderFilter
-        label={view === 'history' ? 'Outcome' : 'Status'}
-        header={view === 'history' ? 'Outcome' : 'Delivery Status'}
-        active={status !== 'ALL'}
-        onClear={() => setStatus('ALL')}
-      >
-        {statusFilter}
-      </DeliveryHeaderFilter>
-    ),
+  const headerFilters: Record<string, DataTableFilter> = {
+    order: {
+      kind: 'custom',
+      id: 'order',
+      label: 'Warehouse',
+      active: warehouseId !== 'ALL',
+      onClear: () => setWarehouseId('ALL'),
+      content: (
+        <>
+          <DeliveryFilter
+            label="Warehouse"
+            value={warehouseId}
+            onChange={setWarehouseId}
+            options={[
+              { value: 'ALL', label: 'All Warehouses' },
+              ...warehouses.map((warehouse) => ({
+                value: String(warehouse.id),
+                label: warehouse.name,
+              })),
+            ]}
+          />
+        </>
+      ),
+    },
+    status: {
+      kind: 'custom',
+      id: 'status',
+      label: view === 'history' ? 'Outcome' : 'Status',
+      active: status !== 'ALL',
+      onClear: () => setStatus('ALL'),
+      content: <>{statusFilter}</>,
+    },
     ...(view === 'incoming'
       ? {
-          date: (
-            <DeliveryHeaderFilter
-              label="Scheduled date"
-              header="Scheduled / Expected Date"
-              active={!!fromDate || !!toDate}
-              onClear={() => {
-                setFromDate('')
-                setToDate('')
-              }}
-            >
-              <div className="grid gap-1.5">
-                <Label htmlFor="delivery-date-from">Scheduled from</Label>
-                <Input
-                  id="delivery-date-from"
-                  type="date"
-                  value={fromDate}
-                  onChange={(event) => setFromDate(event.target.value)}
-                />
-              </div>
-              <div className="grid gap-1.5">
-                <Label htmlFor="delivery-date-to">Scheduled through</Label>
-                <Input
-                  id="delivery-date-to"
-                  type="date"
-                  value={toDate}
-                  min={fromDate || undefined}
-                  onChange={(event) => setToDate(event.target.value)}
-                />
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Scheduled dates use Asia/Manila; they do not filter receipt dates.
-              </p>
-            </DeliveryHeaderFilter>
-          ),
+          date: {
+            kind: 'custom',
+            id: 'date',
+            label: 'Scheduled date',
+            active: !!fromDate || !!toDate,
+            onClear: () => {
+              setFromDate('')
+              setToDate('')
+            },
+            content: (
+              <>
+                <div className="grid gap-1.5">
+                  <Label htmlFor="delivery-date-from">Scheduled from</Label>
+                  <Input
+                    id="delivery-date-from"
+                    type="date"
+                    value={fromDate}
+                    onChange={(event) => setFromDate(event.target.value)}
+                  />
+                </div>
+                <div className="grid gap-1.5">
+                  <Label htmlFor="delivery-date-to">Scheduled through</Label>
+                  <Input
+                    id="delivery-date-to"
+                    type="date"
+                    value={toDate}
+                    min={fromDate || undefined}
+                    onChange={(event) => setToDate(event.target.value)}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Scheduled dates use Asia/Manila; they do not filter receipt dates.
+                </p>
+              </>
+            ),
+          },
         }
       : view === 'outgoing'
         ? {
-            date: (
-              <DeliveryHeaderFilter
-                label="Delivery trip"
-                active={unassigned}
-                onClear={() => setUnassigned(false)}
-              >
-                <label className="flex min-h-11 items-center gap-2 text-sm">
-                  <Checkbox
-                    checked={unassigned}
-                    onCheckedChange={(value) => setUnassigned(value === true)}
-                  />
-                  Unassigned deliveries only
-                </label>
-              </DeliveryHeaderFilter>
-            ),
+            date: {
+              kind: 'custom',
+              id: 'date',
+              label: 'Delivery trip',
+              active: unassigned,
+              onClear: () => setUnassigned(false),
+              content: (
+                <>
+                  <label className="flex min-h-11 items-center gap-2 text-sm">
+                    <Checkbox
+                      checked={unassigned}
+                      onCheckedChange={(value) => setUnassigned(value === true)}
+                    />
+                    Unassigned deliveries only
+                  </label>
+                </>
+              ),
+            },
           }
         : {}),
   }
   const toolbar = (
+    <>
     <DeliveryTableToolbar
       search={search}
       onSearch={setSearch}
@@ -569,11 +569,7 @@ export function DeliveriesHub({
             : 'Search delivery history...'
       }
     >
-      {hasFilters && (
-        <Button variant="ghost" size="sm" onClick={clearFilters}>
-          Clear filters
-        </Button>
-      )}
+      <DataTableFilters filters={Object.values(headerFilters)} />
       {canManage && view !== 'history' && (
         <Button
           size="sm"
@@ -588,11 +584,12 @@ export function DeliveriesHub({
         </Button>
       )}
     </DeliveryTableToolbar>
+    <DataTableFilterChips filters={Object.values(headerFilters)} />
+    </>
   )
   const renderTable = (tableRows: DeliveryRow[], loading: boolean) => (
     <DeliveryTable
       className="rounded-none border-0"
-      headerFilters={headerFilters}
       rows={tableRows}
       view={view}
       isLoading={loading}

@@ -1,3 +1,4 @@
+import { OverflowValue } from '@/components/ui/OverflowValue'
 import { useResourcePage } from '@/lib/use-cursor-page'
 import { DataTableFooter, DataTableFrame } from '@/components/ui/DataTableFooter'
 import { PageHeader, PageToolbar } from '@/components/ui/ManagementPage'
@@ -120,7 +121,7 @@ export function UserRolesList() {
   const [searchQuery, setSearchQuery] = useState('')
   const usersQuery = useResourcePage<UserAccount>('/users', { includeInactive: activeTab === 'ACTIVE' ? 'false' : 'only', q: searchQuery.trim() || undefined })
   const users = usersQuery.items
-  const { isFetching: isLoading, isFetching, error, reload: refetch } = usersQuery
+  const { isLoading, isFetching, error, reload: refetch } = usersQuery
   const [updatingId, setUpdatingId] = useState<number | null>(null)
   const [userToDeactivate, setUserToDeactivate] = useState<(typeof users)[0] | null>(null)
 
@@ -198,18 +199,10 @@ export function UserRolesList() {
                   {initial}
                 </AvatarFallback>
               </Avatar>
-              <div className="flex flex-col min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-foreground leading-snug truncate">
-                    {displayName}
-                  </span>
-                  {isSelf && (
-                    <Badge variant="secondary" className="text-xs px-1.5 py-0 font-medium">
-                      You
-                    </Badge>
-                  )}
-                </div>
-                <span className="text-xs text-muted-foreground truncate">{u.email}</span>
+              <div className="flex min-w-0 items-center gap-2">
+                <OverflowValue value={displayName} fullValue={`${displayName} | ${u.email}`} showFullValueOnHover className="max-w-56 font-medium" />
+                {isSelf && <Badge variant="secondary" className="text-xs px-1.5 py-0 font-medium">You</Badge>}
+                <OverflowValue value={u.email} className="max-w-56 text-muted-foreground" />
               </div>
             </div>
           </>

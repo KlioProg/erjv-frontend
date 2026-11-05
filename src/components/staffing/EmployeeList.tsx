@@ -1,3 +1,5 @@
+import { DataTableFilters, DataTableFilterChips, type DataTableFilter } from '@/components/ui/data-table-filters'
+import { OverflowValue } from '@/components/ui/OverflowValue'
 import { useAuth } from '@/features/auth/AuthContext'
 import { PageHeader, PageToolbar } from '@/components/ui/ManagementPage'
 import { DataTable, type ColumnDef } from '@/components/ui/data-table'
@@ -5,8 +7,6 @@ import { useState } from 'react'
 import {
   Search,
   UserPlus,
-  Phone,
-  Mail,
   Calendar,
   ShieldCheck,
   Users,
@@ -38,11 +38,27 @@ export function EmployeeList() {
   })
   const reactivateMutation = useReactivateEmployee()
   const [searchQuery, setSearchQuery] = useState('')
+  const [drivingFilter, setDrivingFilter] = useState('ALL')
+  const tableFilters: DataTableFilter[] = [
+    {
+      kind: 'select',
+      id: 'driving',
+      label: 'Driving eligibility',
+      value: drivingFilter,
+      onChange: setDrivingFilter,
+      options: [
+        { value: 'ALL', label: 'All staff' },
+        { value: 'true', label: 'Can drive' },
+        { value: 'false', label: 'Cannot drive' },
+      ],
+    },
+  ]
   const employeeQuery = useResourcePage<Employee>('/employees', {
     includeInactive: activeTab === 'ARCHIVED' ? 'only' : 'false',
+    ...(drivingFilter !== 'ALL' ? { canDrive: drivingFilter } : {}),
     ...(searchQuery.trim() ? { q: searchQuery.trim() } : {}),
   })
-  const { isFetching: isLoading, isFetching, error, reload: refetch } = employeeQuery
+  const { isLoading, isFetching, error, reload: refetch } = employeeQuery
   const allEmployees = employeeQuery.items
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -107,42 +123,12 @@ export function EmployeeList() {
                   {initials}
                 </AvatarFallback>
               </Avatar>
-              <div className="flex flex-col">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-foreground">
-                    {emp.firstName} {emp.lastName}
-                  </span>
-                </div>
-                {emp.address && (
-                  <span className="text-xs text-muted-foreground truncate max-w-[160px]">
-                    {emp.address}
-                  </span>
-                )}
-              </div>
+              <OverflowValue value={`${emp.firstName} ${emp.lastName}`} fullValue={`${emp.firstName} ${emp.lastName}${emp.address ? ` | ${emp.address}` : ''}`} showFullValueOnHover className="max-w-56 font-medium" />
             </div>
           </>
         )
       case 'contact':
-        return (
-          <>
-            <div className="flex flex-col gap-1 text-sm">
-              {emp.email ? (
-                <span className="flex items-center gap-1 text-muted-foreground">
-                  <Mail className="size-3 text-muted-foreground" />
-                  {emp.email}
-                </span>
-              ) : (
-                <span className="text-muted-foreground">—</span>
-              )}
-              {emp.phone && (
-                <span className="flex items-center gap-1 text-muted-foreground text-xs tabular-nums">
-                  <Phone className="size-3 text-muted-foreground" />
-                  {emp.phone}
-                </span>
-              )}
-            </div>
-          </>
-        )
+        return <OverflowValue value={[emp.email, emp.phone].filter(Boolean).join(' | ')} className="max-w-72 text-muted-foreground" />
       case 'positions':
         return (
           <EmployeePositionSelector
@@ -267,6 +253,7 @@ export function EmployeeList() {
             className="pl-9 bg-card"
           />
         </div>
+        <DataTableFilters filters={tableFilters} />
         {activeTab === 'ACTIVE' && (
           <Button size="sm" onClick={handleCreate} className="font-medium cursor-pointer">
             <UserPlus data-icon="inline-start" className="size-4" />
@@ -274,6 +261,7 @@ export function EmployeeList() {
           </Button>
         )}
       </PageToolbar>
+      <DataTableFilterChips filters={tableFilters} />
 
       <p className="text-xs text-muted-foreground">Search matches first name, last name, or email. Results use server ordering.</p>
       {/* Employees Table Card */}

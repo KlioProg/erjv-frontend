@@ -98,7 +98,8 @@ function mount(path: string) {
 const destinations = [
   ['/customers', 'Customers'],
   ['/sales-orders', 'Sales Orders'],
-  ['/inventory', 'Inventory'],
+  ['/inventory', 'Products & Stock'],
+  ['/inventory/quarantined', 'Quarantined Stock'],
   ['/warehouses', 'Warehouses'],
   ['/deliveries/incoming', 'Incoming'],
   ['/deliveries/outgoing', 'Outgoing'],
@@ -198,7 +199,8 @@ it('keeps delivery disclosure behavior while navigating children, vehicles, inve
   await user.click(group)
   expect(group.getAttribute('aria-expanded')).toBe('false')
   await user.click(screen.getByRole('link', { name: 'Vehicles' }))
-  await user.click(screen.getByRole('link', { name: 'Inventory' }))
+  await user.click(screen.getByRole('button', { name: 'Inventory' }))
+  await user.click(screen.getByRole('link', { name: 'Products & Stock' }))
   expect(screen.getByTestId('path').textContent).toBe('/inventory')
   await user.click(screen.getByRole('button', { name: 'Browser back' }))
   expect(screen.getByTestId('path').textContent).toBe('/vehicles')

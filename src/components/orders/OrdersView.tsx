@@ -1,3 +1,7 @@
+import { CursorLookup } from '@/components/ui/CursorLookup'
+import { Label } from '@/components/ui/label'
+import { manilaScheduleToIso } from '@/lib/manila-schedule'
+import { DataTableFilters, DataTableFilterChips, type DataTableFilter } from '@/components/ui/data-table-filters'
 import type { Client } from '@/features/crm/clients.types'
 import type { InventoryItemResponse } from '@/features/products/products.types'
 import type { Warehouse } from '@/features/logistics/warehouses.types'
@@ -113,9 +117,108 @@ export function OrdersView({
   const [orderToCancel, setOrderToCancel] = useState<SalesOrderRecord | null>(null)
 
   // Real backend queries
-  const ordersQuery = useSalesOrdersPage({ statuses: activeStatus === 'Active' ? ['DRAFT', 'CONFIRMED', 'PARTIALLY_DELIVERED'] : activeStatus === 'Completed' ? ['DELIVERED'] : ['CANCELLED'], q: searchTerm.trim() || undefined })
+  const [orderStatus, setOrderStatus] = useState('ALL')
+  const [partyFilter, setPartyFilter] = useState<{ id: string; name: string } | null>(null)
+  const [orderedFrom, setOrderedFrom] = useState('')
+  const [orderedThrough, setOrderedThrough] = useState('')
+  const dateError = !!orderedFrom && !!orderedThrough && orderedFrom > orderedThrough
+  const groupStatuses: SalesOrderRecord['status'][] = activeStatus === 'Active' ? ['DRAFT', 'CONFIRMED', 'PARTIALLY_DELIVERED'] : activeStatus === 'Completed' ? ['DELIVERED'] : ['CANCELLED']
+  const specificStatus = groupStatuses.includes(orderStatus as SalesOrderRecord['status']) ? orderStatus : 'ALL'
+  const orderFilters: DataTableFilter[] = [
+    {
+      kind: 'select',
+      id: 'order-status',
+      label: 'Order status',
+      value: specificStatus,
+      onChange: setOrderStatus,
+      options: [
+        { value: 'ALL', label: 'All statuses in this tab' },
+        ...groupStatuses.map((value) => ({
+          value,
+          label: value
+            .replaceAll('_', ' ')
+            .toLowerCase()
+            .replace(/^./, (letter) => letter.toUpperCase()),
+        })),
+      ],
+    },
+    {
+      kind: 'custom',
+      id: 'party',
+      label: 'Customer',
+      active: !!partyFilter,
+      valueLabel: partyFilter?.name,
+      onClear: () => setPartyFilter(null),
+      content: (
+        <>
+          <Label htmlFor="order-party-filter">Customer</Label>
+          <CursorLookup<{ id: number; name: string }>
+            id="order-party-filter"
+            path="/clients"
+            filter={{ includeInactive: 'true' }}
+            label="Customer"
+            value={partyFilter?.id ?? ''}
+            selectedLabel={partyFilter?.name}
+            getLabel={(party) => party.name}
+            onChange={(id, party) => setPartyFilter({ id, name: party.name })}
+          />
+        </>
+      ),
+    },
+    ...[
+      { id: 'order-from', label: 'Order date from', value: orderedFrom, set: setOrderedFrom },
+      {
+        id: 'order-through',
+        label: 'Order date through',
+        value: orderedThrough,
+        set: setOrderedThrough,
+      },
+    ].map((field): DataTableFilter => ({
+      kind: 'custom',
+      id: field.id,
+      label: field.label,
+      active: !!field.value,
+      valueLabel: field.value,
+      onClear: () => field.set(''),
+      content: (
+        <>
+          <Label htmlFor={field.id}>{field.label}</Label>
+          <Input
+            id={field.id}
+            type="date"
+            value={field.value}
+            min={field.id === 'order-through' ? orderedFrom || undefined : undefined}
+            max="9999-12-31"
+            onChange={(event) => field.set(event.target.value)}
+            aria-invalid={dateError}
+          />
+          <p className="text-xs text-muted-foreground">Order dates use Manila time.</p>
+          {dateError && field.id === 'order-through' && (
+            <p className="text-xs text-destructive">Choose an end date on or after the start date.</p>
+          )}
+        </>
+      ),
+    })),
+  ]
+  const ordersQuery = useSalesOrdersPage(
+    {
+      statuses:
+        specificStatus === 'ALL' ? groupStatuses : [specificStatus as SalesOrderRecord['status']],
+      q: searchTerm.trim() || undefined,
+      ...(partyFilter ? { clientId: Number(partyFilter.id) } : {}),
+      ...(orderedFrom ? { orderedFrom: manilaScheduleToIso(`${orderedFrom}T00:00`)! } : {}),
+      ...(orderedThrough
+        ? {
+            orderedBefore: new Date(
+              Date.parse(`${orderedThrough}T00:00:00+08:00`) + 86400000,
+            ).toISOString(),
+          }
+        : {}),
+    },
+    !dateError,
+  )
   const salesOrders = ordersQuery.items
-  const isLoadingOrders = ordersQuery.isFetching
+  const isLoadingOrders = ordersQuery.isLoading
   const editingOrderQuery = useSalesOrderById(editingOrderId)
   const selectedDetail = useSalesOrderById(isDetailDrawerOpen ? selectedOrderRecord?.id : undefined)
   const baseClients = useMemo<Client[]>(() => [], [])
@@ -255,7 +358,7 @@ export function OrdersView({
       width: 145,
       className: 'min-w-[145px]',
       cell: ({ row: { order } }) => (
-        <div className="flex flex-col gap-1">
+        <div className="flex items-center gap-2 whitespace-nowrap">
           <span className="whitespace-nowrap text-sm font-medium text-foreground">
             {order.orderNumber}
           </span>
@@ -273,17 +376,7 @@ export function OrdersView({
       width: 210,
       className: 'min-w-[180px] max-w-[250px]',
       cell: ({ row: { order, client } }) => (
-        <div className="flex min-w-0 flex-col gap-1">
-          <span
-            className="truncate text-sm font-medium text-foreground"
-            title={client?.name || `Customer #${order.clientId}`}
-          >
-            {client?.name || `Customer #${order.clientId}`}
-          </span>
-          <span className="truncate text-xs text-muted-foreground" title={order.deliveryAddress ?? undefined}>
-            {order.deliveryAddress || 'No address specified'}
-          </span>
-        </div>
+        <OverflowValue value={client?.name || `Customer #${order.clientId}`} fullValue={`${client?.name || `Customer #${order.clientId}`} ? ${order.deliveryAddress || 'No address specified'}`} showFullValueOnHover />
       ),
     },
     {
@@ -483,6 +576,7 @@ export function OrdersView({
           />
         </div>
 
+        <DataTableFilters filters={orderFilters} />
         <Button
           size="sm"
           onClick={() => {
@@ -495,10 +589,11 @@ export function OrdersView({
           Create Sales Order
         </Button>
       </PageToolbar>
+      <DataTableFilterChips filters={orderFilters} />
 
       {/* Orders Table */}
       <DataTableFrame>
-      {ordersQuery.isError ? (
+      {dateError ? <p role="alert" className="p-4 text-sm text-destructive">Choose an end date on or after the start date.</p> : ordersQuery.isError ? (
         <Alert variant="destructive">
           <AlertDescription>
             Sales orders could not be loaded. {getErrorMessage(ordersQuery.error)}

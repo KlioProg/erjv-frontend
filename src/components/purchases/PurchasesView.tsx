@@ -1,3 +1,7 @@
+import { CursorLookup } from '@/components/ui/CursorLookup'
+import { Label } from '@/components/ui/label'
+import { manilaScheduleToIso } from '@/lib/manila-schedule'
+import { DataTableFilters, DataTableFilterChips, type DataTableFilter } from '@/components/ui/data-table-filters'
 import { fetchProductByIdApi } from '@/features/products/products.api'
 import type { InventoryItemResponse } from '@/features/products/products.types'
 import type { Warehouse } from '@/features/logistics/warehouses.types'
@@ -114,16 +118,115 @@ export function PurchasesView({
   const processedBy = user?.fullName || user?.email || 'Current User'
 
   // Data queries
-  const ordersQuery = usePurchaseOrdersPage({ statuses: activeStatus === 'Active' ? ['DRAFT', 'CONFIRMED', 'PARTIALLY_RECEIVED'] : activeStatus === 'Completed' ? ['RECEIVED'] : ['CANCELLED'], q: searchTerm.trim() || undefined }, section === 'orders')
+  const [orderStatus, setOrderStatus] = useState('ALL')
+  const [partyFilter, setPartyFilter] = useState<{ id: string; name: string } | null>(null)
+  const [orderedFrom, setOrderedFrom] = useState('')
+  const [orderedThrough, setOrderedThrough] = useState('')
+  const dateError = !!orderedFrom && !!orderedThrough && orderedFrom > orderedThrough
+  const groupStatuses: PurchaseOrderRecord['status'][] = activeStatus === 'Active' ? ['DRAFT', 'CONFIRMED', 'PARTIALLY_RECEIVED'] : activeStatus === 'Completed' ? ['RECEIVED'] : ['CANCELLED']
+  const specificStatus = groupStatuses.includes(orderStatus as PurchaseOrderRecord['status']) ? orderStatus : 'ALL'
+  const orderFilters: DataTableFilter[] = [
+    {
+      kind: 'select',
+      id: 'order-status',
+      label: 'Order status',
+      value: specificStatus,
+      onChange: setOrderStatus,
+      options: [
+        { value: 'ALL', label: 'All statuses in this tab' },
+        ...groupStatuses.map((value) => ({
+          value,
+          label: value
+            .replaceAll('_', ' ')
+            .toLowerCase()
+            .replace(/^./, (letter) => letter.toUpperCase()),
+        })),
+      ],
+    },
+    {
+      kind: 'custom',
+      id: 'party',
+      label: 'Supplier',
+      active: !!partyFilter,
+      valueLabel: partyFilter?.name,
+      onClear: () => setPartyFilter(null),
+      content: (
+        <>
+          <Label htmlFor="order-party-filter">Supplier</Label>
+          <CursorLookup<{ id: number; name: string }>
+            id="order-party-filter"
+            path="/suppliers"
+            filter={{ includeInactive: 'true' }}
+            label="Supplier"
+            value={partyFilter?.id ?? ''}
+            selectedLabel={partyFilter?.name}
+            getLabel={(party) => party.name}
+            onChange={(id, party) => setPartyFilter({ id, name: party.name })}
+          />
+        </>
+      ),
+    },
+    ...[
+      { id: 'order-from', label: 'Order date from', value: orderedFrom, set: setOrderedFrom },
+      {
+        id: 'order-through',
+        label: 'Order date through',
+        value: orderedThrough,
+        set: setOrderedThrough,
+      },
+    ].map((field): DataTableFilter => ({
+      kind: 'custom',
+      id: field.id,
+      label: field.label,
+      active: !!field.value,
+      valueLabel: field.value,
+      onClear: () => field.set(''),
+      content: (
+        <>
+          <Label htmlFor={field.id}>{field.label}</Label>
+          <Input
+            id={field.id}
+            type="date"
+            value={field.value}
+            min={field.id === 'order-through' ? orderedFrom || undefined : undefined}
+            max="9999-12-31"
+            onChange={(event) => field.set(event.target.value)}
+            aria-invalid={dateError}
+          />
+          <p className="text-xs text-muted-foreground">Order dates use Manila time.</p>
+          {dateError && field.id === 'order-through' && (
+            <p className="text-xs text-destructive">Choose an end date on or after the start date.</p>
+          )}
+        </>
+      ),
+    })),
+  ]
+  const ordersQuery = usePurchaseOrdersPage(
+    {
+      statuses:
+        specificStatus === 'ALL' ? groupStatuses : [specificStatus as PurchaseOrderRecord['status']],
+      q: searchTerm.trim() || undefined,
+      ...(partyFilter ? { supplierId: Number(partyFilter.id) } : {}),
+      ...(orderedFrom ? { orderedFrom: manilaScheduleToIso(`${orderedFrom}T00:00`)! } : {}),
+      ...(orderedThrough
+        ? {
+            orderedBefore: new Date(
+              Date.parse(`${orderedThrough}T00:00:00+08:00`) + 86400000,
+            ).toISOString(),
+          }
+        : {}),
+    },
+    section === 'orders' && !dateError,
+  )
   const purchaseOrders = ordersQuery.items
-  const isLoadingPOs = ordersQuery.isFetching
+  const isLoadingPOs = ordersQuery.isLoading
   const selectedDetail = usePurchaseOrderById(selectedOrderId ?? undefined)
   const suppliersQuery = useResourcePage<Supplier>('/suppliers', {
     includeInactive: supplierView === 'ACTIVE' ? 'false' : 'only',
     q: section === 'suppliers' ? searchTerm.trim() || undefined : undefined,
   }, section === 'suppliers')
   const baseSuppliers = suppliersQuery.items
-  const isLoadingSuppliers = suppliersQuery.isFetching
+  const isLoadingSuppliers = suppliersQuery.isLoading
   const stockQuery = useStockItems()
   const { data: stockItems = [] } = stockQuery
   const productsQuery = useRecordsById<InventoryItemResponse>('/inventory-items', [...purchaseOrders, ...[editingOrder, selectedDetail.data].filter((order): order is PurchaseOrderRecord => !!order)].flatMap(order => order.items.map(item => item.inventoryItemId)))
@@ -321,16 +424,7 @@ export function PurchasesView({
       width: 240,
       className: 'min-w-[160px] max-w-[230px]',
       cell: ({ row: { po, supplierName } }) => (
-        <div className="flex min-w-0 flex-col gap-1">
-          <span className="truncate text-sm font-medium text-foreground" title={supplierName}>
-            {supplierName}
-          </span>
-          {po.externalReference && (
-            <span className="truncate text-xs text-muted-foreground" title={po.externalReference}>
-              Ref: {po.externalReference}
-            </span>
-          )}
-        </div>
+        <OverflowValue value={supplierName} fullValue={po.externalReference ? `${supplierName} | Ref: ${po.externalReference}` : supplierName} showFullValueOnHover />
       ),
     },
     {
@@ -492,7 +586,7 @@ export function PurchasesView({
       sortable: false,
       sortKey: (supplier) => supplier.contactPerson || '',
       className: 'text-sm text-foreground',
-      cell: ({ row: supplier }) => <>{supplier.contactPerson || '—'}</>,
+      cell: ({ row: supplier }) => <OverflowValue value={supplier.contactPerson} />,
     },
     {
       id: 'supplier-3',
@@ -500,12 +594,7 @@ export function PurchasesView({
       width: '23%',
       className: 'text-sm text-foreground',
       cell: ({ row: supplier }) => (
-        <>
-          <OverflowValue value={supplier.phone} />
-          {supplier.email && (
-            <OverflowValue value={supplier.email} className="text-xs text-muted-foreground" />
-          )}
-        </>
+        <OverflowValue value={[supplier.phone, supplier.email].filter(Boolean).join(' | ')} className="max-w-64" />
       ),
     },
     {
@@ -590,6 +679,7 @@ export function PurchasesView({
               />
             </div>
 
+        <DataTableFilters filters={orderFilters} />
             <Button
               size="sm"
               onClick={() => setIsPurchaseModalOpen(true)}
@@ -599,9 +689,10 @@ export function PurchasesView({
               Create Purchase Order
             </Button>
           </PageToolbar>
+      <DataTableFilterChips filters={orderFilters} />
 
           <DataTableFrame>
-          {ordersQuery.isError ? (
+          {dateError ? <p role="alert" className="p-4 text-sm text-destructive">Choose an end date on or after the start date.</p> : ordersQuery.isError ? (
             <Alert variant="destructive">
               <AlertDescription>
                 Purchase orders could not be loaded. {getErrorMessage(ordersQuery.error)}

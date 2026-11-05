@@ -1,3 +1,4 @@
+import { DataTableFilters, DataTableFilterChips, type DataTableFilter } from '@/components/ui/data-table-filters'
 import { useState } from 'react'
 import { Search } from 'lucide-react'
 import { useAuth } from '@/features/auth/AuthContext'
@@ -54,7 +55,6 @@ export function WarehouseTransfersPage() {
   const [destination, setDestination] = useState('')
   const [from, setFrom] = useState('')
   const [before, setBefore] = useState('')
-  const [filtersOpen, setFiltersOpen] = useState(false)
   const [opened, setOpened] = useState<number | 'create' | null>(null)
   const [entryAction, setEntryAction] = useState<'dispatch' | 'reconcile'>()
   const dateError = Boolean(from && before && from >= before)
@@ -89,7 +89,7 @@ export function WarehouseTransfersPage() {
     {
       header: 'Departure',
       cell: ({ row }) => (
-        <div className="flex flex-col gap-1 text-sm">
+        <div className="flex items-center gap-2 whitespace-nowrap text-ui">
           <span>
             <span className="text-xs text-muted-foreground">Scheduled: </span>
             {transferTime(row.scheduledDepartureAt)}
@@ -128,7 +128,55 @@ export function WarehouseTransfersPage() {
       ),
     },
   ]
-  const activeFilters = [source, destination, from, before].filter(Boolean).length
+  const tableFilters: DataTableFilter[] = [
+    ...[
+      { id: 'source', label: 'From Warehouse', value: source, set: setSource },
+      { id: 'destination', label: 'To Warehouse', value: destination, set: setDestination },
+    ].map((field): DataTableFilter => ({
+      kind: 'custom',
+      id: field.id,
+      label: field.label,
+      active: !!field.value,
+      valueLabel: field.value ? name(Number(field.value)) : undefined,
+      onClear: () => field.set(''),
+      content: (
+        <>
+          <Label htmlFor={`transfer-filter-${field.id}`}>{field.label}</Label>
+          <CursorLookup<Warehouse>
+            id={`transfer-filter-${field.id}`}
+            path="/warehouses"
+            label={`Filter ${field.label}`}
+            value={field.value}
+            onChange={field.set}
+            getLabel={(item) => item.name}
+            filter={{ includeInactive: 'true' }}
+          />
+        </>
+      ),
+    })),
+    ...[
+      { id: 'from', label: 'Departure from (Manila)', value: from, set: setFrom },
+      { id: 'before', label: 'Departure before (Manila)', value: before, set: setBefore },
+    ].map((field): DataTableFilter => ({
+      kind: 'custom',
+      id: field.id,
+      label: field.label,
+      active: !!field.value,
+      valueLabel: field.value,
+      onClear: () => field.set(''),
+      content: (
+        <>
+          <Label htmlFor={`transfer-${field.id}`}>{field.label}</Label>
+          <Input
+            id={`transfer-${field.id}`}
+            type="datetime-local"
+            value={field.value}
+            onChange={(event) => field.set(event.target.value)}
+          />
+        </>
+      ),
+    })),
+  ]
   return (
     <div className="flex min-w-0 flex-col gap-4">
       <PageHeader description="Move goods between warehouses and record what arrives.">
@@ -150,75 +198,13 @@ export function WarehouseTransfersPage() {
           />
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button
-            variant="outline"
-            aria-expanded={filtersOpen}
-            aria-controls="transfer-list-filters"
-            onClick={() => setFiltersOpen(!filtersOpen)}
-          >
-            Filters{activeFilters ? ` (${activeFilters} active)` : ''}
-          </Button>
+          <DataTableFilters filters={tableFilters} />
           {(isAdmin || isManager) && (
             <Button onClick={() => { setEntryAction(undefined); setOpened('create') }}>Create Transfer</Button>
           )}
         </div>
       </PageToolbar>
-      {filtersOpen && (
-        <div
-          id="transfer-list-filters"
-          className="grid min-w-0 gap-3 sm:grid-cols-2 lg:grid-cols-4"
-        >
-          {(
-            [
-              { label: 'Source Warehouse', value: source, set: setSource },
-              { label: 'Destination Warehouse', value: destination, set: setDestination },
-            ] as const
-          ).map((field) => (
-            <div className="min-w-0 space-y-1" key={field.label}>
-              <Label>{field.label}</Label>
-              <CursorLookup<Warehouse>
-                id={`filter-${field.label.replaceAll(' ', '-')}`}
-                path="/warehouses"
-                label={`Filter ${field.label}`}
-                value={field.value}
-                getLabel={(item) => item.name}
-                onChange={field.set}
-                filter={{ includeInactive: 'true' }}
-              />
-            </div>
-          ))}
-          <div className="space-y-1">
-            <Label htmlFor="transfer-from">Departure from (Manila)</Label>
-            <Input
-              id="transfer-from"
-              type="datetime-local"
-              value={from}
-              onChange={(event) => setFrom(event.target.value)}
-            />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="transfer-before">Departure before (Manila)</Label>
-            <Input
-              id="transfer-before"
-              type="datetime-local"
-              value={before}
-              onChange={(event) => setBefore(event.target.value)}
-            />
-          </div>
-          <Button
-            variant="ghost"
-            className="justify-self-start"
-            onClick={() => {
-              setSource('')
-              setDestination('')
-              setFrom('')
-              setBefore('')
-            }}
-          >
-            Clear filters
-          </Button>
-        </div>
-      )}
+      <DataTableFilterChips filters={tableFilters} />
       {dateError && (
         <p role="alert" className="text-sm text-destructive">
           Departure before must be later than departure from.
@@ -245,7 +231,7 @@ export function WarehouseTransfersPage() {
             manualSorting
             isLoading={query.isFetching}
             emptyContent="No warehouse transfers match these filters."
-            tableClassName="min-w-[800px]"
+            tableClassName="min-w-[1100px]"
           />
         )}
         <DataTableFooter

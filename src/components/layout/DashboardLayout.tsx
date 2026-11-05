@@ -33,6 +33,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { DeliveryNavigation } from './DeliveryNavigation'
+import { InventoryNavigation } from './InventoryNavigation'
 import { ErjvPosLogo } from '@/components/ui/ErjvPosLogo'
 import { useAuth } from '@/features/auth/AuthContext'
 import { USER_ROLES, ROLE_DETAILS } from '@/features/auth/roles'
@@ -168,10 +169,10 @@ export function DashboardLayout({
             : null
   // Determine current section info
   const currentGroup = NAV_GROUPS.find((g) =>
-    g.items.some((item) => item.key === (deliveryView ? 'deliveries' : currentScreen)),
+    g.items.some((item) => item.key === (deliveryView ? 'deliveries' : currentScreen === 'quarantined-stock' ? 'inventory' : currentScreen)),
   )
   const currentItem = currentGroup?.items.find(
-    (item) => item.key === (deliveryView ? 'deliveries' : currentScreen),
+    (item) => item.key === (deliveryView ? 'deliveries' : currentScreen === 'quarantined-stock' ? 'inventory' : currentScreen),
   )
 
   const sidebarContent = (
@@ -214,6 +215,9 @@ export function DashboardLayout({
               <div className="px-3 text-xs font-medium text-muted-foreground">{group.title}</div>
               <div className="flex flex-col gap-1">
                 {group.items.map((item) => {
+                  if (item.key === 'inventory') return <InventoryNavigation key={item.key}
+                    view={currentScreen === 'inventory' ? 'products' : currentScreen === 'quarantined-stock' ? 'quarantine' : null}
+                    onSelect={() => { handleNavigate(); setIsMobileOpen(false) }} />
                   if (item.key === 'deliveries')
                     return (
                       <DeliveryNavigation

@@ -395,9 +395,11 @@ describe('inventory and global stock warnings', () => {
     ).toBeTruthy()
     await user.click(screen.getByRole('menuitem', { name: 'View All' }))
     await screen.findByRole('heading', { name: 'Inventory' })
+    await user.click(screen.getByRole('button', { name: 'Filters' }))
     expect(screen.getByRole('combobox', { name: 'Warning warehouse' }).textContent).toContain(
       'Main Warehouse',
     )
+    await user.click(screen.getByRole('button', { name: 'Done' }))
     expect(screen.queryByText('Beta Mixed')).toBeNull()
     expect(screen.getByRole('region', { name: 'Stock by location for Gamma Small' })).toBeTruthy()
   })
@@ -685,7 +687,7 @@ describe('inventory and global stock warnings', () => {
     expect(screen.queryByText('New Product')).toBeNull()
   })
 
-  it('keeps stock labels within the existing table while preserving account and inventory management', async () => {
+  it('tints stock warning rows while preserving account and inventory management', async () => {
     const user = userEvent.setup()
     mountDashboard()
     await screen.findByText('Alpha Empty')
@@ -703,36 +705,37 @@ describe('inventory and global stock warnings', () => {
     expect(screen.queryByRole('columnheader', { name: 'Status' })).toBeNull()
     expect(screen.getAllByRole('columnheader')).toHaveLength(5)
     const rows = screen.getAllByRole('row').slice(1)
-    expect(rows[0].textContent).toContain('Alpha Empty')
-    expect(within(rows[0]).getByText('Out of Stock')).toBeTruthy()
-    expect(rows[0].className).not.toContain('bg-destructive')
-    expect(rows[1].textContent).toContain('Beta Mixed')
-    expect(rows[1].className).not.toContain('bg-destructive')
+    expect(rows[2].textContent).toContain('Alpha Empty')
+    expect(within(rows[2]).getByText('Out of Stock')).toBeTruthy()
+    expect(rows[2].className).toContain('bg-destructive/5')
+    expect(within(rows[2]).getByText('Out of Stock').className).toContain('sr-only')
+    expect(rows[3].textContent).toContain('Beta Mixed')
+    expect(rows[3].className).toContain('bg-destructive/5')
     expect(
-      within(rows[1]).getByText('Out of Stock at 1 Warehouse'),
+      within(rows[3]).getByText(/1 warehouse out/),
     ).toBeTruthy()
-    expect(within(rows[1]).getByText('In Stock')).toBeTruthy()
-    expect(rows[2].textContent).toContain('Gamma Small')
+    expect(within(rows[3]).getByText(/1 warehouse out/).className).toContain('sr-only')
+    expect(rows[0].textContent).toContain('Gamma Small')
     await user.click(screen.getByRole('button', { name: /^Archived/ }))
     expect(await screen.findByText('Archived Product')).toBeTruthy()
     await user.click(screen.getByRole('button', { name: /^Active/ }))
     await screen.findByText('Alpha Empty')
     const inventoryNav = within(
       screen.getByRole('navigation', { name: 'Main navigation' }),
-    ).getByRole('link', { name: 'Inventory' })
-    expect(inventoryNav.querySelectorAll('svg')).toHaveLength(1)
+    ).getByRole('link', { name: 'Products & Stock' })
+    expect(inventoryNav.getAttribute('href')).toBe('/inventory')
     await user.click(screen.getByRole('button', { name: 'Account menu' }))
     await user.click(screen.getByRole('menuitem', { name: 'Sign Out' }))
     expect(auth.logout).toHaveBeenCalledOnce()
   })
 
-  it('preserves backend order, searches and expands individual warehouse shortages', async () => {
+  it('keeps warnings last on the current page, searches and expands individual warehouse shortages', async () => {
     const user = userEvent.setup()
     const openWarehouse = vi.fn()
     mount(<InventoryHub onOpenWarehouse={openWarehouse} />)
     await screen.findByText('Alpha Empty')
     expect(screen.queryByRole('button', { name: 'Product' })).toBeNull()
-    expect(screen.getAllByRole('row')[1].textContent).toContain('Alpha Empty')
+    expect(screen.getAllByRole('row')[1].textContent).toContain('Gamma Small')
     await user.type(screen.getByRole('textbox', { name: 'Search inventory' }), 'Beta')
     await user.click(screen.getByRole('button', { name: 'Show stock by location for Beta Mixed' }))
     const locations = within(
@@ -1090,16 +1093,16 @@ it('makes product status primary and returns from quarantine to the selected arc
     if (config.url === '/stock-items/quarantine-lots') quarantineFilters.push(config.params)
     return base(config)
   }
-  mount(<InventoryHub />)
+  mountDashboard()
   await screen.findByText('Alpha Empty')
   expect(screen.getByText('Manage products and stock across warehouses.')).toBeTruthy()
   expect(screen.queryByRole('tab')).toBeNull()
-  expect(screen.queryByText('Products & Stock')).toBeNull()
+  expect(screen.getByRole('link', { name: 'Products & Stock' })).toBeTruthy()
   const active = screen.getByRole('button', { name: /^Active/ })
   const archived = screen.getByRole('button', { name: /^Archived/ })
   expect(active.textContent?.trim()).toBe('Active')
   expect(archived.textContent?.trim()).toBe('Archived')
-  const quarantine = screen.getByRole('button', { name: 'Quarantined Stock' })
+  const quarantine = screen.getByRole('link', { name: 'Quarantined Stock' })
   expect(quarantine.className).not.toContain('bg-primary-contrast')
   await user.click(archived)
   await screen.findByText('Archived Product')
@@ -1107,12 +1110,14 @@ it('makes product status primary and returns from quarantine to the selected arc
   expect(await screen.findByRole('heading', { name: 'Quarantined Stock' })).toBeTruthy()
   expect(screen.queryByRole('button', { name: /^Active/ })).toBeNull()
   expect(screen.queryByRole('button', { name: /^Archived/ })).toBeNull()
+  await user.click(screen.getByRole('button', { name: 'Filters' }))
   await user.click(screen.getByRole('combobox', { name: 'Condition' }))
   await user.click(screen.getByRole('option', { name: 'Spoiled' }))
   await waitFor(() =>
     expect(quarantineFilters).toContainEqual({ openOnly: true, condition: 'SPOILED', limit: 50 }),
   )
-  await user.click(screen.getByRole('button', { name: 'Back to Products' }))
+  await user.click(screen.getByRole('button', { name: 'Done' }))
+  await user.click(screen.getByRole('link', { name: 'Products & Stock' }))
   expect(await screen.findByText('Archived Product')).toBeTruthy()
   expect(screen.getByRole('button', { name: /^Archived/ }).getAttribute('aria-pressed')).toBe(
     'true',

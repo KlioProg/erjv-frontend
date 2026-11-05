@@ -1,3 +1,4 @@
+import { OverflowValue } from '@/components/ui/OverflowValue'
 import { useAuth } from '@/features/auth/AuthContext'
 import { useResourcePage } from '@/lib/use-cursor-page'
 import { DataTableFooter, DataTableFrame } from '@/components/ui/DataTableFooter'
@@ -80,7 +81,7 @@ export function JobList() {
   const [searchTerm, setSearchTerm] = useState('')
   const jobsQuery = useResourcePage<Job>('/jobs', { includeInactive: activeTab === 'ACTIVE' ? 'false' : 'only', q: searchTerm.trim() || undefined })
   const jobs = jobsQuery.items
-  const { isFetching: isLoading, isFetching, error, reload: refetch } = jobsQuery
+  const { isLoading, isFetching, error, reload: refetch } = jobsQuery
   const [selectedJob, setSelectedJob] = useState<Job | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [jobToDeactivate, setJobToDeactivate] = useState<Job | null>(null)
@@ -127,7 +128,7 @@ export function JobList() {
       cell: ({ row }) => (
         <div className="flex min-w-0 items-center gap-2">
           <Briefcase aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
-          <span className="truncate">{row.name}</span>
+          <OverflowValue value={row.name} className="max-w-64" />
         </div>
       ),
     },
@@ -139,7 +140,7 @@ export function JobList() {
       sortKey: (job) => job.description || '',
       className: 'min-w-64 max-w-xl text-muted-foreground',
       cell: ({ row }) => (
-        <span className="line-clamp-2">{row.description || 'No description specified.'}</span>
+        <OverflowValue value={row.description || 'No description specified.'} className="max-w-xl" />
       ),
     },
     {

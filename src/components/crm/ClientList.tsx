@@ -78,19 +78,14 @@ export function ClientList() {
       header: 'Contact Person',
       accessorKey: 'contactPerson',
       className: 'min-w-[140px] max-w-[180px] whitespace-nowrap text-foreground',
-      cell: ({ row }) => row.contactPerson || '—',
+      cell: ({ row }) => <OverflowValue value={row.contactPerson} />,
     },
     {
       id: 'customer-channels',
       header: 'Phone & Email',
       className: 'max-w-[220px] text-foreground',
       cell: ({ row }) => (
-        <>
-          <OverflowValue value={row.phone} />
-          {row.email && (
-            <OverflowValue value={row.email} className="text-xs text-muted-foreground" />
-          )}
-        </>
+        <OverflowValue value={[row.phone, row.email].filter(Boolean).join(' | ')} className="max-w-64" />
       ),
     },
     {

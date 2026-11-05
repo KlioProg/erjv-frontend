@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+import userEvent from '@testing-library/user-event'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { apiClient } from '@/lib/api-client'
@@ -142,7 +143,10 @@ it('offers an explicitly scoped out-of-stock view without claiming a global prio
   mount(<InventoryItemCatalog />)
   await screen.findByText('Available rice')
   expect(screen.queryByText('Later empty rice')).toBeNull()
-  fireEvent.click(screen.getByRole('button', { name: 'Out of stock' }))
+  await userEvent.click(screen.getByRole('button', { name: 'Filters' }))
+  await userEvent.click(screen.getByRole('combobox', { name: 'Stock Status' }))
+  await userEvent.click(screen.getByRole('option', { name: 'Out of Stock' }))
+  await userEvent.click(screen.getByRole('button', { name: 'Done' }))
   await screen.findByText('Warning filters apply to this product page and loaded stock records.')
   await screen.findByText('Empty rice')
   for (const name of ['Available rice', 'Unassigned rice', 'Unknown rice']) expect(screen.queryByText(name)).toBeNull()
@@ -151,6 +155,6 @@ it('offers an explicitly scoped out-of-stock view without claiming a global prio
   await screen.findByText('Later empty rice')
   expect(requests).toContainEqual({ url: '/inventory-items', params: { includeInactive: 'false', limit: 50, cursor: 'page-2' } })
   expect(requests.filter(({ url }) => url === '/stock-items')).toHaveLength(1)
-  fireEvent.click(screen.getByRole('button', { name: 'Clear warning filters' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Clear All' }))
   await screen.findByText('Available rice')
 })

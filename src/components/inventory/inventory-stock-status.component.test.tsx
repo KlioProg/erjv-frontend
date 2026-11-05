@@ -17,7 +17,8 @@ function mount({
   incomplete = false,
   failed = false,
   warehouseId,
-}: { incomplete?: boolean; failed?: boolean; warehouseId?: number } = {}) {
+  outWarehouse = false,
+}: { incomplete?: boolean; failed?: boolean; warehouseId?: number; outWarehouse?: boolean } = {}) {
   const products = [
     'Empty Rice',
     'Low Rice',
@@ -62,6 +63,10 @@ function mount({
     warehouseId: 2,
     warehouse: { id: 2, name: 'Other' },
   })
+  if (outWarehouse) {
+    stocks[2].availableQuantity = '109.75'
+    stocks.push({ ...stocks[2], id: 10, warehouseId: 2, availableQuantity: '0', stockStatus: 'OUT', warehouse: { id: 2, name: 'Other' } })
+  }
   apiClient.defaults.adapter = async (config) => {
     if (failed && config.url === '/stock-items') throw Error('Stock service unavailable')
     const data =
@@ -123,7 +128,8 @@ it('keeps product rows, stock labels and focus while refreshing the same query, 
   expect(within(row).getByText('Out of Stock')).toBeTruthy()
   expect(document.activeElement).toBe(search)
   await act(async () => { release(); await refresh })
-  await within(row).findByText('In Stock')
+  await waitFor(() => expect(within(row).queryByText('Out of Stock')).toBeNull())
+  expect(row.isConnected).toBe(true)
   expect(within(row).getByText('7')).toBeTruthy()
 })
 
@@ -153,20 +159,45 @@ it('labels confirmed availability without confusing physical stock, missing assi
   const empty = await screen.findByRole('row', { name: /Empty Rice/ })
   expect(within(empty).getByText('Out of Stock')).toBeTruthy()
   expect(within(empty).getByText('0')).toBeTruthy()
-  expect(empty.className).not.toContain('bg-destructive')
+  expect(empty.className).toContain('bg-destructive/5')
   const unassigned = screen.getByRole('row', { name: /Unassigned Rice/ })
   expect(within(unassigned).getByText('No Warehouse Assigned')).toBeTruthy()
   expect(within(unassigned).queryByText('Out of Stock')).toBeNull()
   expect(
     within(screen.getByRole('row', { name: /Unknown Rice/ })).getByText('Stock Unavailable'),
   ).toBeTruthy()
-  expect(
-    within(screen.getByRole('row', { name: /Available Rice/ })).getByText('In Stock'),
-  ).toBeTruthy()
+  expect(screen.queryByText('In Stock')).toBeNull()
   expect(screen.getByRole('columnheader', { name: /Available Stock/ })).toBeTruthy()
+  expect(screen.getByRole('columnheader', { name: /Available Stock/ }).textContent).not.toContain('All warehouses')
   expect(
-    within(screen.getByRole('row', { name: /Low Rice/ })).getByText('Low Stock at 1 Warehouse'),
+    within(screen.getByRole('row', { name: /Low Rice/ })).getByText(/1 warehouse low/),
   ).toBeTruthy()
+})
+
+it('tints warning rows while keeping quantities and full warning details accessible', async () => {
+  mount({ outWarehouse: true })
+  const available = await screen.findByRole('row', { name: /Available Rice/ })
+  expect(within(available).getByText('109.75')).toBeTruthy()
+  expect(within(available).getByText('kg')).toBeTruthy()
+  expect(within(available).getByText('\u00b7 1 warehouse out')).toBeTruthy()
+  expect(available.className).toContain('bg-destructive/5')
+  const low = screen.getByRole('row', { name: /Low Rice/ })
+  expect(low.className).toContain('bg-status-warning/50')
+  expect(within(available).getByText('\u00b7 1 warehouse out').className).toContain('sr-only')
+  expect(within(low).getByText('\u00b7 1 warehouse low').className).toContain('sr-only')
+  const quantity = within(available).getByText('109.75').closest('[tabindex]')!
+  act(() => (quantity as HTMLElement).focus())
+  expect(screen.getByRole('tooltip').textContent).toContain('1 warehouse out')
+  expect(within(screen.getByRole('row', { name: /Low Rice/ })).getByText('\u00b7 1 warehouse low')).toBeTruthy()
+  const empty = screen.getByRole('row', { name: /Empty Rice/ })
+  expect(within(empty).queryByText('\u00b7')).toBeNull()
+  expect(within(empty).getByText('Out of Stock')).toBeTruthy()
+  expect(within(empty).getByText('Out of Stock').className).toContain('sr-only')
+  expect(screen.getByRole('row', { name: /Unknown Rice/ }).className).not.toMatch(/bg-destructive|bg-status-warning/)
+  expect(screen.getByRole('row', { name: /Unassigned Rice/ }).className).not.toMatch(/bg-destructive|bg-status-warning/)
+  for (const row of [available, empty, screen.getByRole('row', { name: /Low Rice/ })]) {
+    expect(row.textContent).not.toContain('?')
+  }
 })
 
 it('uses the selected warning warehouse instead of masking its low stock with another warehouse balance', async () => {
@@ -175,6 +206,7 @@ it('uses the selected warning warehouse instead of masking its low stock with an
   expect(within(row).getByText('Low Stock')).toBeTruthy()
   expect(within(row).getByText('2.5')).toBeTruthy()
   expect(within(row).queryByText('22.5')).toBeNull()
+  expect(row.className).toContain('bg-status-warning/50')
 })
 
 it('does not claim zero or no warehouse assignments from incomplete stock pages', async () => {
@@ -183,10 +215,22 @@ it('does not claim zero or no warehouse assignments from incomplete stock pages'
   expect(within(row).getByText('Stock Unavailable')).toBeTruthy()
   expect(within(row).queryByText('No Warehouse Assigned')).toBeNull()
   expect(within(row).queryByText('Out of Stock')).toBeNull()
+  expect(row.className).not.toMatch(/bg-destructive|bg-status-warning/)
 })
 
 it('reports stock loading failures instead of showing misleading balances', async () => {
   mount({ failed: true })
   expect((await screen.findByRole('alert')).textContent).toContain('Inventory could not be loaded')
   expect(screen.queryByRole('table')).toBeNull()
+})
+
+it.each([false, true])('groups neutral, yellow and red rows without changing balances (mixed out: %s)', async (outWarehouse) => {
+  mount({ outWarehouse })
+  await screen.findByRole('row', { name: /Empty Rice/ })
+  const names = screen.getAllByRole('row').slice(1).map(row => within(row).getAllByRole('cell')[0].textContent)
+  expect(names).toEqual(outWarehouse
+    ? ['Unassigned Rice', 'Unknown Rice', 'Low Rice', 'Empty Rice', 'Available Rice']
+    : ['Available Rice', 'Unassigned Rice', 'Unknown Rice', 'Low Rice', 'Empty Rice'])
+  expect(screen.queryByText('In Stock')).toBeNull()
+  expect(screen.getByText('Products with stock warnings appear last on this page.')).toBeTruthy()
 })

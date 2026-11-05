@@ -195,8 +195,9 @@ it('opens from the Inventory heading without replacing product filters or the pr
   await screen.findByText('Banana')
   expect(screen.getByRole('button', { name: /^Active/ })).toBeTruthy()
   expect(screen.getByRole('button', { name: /Register Product/ })).toBeTruthy()
-  expect(screen.getByRole('button', { name: 'Quarantined Stock' })).toBeTruthy()
-  await user.click(screen.getByRole('button', { name: 'Stock Alert Settings' }))
+  expect(screen.queryByRole('button', { name: 'Quarantined Stock' })).toBeNull()
+  await user.click(screen.getByRole('button', { name: 'Tools' }))
+  await user.click(screen.getByRole('menuitem', { name: 'Stock Alert Settings' }))
   const dialog = screen.getByRole('dialog', { name: 'Stock Alert Settings' })
   await within(dialog).findByDisplayValue('5.25')
   expect(
@@ -362,7 +363,8 @@ it('refreshes actual warning counts and tabs after a save and excludes UNCONFIGU
     </>,
   )
   await screen.findByRole('button', { name: /1 unresolved/ })
-  await user.click(screen.getByRole('button', { name: 'Stock Alert Settings' }))
+  await user.click(screen.getByRole('button', { name: 'Tools' }))
+  await user.click(screen.getByRole('menuitem', { name: 'Stock Alert Settings' }))
   await screen.findByDisplayValue('5.25')
   fireEvent.change(input(), { target: { value: '18.25' } })
   await user.click(save())

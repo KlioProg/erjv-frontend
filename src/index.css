@@ -343,11 +343,11 @@ input[type='radio'] {
   font-weight: 500;
 }
 .management-table tbody > tr:not(:has(td[colspan])) {
-  height: 3.5rem;
+  height: 3rem;
 }
 .management-table td {
   line-height: 1.5;
-  padding-block: 0.75rem;
+  padding-block: 0.5rem;
   font-variant-numeric: tabular-nums;
 }
 .management-table button:focus-visible {

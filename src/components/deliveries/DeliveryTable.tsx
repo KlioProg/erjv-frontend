@@ -1,3 +1,4 @@
+import { OverflowValue } from '@/components/ui/OverflowValue'
 import type { ReactNode } from 'react'
 import { CalendarCheck, Check, MoreHorizontal, PackageCheck, Send, X } from 'lucide-react'
 import { DataTable, type ColumnDef } from '@/components/ui/data-table'
@@ -100,9 +101,9 @@ export function DeliveryTable({
       accessorKey: 'relatedOrder',
       sortable: false,
       cell: ({ row }) => (
-        <div className="flex flex-col gap-1">
+        <div className="flex min-w-0 items-center gap-2 whitespace-nowrap">
           <span className="font-medium">{row.relatedOrder}</span>
-          <span className="text-xs text-muted-foreground">{row.warehouse}</span>
+          <OverflowValue value={row.warehouse} className="max-w-48 text-xs text-muted-foreground" />
         </div>
       ),
     },
@@ -161,10 +162,10 @@ export function DeliveryTable({
           row.type === 'Incoming' && !!row.record.scheduledAt,
         )
         return (
-          <div title={schedule.title} className="flex flex-col gap-1 whitespace-nowrap">
+          <div title={schedule.title} className="flex items-center gap-2 whitespace-nowrap">
             <span>{schedule.date}</span>
             <span className="text-xs text-muted-foreground">
-              {view === 'history' ? DELIVERY_STATUS_LABELS[row.status] : schedule.time}
+              {view === 'history' ? '' : schedule.time}
             </span>
           </div>
         )

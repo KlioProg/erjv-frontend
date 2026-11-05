@@ -11,10 +11,11 @@ import { useAuth } from '@/features/auth/AuthContext'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { isNavItemKey, ROUTES, routeForScreen } from '@/routes'
 
-export function InventoryRoute() {
+export function InventoryRoute({ quarantine = false }: { quarantine?: boolean }) {
   const context = useOutletContext<DashboardOutletContext>()
   return (
     <InventoryHub
+      quarantine={quarantine}
       key={context.inventoryTarget?.requestId ?? 'browse'}
       focusTarget={context.inventoryTarget}
       onOpenWarehouse={context.onOpenWarehouse}
