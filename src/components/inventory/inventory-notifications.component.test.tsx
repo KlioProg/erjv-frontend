@@ -685,7 +685,7 @@ describe('inventory and global stock warnings', () => {
     expect(screen.queryByText('New Product')).toBeNull()
   })
 
-  it('removes redundant navigation/cards/status while preserving account and inventory management', async () => {
+  it('keeps stock labels within the existing table while preserving account and inventory management', async () => {
     const user = userEvent.setup()
     mountDashboard()
     await screen.findByText('Alpha Empty')
@@ -698,19 +698,20 @@ describe('inventory and global stock warnings', () => {
       'Catalog Products',
       'Product Catalog',
       'ADMIN Mode',
-      'In Stock',
     ])
       expect(screen.queryByText(text)).toBeNull()
     expect(screen.queryByRole('columnheader', { name: 'Status' })).toBeNull()
     expect(screen.getAllByRole('columnheader')).toHaveLength(5)
     const rows = screen.getAllByRole('row').slice(1)
     expect(rows[0].textContent).toContain('Alpha Empty')
-    expect(rows[0].className).toContain('bg-destructive/5')
+    expect(within(rows[0]).getByText('Out of Stock')).toBeTruthy()
+    expect(rows[0].className).not.toContain('bg-destructive')
     expect(rows[1].textContent).toContain('Beta Mixed')
     expect(rows[1].className).not.toContain('bg-destructive')
     expect(
-      within(rows[1]).getByRole('img', { name: /Out of stock at some locations/ }),
+      within(rows[1]).getByText('Out of Stock at 1 Warehouse'),
     ).toBeTruthy()
+    expect(within(rows[1]).getByText('In Stock')).toBeTruthy()
     expect(rows[2].textContent).toContain('Gamma Small')
     await user.click(screen.getByRole('button', { name: /^Archived/ }))
     expect(await screen.findByText('Archived Product')).toBeTruthy()
@@ -1121,7 +1122,7 @@ it('makes product status primary and returns from quarantine to the selected arc
   expect(await screen.findByText('Alpha Empty')).toBeTruthy()
 })
 
-it('withholds product totals until every stock page loads and reloads from the first page', async () => {
+it('withholds incomplete totals and retains loaded stock pages through a full refresh', async () => {
   products = [product(1, 'Paged Rice')]
   stocks = [stock(1, 1, 1, '10'), stock(2, 1, 2, '20')]
   const adapter = apiClient.defaults.adapter as import('axios').AxiosAdapter
@@ -1151,8 +1152,9 @@ it('withholds product totals until every stock page loads and reloads from the f
   expect(await within(row).findByText('30')).toBeTruthy()
   expect(cursors).toEqual([undefined, 'stock-page-2'])
   await user.click(screen.getByRole('button', { name: 'Reload stock records' }))
-  await waitFor(() => expect(cursors).toEqual([undefined, 'stock-page-2', undefined]))
-  expect(await within(row).findByText('\u2014')).toBeTruthy()
+  await waitFor(() => expect(cursors).toEqual([undefined, 'stock-page-2', undefined, 'stock-page-2']))
+  expect(within(row).getByText('30')).toBeTruthy()
+  expect(screen.queryByRole('button', { name: 'Load more stock records' })).toBeNull()
 })
 
 it('checks every warehouse stock page and blocks archive for stock in transit without adding mixed units', async () => {

@@ -1,4 +1,4 @@
-import { LogisticsDateTimeInput } from '@/components/ui/LogisticsDateTimeInput'
+import { DateTimeField } from '@/components/common/DateTimeField'
 import { toManilaSchedule, manilaScheduleToIso } from '@/lib/manila-schedule'
 import { useResourcePage } from '@/lib/use-cursor-page'
 import { DeliveryHeaderFilter } from './DeliveryHeaderFilter'
@@ -39,6 +39,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { CursorLookup } from '@/components/ui/CursorLookup'
+import { OverflowValue } from '@/components/ui/OverflowValue'
 import { DataTable, type ColumnDef } from '@/components/ui/data-table'
 import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal'
 import { getApiError, getErrorMessage } from '@/lib/api-client'
@@ -175,7 +176,10 @@ export function DeliveryRunsHub({ history = false }: { history?: boolean }) {
     setScheduledFrom('')
     setScheduledThrough('')
   }
-  const runs = history ? canViewHistory ? query.items.filter((run) => historyStatuses.includes(run.status)) : [] : query.items
+  const accessDenied = [401, 403].includes(getApiError(query.error)?.status ?? 0)
+  const hasTripData = query.data !== undefined && !accessDenied
+  const runs = accessDenied || (history && !canViewHistory) ? []
+    : query.items.filter((run) => (history ? historyStatuses : activeStatuses).includes(run.status))
   const names = useRunNames(runs)
   const select = (id?: number) =>
     setParams((previous) => {
@@ -444,13 +448,15 @@ export function DeliveryRunsHub({ history = false }: { history?: boolean }) {
         {query.isError && (
           <Alert variant="destructive">
             <AlertDescription>
+              {hasTripData && 'Latest trip update could not be retrieved. Showing previously loaded trips. '}
               {getErrorMessage(query.error)}{' '}
-              <Button variant="link" onClick={() => void query.reload()}>
+              <Button variant="link" onClick={() => void query.refetch()}>
                 Refresh trips
               </Button>
             </AlertDescription>
           </Alert>
         )}
+        {query.isFetching && hasTripData && <p role="status" className="px-3 py-1 text-xs text-muted-foreground">Updating trips...</p>}
         {query.isError && !runs.length ? (
           <p role="status">Delivery trips are unavailable. Refresh to try again.</p>
         ) : (
@@ -460,7 +466,7 @@ export function DeliveryRunsHub({ history = false }: { history?: boolean }) {
             retainHeaders
             data={runs}
             columns={columns}
-            isLoading={query.isFetching}
+            isLoading={query.isLoading}
             pagination={false}
             manualSorting
             getRowKey={(run) => run.id}
@@ -579,6 +585,7 @@ function RunEditor({
   const [warehouseError, setWarehouseError] = useState('')
   async function submit(event: FormEvent) {
     event.preventDefault()
+    if (!(event.currentTarget as HTMLFormElement).reportValidity()) return
     if (submitting.current || busy || review) return
     if (!warehouseId) {
       setWarehouseError('Choose an active warehouse.')
@@ -677,7 +684,7 @@ function RunEditor({
                 </Alert>
               )}
               <fieldset disabled={busy || review} className="flex min-w-0 flex-col gap-4">
-                <div className="grid min-w-0 gap-4 sm:grid-cols-2">
+                <div className="grid min-w-0 gap-4 sm:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
                   <div className="flex min-w-0 flex-col gap-1.5">
                     <Label
                       id="run-warehouse-label"
@@ -691,7 +698,7 @@ function RunEditor({
                         aria-labelledby="run-warehouse-label"
                         className="flex h-10 min-w-0 items-center rounded-md border border-input bg-muted/40 px-3 text-sm"
                       >
-                        {fixedWarehouse.data[0]?.name ?? `Warehouse #${warehouseId}`}
+                        <OverflowValue value={fixedWarehouse.data[0]?.name ?? `Warehouse #${warehouseId}`} />
                       </output>
                     ) : (
                       <CursorLookup<NamedRecord>
@@ -721,18 +728,14 @@ function RunEditor({
                     )}
                   </div>
                   <div className="flex min-w-0 flex-col gap-1.5">
-                    <LogisticsDateTimeInput
+                    <DateTimeField
                       id="run-departure"
                       label="Scheduled Departure"
                       value={departure}
                       onChange={setDeparture}
                       disabled={busy || review}
-                      compact
-                      inline
+                      helperText="Optional · Manila time · 24-hour HH:mm"
                     />
-                    <p className="text-xs text-muted-foreground">
-                      Optional · Asia/Manila time
-                    </p>
                   </div>
                 </div>
 

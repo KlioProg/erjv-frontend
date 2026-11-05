@@ -247,6 +247,7 @@ function OutgoingPlanningForm({
       busy={busy}
       title="Plan Outgoing Delivery"
       description={description}
+      contentClassName={fullyPlanned ? deliveryFormStyles.naturalDialog : undefined}
     >
       {form.completed ? (
         <div className={deliveryFormStyles.form}>
@@ -426,7 +427,7 @@ function OutgoingPlanningForm({
                     </p>
                   )}
                 </div>
-                <div className={deliveryFormStyles.field}>
+                <div hidden={fullyPlanned} className={deliveryFormStyles.field}>
                   <Label htmlFor="delivery-warehouse" className={deliveryFormStyles.label}>
                     Stock Source / Warehouse <span className="text-primary">*</span>
                   </Label>
@@ -454,7 +455,39 @@ function OutgoingPlanningForm({
                   Select an order to view its current products.
                 </p>
               )}
-              {order && (
+              {fullyPlanned && order && (
+                <div role="status" className="flex flex-col items-start gap-2 text-sm">
+                  <p>All quantities for this Sales Order are already planned.</p>
+                  <p className="text-xs text-muted-foreground">
+                    View its existing outgoing deliveries or choose another order.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {onViewDeliveries && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => onViewDeliveries(order.id)}
+                      >
+                        View Deliveries
+                      </Button>
+                    )}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        form.changeOrder('')
+                        requestAnimationFrame(() =>
+                          document.getElementById('delivery-sales-order')?.focus(),
+                        )
+                      }}
+                    >
+                      Choose Another
+                    </Button>
+                  </div>
+                </div>
+              )}
+              {fieldError('plan')}
+              {order && !fullyPlanned && (
                 <>
                   <section aria-label="Product planning" className="flex min-w-0 flex-col gap-3">
                     <h2 className={deliveryFormStyles.sectionTitle}>Product planning</h2>
@@ -466,23 +499,7 @@ function OutgoingPlanningForm({
                       appearance="subtle"
                       tableClassName="min-w-[580px] tabular-nums"
                       emptyContent={
-                        fullyPlanned ? (
-                          <div className="flex flex-col items-center gap-2 p-4 text-sm">
-                            <p>All quantities for this Sales Order are already planned.</p>
-                            <p className="text-xs text-muted-foreground">
-                              View its existing outgoing deliveries or choose another order.
-                            </p>
-                            {onViewDeliveries && order && (
-                              <Button
-                                type="button"
-                                variant="link"
-                                onClick={() => onViewDeliveries(order.id)}
-                              >
-                                View existing deliveries
-                              </Button>
-                            )}
-                          </div>
-                        ) : !form.warehouseId ? (
+                        !form.warehouseId ? (
                           'Select a source warehouse to load planning quantities.'
                         ) : form.planningLoading ? (
                           'Loading planning availability...'
@@ -497,7 +514,6 @@ function OutgoingPlanningForm({
                         planning those products.
                       </p>
                     )}
-                    {fieldError('plan')}
                     {!!unavailableEnteredLines.length && (
                       <div className="text-xs text-muted-foreground">
                         <p>

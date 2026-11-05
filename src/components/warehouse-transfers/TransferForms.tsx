@@ -1,4 +1,4 @@
-import { LogisticsDateTimeInput } from '@/components/ui/LogisticsDateTimeInput'
+import { DateTimeField } from '@/components/common/DateTimeField'
 import { toManilaSchedule } from '@/lib/manila-schedule'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Button } from '@/components/ui/button'
@@ -128,6 +128,7 @@ export function TransferDraftForm(props: FormProps) {
   const [notes, setNotes] = useState(record?.notes ?? '')
   const submit = (event: FormEvent) => {
     event.preventDefault()
+    if (!(event.currentTarget as HTMLFormElement).reportValidity()) return
     const draft: CreateTransfer = {
       sourceWarehouseId: Number(source),
       destinationWarehouseId: Number(destination),
@@ -284,8 +285,7 @@ export function TransferDraftForm(props: FormProps) {
       <legend className="font-semibold">3. Additional Details</legend>
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-1">
-          <Label htmlFor="transfer-schedule">Scheduled Departure (Manila)</Label>
-          <LogisticsDateTimeInput id="transfer-schedule" label="Scheduled Departure" value={schedule} onChange={setSchedule} disabled={state.busy || state.review} />
+          <DateTimeField id="transfer-schedule" label="Scheduled Departure" value={schedule} onChange={setSchedule} disabled={state.busy || state.review} helperText="Optional · Manila time · 24-hour HH:mm" />
           <FieldError field="scheduledDepartureAt" errors={state.errors} />
         </div>
         <div className="space-y-1">

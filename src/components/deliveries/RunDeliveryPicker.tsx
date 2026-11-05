@@ -69,6 +69,7 @@ export function RunDeliveryPicker({
           >
             <div className="min-w-0 break-words">
               <span className="font-medium">{delivery.deliveryNumber}</span>
+              <p className="text-xs text-muted-foreground">Sales Order #{delivery.salesOrderId}</p>
               {selection.issues[index] && (
                 <p role="alert" className="text-xs text-destructive">
                   {selection.issues[index]}

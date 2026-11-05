@@ -217,6 +217,7 @@ function mount(
   if (cachedDraft)
     queryClient.setQueryData(['outgoing-deliveries', 'id', cachedDraft.id], cachedDraft)
   const close = vi.fn()
+  const viewDeliveries = vi.fn()
   const view = render(
     <QueryClientProvider client={queryClient}>
       <ScheduleDeliveryModal
@@ -224,10 +225,11 @@ function mount(
         preselectedOrderId={preselectedOrderId}
         draftId={draftId}
         onClose={close}
+        onViewDeliveries={viewDeliveries}
       />
     </QueryClientProvider>,
   )
-  return { ...view, queryClient, close }
+  return { ...view, queryClient, close, viewDeliveries }
 }
 async function selectWarehouse(user: ReturnType<typeof userEvent.setup>, name = 'Store') {
   await user.click(await screen.findByRole('button', { name: /Stock Source \/ Warehouse/ }))
@@ -743,11 +745,15 @@ it('explains a fully planned order, retains its selection, and creates no empty 
       remainingToPlanQuantity: '0',
     },
   ]
-  mount()
+  const { viewDeliveries } = mount()
   const user = userEvent.setup()
   await user.click(await screen.findByRole('button', { name: /Stock Source/ }))
   await user.click(screen.getByRole('menuitem', { name: 'Store' }))
   await screen.findByText('All quantities for this Sales Order are already planned.')
+  expect(screen.getByRole('dialog').classList.contains('h-auto')).toBe(true)
+  expect(screen.queryByRole('table')).toBeNull()
+  expect(screen.queryByRole('button', { name: 'Stock Source / Warehouse' })).toBeNull()
+  expect(screen.getByRole('button', { name: 'Choose Another' })).toBeTruthy()
   expect(screen.getByRole('button', { name: 'Sales Order to Fulfill' }).textContent).toContain(
     'SO-0001',
   )
@@ -761,6 +767,30 @@ it('explains a fully planned order, retains its selection, and creates no empty 
     expect(requests.filter((r) => r.url.endsWith('planning-options')).length).toBeGreaterThan(1),
   )
   expect(creates()).toHaveLength(0)
+  await user.click(screen.getByRole('button', { name: 'View Deliveries' }))
+  expect(viewDeliveries).toHaveBeenCalledWith(1)
+  await user.click(screen.getByRole('button', { name: 'Choose Another' }))
+  expect(screen.getByRole('button', { name: 'Sales Order to Fulfill' }).textContent).not.toContain('SO-0001')
+  expect(screen.queryByText('All quantities for this Sales Order are already planned.')).toBeNull()
+})
+
+it('refreshes before saving and preserves input when another employee plans the last quantity', async () => {
+  const { queryClient } = mount()
+  const user = userEvent.setup()
+  await selectWarehouse(user)
+  await user.type(quantity(), '1.25')
+  options[1] = [{ ...option(), remainingToPlanQuantity: '0', maximumPlannableQuantity: '0' }]
+  await user.click(screen.getByRole('button', { name: 'Save Draft' }))
+  await screen.findByText('Planning quantities have changed. All quantities for this Sales Order are already planned. Your input is preserved.')
+  expect(creates()).toHaveLength(0)
+  expect(updates()).toHaveLength(0)
+  expect(schedules()).toHaveLength(0)
+  // A cancelled or reopened plan restores capacity according to the next server snapshot.
+  options[1] = [option()]
+  await act(async () => {
+    await queryClient.invalidateQueries({ queryKey: ['outgoing-deliveries', 'planning-options'] })
+  })
+  await waitFor(() => expect(quantity().value).toBe('1.25'))
 })
 
 it('retains saved draft lines and values even when additional order planning capacity is zero', async () => {

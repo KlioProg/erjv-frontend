@@ -69,6 +69,45 @@ function mount(selected: boolean | string = true) {
 }
 const writes = () => requests.filter((request) => request.method !== 'get')
 
+it('keeps trip rows and unsaved notes mounted during refresh, then removes confirmed terminal trips', async () => {
+  const client = mount(false)
+  await screen.findByText('RUN-1')
+  await userEvent.click(screen.getByRole('button', { name: 'Create Delivery Trip' }))
+  await userEvent.type(screen.getByLabelText(/Notes/), 'Keep my input')
+  let release!: () => void
+  const gate = new Promise<void>((resolve) => { release = resolve })
+  const adapter = apiClient.defaults.adapter as AxiosAdapter
+  apiClient.defaults.adapter = async (config) => {
+    if (config.url === '/delivery-runs') await gate
+    return adapter(config)
+  }
+  let refreshed!: Promise<void>
+  act(() => { refreshed = client.invalidateQueries({ queryKey: ['delivery-runs'] }) })
+  await screen.findByText('Updating trips...')
+  expect(screen.getByText('RUN-1')).toBeTruthy()
+  expect((screen.getByLabelText(/Notes/) as HTMLTextAreaElement).value).toBe('Keep my input')
+  run.status = 'COMPLETED'
+  await act(async () => { release(); await refreshed })
+  await waitFor(() => expect(screen.queryByText('RUN-1')).toBeNull())
+  expect((screen.getByLabelText(/Notes/) as HTMLTextAreaElement).value).toBe('Keep my input')
+})
+
+it.each([503, 403])('handles trip refresh failure %s without treating protected or stale data as fresh', async (status) => {
+  const client = mount(false)
+  await screen.findByText('RUN-1')
+  const adapter = apiClient.defaults.adapter as AxiosAdapter
+  apiClient.defaults.adapter = async (config) => {
+    if (config.url === '/delivery-runs') throw { isAxiosError: true, response: { status, data: { message: 'Refresh failed' } } }
+    return adapter(config)
+  }
+  await act(async () => { await client.invalidateQueries({ queryKey: ['delivery-runs'] }) })
+  expect(await screen.findByRole('alert')).toBeTruthy()
+  if (status === 503) {
+    expect(screen.getByText('RUN-1')).toBeTruthy()
+    expect(screen.getByText(/Latest trip update could not be retrieved/)).toBeTruthy()
+  } else expect(screen.queryByText('RUN-1')).toBeNull()
+})
+
 it('uses a warning badge for an in-transit run in both the list and detail view', async () => {
   run.status = 'DISPATCHED'
   const client = mount()
@@ -85,6 +124,8 @@ it('reviews an incoming assignment context and confirms membership without autom
   const user = userEvent.setup()
   const assignment = within(await screen.findByRole('dialog', { name: 'Add Delivery to Trip' }))
   await assignment.findByText('OUT-8 · Sales Order #11')
+  expect(within(assignment.getByRole('region', { name: 'Delivery information' })).getByText('Main')).toBeTruthy()
+  expect(assignment.getByText('Choose an existing trip or create a new one.')).toBeTruthy()
   expect(writes()).toHaveLength(0)
   expect(assignment.getByRole('button', { name: 'Add to Trip' }).hasAttribute('disabled')).toBe(true)
   expect(assignment.queryByRole('button', { name: 'Use Existing Trip' })).toBeNull()
@@ -113,6 +154,7 @@ it('preserves a handoff delivery when creating a new run and waits for explicit 
   await editor.findByText('OUT-8')
   expect(writes()).toHaveLength(0)
   expect(editor.getByRole('region', { name: 'Deliveries in This Trip' })).toBeTruthy()
+  expect(within(editor.getByRole('list', { name: 'Selected deliveries' })).getByText('Sales Order #11')).toBeTruthy()
   expect(editor.getByText(/1 selected/)).toBeTruthy()
   expect(editor.getByText('Fixed by the selected outgoing delivery.')).toBeTruthy()
   expect(editor.getByLabelText('Warehouse').textContent).toBe('Main')
@@ -320,12 +362,11 @@ it('creates a trip with an exact scheduled minute without dispatching it', async
   await user.click(screen.getByRole('button', { name: 'Create Delivery Trip' }))
   await user.click(screen.getByRole('button', { name: 'Choose warehouse' }))
   await user.click(await screen.findByRole('menuitem', { name: 'Main' }))
-  fireEvent.change(screen.getByLabelText('Scheduled Departure date'), {
+  fireEvent.change(screen.getByLabelText('Scheduled Departure Date'), {
     target: { value: '2026-12-01' },
   })
-  await user.type(screen.getByLabelText('Scheduled Departure time'), '10:17')
-  await user.click(screen.getByRole('combobox', { name: 'Scheduled Departure AM or PM' }))
-  await user.click(screen.getByRole('option', { name: 'AM' }))
+  await user.type(screen.getByLabelText('Scheduled Departure Time'), '10:17')
+  expect(screen.queryByRole('combobox', { name: /AM or PM/ })).toBeNull()
   const createTrip = screen.getByRole('button', { name: 'Create Trip' })
   await waitFor(() => expect(createTrip.hasAttribute('disabled')).toBe(false))
   await user.click(createTrip)
@@ -761,9 +802,9 @@ it('keeps stored departure precision when editing other trip information', async
   mount()
   await userEvent.click(await screen.findByRole('button', { name: 'Edit Trip' }))
   expect(screen.getAllByRole('dialog')).toHaveLength(1)
-  expect((screen.getByLabelText('Scheduled Departure date') as HTMLInputElement).value).toBe('2026-11-05')
-  expect((screen.getByLabelText('Scheduled Departure time') as HTMLInputElement).value).toBe('9:40')
-  expect(screen.getByRole('combobox', { name: 'Scheduled Departure AM or PM' }).textContent).toContain('AM')
+  expect((screen.getByLabelText('Scheduled Departure Date') as HTMLInputElement).value).toBe('2026-11-05')
+  expect((screen.getByLabelText('Scheduled Departure Time') as HTMLInputElement).value).toBe('09:40')
+  expect(screen.queryByRole('combobox', { name: /AM or PM/ })).toBeNull()
   await userEvent.type(screen.getByLabelText(/Notes/), ' More instructions')
   await userEvent.click(screen.getByRole('button', { name: 'Save Trip' }))
   await waitFor(() => expect(writes()).toHaveLength(1))

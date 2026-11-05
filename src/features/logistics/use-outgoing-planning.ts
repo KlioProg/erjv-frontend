@@ -155,7 +155,7 @@ export function useOutgoingPlanning(
           return failField(
             'plan',
             balances.length && balances.every((balance) => balance === 0n)
-              ? 'All quantities for this Sales Order are already planned.'
+              ? 'Planning quantities have changed. All quantities for this Sales Order are already planned. Your input is preserved.'
               : 'Current order planning quantities are unavailable. Reload availability before saving.',
           )
       }

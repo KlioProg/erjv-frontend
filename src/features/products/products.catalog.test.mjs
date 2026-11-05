@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { buildCatalogStockMap, filterCatalogProducts } from './products.catalog.utils.ts'
+import { buildCatalogStockMap, catalogStockCondition, filterCatalogProducts } from './products.catalog.utils.ts'
 
 test('catalog searches existing name, variety and description without mutating products', () => {
   const products = [
@@ -75,4 +75,35 @@ test('unknown balances stay unknown and large supported values never lose precis
     1000000000000n,
   )
   assert.equal(buildCatalogStockMap([]).size, 0)
+})
+
+test('catalog status distinguishes unavailable, unassigned and confirmed available balances', () => {
+  const summary = (availableQuantity, stockStatus, reorderThreshold = null) => buildCatalogStockMap([
+    { inventoryItemId: 1, warehouseId: 1, onHandQuantity: '10', availableQuantity, stockStatus, reorderThreshold },
+  ]).get(1)
+  assert.equal(catalogStockCondition(undefined, true), 'UNASSIGNED')
+  assert.equal(catalogStockCondition(undefined, false), 'UNKNOWN')
+  assert.equal(catalogStockCondition(summary('0', 'OUT'), true), 'OUT')
+  assert.equal(catalogStockCondition(summary('2.5', 'LOW', '3'), true), 'LOW')
+  assert.equal(catalogStockCondition(summary('4', 'NORMAL', '3'), true), 'NORMAL')
+  assert.equal(catalogStockCondition(summary('0.01', 'UNCONFIGURED'), true), 'NORMAL')
+  assert.equal(catalogStockCondition(summary('invalid', 'OUT'), true), 'UNKNOWN')
+  assert.equal(catalogStockCondition(summary('0', 'OUT'), false), 'UNKNOWN')
+  assert.equal(catalogStockCondition(summary('2', 'LOW', null), true), 'UNKNOWN')
+  assert.equal(catalogStockCondition(summary('2', 'LOW', 'invalid'), true), 'UNKNOWN')
+  assert.equal(catalogStockCondition(summary('2', 'LOW', '1'), true), 'UNKNOWN')
+  assert.equal(catalogStockCondition(summary('2', undefined), true), 'UNKNOWN')
+})
+
+test('catalog status uses warehouse thresholds without treating a local shortage as a global zero', () => {
+  const stocks = [
+    { inventoryItemId: 1, warehouseId: 1, availableQuantity: '0', stockStatus: 'OUT', reorderThreshold: '5' },
+    { inventoryItemId: 1, warehouseId: 2, availableQuantity: '2', stockStatus: 'LOW', reorderThreshold: '3' },
+    { inventoryItemId: 1, warehouseId: 3, availableQuantity: '20', stockStatus: 'NORMAL', reorderThreshold: '10' },
+  ]
+  const condition = (rows) => catalogStockCondition(buildCatalogStockMap(rows).get(1), true)
+  assert.equal(condition(stocks), 'NORMAL')
+  assert.equal(condition(stocks.filter((row) => row.warehouseId === 1)), 'OUT')
+  assert.equal(condition(stocks.filter((row) => row.warehouseId === 2)), 'LOW')
+  assert.equal(condition(stocks.slice(0, 2)), 'LOW')
 })

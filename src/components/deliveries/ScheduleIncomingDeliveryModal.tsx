@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, type FormEvent } from 'react'
-import { LogisticsDateTimeInput } from '@/components/ui/LogisticsDateTimeInput'
+import { DateTimeField } from '@/components/common/DateTimeField'
 import { toManilaSchedule, manilaScheduleToIso } from '@/lib/manila-schedule'
 import { DeliveryFormDialog, DeliveryFormFooter } from './shared/DeliveryFormDialog'
 import { deliveryFormStyles } from './shared/delivery-form.styles'
@@ -133,6 +133,7 @@ export function ScheduleIncomingDeliveryModal({
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
+    if (!e.currentTarget.reportValidity()) return
     if (lock.current || isSubmitting || unavailable || needsReview) return
     const pId = Number(selectedPOId)
     const wId = Number(selectedWarehouseId)
@@ -280,9 +281,9 @@ export function ScheduleIncomingDeliveryModal({
             <fieldset
               aria-label="Arrival schedule and supplier reference"
               disabled={isSubmitting || needsReview}
-              className={deliveryFormStyles.arrivalGrid}
+              className="grid min-w-0 gap-4 sm:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]"
             >
-              <LogisticsDateTimeInput
+              <DateTimeField
                 key={selectedPOId}
                 id="sched-date"
                 label="Arrival"
@@ -290,7 +291,6 @@ export function ScheduleIncomingDeliveryModal({
                 onChange={(value) => setArrival({ orderId: selectedPOId, value })}
                 disabled={isSubmitting || needsReview}
                 describedBy="arrival-help"
-                compact
               />
               <div className={deliveryFormStyles.field}>
                 <Label htmlFor="supplier-ref" className={deliveryFormStyles.label}>

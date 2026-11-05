@@ -11,6 +11,7 @@ import { DataTable } from '@/components/ui/data-table'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
+import { OverflowValue } from '@/components/ui/OverflowValue'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   Dialog,
@@ -149,11 +150,12 @@ export function AssignDeliveryToRun({
   }
   return (
     <Dialog open onOpenChange={(open) => !open && !busy && onClose()}>
-      <DialogContent closeDisabled={busy} className="sm:max-w-xl">
+      <DialogContent closeDisabled={busy} className="flex max-h-[calc(100dvh-2rem)] flex-col overflow-hidden sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Add Delivery to Trip</DialogTitle>
-          <DialogDescription>Select a trip from this warehouse, or create a new one.</DialogDescription>
+          <DialogDescription>Choose an existing trip or create a new one.</DialogDescription>
         </DialogHeader>
+        <div className="flex min-h-0 flex-col gap-4 overflow-y-auto overscroll-contain">
         {deliveryQuery.isPending && <p role="status">Loading delivery…</p>}
         {(error || deliveryQuery.isError || runQuery.isError) && (
           <Alert variant="destructive">
@@ -163,16 +165,16 @@ export function AssignDeliveryToRun({
           </Alert>
         )}
         {delivery && (
+          <section aria-label="Delivery information" className="flex min-w-0 flex-col gap-1 rounded-md bg-secondary px-3 py-2">
           <p className="text-sm font-medium">
             {delivery.deliveryNumber} · Sales Order #{delivery.salesOrderId}
           </p>
-        )}
-        {delivery?.warehouseId != null && (
-          <p className="text-sm text-muted-foreground">
+          {delivery.warehouseId != null && <div className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
             Warehouse:{' '}
-            {warehouses.data.find((warehouse) => warehouse.id === delivery.warehouseId)?.name ??
-              `Warehouse #${delivery.warehouseId}`}
-          </p>
+            <OverflowValue value={warehouses.data.find((warehouse) => warehouse.id === delivery.warehouseId)?.name ??
+              `Warehouse #${delivery.warehouseId}`} />
+          </div>}
+          </section>
         )}
         {delivery && !eligible && (
           <p role="status" className="text-sm">
@@ -187,7 +189,7 @@ export function AssignDeliveryToRun({
         {eligible && (
           <>
             <div className="flex items-end justify-between gap-3">
-              <div className="flex min-w-0 flex-col gap-1.5">
+              <div className="flex min-w-0 flex-1 flex-col gap-1.5">
                 <Label htmlFor="assignment-search">Available trips</Label>
                 <Input
                   id="assignment-search"
@@ -220,10 +222,11 @@ export function AssignDeliveryToRun({
                 </AlertDescription>
               </Alert>
             )}
-            <div className="max-h-64 overflow-auto">
+            <div className="min-w-0">
               <DataTable<DeliveryRunRecord>
                 data={availableTrips}
                 pagination={false}
+                appearance="subtle"
                 isLoading={trips.isPending}
                 getRowKey={(trip) => trip.id}
                 emptyContent={
@@ -332,7 +335,8 @@ export function AssignDeliveryToRun({
             Refresh to review
           </Button>
         )}
-        <DialogFooter>
+        </div>
+        <DialogFooter className="shrink-0 border-t border-border pt-3">
           <Button variant="outline" disabled={busy} onClick={onClose}>
             Cancel
           </Button>

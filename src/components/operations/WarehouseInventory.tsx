@@ -21,7 +21,7 @@ import { OverflowValue } from '@/components/ui/OverflowValue'
 import { formatStockCents, parseStockCents, stockSortKey } from '@/features/logistics/stock-display'
 import type { StockItemWithInventoryItem } from '@/features/logistics/stock-items.types'
 import type { Warehouse } from '@/features/logistics/warehouses.types'
-import { getErrorMessage } from '@/lib/api-client'
+import { getApiError, getErrorMessage } from '@/lib/api-client'
 import { stockConditionForItem } from '@/features/logistics/stock-warnings'
 import { StockIndicator } from '@/components/inventory/StockIndicator'
 import { cn } from '@/lib/utils'
@@ -48,6 +48,8 @@ export function WarehouseInventory({
   const [thresholdStock, setThresholdStock] = useState<StockItemWithInventoryItem | null>(null)
   const [search, setSearch] = useState('')
   const stockQuery = useResourcePage<StockItemWithInventoryItem>(`/stock-items/warehouses/${warehouse.id}`, { q: search.trim() || undefined })
+  const accessDenied = [401, 403].includes(getApiError(stockQuery.error)?.status ?? 0)
+  const hasStockData = stockQuery.data !== undefined && !accessDenied
   const rows = useMemo<StockRow[]>(
     () =>
       (stockQuery.items ?? [])
@@ -299,12 +301,14 @@ export function WarehouseInventory({
         </div>
         {stockQuery.isError ? (
           <div role="alert" className="p-4 text-xs text-destructive">
-            Warehouse stock could not be loaded: {getErrorMessage(stockQuery.error)}
-            <Button variant="link" size="sm" onClick={() => void stockQuery.reload()}>
+            {hasStockData ? 'Latest warehouse stock update could not be retrieved. Showing previously loaded data: ' : 'Warehouse stock could not be loaded: '}{getErrorMessage(stockQuery.error)}
+            <Button variant="link" size="sm" onClick={() => void stockQuery.refetch()}>
               Retry
             </Button>
           </div>
-        ) : (
+        ) : null}
+        {stockQuery.isFetching && hasStockData && <p role="status" className="px-4 py-1 text-xs text-muted-foreground">Updating warehouse stock...</p>}
+        {(!stockQuery.isError || hasStockData) && (
           <DataTable
             appearance="management"
             pagination={false}
@@ -320,7 +324,7 @@ export function WarehouseInventory({
                   ? 'bg-status-warning/50 hover:bg-status-warning'
                   : ''
             }}
-            isLoading={stockQuery.isFetching}
+            isLoading={stockQuery.isLoading}
             loadingMessage="Loading warehouse inventory..."
             emptyContent={
               <div className="px-4 py-12 text-center text-xs text-muted-foreground">
