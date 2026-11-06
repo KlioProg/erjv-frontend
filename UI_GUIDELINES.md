@@ -202,6 +202,7 @@ Row heights are minimums, not clipping limits. Text wrapping, multiple metadata 
 - Keep header and body edges aligned, including first and last columns. Avoid descendant overrides such as `[&_td]:px-2` in feature screens.
 - Use `OverflowValue` for clipped values that need access to their full text. Preserve wrapping when the full value must remain visible.
 - Keep `DataTableActions` for shared edit, view, archive, and restore presentation. Permissions, confirmations, and mutations remain in the feature.
+- Prefer recognizable icon-only row actions for add/increment, edit, remove, and view. Give each an accessible action label, visible keyboard focus, and a tooltip on hover and focus. Keep primary and consequential actions such as Save Transfer, Send Goods, Save Receipt, and Confirm Departure text-labeled.
 - Use `StatusBadge` for status presentation and keep labels and status mappings in the domain. Do not recreate pill sizing in each column.
 - Preserve sorting, pagination, empty states, row expansion, responsive visibility, editing, and row actions when changing presentation. Embedded editable tables may disable pagination using the existing prop.
 - If a requirement needs a different density, add and document a reusable DataTable variant. DataTable currently has no density prop; do not assume one exists.

@@ -1,3 +1,4 @@
+import { incomingOrderSchedulingIssue } from '@/features/logistics/incoming-scheduling'
 import { OverflowValue } from '@/components/ui/OverflowValue'
 import type { ReactNode } from 'react'
 import { CalendarCheck, Check, MoreHorizontal, PackageCheck, Send, X } from 'lucide-react'
@@ -190,6 +191,7 @@ export function DeliveryTable({
       header: view === 'history' ? 'Details' : 'Next Action',
       align: 'right',
       cell: ({ row }) => {
+        const schedulingIssue = row.type === 'Incoming' && row.status === 'DRAFT' ? row.schedulingIssue ?? incomingOrderSchedulingIssue(row.purchaseOrderStatus) : null
         const available = canManage && view !== 'history' ? getDeliveryActions(row) : []
         const primary = available.find((action) =>
           ['schedule', 'ready', 'receive', 'run', 'reconcile'].includes(action),
@@ -205,6 +207,13 @@ export function DeliveryTable({
                 ? 'View Receipt'
                 : 'View Details'
         return (
+          <div className="flex flex-col items-end gap-2">
+          {schedulingIssue && (
+            <p className="max-w-72 whitespace-normal text-left text-xs text-muted-foreground">
+              <span className="block font-medium">{schedulingIssue.title}</span>
+              This incoming delivery remains saved as a draft. Review its details or purchase order.
+            </p>
+          )}
           <DataTableActions>
             <Button
               variant={primary ? 'outline' : 'ghost'}
@@ -232,7 +241,7 @@ export function DeliveryTable({
                     View delivery details
                   </DropdownMenuItem>
                   <DropdownMenuItem onSelect={() => onViewOrder(row)}>
-                    View order {row.relatedOrder}
+                    {row.type === 'Incoming' ? 'View Purchase Order' : 'View order'} {row.relatedOrder}
                   </DropdownMenuItem>
                   {available
                     .filter((action) => action !== primary)
@@ -257,6 +266,7 @@ export function DeliveryTable({
               </DropdownMenuContent>
             </DropdownMenu>
           </DataTableActions>
+          </div>
         )
       },
     },

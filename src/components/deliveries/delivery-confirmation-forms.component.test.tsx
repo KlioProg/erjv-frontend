@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { within, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
@@ -376,7 +376,9 @@ it('requires all reconciliation categories, matching totals, and reasons for dam
   value('Missing for Rice (1)', '0.5')
   fireEvent.click(button)
   expect(button.hasAttribute('disabled')).toBe(true)
-  expect(screen.getByText('Reason for Difference (required)')).toBeTruthy()
+  expect(screen.getByRole('button', { name: 'Reason for Rice' }).getAttribute('aria-describedby')).toBe('completion-reason-required-11')
+  expect(screen.queryByLabelText('Reason for Difference for Rice (1)')).toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: 'Reason for Rice' }))
   value('Reason for Difference for Rice (1)', 'Broken and missing')
   fireEvent.click(button)
   fireEvent.click(await ready('Save Results'))
@@ -668,6 +670,7 @@ it('balances products separately with different units and requires reasons only 
   ])
   mount(<CompleteDeliveryModal runId={40} deliveryId={8} onClose={vi.fn()} />)
   await chooseOutcome(false)
+  expect(within(screen.getByRole('region', { name: 'Delivery results' })).getAllByRole('columnheader').map((header) => header.textContent)).toEqual(['Product', 'Delivered', 'Return Good', 'Return Damaged', 'Missing', 'Accounted'])
   reconcile('Rice (1)', '1', '1')
   reconcile('Oil (2)', '0.10', '0', '0', '0.20')
   expect(screen.getByText(/Accounted for: 2 \/ 2 kg/)).toBeTruthy()
@@ -676,6 +679,7 @@ it('balances products separately with different units and requires reasons only 
   expect(screen.getByRole('button', { name: /Review Results|Save Results/ }).hasAttribute('disabled')).toBe(
     true,
   )
+  fireEvent.click(screen.getByRole('button', { name: 'Reason for Oil' }))
   value('Reason for Difference for Oil (2)', 'Bottle missing')
   fireEvent.click(await ready('Save Results'))
   await waitFor(() => expect(writes).toHaveLength(1))
@@ -705,6 +709,7 @@ it('warns before switching away from exceptions and restores entered quantities 
   mount(<CompleteDeliveryModal runId={40} deliveryId={8} onClose={vi.fn()} />)
   await chooseOutcome(false)
   reconcile('Rice (1)', '1', '0', '1')
+  fireEvent.click(screen.getByRole('button', { name: 'Reason for Rice' }))
   value('Reason for Difference for Rice (1)', 'Damaged packaging')
   await chooseOutcome(true)
   expect(screen.getByRole('button', { name: /Review Results|Save Results/ }).hasAttribute('disabled')).toBe(

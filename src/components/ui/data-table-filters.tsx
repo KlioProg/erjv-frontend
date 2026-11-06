@@ -64,6 +64,7 @@ export function DataTableFilters({
           variant="outline"
           size="sm"
           aria-label="Filters"
+          data-table-filter-trigger=""
           data-active={count > 0 || undefined}
         >
           <ListFilter aria-hidden="true" />

@@ -1,3 +1,6 @@
+import { fetchPurchaseOrderByIdApi } from './purchase-orders.api'
+import { fetchWarehouseByIdApi } from './warehouses.api'
+import { incomingOrderSchedulingIssue, incomingSchedulingIssue } from './incoming-scheduling'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import {
@@ -16,7 +19,7 @@ import type {
 } from './incoming-deliveries.types'
 import { PURCHASE_ORDERS_QUERY_KEY } from './purchase-orders.hooks'
 import { STOCK_ITEMS_QUERY_KEY } from './stock-items.hooks'
-import { getErrorMessage } from '@/lib/api-client'
+import { getApiError, getErrorMessage } from '@/lib/api-client'
 
 
 export const INCOMING_DELIVERIES_QUERY_KEY = ['incoming-deliveries'] as const
@@ -76,12 +79,59 @@ export function useCreateIncomingDelivery() {
   })
 }
 
+const schedulingKey = (id: number) => [...INCOMING_DELIVERIES_QUERY_KEY, 'scheduling-eligibility', id] as const
+
+async function fetchIncomingSchedulingContext(id: number) {
+  try {
+    const delivery = await fetchIncomingDeliveryByIdApi(id)
+    if (delivery?.id !== id) throw Error('Delivery unavailable')
+    const [order, warehouse] = await Promise.all([
+      fetchPurchaseOrderByIdApi(delivery.purchaseOrderId),
+      fetchWarehouseByIdApi(delivery.warehouseId),
+    ])
+    if (!order || order.id !== delivery.purchaseOrderId || !warehouse || warehouse.id !== delivery.warehouseId)
+      throw Error('Linked records unavailable')
+    return { delivery, order, warehouse }
+  } catch (error) {
+    throw Error('Unable to verify the current delivery, purchase order and receiving warehouse. Recheck eligibility before scheduling.', { cause: error })
+  }
+}
+
+export function useIncomingSchedulingEligibility(id: number) {
+  return useQuery({
+    queryKey: schedulingKey(id),
+    queryFn: () => fetchIncomingSchedulingContext(id),
+    staleTime: 0,
+    refetchOnMount: 'always',
+    retry: false,
+  })
+}
+
 export function useScheduleIncomingDelivery() {
   const queryClient = useQueryClient()
   return useMutation({
     retry: false,
     mutationFn: async ({ id, expectedRevision }: { id: number; expectedRevision: number }) => {
-      const saved = await scheduleIncomingDeliveryApi(id, expectedRevision)
+      const context = await fetchIncomingSchedulingContext(id)
+      queryClient.setQueryData(schedulingKey(id), context)
+      const issue = incomingSchedulingIssue(context)
+      if (issue) throw Error(`${issue.title}. ${issue.message}`)
+      if (context.delivery.revision !== expectedRevision)
+        throw Error('The delivery changed. Review the current details and confirm scheduling again.')
+      let saved
+      try {
+        saved = await scheduleIncomingDeliveryApi(id, expectedRevision)
+      } catch (error) {
+        const problem = getApiError(error)
+        if (problem?.code === 'INVALID_ORDER_STATE') {
+          const details = problem.details as { currentStatus?: string } | undefined
+          const issue = incomingOrderSchedulingIssue(details?.currentStatus)
+          throw Error(issue ? `${issue.title}. ${issue.message}` : 'The purchase order changed. View the purchase order and recheck eligibility before scheduling.', { cause: error })
+        }
+        if (problem?.code === 'INVALID_DELIVERY_STATE' || problem?.code === 'STALE_REVISION')
+          throw Error('The delivery changed. Close this form and review its current status before scheduling again.', { cause: error })
+        throw error
+      }
       if (saved?.id !== id || saved.status !== 'SCHEDULED' || !Number.isSafeInteger(saved.revision) || saved.revision <= expectedRevision)
         throw Error('Arrival scheduling was not confirmed. Refresh and review the saved delivery before trying again.')
       return saved

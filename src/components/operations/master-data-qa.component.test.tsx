@@ -1,3 +1,4 @@
+import userEvent from '@testing-library/user-event'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
@@ -83,16 +84,18 @@ function mount(element: React.ReactNode) {
 function change(label: RegExp | string, value: string) {
   fireEvent.change(screen.getByLabelText(label), { target: { value } })
 }
-function fillProduct() {
-  change(/Product Item Name/, 'New Product')
-  change(/^Unit/, 'pieces')
-  change(/Standard Wholesale/, '12.50')
+async function fillProduct() {
+  change(/Product Name/, 'New Product')
+  const user = userEvent.setup()
+  await user.click(screen.getByRole('combobox', { name: /^Unit/ }))
+  await user.click(screen.getByRole('option', { name: 'Piece (pieces)' }))
+  change(/Wholesale Unit Price/, '12.50')
 }
 
 it('creates a product with the employee-selected unit after an expected missing-name response', async () => {
   const close = vi.fn()
   mount(<InventoryItemModal open item={null} onClose={close} />)
-  fillProduct()
+  await fillProduct()
   fireEvent.click(screen.getByRole('button', { name: 'Register Product' }))
   await waitFor(() => expect(close).toHaveBeenCalledOnce())
   expect(writes).toEqual([
@@ -116,7 +119,7 @@ it.each([
   lookupStatus = status as number
   lookupCode = code as string | undefined
   mount(<InventoryItemModal open item={null} onClose={vi.fn()} />)
-  fillProduct()
+  await fillProduct()
   fireEvent.click(screen.getByRole('button', { name: 'Register Product' }))
   await screen.findByRole('alert')
   expect(writes).toHaveLength(0)
@@ -216,7 +219,7 @@ it('keeps an archived product recoverable when restoration fails instead of reje
   }
   const close = vi.fn()
   mount(<InventoryItemModal open item={null} onClose={close} />)
-  fillProduct()
+  await fillProduct()
   fireEvent.click(screen.getByRole('button', { name: 'Register Product' }))
   fireEvent.click(await screen.findByRole('button', { name: /Reactivate Product/ }))
   expect(await screen.findByText(/Restore rejected/)).toBeTruthy()

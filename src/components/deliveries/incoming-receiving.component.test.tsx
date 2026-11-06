@@ -280,6 +280,9 @@ it('loads current delivery and PO lines with blank receipt inputs and authoritat
   expect(screen.getByText('Saved supplier')).toBeTruthy()
   const row = within(received().closest('tr')!)
   expect(row.getByText('7 kg outstanding')).toBeTruthy()
+  const table = within(received().closest('table')!)
+  expect(table.getAllByRole('columnheader').map((header) => header.textContent)).toEqual(['Product', 'Received', 'Damaged'])
+  expect(table.getAllByRole('textbox').every((input) => input.style.width === '104px')).toBe(true)
   expect(received().value).toBe('')
   expect(damaged().value).toBe('0')
   expect(writes()).toHaveLength(0)
@@ -533,7 +536,7 @@ it('refreshes the rendered Stock Warnings and Quarantine views after a damaged r
   await saveReceipt(user)
   await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Receive Goods' })).toBeNull())
   expect(screen.queryByRole('button', { name: /1 unresolved/ })).toBeNull()
-  const quarantineSource = await screen.findByText('INCOMING DELIVERY')
+  const quarantineSource = await screen.findByText('Incoming Delivery')
   expect(within(quarantineSource.closest('tr')!).getByText('0.25')).toBeTruthy()
   expect(
     requests.filter((request) => request.url === '/stock-items/quarantine-lots').length,

@@ -389,7 +389,7 @@ it('provides a recoverable load error and an honest empty warehouse state', asyn
   expect(await screen.findByRole('alert')).toBeTruthy()
   loadFailure = false
   stocks = []
-  await user.click(screen.getByRole('button', { name: 'Refresh stock list' }))
+  await user.click(screen.getByRole('button', { name: 'Retry' }))
   expect(await screen.findByText('No products in this warehouse.')).toBeTruthy()
   expect(screen.queryByRole('textbox', { name: /Reorder threshold/ })).toBeNull()
 })

@@ -113,6 +113,7 @@ it('uses a warning badge for an in-transit run in both the list and detail view'
   const client = mount()
   await screen.findByRole('dialog', { name: 'Delivery Trip RUN-1' })
   const statuses = screen.getAllByText('Dispatched')
+  expect(screen.queryByRole('button', { name: 'Refresh trip for review' })).toBeNull()
   expect(statuses.length).toBeGreaterThanOrEqual(2)
   for (const status of statuses)
     expect(status.closest('[data-slot="badge"]')?.classList.contains('bg-status-warning')).toBe(true)

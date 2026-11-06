@@ -1287,7 +1287,7 @@ describe('order to delivery workflow', () => {
     const user = userEvent.setup()
     mount(<DeliveriesHub initialTab="history" />)
     await user.click(await screen.findByRole('button', { name: 'More actions for IN-23' }))
-    await user.click(screen.getByRole('menuitem', { name: 'View order PO-TEST' }))
+    await user.click(screen.getByRole('menuitem', { name: 'View Purchase Order PO-TEST' }))
     const dialog = await screen.findByRole('dialog')
     expect(within(dialog).getByText('Test Supplier')).toBeTruthy()
     expect(within(dialog).getAllByText('Test Mango').length).toBeGreaterThan(0)

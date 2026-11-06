@@ -522,8 +522,8 @@ export function InventoryItemCatalog({
           />
         </div>
 
+        <DataTableFilters filters={tableFilters} description="Stock warning filters apply to the current product page and loaded stock records. Warehouse thresholds determine Low Stock." />
         <div className="flex flex-wrap items-center gap-2">
-          <DataTableFilters filters={tableFilters} description="Stock warning filters apply to the current product page and loaded stock records. Warehouse thresholds determine Low Stock." />
           {toolsAction}
           {(isAdmin || isManager) && activeTab === 'ACTIVE' && (
             <Button
@@ -586,7 +586,7 @@ export function InventoryItemCatalog({
           </Button>
         </p>
       )}
-      <StockPagingControls {...stockQuery} reload={() => stockQuery.refetch()} />
+      <StockPagingControls {...stockQuery} />
       {(productsQuery.isFetching || stockQuery.isFetching) && productsQuery.data !== undefined &&
         stockQuery.dataUpdatedAt > 0 && !accessDenied && (
           <p role="status" className="text-xs text-muted-foreground">Updating inventory...</p>

@@ -1,3 +1,4 @@
+import { incomingOrderSchedulingIssue, incomingSchedulingIssue } from './incoming-scheduling.ts'
 import type { IncomingDeliveryRecord } from './incoming-deliveries.types'
 import type { OutgoingDeliveryRecord } from './outgoing-deliveries.types'
 import type { PurchaseOrderRecord } from './purchase-orders.types'
@@ -14,6 +15,8 @@ export type DeliveryRow = {
   type: 'Incoming' | 'Outgoing'
   party: string
   relatedOrder: string
+  purchaseOrderStatus?: PurchaseOrderRecord['status']
+  schedulingIssue?: ReturnType<typeof incomingSchedulingIssue>
   orderId: number
   method: 'To Be Confirmed' | 'Delivery'
   warehouse: string
@@ -59,6 +62,7 @@ export function buildDeliveryRows({
   incoming,
   outgoing,
   purchaseOrders,
+  unavailablePurchaseOrderIds = [],
   salesOrders,
   suppliers,
   clients,
@@ -66,6 +70,7 @@ export function buildDeliveryRows({
 }: {
   incoming: IncomingDeliveryRecord[]
   outgoing: OutgoingDeliveryRecord[]
+  unavailablePurchaseOrderIds?: number[]
   purchaseOrders: PurchaseOrderRecord[]
   salesOrders: SalesOrderRecord[]
   suppliers: Supplier[]
@@ -77,6 +82,10 @@ export function buildDeliveryRows({
   return [
     ...incoming.map((record) => {
       const order = purchaseOrders.find((order) => order.id === record.purchaseOrderId)
+      const warehouse = warehouses.find((warehouse) => warehouse.id === record.warehouseId)
+      const purchaseOrderStatus = unavailablePurchaseOrderIds.includes(record.purchaseOrderId)
+        ? undefined : order?.status
+      const orderIssue = incomingOrderSchedulingIssue(purchaseOrderStatus)
       return {
         key: `incoming-${record.id}`,
         reference: record.deliveryNumber,
@@ -87,6 +96,13 @@ export function buildDeliveryRows({
           `Supplier #${order?.supplierId ?? '—'}`,
         relatedOrder: order?.orderNumber || `PO #${record.purchaseOrderId}`,
         orderId: record.purchaseOrderId,
+        purchaseOrderStatus,
+        schedulingIssue: record.status !== 'DRAFT' ? null : orderIssue ?? (
+          warehouse && order ? incomingSchedulingIssue({ delivery: record, order, warehouse }) : {
+            title: 'Receiving Warehouse Unavailable',
+            message: 'The receiving warehouse could not be verified. Review the delivery before scheduling.',
+          }
+        ),
         method: 'To Be Confirmed' as const,
         warehouse:
           warehouses.find((warehouse) => warehouse.id === record.warehouseId)?.name ||
@@ -171,12 +187,14 @@ export function deliveryBelongsToView(
 // These mirror the inspected backend transitions; permissions remain separate.
 export function getDeliveryActions(
   row: Pick<DeliveryRow, 'type' | 'status'> & {
+    purchaseOrderStatus?: PurchaseOrderRecord['status']
+    schedulingIssue?: ReturnType<typeof incomingSchedulingIssue>
     runId?: number | null
     record?: IncomingDeliveryRecord | OutgoingDeliveryRecord
   },
 ): DeliveryAction[] {
   if (row.type === 'Incoming') {
-    if (row.status === 'DRAFT') return ['schedule', 'cancel']
+    if (row.status === 'DRAFT') return row.schedulingIssue || incomingOrderSchedulingIssue(row.purchaseOrderStatus) ? ['cancel'] : ['schedule', 'cancel']
     if (row.status === 'SCHEDULED') return ['receive', 'cancel']
   } else {
     if (row.status === 'DRAFT') return ['ready', 'cancel']

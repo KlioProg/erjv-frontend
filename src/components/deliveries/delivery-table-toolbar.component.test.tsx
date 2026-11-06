@@ -4,6 +4,18 @@ import { expect, it, vi } from 'vitest'
 import { DataTableFilters } from '@/components/ui/data-table-filters'
 import { DeliveryTableToolbar, DeliveryPageFooter } from './DeliveryTableToolbar'
 
+it.each([true, false])('keeps Filters directly beside Search when primary actions are present: %s', (withAction) => {
+  render(<DeliveryTableToolbar search="" onSearch={vi.fn()} searchLabel="Search deliveries" placeholder="Search delivery..."
+    filters={<DataTableFilters filters={[{ kind: 'select', id: 'status', label: 'Status', value: 'ALL', onChange: vi.fn(), options: [{ value: 'ALL', label: 'All' }] }]} />}>
+    {withAction && <button>Plan Outgoing</button>}
+  </DeliveryTableToolbar>)
+  const search = screen.getByRole('textbox', { name: 'Search deliveries' })
+  const filters = screen.getByRole('button', { name: 'Filters' })
+  expect(search.parentElement?.nextElementSibling).toBe(filters)
+  expect(filters.hasAttribute('data-table-filter-trigger')).toBe(true)
+  if (withAction) expect(filters.nextElementSibling?.contains(screen.getByRole('button', { name: 'Plan Outgoing' }))).toBe(true)
+})
+
 it('opens the shared custom filter by keyboard and restores toolbar focus', async () => {
   render(<DataTableFilters filters={[{ kind: 'custom', id: 'warehouse', label: 'Warehouse', active: false, onClear: vi.fn(), content: <label>Warehouse<input /></label> }]} />)
   const trigger = screen.getByRole('button', { name: 'Filters' })

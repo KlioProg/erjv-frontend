@@ -202,14 +202,14 @@ export function ManualQuarantineDialog({
             </fieldset>
           </div>
           <DialogFooter className="shrink-0 border-t pt-3">
-            <Button
+            {(form.error || form.selectionIssue) && <Button
               type="button"
               variant="outline"
               disabled={form.busy}
               onClick={() => void form.refreshData()}
             >
               Refresh stock and lots
-            </Button>
+            </Button>}
             <Button type="submit" disabled={!form.canSubmit}>
               {form.busy
                 ? 'Processing…'

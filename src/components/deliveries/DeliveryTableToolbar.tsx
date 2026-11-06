@@ -9,16 +9,18 @@ export function DeliveryTableToolbar({
   onSearch,
   searchLabel,
   placeholder,
+  filters,
   children,
 }: {
   search: string
   onSearch: (value: string) => void
   searchLabel: string
   placeholder: string
+  filters?: ReactNode
   children?: ReactNode
 }) {
   return (
-    <PageToolbar className="sm:justify-between">
+    <PageToolbar>
       <div className="relative w-full sm:w-80">
         <Search
           aria-hidden="true"
@@ -32,6 +34,7 @@ export function DeliveryTableToolbar({
           className="h-9 pl-9 text-ui"
         />
       </div>
+      {filters}
       <div className="flex flex-wrap items-center gap-2">{children}</div>
     </PageToolbar>
   )

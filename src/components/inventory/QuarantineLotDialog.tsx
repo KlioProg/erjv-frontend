@@ -1,3 +1,4 @@
+import { Check } from 'lucide-react'
 import { useRef, useState, type FormEvent } from 'react'
 import { decimalLimitError } from '@/lib/decimal-limits'
 import { toast } from 'sonner'
@@ -43,20 +44,32 @@ const choices = [
   {
     value: 'CLEAR',
     label: 'Release to Available Stock',
-    description: 'Release inspected goods that are safe to return to available stock.',
+    shortLabel: 'Release',
+    description: 'Inspected goods will return to available stock.',
   },
   {
     value: 'REMOVE',
     label: 'Remove from Inventory',
-    description: 'Permanently remove unusable goods and reduce physical inventory.',
+    shortLabel: 'Remove',
+    description: 'This will permanently reduce physical inventory.',
   },
   {
     value: 'CORRECT',
     label: 'Correct Condition',
-    description:
-      'Change the DAMAGED or SPOILED classification while keeping the goods quarantined.',
+    shortLabel: 'Correct',
+    description: 'The stock remains quarantined after correcting its condition.',
   },
 ] as const
+const conditionLabels: Record<QuarantineCondition, string> = {
+  DAMAGED: 'Damaged',
+  SPOILED: 'Spoiled',
+}
+const sourceLabels: Record<QuarantineLot['sourceKind'], string> = {
+  MANUAL: 'Manual',
+  INCOMING_DELIVERY: 'Incoming Delivery',
+  OUTGOING_DELIVERY: 'Outgoing Delivery',
+  WAREHOUSE_TRANSFER: 'Warehouse Transfer',
+}
 const snapshot = (lot: QuarantineLot) =>
   JSON.stringify([lot.id, lot.stockItemId, lot.condition, lot.remainingQuantity, lot.revision])
 const displayQuantity = (value: unknown) => {
@@ -126,7 +139,8 @@ export function QuarantineLotDialog({
   const isOpen = remaining !== null && remaining > 0n
   const unit = stock?.inventoryItem.unit ?? ''
   const metadataAvailable =
-    (!needsStockDetails || (!stockDetails.isPending && !stockDetails.isFetching && !stockDetails.isError)) &&
+    (!needsStockDetails ||
+      (!stockDetails.isPending && !stockDetails.isFetching && !stockDetails.isError)) &&
     stock?.id === lot?.stockItemId &&
     !!stock?.inventoryItem.name &&
     !!stock?.warehouse.name &&
@@ -145,15 +159,16 @@ export function QuarantineLotDialog({
   const safetyConfirmed = confirmedSnapshot === signature
   const quantityError = !draft.quantity.trim()
     ? ''
-    : decimalLimitError(draft.quantity, true) || (amount === null
-      ? 'Enter a quantity with up to two decimals.'
-      : amount <= 0n
-        ? 'Quantity must be greater than zero.'
-        : remaining === null
-          ? 'Remaining quarantined quantity is unavailable.'
-          : amount > remaining
-            ? 'Quantity cannot exceed remaining quarantined stock.'
-            : '')
+    : decimalLimitError(draft.quantity, true) ||
+      (amount === null
+        ? 'Enter a quantity with up to two decimals.'
+        : amount <= 0n
+          ? 'Quantity must be greater than zero.'
+          : remaining === null
+            ? 'Remaining quarantined quantity is unavailable.'
+            : amount > remaining
+              ? 'Quantity cannot exceed remaining quarantined stock.'
+              : '')
   const valid =
     !!action &&
     !!draft.reason.trim() &&
@@ -295,7 +310,7 @@ export function QuarantineLotDialog({
               Review the balance and history, then choose an action.
             </DialogDescription>
           </DialogHeader>
-          <div className="flex min-h-0 flex-col gap-4 overflow-y-auto px-6 pb-5">
+          <div className="flex min-h-0 flex-col gap-3 overflow-y-auto px-6 pb-4">
             {query.isLoading ? (
               <p role="status">Loading current quarantine record...</p>
             ) : !lot ? (
@@ -311,59 +326,68 @@ export function QuarantineLotDialog({
               </Alert>
             ) : (
               <>
-                <dl className="grid min-w-0 grid-cols-2 gap-3 text-sm">
+                <dl
+                  aria-label="Quarantined stock summary"
+                  className="grid min-w-0 grid-cols-2 gap-x-4 gap-y-2 text-sm"
+                >
                   <div className="min-w-0">
                     <dt className="text-xs text-muted-foreground">Product</dt>
-                    <OverflowValue asChild value={stock?.inventoryItem.name ?? 'Unavailable'}>
-                      <dd className="truncate font-medium">
-                        {stock?.inventoryItem.name ?? 'Unavailable'}
-                      </dd>
-                    </OverflowValue>
+                    <dd className="font-medium">
+                      <OverflowValue value={stock?.inventoryItem.name ?? 'Unavailable'} />
+                    </dd>
                   </div>
                   <div className="min-w-0">
                     <dt className="text-xs text-muted-foreground">Warehouse</dt>
-                    <OverflowValue asChild value={stock?.warehouse.name ?? 'Unavailable'}>
-                      <dd className="truncate font-medium">
-                        {stock?.warehouse.name ?? 'Unavailable'}
-                      </dd>
-                    </OverflowValue>
+                    <dd className="font-medium">
+                      <OverflowValue value={stock?.warehouse.name ?? 'Unavailable'} />
+                    </dd>
                   </div>
                   <div>
                     <dt className="text-xs text-muted-foreground">Current condition</dt>
-                    <dd>{lot.condition}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs text-muted-foreground">Originally reported condition</dt>
-                    <dd>{lot.reportedCondition}</dd>
+                    <dd>{conditionLabels[lot.condition]}</dd>
                   </div>
                   <div>
                     <dt className="text-xs text-muted-foreground">Remaining quarantined</dt>
-                    <dd className="font-medium tabular-nums">
+                    <dd className="whitespace-nowrap font-medium tabular-nums">
                       {displayQuantity(lot.remainingQuantity)} {unit}
                     </dd>
                   </div>
                   <div>
-                    <dt className="text-xs text-muted-foreground">Originally reported</dt>
-                    <dd className="tabular-nums">
-                      {displayQuantity(lot.initialQuantity)} {unit}
-                    </dd>
-                  </div>
-                  <div>
                     <dt className="text-xs text-muted-foreground">Source</dt>
-                    <dd>{lot.sourceKind.replaceAll('_', ' ')}</dd>
-                    {lot.sourceKind === 'WAREHOUSE_TRANSFER' && lot.warehouseTransferItemId != null && (
-                      <><dt>Transfer line</dt><dd>#{lot.warehouseTransferItemId}</dd></>
-                    )}
+                    <dd>{sourceLabels[lot.sourceKind]}</dd>
                   </div>
-                  {lot.tagReason && (
-                    <div className="min-w-0">
-                      <dt className="text-xs text-muted-foreground">Report reason</dt>
-                      <dd className="break-words">{lot.tagReason}</dd>
-                    </div>
-                  )}
+                  {lot.sourceKind === 'WAREHOUSE_TRANSFER' &&
+                    lot.warehouseTransferItemId != null && (
+                      <div>
+                        <dt className="text-xs text-muted-foreground">Transfer line</dt>
+                        <dd>#{lot.warehouseTransferItemId}</dd>
+                      </div>
+                    )}
                 </dl>
                 <details>
-                  <summary className="cursor-pointer text-sm font-medium">Audit history</summary>
+                  <summary className="cursor-pointer rounded text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+                    Audit history
+                  </summary>
+                  <dl className="mt-2 grid grid-cols-2 gap-2 text-sm">
+                    <div>
+                      <dt className="text-xs text-muted-foreground">
+                        Originally reported condition
+                      </dt>
+                      <dd>{conditionLabels[lot.reportedCondition]}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs text-muted-foreground">Originally reported</dt>
+                      <dd className="whitespace-nowrap tabular-nums">
+                        {displayQuantity(lot.initialQuantity)} {unit}
+                      </dd>
+                    </div>
+                    {lot.tagReason && (
+                      <div className="col-span-2">
+                        <dt className="text-xs text-muted-foreground">Report reason</dt>
+                        <dd className="break-words">{lot.tagReason}</dd>
+                      </div>
+                    )}
+                  </dl>
                   <ul className="mt-2 flex flex-col gap-3 text-sm">
                     <li>
                       Reported {lot.reportedCondition} on {new Date(lot.createdAt).toLocaleString()}
@@ -432,11 +456,26 @@ export function QuarantineLotDialog({
                     changes.
                   </p>
                 )}
-                {needsStockDetails && stockDetails.isPending && <p role="status" className="text-sm text-muted-foreground">Loading selected stock details...</p>}
-                {needsStockDetails && stockDetails.isError && <Alert variant="destructive"><AlertDescription>
-                  {getErrorMessage(stockDetails.error)}
-                  <Button type="button" variant="link" disabled={stockDetails.isFetching} onClick={() => void stockDetails.refetch()}>Reload stock details</Button>
-                </AlertDescription></Alert>}
+                {needsStockDetails && stockDetails.isPending && (
+                  <p role="status" className="text-sm text-muted-foreground">
+                    Loading selected stock details...
+                  </p>
+                )}
+                {needsStockDetails && stockDetails.isError && (
+                  <Alert variant="destructive">
+                    <AlertDescription>
+                      {getErrorMessage(stockDetails.error)}
+                      <Button
+                        type="button"
+                        variant="link"
+                        disabled={stockDetails.isFetching}
+                        onClick={() => void stockDetails.refetch()}
+                      >
+                        Reload stock details
+                      </Button>
+                    </AlertDescription>
+                  </Alert>
+                )}
                 {!metadataAvailable && !(needsStockDetails && stockDetails.isPending) && (
                   <p className="text-sm text-muted-foreground">
                     Product, warehouse, or unit details are unavailable. Reload inventory before
@@ -469,44 +508,56 @@ export function QuarantineLotDialog({
                     id="quarantine-resolution-form"
                     aria-label="Quarantine action"
                     onSubmit={submit}
-                    className="flex min-w-0 flex-col gap-4 border-t pt-4"
+                    className="flex min-w-0 flex-col gap-3 border-t pt-3"
                   >
-                    <fieldset disabled={disabled} className="flex min-w-0 flex-col gap-2">
-                      <legend className="mb-2 text-sm font-medium">
-                        What would you like to do?
+                    <fieldset disabled={disabled} className="min-w-0">
+                      <legend id="quarantine-action-label" className="mb-2 text-sm font-medium">
+                        Action
                       </legend>
-                      {choices.map((choice) => (
-                        <Button
-                          key={choice.value}
-                          type="button"
-                          variant="outline"
-                          aria-pressed={action === choice.value}
-                          onClick={() => {
-                            setAction(choice.value)
-                            setConfirmedSnapshot(null)
-                            setRemoval(null)
-                            setError('')
-                          }}
-                          className="h-auto min-h-11 w-full flex-col items-start gap-1 whitespace-normal px-3 py-2 text-left aria-pressed:border-primary aria-pressed:bg-primary/5"
-                        >
-                          <span className={choice.value === 'REMOVE' ? 'text-destructive' : ''}>
-                            {choice.label}
-                          </span>
-                          <span className="text-xs font-normal leading-5 text-muted-foreground">
-                            {choice.description}
-                          </span>
-                        </Button>
-                      ))}
+                      <div
+                        role="radiogroup"
+                        aria-labelledby="quarantine-action-label"
+                        className="flex gap-1 rounded-md bg-muted p-1"
+                      >
+                        {choices.map((choice) => (
+                          <label key={choice.value} className="min-w-0 flex-1 cursor-pointer">
+                            <input
+                              type="radio"
+                              name="quarantine-action"
+                              value={choice.value}
+                              aria-label={choice.label}
+                              checked={action === choice.value}
+                              className="peer sr-only"
+                              onChange={() => {
+                                setAction(choice.value)
+                                setConfirmedSnapshot(null)
+                                setRemoval(null)
+                                setError('')
+                              }}
+                            />
+                            <span className="flex min-h-10 items-center justify-center gap-2 rounded px-3 text-sm peer-checked:bg-background peer-checked:font-semibold peer-checked:shadow-sm peer-focus-visible:outline-none peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-disabled:cursor-not-allowed peer-disabled:opacity-50">
+                              {action === choice.value && (
+                                <Check aria-hidden="true" className="size-4" />
+                              )}
+                              {choice.shortLabel}
+                            </span>
+                          </label>
+                        ))}
+                      </div>
                     </fieldset>
                     {action && (
-                      <fieldset disabled={disabled} className="flex min-w-0 flex-col gap-4">
+                      <fieldset
+                        disabled={disabled}
+                        className="grid min-w-0 gap-3 sm:grid-cols-[auto_minmax(0,1fr)]"
+                      >
+                        <p
+                          className={`sm:col-span-2 text-sm ${action === 'REMOVE' ? 'text-destructive' : 'text-muted-foreground'}`}
+                        >
+                          {choices.find((choice) => choice.value === action)?.description}
+                        </p>
                         {action === 'CORRECT' ? (
                           <>
-                            <p className="text-xs text-muted-foreground">
-                              Correcting the condition keeps this stock quarantined. It does not
-                              release goods or remove physical inventory.
-                            </p>
-                            <div className="flex flex-col gap-2">
+                            <div className="flex min-w-40 flex-col gap-2">
                               <Label htmlFor="quarantine-condition">Corrected condition</Label>
                               <Select
                                 value={condition}
@@ -529,27 +580,22 @@ export function QuarantineLotDialog({
                           </>
                         ) : (
                           <>
-                            {action === 'REMOVE' && (
-                              <p className="text-xs text-destructive">
-                                This removes the selected quantity from quarantined stock and
-                                decreases physical inventory.
-                              </p>
-                            )}
                             <div className="flex flex-col gap-2">
                               <Label htmlFor="quarantine-quantity">{quantityLabel}</Label>
-                              <Input
-                                id="quarantine-quantity"
-                                inputMode="decimal"
-                                value={draft.quantity}
-                                onChange={(event) => change('quantity', event.target.value)}
-                                aria-invalid={!!quantityError}
-                                aria-describedby={`quarantine-quantity-help${quantityError ? ' quarantine-quantity-error' : ''}`}
-                                required
-                              />
-                              <p
-                                id="quarantine-quantity-help"
-                                className="text-xs text-muted-foreground"
-                              >
+                              <div className="flex items-center gap-2">
+                                <Input
+                                  id="quarantine-quantity"
+                                  inputMode="decimal"
+                                  style={{ width: `${Math.max(8, draft.quantity.length + 4)}ch` }}
+                                  value={draft.quantity}
+                                  onChange={(event) => change('quantity', event.target.value)}
+                                  aria-invalid={!!quantityError}
+                                  aria-describedby={`quarantine-quantity-help${quantityError ? ' quarantine-quantity-error' : ''}`}
+                                  required
+                                />
+                                <span className="text-sm">{unit}</span>
+                              </div>
+                              <p id="quarantine-quantity-help" className="sr-only">
                                 Remaining quarantined: {displayQuantity(lot.remainingQuantity)}{' '}
                                 {unit}
                               </p>
@@ -575,7 +621,7 @@ export function QuarantineLotDialog({
                           />
                         </div>
                         {action === 'CLEAR' && (
-                          <Label className="flex items-start gap-2 text-sm">
+                          <Label className="flex items-start gap-2 text-sm sm:col-span-2">
                             <input
                               type="checkbox"
                               checked={safetyConfirmed}
@@ -595,7 +641,7 @@ export function QuarantineLotDialog({
               </>
             )}
           </div>
-          <DialogFooter className="shrink-0 border-t px-6 py-4">
+          <DialogFooter className="shrink-0 border-t px-6 py-3">
             <Button type="button" variant="outline" disabled={pending} onClick={requestClose}>
               Close
             </Button>
@@ -609,10 +655,10 @@ export function QuarantineLotDialog({
                 {pending
                   ? 'Checking and saving...'
                   : action === 'CLEAR'
-                    ? 'Confirm Release'
+                    ? 'Release Stock'
                     : action === 'REMOVE'
                       ? 'Review Removal'
-                      : 'Confirm Condition Correction'}
+                      : 'Save Correction'}
               </Button>
             )}
           </DialogFooter>

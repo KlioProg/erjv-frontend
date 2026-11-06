@@ -1,3 +1,4 @@
+import { receivingQuantityWidth } from './shared/receiving-quantity'
 import {
   Dialog,
   DialogContent,
@@ -72,6 +73,7 @@ function ReceiveProductsForm({
     return { ...row, received, damaged, accepted: received - damaged,
       notReceived: row.outstanding === null ? null : row.outstanding > received ? row.outstanding - received : 0n }
   })
+  const quantityWidth = receivingQuantityWidth(form.rows.flatMap((row) => [form.counts[row.item.id]?.received, form.counts[row.item.id]?.damaged]))
   const busy = form.checking || form.pending
   return (
     <Dialog open onOpenChange={(open) => !open && !busy && onClose()}>
@@ -166,12 +168,12 @@ function ReceiveProductsForm({
                 ))}
               </div>
             )}
-            <fieldset hidden={reviewing} disabled={form.disabled || reviewing} className="flex min-w-0 flex-col gap-3">
-              <legend className="mb-3 text-sm font-medium">
+            <fieldset hidden={reviewing} disabled={form.disabled || reviewing} className="flex min-w-0 flex-wrap gap-2">
+              <legend className="mb-2 text-sm font-medium">
                 What was received?
               </legend>
               {outcomes.map(([value, label]) => (
-                <Label key={value} className={deliveryFormStyles.outcomeChoice}>
+                <Label key={value} className={deliveryFormStyles.compactOutcomeChoice}>
                   <input
                     type="radio"
                     name="receipt-outcome"
@@ -237,8 +239,8 @@ function ReceiveProductsForm({
                   data={form.rows}
                   pagination={false}
                   getRowKey={(row, index) => `${row.item.id}-${index}`}
-                  tableClassName="table-fixed"
-                  className="[&_td]:whitespace-normal [&_th]:whitespace-normal max-sm:[&_thead]:sr-only max-sm:[&_tbody]:block max-sm:[&_tr]:grid max-sm:[&_tr]:grid-cols-2 max-sm:[&_td:first-child]:col-span-2 max-sm:[&_td]:block max-sm:[&_td]:min-w-0"
+                  tableClassName="min-w-[520px] table-fixed"
+                  className="[&_td]:align-top [&_td]:whitespace-normal [&_th]:whitespace-nowrap"
                   columns={[
                     {
                       id: 'product',
@@ -262,8 +264,7 @@ function ReceiveProductsForm({
                     ...(['received', 'damaged'] as const).map((field) => ({
                       id: field,
                       header: field === 'received' ? 'Received' : 'Damaged',
-                      className: 'w-full sm:w-[28%]',
-                      headerClassName: 'sm:w-[28%]',
+                      width: quantityWidth + 32,
                       cell: ({
                         row,
                         index,
@@ -276,7 +277,6 @@ function ReceiveProductsForm({
                         const errorId = `receipt-${field}-${index}-error`
                         return (
                           <div className="flex min-w-0 flex-col gap-1">
-                            <span className="text-xs text-muted-foreground sm:hidden">{label}</span>
                             <Input
                               inputMode="decimal"
                               aria-label={`${label} for ${row.product?.name ?? 'product'} (${index + 1})`}
@@ -289,7 +289,8 @@ function ReceiveProductsForm({
                               onChange={(event) =>
                                 form.change(row.item.id, field, event.target.value)
                               }
-                              className="min-w-0 text-right tabular-nums"
+                              className="text-right tabular-nums"
+                              style={{ width: quantityWidth }}
                             />
                             {error && (
                               <p id={errorId} role="alert" className="text-xs text-destructive">

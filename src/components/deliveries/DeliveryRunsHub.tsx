@@ -417,8 +417,8 @@ export function DeliveryRunsHub({ history = false }: { history?: boolean }) {
         onSearch={setQ}
         searchLabel="Search delivery trips"
         placeholder="Search delivery trip..."
+        filters={<DataTableFilters filters={Object.values(filterHeaders)} />}
       >
-        <DataTableFilters filters={Object.values(filterHeaders)} />
         {history && canViewHistory && (
           <Button variant="outline" size="sm" asChild>
             <Link to={ROUTES.deliveryRuns}>
@@ -997,7 +997,7 @@ function RunDetails({ id, onClose, readOnly = false }: { id: number; onClose: ()
               <AlertDescription>{error || getErrorMessage(query.error)}</AlertDescription>
             </Alert>
           )}
-          <Button
+          {(query.isError || review || error) && <Button
             type="button"
             variant="outline"
             size="sm"
@@ -1014,7 +1014,7 @@ function RunDetails({ id, onClose, readOnly = false }: { id: number; onClose: ()
             }
           >
             Refresh
-          </Button>
+          </Button>}
           {readOnly && run && !historyStatuses.includes(run.status) && <Alert><AlertDescription>This trip is not completed or cancelled.</AlertDescription></Alert>}
           {readOnly && (orders.isError || clients.isError) && <Alert variant="destructive"><AlertDescription>Some customer details could not be loaded.</AlertDescription></Alert>}
           {run && (!readOnly || historyStatuses.includes(run.status)) && (

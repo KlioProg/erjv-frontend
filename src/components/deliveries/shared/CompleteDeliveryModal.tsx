@@ -1,3 +1,4 @@
+import { receivingQuantityWidth } from './receiving-quantity'
 import { deliveryFormStyles } from './delivery-form.styles'
 import { useEffect, useRef, useState } from 'react'
 import { decimalLimitError, QUANTITY_MAX } from '@/lib/decimal-limits'
@@ -52,6 +53,7 @@ export function CompleteDeliveryModal({
   const delivery = query.data
   const order = useSalesOrderById(delivery?.salesOrderId)
   const { products, warehouses, clients } = useReconciliationContext(delivery, order.data)
+  const [openReasons, setOpenReasons] = useState<Record<number, boolean>>({})
   const [counts, setCounts] = useState<Record<number, Partial<Counts>>>({})
   const [selection, setSelection] = useState<{ outcome: Outcome; signature: string } | null>(null)
   const [confirmAll, setConfirmAll] = useState(false)
@@ -90,6 +92,7 @@ export function CompleteDeliveryModal({
     const balanced = !invalid && loaded !== null && total === loaded
     return { item, product, warehouse, loaded, values, total, reasonRequired, invalid, balanced }
   })
+  const quantityWidth = receivingQuantityWidth(rows.flatMap((row) => fields.map(([field]) => counts[row.item.id]?.[field])))
   const lookupsLoading = order.isFetching || products.isFetching || warehouses.isFetching
   const detailsUnavailable =
     order.isError ||
@@ -156,7 +159,7 @@ export function CompleteDeliveryModal({
     <Dialog open onOpenChange={(open) => !open && !complete.isPending && onClose()}>
       <DialogContent
         closeDisabled={complete.isPending}
-        className="flex max-h-[calc(100svh-2rem)] flex-col overflow-hidden p-0 sm:max-w-2xl"
+        className="flex max-h-[calc(100svh-2rem)] flex-col overflow-hidden p-0 sm:max-w-6xl"
       >
         <DialogHeader className="shrink-0 px-6 pr-14 pt-6">
           <DialogTitle>Record Delivery Results</DialogTitle>
@@ -335,7 +338,7 @@ export function CompleteDeliveryModal({
                 </AlertDescription>
               </Alert>
             )}
-            <section hidden={reviewing} aria-labelledby="completion-loaded-heading" className="flex flex-col gap-3">
+            <section hidden={reviewing || outcome === 'exceptions'} aria-labelledby="completion-loaded-heading" className="flex flex-col gap-3">
               <h3 id="completion-loaded-heading" className="text-sm font-medium">
                 Loaded products
               </h3>
@@ -363,11 +366,11 @@ export function CompleteDeliveryModal({
                 ))}
               </ul>
             </section>
-            <fieldset hidden={reviewing} disabled={disabled || reviewing} className="flex min-w-0 flex-col gap-3">
-              <legend className="mb-3 text-sm font-medium">
+            <fieldset hidden={reviewing} disabled={disabled || reviewing} className="flex min-w-0 flex-wrap gap-2">
+              <legend className="mb-2 text-sm font-medium">
                 Were all items delivered?
               </legend>
-              <Label className={deliveryFormStyles.outcomeChoice}>
+              <Label className={deliveryFormStyles.compactOutcomeChoice}>
                 <input
                   type="radio"
                   name="delivery-outcome"
@@ -379,8 +382,8 @@ export function CompleteDeliveryModal({
                 />
                 All items delivered
               </Label>
-              <p id="completion-all-help" className="text-xs text-muted-foreground">All listed items were delivered to the customer.</p>
-              <Label className={deliveryFormStyles.outcomeChoice}>
+              <p id="completion-all-help" className="sr-only">All listed items were delivered to the customer.</p>
+              <Label className={deliveryFormStyles.compactOutcomeChoice}>
                 <input
                   type="radio"
                   name="delivery-outcome"
@@ -392,7 +395,7 @@ export function CompleteDeliveryModal({
                 />
                 Some items were returned or missing
               </Label>
-              <p id="completion-exceptions-help" className="text-xs text-muted-foreground">Enter the quantities delivered, returned, or missing.</p>
+              <p id="completion-exceptions-help" className="sr-only">Enter the quantities delivered, returned, or missing.</p>
             </fieldset>
             {confirmAll && (
               <Alert>
@@ -438,29 +441,49 @@ export function CompleteDeliveryModal({
               </Alert>
             )}
             {outcome === 'exceptions' && (
-              <section hidden={reviewing} className="flex flex-col gap-5" aria-label="Delivery results">
-                {rows.map((row, index) => (
-                  <fieldset
-                    key={row.item.id}
-                    disabled={disabled || confirmAll || reviewing}
-                    className="flex min-w-0 flex-col gap-3 border-t pt-4"
-                  >
-                    <legend className="max-w-full break-words pr-3 text-sm font-medium">
-                      {row.product?.name || 'Product unavailable'}
-                      {row.product?.variety ? ` · ${row.product.variety}` : ''}
-                    </legend>
-                    <p className="text-xs text-muted-foreground">
-                      Loaded: {formatStockCents(row.loaded)} {row.product?.unit}
-                    </p>
-                    <div className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2 sm:grid-cols-4">
-                      {fields.map(([field, label]) => {
+              <section hidden={reviewing} aria-label="Delivery results">
+                <DataTable
+                  data={rows}
+                  pagination={false}
+                  getRowKey={(row) => row.item.id}
+                  tableClassName="min-w-[900px] table-fixed"
+                  className="[&_td]:align-top [&_th]:whitespace-nowrap"
+                  columns={[
+                    {
+                      id: 'product',
+                      header: 'Product',
+                      width: 180,
+                      cell: ({ row }) => (
+                        <div className="whitespace-normal break-words">
+                          <p className="font-medium">
+                            {row.product?.name || 'Product unavailable'}
+                            {row.product?.variety ? ` · ${row.product.variety}` : ''}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Loaded: {formatStockCents(row.loaded)} {row.product?.unit} · {row.warehouse?.name}
+                          </p>
+                        </div>
+                      ),
+                    },
+                    ...fields.map(([field, label]) => ({
+                      id: field,
+                      header:
+                        field === 'returnedSellableQuantity'
+                          ? 'Return Good'
+                          : field === 'returnedDamagedQuantity'
+                            ? 'Return Damaged'
+                            : label,
+                      width: quantityWidth + 32,
+                      cell: ({ row, index }: { row: (typeof rows)[number]; index: number }) => {
                         const value = counts[row.item.id]?.[field] ?? ''
                         const quantityError = value ? decimalLimitError(value) : undefined
                         const invalid = !!quantityError
                         return (
-                          <div key={field} className="flex min-w-0 flex-col gap-1.5">
-                            <Label htmlFor={`completion-${row.item.id}-${field}`}>{label}</Label>
+                          <div className="space-y-1 whitespace-normal">
                             <Input
+                              disabled={disabled || confirmAll || reviewing}
+                              className="text-right tabular-nums"
+                              style={{ width: quantityWidth }}
                               id={`completion-${row.item.id}-${field}`}
                               inputMode="decimal"
                               value={value}
@@ -477,36 +500,86 @@ export function CompleteDeliveryModal({
                                 }))
                               }
                             />
-                            {(quantityError || fieldErrors[`${row.item.id}.${field}`]) && <p id={`completion-${row.item.id}-${field}-error`} role="alert" className="text-xs text-destructive">{quantityError || fieldErrors[`${row.item.id}.${field}`]}</p>}
+                            {(quantityError || fieldErrors[`${row.item.id}.${field}`]) && (
+                              <p
+                                id={`completion-${row.item.id}-${field}-error`}
+                                role="alert"
+                                className="text-xs text-destructive"
+                              >
+                                {quantityError || fieldErrors[`${row.item.id}.${field}`]}
+                              </p>
+                            )}
                           </div>
                         )
-                      })}
-                    </div>
-                    <p
-                      id={`completion-balance-${row.item.id}`}
-                      aria-live="polite"
-                      className="text-xs"
-                    >
-                      Accounted for: {formatStockCents(row.total)} / {formatStockCents(row.loaded)}{' '}
-                      {row.product?.unit}.
-                      {row.invalid
-                        ? ' Enter all four quantities with up to two decimals.'
-                        : !row.balanced
-                          ? ' Quantities must equal the loaded amount.'
-                          : ' Balanced.'}
-                    </p>
-                    {row.reasonRequired && (
-                      <div className="flex flex-col gap-1.5">
+                      },
+                    })),
+                    {
+                      id: 'accounted',
+                      header: 'Accounted',
+                      width: 220,
+                      cell: ({ row }) => (
+                        <div className="space-y-1 whitespace-normal">
+                          <p id={`completion-balance-${row.item.id}`} aria-live="polite" className="text-xs">
+                            Accounted for: {formatStockCents(row.total)} / {formatStockCents(row.loaded)}{' '}
+                            {row.product?.unit}.
+                            {row.invalid
+                              ? ' Enter all four quantities with up to two decimals.'
+                              : !row.balanced
+                                ? ' Quantities must equal the loaded amount.'
+                                : ' Balanced.'}
+                          </p>
+                          {(row.reasonRequired ||
+                            counts[row.item.id]?.discrepancyReason ||
+                            fieldErrors[`${row.item.id}.discrepancyReason`]) && (
+                            <Button
+                              type="button"
+                              variant="link"
+                              className="h-auto px-0"
+                              disabled={disabled || confirmAll || reviewing}
+                              aria-label={`Reason for ${row.product?.name || 'unavailable product'}`}
+                              aria-describedby={
+                                row.reasonRequired ? `completion-reason-required-${row.item.id}` : undefined
+                              }
+                              aria-expanded={Boolean(
+                                openReasons[row.item.id] || fieldErrors[`${row.item.id}.discrepancyReason`],
+                              )}
+                              aria-controls={`completion-reason-row-${row.item.id}`}
+                              onClick={() =>
+                                setOpenReasons({ ...openReasons, [row.item.id]: !openReasons[row.item.id] })
+                              }
+                            >
+                              Reason
+                              {row.reasonRequired && (
+                                <span id={`completion-reason-required-${row.item.id}`}> (required)</span>
+                              )}
+                            </Button>
+                          )}
+                        </div>
+                      ),
+                    },
+                  ]}
+                  renderExpandedRow={(row, index) =>
+                    openReasons[row.item.id] || fieldErrors[`${row.item.id}.discrepancyReason`] ? (
+                      <div
+                        id={`completion-reason-row-${row.item.id}`}
+                        className="flex flex-col gap-2 border-t bg-muted/30 p-4"
+                      >
                         <Label htmlFor={`completion-reason-${row.item.id}`}>
-                          Reason for Difference (required)
+                          Reason for Difference for {row.product?.name}
+                          {row.reasonRequired ? ' (required)' : ''}
                         </Label>
                         <Input
                           id={`completion-reason-${row.item.id}`}
                           aria-label={`Reason for Difference for ${row.product?.name || 'unavailable product'} (${index + 1})`}
                           value={counts[row.item.id]?.discrepancyReason ?? ''}
                           aria-invalid={!!fieldErrors[`${row.item.id}.discrepancyReason`]}
-                          aria-describedby={fieldErrors[`${row.item.id}.discrepancyReason`] ? `completion-reason-${row.item.id}-error` : undefined}
-                          required
+                          aria-describedby={
+                            fieldErrors[`${row.item.id}.discrepancyReason`]
+                              ? `completion-reason-${row.item.id}-error`
+                              : undefined
+                          }
+                          required={row.reasonRequired}
+                          disabled={disabled || confirmAll || reviewing}
                           onChange={(event) =>
                             setCounts((current) => ({
                               ...current,
@@ -517,14 +590,20 @@ export function CompleteDeliveryModal({
                             }))
                           }
                         />
-                        {fieldErrors[`${row.item.id}.discrepancyReason`] && <p id={`completion-reason-${row.item.id}-error`} role="alert" className="text-xs text-destructive">{fieldErrors[`${row.item.id}.discrepancyReason`]}</p>}
-                        <p className="text-xs text-muted-foreground">
-                          Explain the damaged or missing goods.
-                        </p>
+                        {fieldErrors[`${row.item.id}.discrepancyReason`] && (
+                          <p
+                            id={`completion-reason-${row.item.id}-error`}
+                            role="alert"
+                            className="text-xs text-destructive"
+                          >
+                            {fieldErrors[`${row.item.id}.discrepancyReason`]}
+                          </p>
+                        )}
+                        <p className="text-xs text-muted-foreground">Explain the damaged or missing goods.</p>
                       </div>
-                    )}
-                  </fieldset>
-                ))}
+                    ) : null
+                  }
+                />
               </section>
             )}
             {reviewing && (

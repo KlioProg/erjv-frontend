@@ -332,7 +332,10 @@ input[type='radio'] {
   height: 2.5rem;
 }
 @media (min-width: 640px) {
-  .management-toolbar > button:last-child,
+  .management-toolbar > :first-child {
+    flex: 0 1 24rem;
+  }
+  .management-toolbar > button:last-child:not([data-table-filter-trigger]),
   .management-toolbar > div:last-child:has(> button) {
     margin-left: auto;
   }

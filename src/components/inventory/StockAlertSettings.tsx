@@ -187,7 +187,7 @@ export function StockAlertSettings({ onClose }: { onClose: () => void }) {
                     if (selectedId !== undefined) void stock.reload()
                   }}
                 >
-                  Refresh stock list
+                  Retry
                 </Button>
               </AlertDescription>
             </Alert>
@@ -211,17 +211,6 @@ export function StockAlertSettings({ onClose }: { onClose: () => void }) {
             />
           )}
           {selectedId !== undefined && !pending && <DataTableFooter {...stock} rowCount={stock.items.length} label="Stock record" />}
-          {!warehouses.isError && !stock.isError && (
-            <Button
-              variant="link"
-              size="sm"
-              className="self-start"
-              disabled={pending || stock.isFetching || selectedId === undefined}
-              onClick={() => void stock.reload()}
-            >
-              Refresh stock list
-            </Button>
-          )}
         </div>
         <DialogFooter className="shrink-0">
           <Button variant="outline" onClick={onClose} disabled={pending}>

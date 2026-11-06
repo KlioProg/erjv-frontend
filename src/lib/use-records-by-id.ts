@@ -12,10 +12,9 @@ export function useRecordsById<T extends { id: number }>(
     : resource === 'inventory-items'
       ? 'products'
       : resource
+  const recordIds = [...new Set(ids.filter((id): id is number => Number.isSafeInteger(id) && Number(id) > 0))]
   const queries = useQueries({
-    queries: [
-      ...new Set(ids.filter((id): id is number => Number.isSafeInteger(id) && Number(id) > 0)),
-    ].map((id) => ({
+    queries: recordIds.map((id) => ({
       queryKey: [prefix, 'id', path, id],
       retry: false,
       queryFn: async ({ signal }: { signal: AbortSignal }) => {
@@ -30,6 +29,7 @@ export function useRecordsById<T extends { id: number }>(
     isPending: queries.some((query) => query.isPending),
     isLoading: queries.some((query) => query.isPending),
     isError: queries.some((query) => query.isError),
+    failedIds: recordIds.filter((_id, index) => queries[index].isError),
     error: queries.find((query) => query.error)?.error,
     refetch: () => Promise.all(queries.map((query) => query.refetch())),
   }

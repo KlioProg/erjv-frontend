@@ -1,3 +1,4 @@
+import { ScheduleIncomingDraftModal } from './ScheduleIncomingDraftModal'
 import type { DeliveryRunRecord } from '@/features/logistics/delivery-runs.types'
 import type { DeliveryVehicle } from '@/features/logistics/delivery-vehicles.types'
 import type { Employee } from '@/features/staffing/staffing.types'
@@ -235,7 +236,7 @@ export function DeliveriesHub({
     : outgoingPage
   const incoming = incomingQuery.items
   const outgoing = outgoingQuery.items
-  const { data: purchaseOrders } = useRecordsById<PurchaseOrderRecord>('/purchase-orders', [
+  const { data: purchaseOrders, failedIds: unavailablePurchaseOrderIds } = useRecordsById<PurchaseOrderRecord>('/purchase-orders', [
     ...incoming.map((delivery) => delivery.purchaseOrderId),
     lastSavedIncoming?.purchaseOrderId,
     viewOrder?.type === 'Incoming' ? viewOrder.id : undefined,
@@ -288,6 +289,7 @@ export function DeliveriesHub({
     incoming,
     outgoing,
     purchaseOrders,
+    unavailablePurchaseOrderIds,
     salesOrders,
     suppliers,
     clients,
@@ -416,9 +418,9 @@ export function DeliveriesHub({
   const confirm = async () => {
     if (!confirmation) return
     const { row, action } = confirmation
-    if (!canManage || !getDeliveryActions(row).includes(action)) return
+    if (!canManage || action === 'schedule' || !getDeliveryActions(row).includes(action)) return
     if (row.type === 'Incoming')
-      await (action === 'schedule' ? scheduleIncoming : cancelIncoming).mutateAsync({
+      await cancelIncoming.mutateAsync({
         id: row.record.id,
         expectedRevision: row.record.revision,
       })
@@ -561,6 +563,7 @@ export function DeliveriesHub({
       search={search}
       onSearch={setSearch}
       searchLabel="Search deliveries"
+      filters={<DataTableFilters filters={Object.values(headerFilters)} />}
       placeholder={
         view === 'incoming'
           ? 'Search delivery, supplier or reference...'
@@ -569,7 +572,6 @@ export function DeliveriesHub({
             : 'Search delivery history...'
       }
     >
-      <DataTableFilters filters={Object.values(headerFilters)} />
       {canManage && view !== 'history' && (
         <Button
           size="sm"
@@ -938,7 +940,11 @@ export function DeliveriesHub({
             </AlertDescription>
           </Alert>
         )}
-      <ConfirmDeleteModal
+      {confirmation?.action === 'schedule' && confirmation.row.type === 'Incoming' ? (
+        <ScheduleIncomingDraftModal canManage={canManage} id={confirmation.row.record.id} reference={confirmation.row.reference}
+          onClose={() => setConfirmation(null)}
+          onViewOrder={(id) => { setConfirmation(null); setViewOrder({ type: 'Incoming', id }) }} />
+      ) : <ConfirmDeleteModal
         key={
           confirmation ? `${confirmation.row.key}-${confirmation.action}` : 'delivery-confirmation'
         }
@@ -946,29 +952,19 @@ export function DeliveriesHub({
         onClose={() => setConfirmation(null)}
         onConfirm={confirm}
         title={
-          confirmation?.action === 'schedule'
-            ? 'Schedule Arrival'
-            : confirmation?.action === 'reopen'
-              ? 'Reopen Delivery'
-              : 'Cancel Delivery'
+          confirmation?.action === 'reopen' ? 'Reopen Delivery' : 'Cancel Delivery'
         }
         description={
-          confirmation?.action === 'schedule'
-            ? 'Mark this draft as scheduled and ready for receiving. Physical stock is unchanged.'
-            : confirmation?.action === 'reopen'
-              ? 'Return this ready delivery to a draft for planning. Physical stock is unchanged.'
-              : 'Cancel this shipment. Physical stock is unchanged.'
+          confirmation?.action === 'reopen'
+            ? 'Return this ready delivery to a draft for planning. Physical stock is unchanged.'
+            : 'Cancel this shipment. Physical stock is unchanged.'
         }
         itemName={confirmation?.row.reference}
         confirmText={
-          confirmation?.action === 'schedule'
-            ? 'Schedule Arrival'
-            : confirmation?.action === 'reopen'
-              ? 'Reopen Delivery'
-              : 'Cancel Delivery'
+          confirmation?.action === 'reopen' ? 'Reopen Delivery' : 'Cancel Delivery'
         }
         variant={confirmation?.action === 'cancel' ? 'destructive' : 'warning'}
-      />
+      />}
       </>}
     </div>
   )

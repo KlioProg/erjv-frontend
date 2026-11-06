@@ -197,8 +197,8 @@ export function WarehouseTransfersPage() {
             className="pl-9"
           />
         </div>
+        <DataTableFilters filters={tableFilters} />
         <div className="flex flex-wrap gap-2">
-          <DataTableFilters filters={tableFilters} />
           {(isAdmin || isManager) && (
             <Button onClick={() => { setEntryAction(undefined); setOpened('create') }}>Create Transfer</Button>
           )}
@@ -336,7 +336,9 @@ function TransferDialog({
         if (!open && !busy) onClose()
       }}
     >
-      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-4xl" closeDisabled={busy}>
+      <DialogContent className={id === 'create' || session?.action === 'draft'
+        ? 'flex max-h-[90dvh] flex-col overflow-hidden sm:max-w-[min(96vw,80rem)]'
+        : session?.action === 'reconcile' ? 'max-h-[90dvh] overflow-y-auto sm:max-w-6xl' : 'max-h-[90dvh] overflow-y-auto sm:max-w-4xl'} closeDisabled={busy}>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>

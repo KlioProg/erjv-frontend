@@ -49,6 +49,17 @@ beforeEach(() => {
       }
     if (config.url?.startsWith('/warehouses/'))
       data = { id: Number(config.url.split('/').at(-1)), name: 'Warehouse', isActive: true }
+    if (config.url?.startsWith('/stock-items/warehouses/'))
+      data = { items: [10, 11].map((id) => ({ id, inventoryItemId: id, warehouseId: Number(config.url!.split('/').at(-1)), availableQuantity: '5.00', onHandQuantity: '50.00', quarantinedQuantity: '45.00', inTransitQuantity: '0.00', inventoryItem: { id, name: id === 10 ? 'Test Item' : 'Other Item', unit: id === 10 ? 'kg' : 'boxes' } })), nextCursor: null }
+    if (config.url?.startsWith('/stock-items/pair/')) {
+      const [, , , inventoryItemId, warehouseId] = config.url.split('/')
+      data = {
+        id: Number(inventoryItemId),
+        inventoryItemId: Number(inventoryItemId),
+        warehouseId: Number(warehouseId),
+        availableQuantity: '5.00',
+      }
+    }
     if (config.url === '/inventory-items')
       data = { items: [{ id: 10, name: 'Test Item', unit: 'kg', isActive: true }, { id: 11, name: 'Other Item', unit: 'boxes', isActive: true }], nextCursor: null }
     if (config.url?.startsWith('/inventory-items/'))
@@ -163,7 +174,7 @@ it.each(['DRAFT', 'DISPATCHED', 'COMPLETED'] as const)('keeps the optional sched
   client.clear()
 })
 
-it('supports manager draft creation with distinct warehouses and no stock requests', async () => {
+it('supports manager draft creation within verified stock without inventory mutations', async () => {
   auth.isAdmin = false
   auth.isManager = true
   mount()
@@ -180,9 +191,9 @@ it('supports manager draft creation with distinct warehouses and no stock reques
   await userEvent.click(await screen.findByRole('menuitem', { name: 'Source' }))
   await userEvent.click(dialog.getByRole('button', { name: 'Choose to warehouse' }))
   await userEvent.click(await screen.findByRole('menuitem', { name: 'Destination' }))
-  await userEvent.click(dialog.getByRole('button', { name: 'Choose item 1' }))
-  await userEvent.click(await screen.findByRole('menuitem', { name: 'Test Item' }))
-  await userEvent.type(dialog.getByRole('textbox', { name: 'Quantity for item 1' }), '10.00')
+  await userEvent.click(await dialog.findByRole('button', { name: 'Add Test Item' }))
+  await userEvent.clear(dialog.getByRole('textbox', { name: 'Quantity for item 1' }))
+  await userEvent.type(dialog.getByRole('textbox', { name: 'Quantity for item 1' }), '5.00')
   await userEvent.click(dialog.getByRole('button', { name: 'Save Transfer' }))
   await screen.findByRole('dialog', { name: 'WT-000007' })
   expect(writes()).toEqual([
@@ -192,7 +203,7 @@ it('supports manager draft creation with distinct warehouses and no stock reques
       body: {
         sourceWarehouseId: 1,
         destinationWarehouseId: 2,
-        items: [{ inventoryItemId: 10, quantity: '10.00' }],
+        items: [{ inventoryItemId: 10, quantity: '5.00' }],
         notes: null,
         scheduledDepartureAt: null,
       },
@@ -287,18 +298,18 @@ it('reconciles mixed outcomes with saved line IDs, required reason, and final qu
   )
   await userEvent.click(screen.getByRole('radio', { name: 'Some items were damaged, missing, or returned' }))
   const set = (label: string, value: string) =>
-    fireEvent.change(screen.getByRole('textbox', { name: `${label} for item 10` }), {
+    fireEvent.change(screen.getByRole('textbox', { name: `${label} for item 10 (Test Item)` }), {
       target: { value },
     })
   set('Received', '6.00')
   set('Damaged', '1.00')
-  set('Returned \u2014 Good', '2.00')
-  set('Returned \u2014 Damaged', '1.00')
+  set('Returned in good condition', '2.00')
+  set('Returned damaged', '1.00')
   set('Missing', '1.00')
   await userEvent.click(screen.getByRole('button', { name: 'Review Receipt' }))
   expect(writes()).toHaveLength(0)
   expect(screen.getByText(/Explain the damage/)).toBeTruthy()
-  await userEvent.type(screen.getByLabelText('Reason for difference for item 10'), 'Damaged and short')
+  await userEvent.type(screen.getByLabelText('Reason for difference for item 10 (Test Item)'), 'Damaged and short')
   await userEvent.click(screen.getByRole('button', { name: 'Review Receipt' }))
   await userEvent.click(screen.getByRole('button', { name: 'Save Receipt' }))
   await screen.findByRole('dialog', { name: 'WT-000007' })
@@ -358,9 +369,9 @@ async function openReceiving() {
   return within(await screen.findByRole('dialog', { name: 'Record Goods Received' }))
 }
 function fillOutcomes(values = { receivedQuantity: '10.00', damagedQuantity: '0', returnedSellableQuantity: '0', returnedDamagedQuantity: '0', missingQuantity: '0' }) {
-  const labels = { receivedQuantity: 'Received', damagedQuantity: 'Damaged', returnedSellableQuantity: 'Returned \u2014 Good', returnedDamagedQuantity: 'Returned \u2014 Damaged', missingQuantity: 'Missing' }
+  const labels = { receivedQuantity: 'Received', damagedQuantity: 'Damaged', returnedSellableQuantity: 'Returned in good condition', returnedDamagedQuantity: 'Returned damaged', missingQuantity: 'Missing' }
   for (const [field, value] of Object.entries(values))
-    fireEvent.change(screen.getByLabelText(`${labels[field as keyof typeof labels]} for item 10`), { target: { value } })
+    fireEvent.change(screen.getByLabelText(`${labels[field as keyof typeof labels]} for item 10 (Test Item)`), { target: { value } })
 }
 
 it('opens an In Transit transfer directly with neutral choices and no assumed receipt', async () => {
@@ -391,17 +402,18 @@ it('prepares full sent quantities only after selection and preserves other items
   expect(within(full[0]).getAllByRole('cell').map((cell) => cell.textContent)).toEqual(['Test Item (kg)', '10.00', '10.00', '0.00', '0.00', '0.00', '0.00'])
   expect(within(full[1]).getAllByRole('cell').map((cell) => cell.textContent)).toEqual(['Other Item (boxes)', '2.35', '2.35', '0.00', '0.00', '0.00', '0.00'])
   await userEvent.click(receipt.getByRole('button', { name: 'Edit Quantities' }))
-  expect((receipt.getByLabelText('Received for item 11') as HTMLInputElement).value).toBe('2.35')
+  expect((receipt.getByLabelText('Received for item 11 (Other Item)') as HTMLInputElement).value).toBe('2.35')
   fillOutcomes({ receivedQuantity: '6.00', damagedQuantity: '1.00', returnedSellableQuantity: '2.00', returnedDamagedQuantity: '1.00', missingQuantity: '1.00' })
-  await userEvent.type(receipt.getByLabelText('Reason for difference for item 10'), 'Damaged, returned and short')
+  await userEvent.click(receipt.getByRole('button', { name: 'Reason for Test Item' }))
+  await userEvent.type(receipt.getByLabelText('Reason for difference for item 10 (Test Item)'), 'Damaged, returned and short')
   await userEvent.click(receipt.getByRole('button', { name: 'Review Receipt' }))
   const review = within(receipt.getByRole('region', { name: 'Review transfer receipt' }))
   expect(within(review.getAllByRole('row')[1]).getAllByRole('cell').map((cell) => cell.textContent)).toEqual(['Test Item (kg)', '10.00', '5.00', '1.00', '2.00', '1.00', '1.00'])
   expect(review.getByText('Test Item: Damaged, returned and short')).toBeTruthy()
   expect(writes()).toHaveLength(0)
   await userEvent.click(receipt.getByRole('button', { name: 'Back' }))
-  expect((receipt.getByLabelText('Received for item 10') as HTMLInputElement).value).toBe('6.00')
-  expect((receipt.getByLabelText('Received for item 11') as HTMLInputElement).value).toBe('2.35')
+  expect((receipt.getByLabelText('Received for item 10 (Test Item)') as HTMLInputElement).value).toBe('6.00')
+  expect((receipt.getByLabelText('Received for item 11 (Other Item)') as HTMLInputElement).value).toBe('2.35')
   await userEvent.click(receipt.getByRole('button', { name: 'Review Receipt' }))
   const form = receipt.getByRole('button', { name: 'Save Receipt' }).closest('form')!
   fireEvent.submit(form)
@@ -420,9 +432,9 @@ it.each(['-1', 'abc', '1.001', '9.99', '10.01'])('rejects invalid or unbalanced 
   mount()
   const receipt = await openReceiving()
   await userEvent.click(receipt.getByRole('radio', { name: 'Some items were damaged, missing, or returned' }))
-  expect((receipt.getByLabelText('Missing for item 10') as HTMLInputElement).value).toBe('')
+  expect((receipt.getByLabelText('Missing for item 10 (Test Item)') as HTMLInputElement).value).toBe('')
   fillOutcomes()
-  fireEvent.change(receipt.getByLabelText('Received for item 10'), { target: { value } })
+  fireEvent.change(receipt.getByLabelText('Received for item 10 (Test Item)'), { target: { value } })
   await userEvent.click(receipt.getByRole('button', { name: 'Review Receipt' }))
   expect(receipt.getAllByRole('alert').length).toBeGreaterThan(0)
   expect(receipt.queryByRole('button', { name: 'Save Receipt' })).toBeNull()
@@ -438,8 +450,9 @@ it('rejects damage above received and allows zero received only with all sent go
   await userEvent.click(receipt.getByRole('button', { name: 'Review Receipt' }))
   expect(receipt.getByText('Damage cannot exceed received quantity.')).toBeTruthy()
   expect(writes()).toHaveLength(0)
-  fireEvent.change(receipt.getByLabelText('Damaged for item 10'), { target: { value: '0' } })
-  await userEvent.type(receipt.getByLabelText('Reason for difference for item 10'), 'Shipment confirmed lost')
+  fireEvent.change(receipt.getByLabelText('Damaged for item 10 (Test Item)'), { target: { value: '0' } })
+  await userEvent.click(receipt.getByRole('button', { name: 'Reason for Test Item' }))
+  await userEvent.type(receipt.getByLabelText('Reason for difference for item 10 (Test Item)'), 'Shipment confirmed lost')
   await userEvent.click(receipt.getByRole('button', { name: 'Review Receipt' }))
   expect(writes()).toHaveLength(0)
   await userEvent.click(receipt.getByRole('button', { name: 'Save Receipt' }))
@@ -455,12 +468,13 @@ it('blocks a stale receipt before writing and opens the latest saved transfer fo
   await userEvent.click(receipt.getByRole('radio', { name: 'All items received in good condition' }))
   await userEvent.click(receipt.getByRole('button', { name: 'Edit Quantities' }))
   fillOutcomes({ receivedQuantity: '9.00', damagedQuantity: '0', returnedSellableQuantity: '0', returnedDamagedQuantity: '0', missingQuantity: '1.00' })
-  await userEvent.type(receipt.getByLabelText('Reason for difference for item 10'), 'One missing')
+  await userEvent.click(receipt.getByRole('button', { name: 'Reason for Test Item' }))
+  await userEvent.type(receipt.getByLabelText('Reason for difference for item 10 (Test Item)'), 'One missing')
   await userEvent.click(receipt.getByRole('button', { name: 'Review Receipt' }))
   record = { ...record, revision: 3 }
   await userEvent.click(receipt.getByRole('button', { name: 'Save Receipt' }))
   await receipt.findByText(/This transfer changed.*entries have been kept/)
-  expect((receipt.getByLabelText('Received for item 10') as HTMLInputElement).value).toBe('9.00')
+  expect((receipt.getByLabelText('Received for item 10 (Test Item)') as HTMLInputElement).value).toBe('9.00')
   expect(writes()).toHaveLength(0)
   await userEvent.click(receipt.getByRole('button', { name: 'Review saved transfers' }))
   await screen.findByRole('dialog', { name: 'WT-000007' })
@@ -515,6 +529,8 @@ it('preserves the destination and explains a source conflict instead of discardi
   mount()
   await userEvent.click(screen.getByRole('button', { name: 'Create Transfer' }))
   const draft = within(screen.getByRole('dialog'))
+  expect(draft.getByRole('region', { name: 'Selected Items' })).toBeTruthy()
+  expect(draft.getByRole('region', { name: 'Available Products' })).toBeTruthy()
   await userEvent.click(draft.getByRole('button', { name: 'Choose from warehouse' }))
   await userEvent.click(await screen.findByRole('menuitem', { name: 'Source' }))
   await userEvent.click(draft.getByRole('button', { name: 'Choose to warehouse' }))
@@ -549,28 +565,26 @@ it('groups transfer preparation, keeps quantities when changing the source, and 
   mount()
   await userEvent.click(screen.getByRole('button', { name: 'Create Transfer' }))
   const draft = within(screen.getByRole('dialog'))
-  for (const section of ['1. Warehouses', '2. Items to Transfer', '3. Additional Details']) expect(draft.getByRole('group', { name: section })).toBeTruthy()
+  for (const section of ['Warehouses', 'Additional Details']) expect(draft.getByRole('group', { name: section })).toBeTruthy()
   await userEvent.click(draft.getByRole('button', { name: 'Choose from warehouse' }))
   await userEvent.click(await screen.findByRole('menuitem', { name: 'Source' }))
   await userEvent.click(draft.getByRole('button', { name: 'Choose to warehouse' }))
   await userEvent.click(await screen.findByRole('menuitem', { name: 'Destination' }))
-  await userEvent.click(draft.getByRole('button', { name: 'Choose item 1' }))
-  await userEvent.click(await screen.findByRole('menuitem', { name: 'Test Item' }))
-  await draft.findByText('Quantity (kg)')
+  await userEvent.click(await draft.findByRole('button', { name: 'Add Test Item' }))
+  await userEvent.clear(draft.getByRole('textbox', { name: 'Quantity for item 1' }))
   await userEvent.type(draft.getByRole('textbox', { name: 'Quantity for item 1' }), '3.75')
-  await userEvent.click(draft.getByRole('button', { name: 'Add Item' }))
+  expect(draft.getByRole('button', { name: 'Add Test Item' }).hasAttribute('disabled')).toBe(false)
+  await userEvent.click(draft.getByRole('button', { name: 'Add Other Item' }))
   expect(draft.getByRole('textbox', { name: 'Quantity for item 2' })).toBeTruthy()
-  await userEvent.click(draft.getByRole('button', { name: 'Choose item 2' }))
-  expect(screen.queryByRole('menuitem', { name: 'Test Item' })).toBeNull()
-  await userEvent.click(await screen.findByRole('menuitem', { name: 'Other Item' }))
+  await userEvent.clear(draft.getByRole('textbox', { name: 'Quantity for item 2' }))
   await userEvent.type(draft.getByRole('textbox', { name: 'Quantity for item 2' }), '2.00')
   expect((draft.getByRole('textbox', { name: 'Quantity for item 1' }) as HTMLInputElement).value).toBe('3.75')
-  await userEvent.click(draft.getByRole('button', { name: 'Remove item 2' }))
+  await userEvent.click(draft.getByRole('button', { name: 'Remove Other Item' }))
   expect(draft.queryByRole('textbox', { name: 'Quantity for item 2' })).toBeNull()
   await userEvent.click(draft.getByRole('button', { name: 'Choose from warehouse' }))
   await userEvent.click(await screen.findByRole('menuitem', { name: 'Destination' }))
   expect((draft.getByRole('textbox', { name: 'Quantity for item 1' }) as HTMLInputElement).value).toBe('3.75')
-  expect(draft.getByRole('button', { name: 'Choose item 1' }).textContent).toContain('Test Item')
+  expect(within(draft.getByRole('region', { name: 'Selected Items' })).getByText('Test Item')).toBeTruthy()
   expect(writes()).toHaveLength(0)
   await userEvent.click(draft.getByRole('button', { name: 'Choose from warehouse' }))
   await userEvent.click(await screen.findByRole('menuitem', { name: 'Source' }))
@@ -580,5 +594,34 @@ it('groups transfer preparation, keeps quantities when changing the source, and 
   await waitFor(() => expect(writes()).toHaveLength(1))
   expect(writes()[0]).toMatchObject({ method: 'post', url: '/warehouse-transfers', body: { scheduledDepartureAt: '2026-11-05T14:55:00+08:00', items: [{ inventoryItemId: 10, quantity: '3.75' }] } })
   expect(record.status).toBe('DRAFT')
-  expect(requests.some((request) => request.url.includes('/stock-items') || request.url.endsWith('/dispatch'))).toBe(false)
+  expect(requests.some((request) => (request.url.includes('/stock-items') && request.method !== 'get') || request.url.endsWith('/dispatch'))).toBe(false)
+})
+
+
+it('aligns transfer quantities under shared headers and expands only the requested reason', async () => {
+  record = { ...record, status: 'DISPATCHED', revision: 2 , items: [...record.items, { ...record.items[0], id: 72, inventoryItemId: 11, quantity: '2.35' }] }
+  mount()
+  const receipt = await openReceiving()
+  await userEvent.click(receipt.getByRole('radio', { name: 'Some items were damaged, missing, or returned' }))
+  expect(receipt.getAllByRole('columnheader').map((header) => header.textContent)).toEqual([
+    'Product', 'Received', 'Damaged', 'Return Good', 'Return Damaged', 'Missing', 'Accounted',
+  ])
+  expect(receipt.getAllByRole('textbox')).toHaveLength(10)
+  expect(receipt.getAllByRole('row').slice(1).every((row) => within(row).getAllByRole('cell').length === 7 && within(row).getAllByRole('textbox').length === 5)).toBe(true)
+  fireEvent.change(receipt.getByLabelText('Received for item 10 (Test Item)'), { target: { value: '9999999999.99' } })
+  expect(receipt.getAllByRole('textbox').every((input) => input.style.width === '141px')).toBe(true)
+  expect(receipt.queryByRole('button', { name: 'Reason for Test Item' })).toBeNull()
+  expect(receipt.queryByLabelText(/Reason for difference/)).toBeNull()
+  fillOutcomes({ receivedQuantity: '9', damagedQuantity: '1', returnedSellableQuantity: '0', returnedDamagedQuantity: '0', missingQuantity: '1' })
+  const reason = receipt.getByRole('button', { name: 'Reason for Test Item' })
+  expect(reason.getAttribute('aria-expanded')).toBe('false')
+  await userEvent.click(reason)
+  const input = receipt.getByLabelText(/Reason for difference/)
+  await userEvent.type(input, 'One damaged, one missing')
+  await userEvent.click(reason)
+  expect(receipt.queryByLabelText(/Reason for difference/)).toBeNull()
+  await userEvent.click(reason)
+  expect((receipt.getByLabelText(/Reason for difference/) as HTMLInputElement).value).toBe('One damaged, one missing')
+  expect(receipt.getByText(/Accounted: 10.00/)).toBeTruthy()
+  expect(writes()).toHaveLength(0)
 })

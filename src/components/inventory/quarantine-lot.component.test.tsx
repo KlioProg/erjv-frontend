@@ -1,6 +1,6 @@
 import { parseStockCents } from '@/features/logistics/stock-display'
 import { decimalString } from '@/features/logistics/purchase-pricing'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
@@ -142,7 +142,7 @@ async function chooseAction(action: 'CLEAR' | 'REMOVE' | 'CORRECT') {
       : action === 'REMOVE'
         ? /^Remove from Inventory/
         : /^Correct Condition/
-  const button = await screen.findByRole('button', { name: label })
+  const button = await screen.findByRole('radio', { name: label })
   await waitFor(() => expect(button.matches(':disabled')).toBe(false))
   fireEvent.click(button)
 }
@@ -151,12 +151,12 @@ it.each(['CLEAR', 'REMOVE'] as const)('preserves transfer provenance and its sto
   lot.warehouseTransferItemId = 71
   const { client } = mount()
   await screen.findByText('#71')
-  expect(screen.getByText('WAREHOUSE TRANSFER')).toBeTruthy()
+  expect(screen.getByText('Warehouse Transfer')).toBeTruthy()
   expect(screen.getByText('Main Warehouse')).toBeTruthy()
   await chooseAction(action)
   quantity('1.00', action)
   reason('Transfer damage inspected')
-  if (action === 'CLEAR') { inspect(); fireEvent.click(screen.getByRole('button', { name: 'Confirm Release' })) }
+  if (action === 'CLEAR') { inspect(); fireEvent.click(screen.getByRole('button', { name: 'Release Stock' })) }
   else { fireEvent.click(screen.getByRole('button', { name: 'Review Removal' })); fireEvent.click(await screen.findByRole('button', { name: 'Confirm Removal' })) }
   await waitFor(() => expect(writes).toHaveLength(1))
   expect(lot.stockItemId).toBe(4)
@@ -201,8 +201,11 @@ it('starts with explicit choices and hides all action forms until selected', asy
     /^Remove from Inventory/,
     /^Correct Condition/,
   ])
-    expect(screen.getByRole('button', { name: label }).getAttribute('aria-pressed')).toBe('false')
+    expect((screen.getByRole('radio', { name: label }) as HTMLInputElement).checked).toBe(false)
   expect(screen.queryByRole('textbox')).toBeNull()
+  expect(screen.queryByRole('button', { name: 'Release Stock' })).toBeNull()
+  expect(screen.queryByRole('button', { name: 'Review Removal' })).toBeNull()
+  expect(screen.queryByRole('button', { name: 'Save Correction' })).toBeNull()
   expect(writes).toHaveLength(0)
 })
 
@@ -211,13 +214,13 @@ it('corrects only to a different condition with a reason and refreshes the autho
   await chooseAction('CORRECT')
   reason()
   expect(
-    screen.getByRole('button', { name: 'Confirm Condition Correction' }).hasAttribute('disabled'),
+    screen.getByRole('button', { name: 'Save Correction' }).hasAttribute('disabled'),
   ).toBe(true)
   expect(screen.queryByLabelText('Quantity to release')).toBeNull()
   const user = userEvent.setup()
   await user.click(screen.getByRole('combobox', { name: 'Corrected condition' }))
   await user.click(screen.getByRole('option', { name: 'Spoiled' }))
-  fireEvent.click(screen.getByRole('button', { name: 'Confirm Condition Correction' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Save Correction' }))
   await waitFor(() => expect(writes).toHaveLength(1))
   expect(writes[0]).toEqual({
     method: 'patch',
@@ -230,7 +233,7 @@ it('corrects only to a different condition with a reason and refreshes the autho
     },
   })
   await waitFor(() => expect(screen.queryByLabelText('Reason')).toBeNull())
-  expect(screen.getByText('SPOILED')).toBeTruthy()
+  expect(screen.getByText('Spoiled')).toBeTruthy()
   expect(screen.getByText('2.00 kg')).toBeTruthy()
   fireEvent.click(screen.getByText('Audit history'))
   expect(screen.getByText(/DAMAGED to SPOILED: Inspected/)).toBeTruthy()
@@ -244,11 +247,11 @@ it.each(['CLEAR', 'REMOVE'] as const)(
     quantity('1.00', action)
     reason()
     if (action === 'CLEAR') {
-      expect(screen.getByRole('button', { name: 'Confirm Release' }).hasAttribute('disabled')).toBe(
+      expect(screen.getByRole('button', { name: 'Release Stock' }).hasAttribute('disabled')).toBe(
         true,
       )
       inspect()
-      fireEvent.click(screen.getByRole('button', { name: 'Confirm Release' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Release Stock' }))
     } else {
       fireEvent.click(screen.getByRole('button', { name: 'Review Removal' }))
       await screen.findByRole('button', { name: 'Confirm Removal' })
@@ -285,8 +288,8 @@ it('does not expose condition changes or resolutions to staff', async () => {
   auth.isManager = false
   mount()
   await screen.findByText('2.00 kg')
-  expect(screen.queryByRole('button', { name: /^Release to/ })).toBeNull()
-  expect(screen.queryByRole('button', { name: /^Correct Condition/ })).toBeNull()
+  expect(screen.queryByRole('radio', { name: /^Release to/ })).toBeNull()
+  expect(screen.queryByRole('radio', { name: /^Correct Condition/ })).toBeNull()
   expect(screen.getByText('Audit history')).toBeTruthy()
 })
 
@@ -294,8 +297,8 @@ it('keeps closed lots and their history reviewable without mutation controls', a
   lot.remainingQuantity = '0.00'
   mount()
   await screen.findByText(/This lot is closed/)
-  expect(screen.queryByRole('button', { name: /^Release to/ })).toBeNull()
-  expect(screen.queryByRole('button', { name: /^Correct Condition/ })).toBeNull()
+  expect(screen.queryByRole('radio', { name: /^Release to/ })).toBeNull()
+  expect(screen.queryByRole('radio', { name: /^Correct Condition/ })).toBeNull()
   expect(screen.getByText('Audit history')).toBeTruthy()
 })
 
@@ -304,7 +307,7 @@ it('requires a nonblank correction reason', async () => {
   await correction()
   reason('  ')
   expect(
-    screen.getByRole('button', { name: 'Confirm Condition Correction' }).hasAttribute('disabled'),
+    screen.getByRole('button', { name: 'Save Correction' }).hasAttribute('disabled'),
   ).toBe(true)
   fireEvent.submit(screen.getByRole('form', { name: 'Quarantine action' }))
   expect(writes).toHaveLength(0)
@@ -359,7 +362,7 @@ it('sends stock, condition, and open/all filters from the quarantine view', asyn
       limit: 50,
     }),
   )
-  expect(screen.getByText('MANUAL')).toBeTruthy()
+  expect(screen.getByText('Manual')).toBeTruthy()
   await user.click(screen.getByRole('button', { name: 'Review & Resolve' }))
   expect(await screen.findByRole('heading', { name: 'Review Quarantined Stock' })).toBeTruthy()
   expect(await screen.findByText('2.00 kg')).toBeTruthy()
@@ -386,11 +389,11 @@ it('refreshes a conflicting correction and never automatically retries it', asyn
   }
   mount()
   await correction()
-  fireEvent.click(screen.getByRole('button', { name: 'Confirm Condition Correction' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Save Correction' }))
   await screen.findByRole('alert')
   await waitFor(() =>
     expect(
-      screen.getByRole('button', { name: 'Confirm Condition Correction' }).hasAttribute('disabled'),
+      screen.getByRole('button', { name: 'Save Correction' }).hasAttribute('disabled'),
     ).toBe(true),
   )
   expect(attempts).toBe(1)
@@ -426,7 +429,7 @@ it.each(['0', '-1', 'abc', '0.001', '2.01'])(
     const input = screen.getByLabelText('Quantity to release')
     expect(input.getAttribute('aria-invalid')).toBe('true')
     expect(input.getAttribute('aria-describedby')).toContain('quarantine-quantity-error')
-    expect(screen.getByRole('button', { name: 'Confirm Release' }).hasAttribute('disabled')).toBe(
+    expect(screen.getByRole('button', { name: 'Release Stock' }).hasAttribute('disabled')).toBe(
       true,
     )
     if (value === '2.01')
@@ -478,7 +481,7 @@ it('rechecks remaining quantities before release and requires renewed inspection
   reason()
   inspect()
   lot = { ...lot, remainingQuantity: '0.50' }
-  fireEvent.click(screen.getByRole('button', { name: 'Confirm Release' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Release Stock' }))
   await screen.findByText(/This quarantine lot changed/)
   expect(writes).toHaveLength(0)
   expect((screen.getByLabelText('Quantity to release') as HTMLInputElement).value).toBe('1.00')
@@ -486,7 +489,7 @@ it('rechecks remaining quantities before release and requires renewed inspection
   expect(screen.getByText('Quantity cannot exceed remaining quarantined stock.')).toBeTruthy()
   quantity('0.25')
   inspect()
-  fireEvent.click(screen.getByRole('button', { name: 'Confirm Release' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Release Stock' }))
   await waitFor(() => expect(writes).toHaveLength(1))
   expect(writes[0].body).toEqual({
     action: 'CLEAR',
@@ -522,7 +525,7 @@ it.each(['bad', undefined])(
       'Remaining quarantined quantity is unavailable. Reload the lot before making changes.',
     )
     expect(screen.queryByText(/This lot is closed/)).toBeNull()
-    expect(screen.queryByRole('button', { name: /^Release to/ })).toBeNull()
+    expect(screen.queryByRole('radio', { name: /^Release to/ })).toBeNull()
     expect(writes).toHaveLength(0)
   },
 )
@@ -531,11 +534,11 @@ it('allows Admin access and preserves keyboard action selection and dialog dismi
   auth.isManager = false
   auth.isAdmin = true
   const { close } = mount()
-  const button = await screen.findByRole('button', { name: /^Release to Available Stock/ })
+  const button = await screen.findByRole('radio', { name: /^Release to Available Stock/ })
   await waitFor(() => expect(button.matches(':disabled')).toBe(false))
   button.focus()
   const user = userEvent.setup()
-  await user.keyboard('{Enter}')
+  await user.keyboard('[Space]')
   expect(screen.getByLabelText('Quantity to release')).toBeTruthy()
   expect(writes).toHaveLength(0)
   await user.keyboard('{Escape}')
@@ -559,7 +562,7 @@ it('prevents duplicate release submissions while checking the lot', async () => 
   reason()
   inspect()
   delayed = true
-  const button = screen.getByRole('button', { name: 'Confirm Release' })
+  const button = screen.getByRole('button', { name: 'Release Stock' })
   fireEvent.click(button)
   fireEvent.submit(screen.getByRole('form', { name: 'Quarantine action' }))
   expect(writes).toHaveLength(0)
@@ -582,7 +585,7 @@ it('retries an uncertain outcome with the identical revision, UUID, decimal and 
   quantity('0.25')
   reason()
   inspect()
-  fireEvent.click(screen.getByRole('button', { name: 'Confirm Release' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Release Stock' }))
   await screen.findByText(/The outcome is uncertain/)
   expect(attempts).toHaveLength(1)
   fireEvent.submit(screen.getByRole('form', { name: 'Quarantine action' }))
@@ -627,7 +630,7 @@ it('blocks mutation when product units cannot be identified', async () => {
   await screen.findByText(
     'Product, warehouse, or unit details are unavailable. Reload inventory before making changes.',
   )
-  expect(screen.getByRole('button', { name: /^Release to/ }).matches(':disabled')).toBe(true)
+  expect(screen.getByRole('radio', { name: /^Release to/ }).matches(':disabled')).toBe(true)
   expect(writes).toHaveLength(0)
 })
 
@@ -742,7 +745,7 @@ it('resolves off-page stock by ID and preserves revision-aware partial release',
   quantity('0.25')
   reason('Inspected off-page lot')
   inspect()
-  fireEvent.click(screen.getByRole('button', { name: 'Confirm Release' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Release Stock' }))
   await waitFor(() => expect(writes).toHaveLength(1))
   expect(writes[0].body).toEqual({ action: 'CLEAR', quantity: '0.25', reason: 'Inspected off-page lot', expectedRevision: 1, requestId: expect.any(String) })
   await screen.findByText('1.75 kg')
@@ -762,11 +765,70 @@ it.each(['network', 'product mismatch', 'warehouse mismatch'] as const)('blocks 
   }
   mount(null)
   const retry = await screen.findByRole('button', { name: 'Reload stock details' })
-  expect(screen.getByRole('button', { name: /^Release to/ }).matches(':disabled')).toBe(true)
+  expect(screen.getByRole('radio', { name: /^Release to/ }).matches(':disabled')).toBe(true)
   expect(writes).toHaveLength(0)
   failing = false
   fireEvent.click(retry)
-  await waitFor(() => expect(screen.getByRole('button', { name: /^Release to/ }).matches(':disabled')).toBe(false))
+  await waitFor(() => expect(screen.getByRole('radio', { name: /^Release to/ }).matches(':disabled')).toBe(false))
   expect(screen.queryByRole('button', { name: 'Reload stock details' })).toBeNull()
+  expect(writes).toHaveLength(0)
+})
+
+it('keeps the current summary compact and original values inside Audit history', async () => {
+  mount()
+  const summary = await screen.findByLabelText('Quarantined stock summary')
+  expect(within(summary).getByText('Damaged')).toBeTruthy()
+  expect(within(summary).getByText('2.00 kg')).toBeTruthy()
+  expect(within(summary).queryByText('Originally reported condition')).toBeNull()
+  const history = screen.getByText('Audit history').closest('details')!
+  expect(history.open).toBe(false)
+  fireEvent.click(screen.getByText('Audit history'))
+  expect(history.open).toBe(true)
+  expect(within(history).getByText('Originally reported condition')).toBeTruthy()
+  expect(within(history).getByText('3.00 kg')).toBeTruthy()
+  expect(within(history).getByText('Shelf damage')).toBeTruthy()
+})
+
+it('keeps per-action entries separate and resets release acknowledgement when changing actions', async () => {
+  mount()
+  await chooseAction('CLEAR')
+  quantity('0.50')
+  reason('Inspected goods')
+  inspect()
+  expect(screen.getByRole('button', { name: 'Release Stock' }).hasAttribute('disabled')).toBe(false)
+  await chooseAction('REMOVE')
+  expect((screen.getByLabelText('Quantity to remove') as HTMLInputElement).value).toBe('')
+  expect((screen.getByLabelText('Reason') as HTMLInputElement).value).toBe('')
+  expect(screen.queryByRole('checkbox')).toBeNull()
+  quantity('0.25', 'REMOVE')
+  reason('Unusable goods')
+  await chooseAction('CORRECT')
+  expect(screen.queryByLabelText('Quantity to release')).toBeNull()
+  expect(screen.queryByLabelText('Quantity to remove')).toBeNull()
+  expect(screen.queryByRole('checkbox')).toBeNull()
+  await chooseAction('CLEAR')
+  expect((screen.getByLabelText('Quantity to release') as HTMLInputElement).value).toBe('0.50')
+  expect((screen.getByLabelText('Reason') as HTMLInputElement).value).toBe('Inspected goods')
+  expect((screen.getByRole('checkbox') as HTMLInputElement).checked).toBe(false)
+  expect(screen.getByRole('button', { name: 'Release Stock' }).hasAttribute('disabled')).toBe(true)
+  expect(writes).toHaveLength(0)
+})
+
+it('supports keyboard selection through the compact radio group without writing stock', async () => {
+  mount()
+  const release = await screen.findByRole('radio', { name: 'Release to Available Stock' })
+  await waitFor(() => expect(release.matches(':disabled')).toBe(false))
+  release.focus()
+  const user = userEvent.setup()
+  await user.keyboard('[Space]')
+  expect((release as HTMLInputElement).checked).toBe(true)
+  await user.keyboard('{ArrowRight}')
+  expect((screen.getByRole('radio', { name: 'Remove from Inventory' }) as HTMLInputElement).checked).toBe(true)
+  expect(screen.getByLabelText('Quantity to remove')).toBeTruthy()
+  expect(screen.queryByRole('checkbox')).toBeNull()
+  await user.keyboard('{ArrowRight}')
+  expect((screen.getByRole('radio', { name: 'Correct Condition' }) as HTMLInputElement).checked).toBe(true)
+  expect(screen.getByRole('combobox', { name: 'Corrected condition' })).toBeTruthy()
+  expect(screen.queryByLabelText('Quantity to remove')).toBeNull()
   expect(writes).toHaveLength(0)
 })

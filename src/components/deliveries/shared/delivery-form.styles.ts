@@ -2,6 +2,8 @@
 export const deliveryFormStyles = {
   outcomeChoice:
     'flex min-h-11 cursor-pointer items-center gap-3 rounded-md border border-input bg-card p-3 has-[:checked]:border-primary has-[:checked]:bg-primary/5 has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-60',
+  compactOutcomeChoice:
+    'flex min-h-10 cursor-pointer items-center gap-2 rounded-md border border-input bg-card px-3 py-2 has-[:checked]:border-primary has-[:checked]:bg-primary/5 has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-60',
   outcomeRadio:
     'size-4 shrink-0 appearance-none rounded-full border border-input bg-card checked:border-primary checked:bg-primary checked:shadow-[inset_0_0_0_3px_var(--card)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background',
 

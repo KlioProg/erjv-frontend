@@ -1,6 +1,7 @@
+import { ProductUnitField } from '@/components/products/ProductUnitField'
 import { formatProductUnit } from '@/lib/product-unit'
 import { useRef, useState, type FormEvent } from 'react'
-import { Package, Tag, FileText, Sparkles, RotateCcw } from 'lucide-react'
+import { RotateCcw } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -215,108 +216,80 @@ function ItemFormContent({
       )}
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-4 py-2">
-        {/* Product Name */}
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="item-name" className="text-[13px] font-medium text-foreground">
-            Product Item Name <span className="text-primary">*</span>
-          </Label>
-          <div className="relative">
-            <Package className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
-            <Input
-              id="item-name"
-              placeholder="e.g. Cooking Oil 1L Pouch, Sugar 50kg Sack, Premium Sinandomeng"
-              value={name}
-              onChange={(e) => {
-                setName(e.target.value)
-                if (deactivatedProductMatch) setDeactivatedProductMatch(null)
-                if (errorMsg) setErrorMsg('')
-              }}
-              className="pl-9 h-10 text-sm"
-              required
-            />
-          </div>
-        </div>
-
-        {/* Variety / Grade */}
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="item-variety" className="text-[13px] font-medium text-foreground">
-            Variety / Grade (Optional)
-          </Label>
-          <div className="relative">
-            <Tag className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
-            <Input
-              id="item-variety"
-              placeholder="e.g. Sinandomeng, Refined White, Palm Olein"
-              value={variety}
-              onChange={(e) => setVariety(e.target.value)}
-              className="pl-9 h-10 text-sm"
-            />
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Specific strain, grade, or packaging classification of the product.
-          </p>
-        </div>
-
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="item-unit">
-            Unit {!isEditing && <span className="text-primary">*</span>}
+          <Label htmlFor="item-name">
+            Product Name{' '}
+            <span aria-hidden="true" className="text-primary">
+              *
+            </span>
           </Label>
           <Input
-            id="item-unit"
-            value={unit}
-            onChange={(event) => setUnit(event.target.value)}
-            placeholder="e.g. kg, pieces"
-            required={!isEditing}
-            readOnly={isEditing}
+            id="item-name"
+            placeholder="Enter product name"
+            value={name}
+            onChange={(event) => {
+              setName(event.target.value)
+              if (deactivatedProductMatch) setDeactivatedProductMatch(null)
+              if (errorMsg) setErrorMsg('')
+            }}
+            required
           />
         </div>
-        {/* Unit Price Field - Enhanced & Large */}
         <div className="flex flex-col gap-1.5">
-          <div className="flex items-center justify-between">
-            <Label htmlFor="item-price" className="text-[13px] font-medium text-foreground">
-              Standard Wholesale Unit Price (₱ PHP){' '}
-              {!isEditing && <span className="text-primary">*</span>}
-            </Label>
-            <span className="text-xs font-medium text-muted-foreground flex items-center gap-1">
-              <Sparkles className="size-3" />
-              Standard Selling Rate
-            </span>
+          <Label htmlFor="item-variety">Variety / Grade (optional)</Label>
+          <Input
+            id="item-variety"
+            placeholder="e.g. Cavendish, Refined White"
+            value={variety}
+            onChange={(event) => setVariety(event.target.value)}
+          />
+        </div>
+        <div className="grid min-w-0 items-start gap-4 sm:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
+          <div className="min-w-0">
+            <ProductUnitField
+              id="item-unit"
+              value={unit}
+              onChange={setUnit}
+              disabled={isPending}
+              readOnly={isEditing}
+              required={!isEditing}
+            />
+            {isEditing && (
+              <p className="mt-1.5 text-xs text-muted-foreground">
+                Stock unit cannot be changed here.
+              </p>
+            )}
           </div>
-
-          <div className="relative">
-            <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-medium text-sm text-muted-foreground pointer-events-none">
-              ₱
-            </span>
+          <div className="flex min-w-0 flex-col gap-1.5">
+            <Label htmlFor="item-price">
+              Wholesale Unit Price (&#8369;){' '}
+              {!isEditing && (
+                <span aria-hidden="true" className="text-primary">
+                  *
+                </span>
+              )}
+            </Label>
             <Input
               id="item-price"
-              type="number"
-              step="0.01"
-              min="0"
-              placeholder="1150.00"
+              type="text"
+              inputMode="decimal"
+              placeholder="0.00"
               value={unitPrice}
-              onChange={(e) => setUnitPrice(e.target.value)}
-              className="pl-9 h-11 text-base font-medium"
+              onChange={(event) => setUnitPrice(event.target.value)}
+              className="h-10 tabular-nums"
               required
             />
           </div>
         </div>
-
-        {/* Description */}
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="item-desc" className="text-[13px] font-medium text-foreground">
-            Specifications, Units & Handling Notes
-          </Label>
-          <div className="relative">
-            <FileText className="absolute left-3 top-3 size-4 text-muted-foreground pointer-events-none" />
-            <Textarea
-              id="item-desc"
-              placeholder="e.g. 20 Liters sealed carboy container, commercial cooking oil, storage instructions..."
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              className="pl-9 text-[13px]"
-              rows={2}
-            />
-          </div>
+          <Label htmlFor="item-desc">Specifications &amp; Handling Notes (optional)</Label>
+          <Textarea
+            id="item-desc"
+            placeholder="Storage or handling instructions"
+            value={description}
+            onChange={(event) => setDescription(event.target.value)}
+            rows={2}
+          />
         </div>
 
         <DialogFooter className="gap-2.5 pt-3 border-t sm:justify-between">

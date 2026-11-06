@@ -2,7 +2,6 @@ import {
   DropdownMenuContent,
   DropdownMenuGroup,
   DropdownMenuLabel,
-  DropdownMenuItem,
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu'
 import { Button } from '@/components/ui/button'
@@ -41,20 +40,6 @@ export function NotificationPanel({
     >
       <div className="flex shrink-0 items-center justify-between gap-3 px-4 py-3">
         <DropdownMenuLabel className="p-0 text-sm">Notifications</DropdownMenuLabel>
-        <DropdownMenuGroup>
-          <DropdownMenuItem
-            asChild
-            disabled={isFetching}
-            onSelect={(event) => {
-              event.preventDefault()
-              onRefresh()
-            }}
-          >
-            <Button variant="ghost" size="sm" disabled={isFetching}>
-              {isFetching ? <Spinner aria-label="Refreshing notifications" /> : 'Refresh'}
-            </Button>
-          </DropdownMenuItem>
-        </DropdownMenuGroup>
       </div>
       <DropdownMenuSeparator className="m-0" />
       <div className="min-h-0 overflow-y-auto overscroll-contain p-1">
@@ -69,7 +54,8 @@ export function NotificationPanel({
         ) : error ? (
           <Alert variant="destructive" className="m-2 w-auto">
             <AlertDescription>
-              Stock alerts could not be verified. {getErrorMessage(error)} Use Refresh to try again.
+              Stock alerts could not be verified. {getErrorMessage(error)}
+              <Button variant="link" size="sm" disabled={isFetching} onClick={onRefresh}>Retry</Button>
             </AlertDescription>
           </Alert>
         ) : hasMore ? (

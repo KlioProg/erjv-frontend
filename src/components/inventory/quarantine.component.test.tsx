@@ -154,7 +154,7 @@ it('preserves an unsubmitted resolution until discard is confirmed', async () =>
 })
 function fill(quantity = '1.25', reason = 'Inspection completed') {
   if (!screen.queryByLabelText('Quantity to release'))
-    fireEvent.click(screen.getByRole('button', { name: /^Release to/ }))
+    fireEvent.click(screen.getByRole('radio', { name: /^Release to/ }))
   fireEvent.change(screen.getByLabelText('Quantity to release'), { target: { value: quantity } })
   fireEvent.change(screen.getByLabelText('Reason'), { target: { value: reason } })
   const inspected = screen.getByRole('checkbox') as HTMLInputElement
@@ -223,7 +223,7 @@ it('shows an empty state and allows zero-balance lots to be inspected without ac
   mount({ lots: [{ ...baseLot, remainingQuantity: '0.00' }] })
   await openLot()
   expect(await screen.findByText(/This lot is closed/)).toBeTruthy()
-  expect(screen.queryByRole('button', { name: /^Release to/ })).toBeNull()
+  expect(screen.queryByRole('radio', { name: /^Release to/ })).toBeNull()
 })
 
 it('handles a genuinely empty quarantine list', async () => {
@@ -237,7 +237,7 @@ it('does not invent missing product or warehouse context or allow an unidentifie
   await screen.findByText('Stock #7 unavailable')
   await openLot()
   expect(screen.getByText(/Product, warehouse, or unit details are unavailable/)).toBeTruthy()
-  expect(screen.getByRole('button', { name: /^Release to/ }).matches(':disabled')).toBe(true)
+  expect(screen.getByRole('radio', { name: /^Release to/ }).matches(':disabled')).toBe(true)
   expect(posts).toHaveLength(0)
 })
 
@@ -292,7 +292,7 @@ it.each(['MANAGER', 'ADMIN', 'SUPERADMIN'])(
     const { posts, client, gets } = mount()
     await openLot()
     fill()
-    fireEvent.click(screen.getByRole('button', { name: 'Confirm Release' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Release Stock' }))
     await waitFor(() => expect(screen.queryByLabelText('Quantity to release')).toBeNull())
     expect(posts).toEqual([
       {
@@ -330,8 +330,8 @@ it.each(['', '0', '-1', '1.234', '3.26', 'abc', '1e2'])(
     const { posts } = mount()
     await openLot()
     fill(value)
-    fireEvent.click(screen.getByRole('button', { name: 'Confirm Release' }))
-    expect(screen.getByRole('button', { name: 'Confirm Release' }).matches(':disabled')).toBe(true)
+    fireEvent.click(screen.getByRole('button', { name: 'Release Stock' }))
+    expect(screen.getByRole('button', { name: 'Release Stock' }).matches(':disabled')).toBe(true)
     expect(posts).toEqual([])
   },
 )
@@ -343,7 +343,7 @@ it('requires a nonblank reason and explicit removal confirmation, and blocks dup
   })
   const { posts } = mount({ post: async () => pending })
   await openLot()
-  fireEvent.click(screen.getByRole('button', { name: /^Remove from Inventory/ }))
+  fireEvent.click(screen.getByRole('radio', { name: /^Remove from Inventory/ }))
   fireEvent.change(screen.getByLabelText('Quantity to remove'), { target: { value: '1.25' } })
   fireEvent.change(screen.getByLabelText('Reason'), { target: { value: '   ' } })
   expect(screen.getByRole('button', { name: 'Review Removal' }).matches(':disabled')).toBe(true)
@@ -373,7 +373,7 @@ it('preserves removal inputs after a conflict and requires another explicit conf
     },
   })
   await openLot()
-  fireEvent.click(screen.getByRole('button', { name: /^Remove from Inventory/ }))
+  fireEvent.click(screen.getByRole('radio', { name: /^Remove from Inventory/ }))
   fireEvent.change(screen.getByLabelText('Quantity to remove'), { target: { value: '1.25' } })
   fireEvent.change(screen.getByLabelText('Reason'), { target: { value: 'Inspection completed' } })
   fireEvent.click(screen.getByRole('button', { name: 'Review Removal' }))
@@ -391,13 +391,13 @@ it('keeps large lot balances exact while limiting each resolution to the support
   const { posts } = mount({ lots: [{ ...baseLot, remainingQuantity: '90071992547409.25' }] })
   await openLot()
   fill('90071992547409.26')
-  fireEvent.click(screen.getByRole('button', { name: 'Confirm Release' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Release Stock' }))
   expect(posts).toHaveLength(0)
   fill('90071992547409.25')
-  fireEvent.click(screen.getByRole('button', { name: 'Confirm Release' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Release Stock' }))
   expect(posts).toHaveLength(0)
   fill('9999999999.99')
-  fireEvent.click(screen.getByRole('button', { name: 'Confirm Release' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Release Stock' }))
   await waitFor(() => expect(posts).toHaveLength(1))
   expect(posts[0].body).toEqual({
     action: 'CLEAR',
@@ -417,10 +417,10 @@ it.each([403, 409])('handles HTTP %i without losing inputs and refreshes lots', 
   })
   await openLot()
   fill()
-  fireEvent.click(screen.getByRole('button', { name: 'Confirm Release' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Release Stock' }))
   await screen.findByRole('alert')
   await waitFor(() =>
-    expect(screen.getByRole('button', { name: /^Release to/ }).matches(':disabled')).toBe(false),
+    expect(screen.getByRole('radio', { name: /^Release to/ }).matches(':disabled')).toBe(false),
   )
   expect((screen.getByLabelText('Quantity to release') as HTMLInputElement).value).toBe('1.25')
   expect((screen.getByLabelText('Reason') as HTMLTextAreaElement).value).toBe(
@@ -441,14 +441,14 @@ it('never retries an uncertain mutation and requires refresh when authoritative 
   })
   await openLot()
   fill()
-  fireEvent.click(screen.getByRole('button', { name: 'Confirm Release' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Release Stock' }))
   await screen.findByText(/The outcome is uncertain/)
   await waitFor(() =>
     expect(
       screen.getByRole('button', { name: 'Retry same request' }).hasAttribute('disabled'),
     ).toBe(false),
   )
-  expect(screen.getByRole('button', { name: /^Release to/ }).matches(':disabled')).toBe(true)
+  expect(screen.getByRole('radio', { name: /^Release to/ }).matches(':disabled')).toBe(true)
   expect(posts).toHaveLength(1)
   expect((screen.getByLabelText('Quantity to release') as HTMLInputElement).value).toBe('1.25')
 })

@@ -176,6 +176,7 @@ it('loads warehouse and warehouse-scoped stock pages on demand without duplicate
 it('preserves an off-page selected stock across server search and submits its stock ID with exact decimals', async () => {
   const { reads, writes, close } = mount({ selected: 8 })
   await waitFor(() => expect(submit().hasAttribute('disabled')).toBe(false))
+  expect(screen.queryByRole('button', { name: 'Refresh stock and lots' })).toBeNull()
   expect(screen.getByRole('button', { name: 'Quarantine product stock' }).textContent).toContain(
     'Corn',
   )

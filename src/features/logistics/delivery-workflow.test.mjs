@@ -156,7 +156,7 @@ test('planned outgoing deliveries show their persisted warehouse before stock is
 })
 
 test('only inspected backend transitions are exposed for each direction', () => {
-  assert.deepEqual(getDeliveryActions({ type: 'Incoming', status: 'DRAFT' }), [
+  assert.deepEqual(getDeliveryActions({ type: 'Incoming', status: 'DRAFT', purchaseOrderStatus: 'CONFIRMED' }), [
     'schedule',
     'cancel',
   ])
@@ -206,4 +206,11 @@ test('unknown balances and malformed decimal quantities block delivery submissio
   assert.ok(deliveryQuantityError('0.06', '0.05'))
   assert.equal(deliveryQuantityError('0.05', '0.05'), null)
   assert.equal(deliveryQuantityError('0', '0.05'), null)
+})
+
+
+test('incoming drafts fail closed unless their linked purchase order supports scheduling', () => {
+  for (const purchaseOrderStatus of [undefined, 'DRAFT', 'RECEIVED', 'CANCELLED'])
+    assert.deepEqual(getDeliveryActions({ type: 'Incoming', status: 'DRAFT', purchaseOrderStatus }), ['cancel'])
+  assert.deepEqual(getDeliveryActions({ type: 'Incoming', status: 'DRAFT', purchaseOrderStatus: 'PARTIALLY_RECEIVED' }), ['schedule', 'cancel'])
 })
