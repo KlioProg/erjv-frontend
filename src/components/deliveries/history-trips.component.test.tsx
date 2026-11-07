@@ -136,7 +136,7 @@ it('pages and searches trips through their own backend cursor without mixing del
   expect(writes()).toHaveLength(0)
 })
 
-it('shows actual departure first and does not turn a cancelled trip schedule into a departure', async () => {
+it('shows only actual departure and does not turn a cancelled trip schedule into a departure', async () => {
   mount()
   await openTrips()
   const completed = within(screen.getByRole('button', { name: 'TRIP-31' }).closest('tr')!)
@@ -144,12 +144,13 @@ it('shows actual departure first and does not turn a cancelled trip schedule int
   await completed.findByText('Main')
   await completed.findByText('Ana Cruz / ABC-123')
   expect(completed.getByText('2 / 2 results recorded')).toBeTruthy()
+  expect(completed.getAllByRole('cell')[3].textContent).toBe('Nov 2, 2026, 9:00 AM')
   expect(screen.getByRole('button', { name: 'TRIP-31' }).closest('tr')!.querySelector('time')?.getAttribute('datetime')).toBe(trips[0].dispatchedAt)
   await userEvent.click(screen.getByRole('button', { name: 'Next page' }))
   const cancelled = within((await screen.findByRole('button', { name: 'TRIP-32' })).closest('tr')!)
   expect(cancelled.getByText('Cancelled')).toBeTruthy()
-  expect(cancelled.getByText('Actual: Not recorded')).toBeTruthy()
-  expect(cancelled.getByText(/Scheduled:/)).toBeTruthy()
+  expect(cancelled.getAllByRole('cell')[3].textContent).toBe('Not recorded')
+  expect(cancelled.queryByText(/Scheduled:/)).toBeNull()
   expect(screen.getByRole('button', { name: 'TRIP-32' }).closest('tr')!.querySelector('time')).toBeNull()
 })
 

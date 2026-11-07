@@ -373,28 +373,18 @@ export function DeliveryRunsHub({ history = false }: { history?: boolean }) {
     {
       id: 'departure',
       header: history ? 'Departure Date' : 'Scheduled Departure',
-      width: 256,
+      width: history ? 224 : 256,
       cell: ({ row }) => history ? (
-        <div className="flex w-56 flex-col items-start gap-1 text-ui">
-          <OverflowValue
-            asChild
-            value={`Actual: ${row.dispatchedAt ? compactDateText(row.dispatchedAt) : 'Not recorded'}`}
-            fullValue={`Actual: ${row.dispatchedAt ? `${dateText(row.dispatchedAt)} (Manila time)` : 'Not recorded'}`}
-            showFullValueOnHover
-          >
-            <p tabIndex={row.dispatchedAt ? 0 : undefined} className="max-w-full truncate">
-              Actual: {row.dispatchedAt ? <time dateTime={row.dispatchedAt}>{compactDateText(row.dispatchedAt)}</time> : 'Not recorded'}
-            </p>
-          </OverflowValue>
-          {row.scheduledDepartureAt && (
-            <OverflowValue
-              value={`Scheduled: ${compactDateText(row.scheduledDepartureAt)}`}
-              fullValue={`Scheduled: ${dateText(row.scheduledDepartureAt)} (Manila time)`}
-              className="max-w-full text-xs text-muted-foreground"
-              showFullValueOnHover
-            />
-          )}
-        </div>
+        <OverflowValue
+          asChild
+          value={row.dispatchedAt ? compactDateText(row.dispatchedAt) : 'Not recorded'}
+          fullValue={row.dispatchedAt ? `Actual departure: ${dateText(row.dispatchedAt)} (Manila time)` : 'Not recorded'}
+          showFullValueOnHover
+        >
+          <span tabIndex={row.dispatchedAt ? 0 : undefined} className="block w-48 max-w-full truncate">
+            {row.dispatchedAt ? <time dateTime={row.dispatchedAt}>{compactDateText(row.dispatchedAt)}</time> : 'Not recorded'}
+          </span>
+        </OverflowValue>
       ) : (
         <OverflowValue
           value={compactDateText(row.scheduledDepartureAt)}
