@@ -344,7 +344,7 @@ export function InventoryItemCatalog({
           LOW: 'Low Stock',
           NORMAL: '',
           UNCONFIGURED: '',
-          UNASSIGNED: 'No Warehouse Assigned',
+          UNASSIGNED: '',
           UNKNOWN: 'Stock Unavailable',
         }[condition]
         const quantityClass = condition === 'OUT' ? 'text-destructive'

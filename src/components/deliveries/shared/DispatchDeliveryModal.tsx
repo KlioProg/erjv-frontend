@@ -1,4 +1,3 @@
-import { useEffect, useRef } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -18,22 +17,11 @@ import { formatStockCents, parseStockCents } from '@/features/logistics/stock-di
 export function DispatchDeliveryModal({
   runId,
   onClose,
-  onSetDeparture,
-  reviewRequest = 0,
 }: {
   runId: number
   onClose: () => void
-  onSetDeparture?: () => void
-  reviewRequest?: number
 }) {
   const form = useOutgoingDispatch(runId, onClose)
-  const refresh = useRef(form.refresh)
-  useEffect(() => {
-    refresh.current = form.refresh
-  }, [form.refresh])
-  useEffect(() => {
-    if (reviewRequest > 0) void refresh.current()
-  }, [reviewRequest])
   return (
     <Dialog open onOpenChange={(open) => !open && !form.busy && onClose()}>
       <DialogContent
@@ -78,23 +66,11 @@ export function DispatchDeliveryModal({
                   {!form.run
                     ? 'Unavailable'
                     : form.run.scheduledDepartureAt
-                      ? new Date(form.run.scheduledDepartureAt).toLocaleString('en-PH', { timeZone: 'Asia/Manila' })
-                      : (
-                      <span className="flex flex-wrap items-center gap-x-2">
-                        <span>Not scheduled</span>
-                        {onSetDeparture && (
-                          <Button
-                            type="button"
-                            variant="link"
-                            className="h-auto p-0"
-                            disabled={form.busy || form.fetching}
-                            onClick={onSetDeparture}
-                          >
-                            Set Departure
-                          </Button>
-                        )}
-                      </span>
-                      )}
+                      ? new Date(form.run.scheduledDepartureAt).toLocaleString('en-PH', {
+                          timeZone: 'Asia/Manila', month: 'short', day: 'numeric', year: 'numeric',
+                          hour: 'numeric', minute: '2-digit',
+                        })
+                      : 'Not scheduled'}
                 </dd>
               </div>
               <div>
@@ -209,7 +185,7 @@ export function DispatchDeliveryModal({
               Cancel
             </Button>
             <Button type="submit" disabled={!form.canSubmit}>
-              {form.busy ? 'Sending...' : 'Send Trip'}
+              {form.sending ? 'Sending...' : 'Send Trip'}
             </Button>
           </DialogFooter>
         </form>

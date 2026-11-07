@@ -1,4 +1,3 @@
-import { DataTableFilters, DataTableFilterChips, type DataTableFilter } from '@/components/ui/data-table-filters'
 import { OverflowValue } from '@/components/ui/OverflowValue'
 import { useAuth } from '@/features/auth/AuthContext'
 import { PageHeader, PageToolbar } from '@/components/ui/ManagementPage'
@@ -38,24 +37,8 @@ export function EmployeeList() {
   })
   const reactivateMutation = useReactivateEmployee()
   const [searchQuery, setSearchQuery] = useState('')
-  const [drivingFilter, setDrivingFilter] = useState('ALL')
-  const tableFilters: DataTableFilter[] = [
-    {
-      kind: 'select',
-      id: 'driving',
-      label: 'Driving eligibility',
-      value: drivingFilter,
-      onChange: setDrivingFilter,
-      options: [
-        { value: 'ALL', label: 'All staff' },
-        { value: 'true', label: 'Can drive' },
-        { value: 'false', label: 'Cannot drive' },
-      ],
-    },
-  ]
   const employeeQuery = useResourcePage<Employee>('/employees', {
     includeInactive: activeTab === 'ARCHIVED' ? 'only' : 'false',
-    ...(drivingFilter !== 'ALL' ? { canDrive: drivingFilter } : {}),
     ...(searchQuery.trim() ? { q: searchQuery.trim() } : {}),
   })
   const { isLoading, isFetching, error, reload: refetch } = employeeQuery
@@ -208,7 +191,6 @@ export function EmployeeList() {
       header: 'Hire Date',
       cell: ({ row }) => renderEmployeeCell(row, 'hireDate'),
     },
-    { id: 'driving', header: 'Driving Eligibility', cell: ({ row }) => row.canDrive ? 'Eligible driver' : 'Not eligible' },
     {
       id: 'user-account',
       header: 'User Account',
@@ -253,7 +235,6 @@ export function EmployeeList() {
             className="pl-9 bg-card"
           />
         </div>
-        <DataTableFilters filters={tableFilters} />
         {activeTab === 'ACTIVE' && (
           <Button size="sm" onClick={handleCreate} className="font-medium cursor-pointer">
             <UserPlus data-icon="inline-start" className="size-4" />
@@ -261,7 +242,6 @@ export function EmployeeList() {
           </Button>
         )}
       </PageToolbar>
-      <DataTableFilterChips filters={tableFilters} />
 
       <p className="text-xs text-muted-foreground">Search matches first name, last name, or email. Results use server ordering.</p>
       {/* Employees Table Card */}

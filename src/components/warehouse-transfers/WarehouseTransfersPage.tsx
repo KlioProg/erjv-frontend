@@ -9,6 +9,7 @@ import { PageHeader, PageToolbar } from '@/components/ui/ManagementPage'
 import { StatusTabNav } from '@/components/ui/StatusTabNav'
 import { DataTable, type ColumnDef } from '@/components/ui/data-table'
 import { DataTableActions } from '@/components/ui/DataTableActions'
+import { OverflowValue } from '@/components/ui/OverflowValue'
 import { DataTableFooter, DataTableFrame } from '@/components/ui/DataTableFooter'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { Button } from '@/components/ui/button'
@@ -46,6 +47,15 @@ function TransferStatusBadge({ status }: { status: TransferStatus }) {
 }
 const transferTime = (value: string | null) =>
   value ? new Date(value).toLocaleString('en-PH', { timeZone: 'Asia/Manila' }) : 'Not scheduled'
+const compactTransferTime = (value: string | null) =>
+  value ? new Date(value).toLocaleString('en-PH', {
+    timeZone: 'Asia/Manila',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  }) : 'Not scheduled'
 
 export function WarehouseTransfersPage() {
   const { isAdmin, isManager, isStaff } = useAuth()
@@ -88,24 +98,34 @@ export function WarehouseTransfersPage() {
     { header: 'Destination Warehouse', cell: ({ row }) => name(row.destinationWarehouseId) },
     {
       header: 'Departure',
-      cell: ({ row }) => (
-        <div className="flex items-center gap-2 whitespace-nowrap text-ui">
-          <span>
-            <span className="text-xs text-muted-foreground">Scheduled: </span>
-            {transferTime(row.scheduledDepartureAt)}
-          </span>
-          {(row.dispatchedAt || row.status === 'DISPATCHED' || row.status === 'COMPLETED') && (
-            <span>
-              <span className="text-xs text-muted-foreground">Actual: </span>
-              {row.dispatchedAt ? (
-                <time dateTime={row.dispatchedAt}>{transferTime(row.dispatchedAt)}</time>
-              ) : (
-                'Not recorded'
-              )}
-            </span>
-          )}
-        </div>
-      ),
+      width: 256,
+      cell: ({ row }) => {
+        const showActual = !!row.dispatchedAt || row.status === 'DISPATCHED' || row.status === 'COMPLETED'
+        return (
+          <div className="flex w-56 flex-col items-start gap-1 text-ui">
+            {showActual && (
+              <OverflowValue
+                asChild
+                value={`Actual: ${row.dispatchedAt ? compactTransferTime(row.dispatchedAt) : 'Not recorded'}`}
+                fullValue={`Actual: ${row.dispatchedAt ? `${transferTime(row.dispatchedAt)} (Manila time)` : 'Not recorded'}`}
+                showFullValueOnHover
+              >
+                <p tabIndex={row.dispatchedAt ? 0 : undefined} className="max-w-full truncate">
+                  Actual: {row.dispatchedAt ? (
+                    <time dateTime={row.dispatchedAt}>{compactTransferTime(row.dispatchedAt)}</time>
+                  ) : 'Not recorded'}
+                </p>
+              </OverflowValue>
+            )}
+            <OverflowValue
+              value={`Scheduled: ${compactTransferTime(row.scheduledDepartureAt)}`}
+              fullValue={`Scheduled: ${row.scheduledDepartureAt ? `${transferTime(row.scheduledDepartureAt)} (Manila time)` : 'Not scheduled'}`}
+              className={showActual ? 'max-w-full text-xs text-muted-foreground' : 'max-w-full'}
+              showFullValueOnHover
+            />
+          </div>
+        )
+      },
     },
     {
       header: 'Status',
@@ -231,7 +251,7 @@ export function WarehouseTransfersPage() {
             manualSorting
             isLoading={query.isFetching}
             emptyContent="No warehouse transfers match these filters."
-            tableClassName="min-w-[1100px]"
+            tableClassName="min-w-[1000px]"
           />
         )}
         <DataTableFooter

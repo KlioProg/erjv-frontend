@@ -91,6 +91,15 @@ type VehicleRecord = {
 }
 const dateText = (value: string | null) =>
   value ? new Date(value).toLocaleString('en-PH', { timeZone: 'Asia/Manila' }) : 'Not set'
+const compactDateText = (value: string | null) =>
+  value ? new Date(value).toLocaleString('en-PH', {
+    timeZone: 'Asia/Manila',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  }) : 'Not set'
 
 function useRunNames(runs: DeliveryRunRecord[]) {
   const warehouses = useRecordsById<NamedRecord>(
@@ -364,10 +373,36 @@ export function DeliveryRunsHub({ history = false }: { history?: boolean }) {
     {
       id: 'departure',
       header: history ? 'Departure Date' : 'Scheduled Departure',
-      cell: ({ row }) => history ? <div className="flex items-center gap-2 whitespace-nowrap text-ui">
-        <p>Actual: {row.dispatchedAt ? <time dateTime={row.dispatchedAt}>{dateText(row.dispatchedAt)}</time> : 'Not recorded'}</p>
-        {row.scheduledDepartureAt && <p className="text-xs text-muted-foreground">Scheduled: {dateText(row.scheduledDepartureAt)}</p>}
-      </div> : dateText(row.scheduledDepartureAt),
+      width: 256,
+      cell: ({ row }) => history ? (
+        <div className="flex w-56 flex-col items-start gap-1 text-ui">
+          <OverflowValue
+            asChild
+            value={`Actual: ${row.dispatchedAt ? compactDateText(row.dispatchedAt) : 'Not recorded'}`}
+            fullValue={`Actual: ${row.dispatchedAt ? `${dateText(row.dispatchedAt)} (Manila time)` : 'Not recorded'}`}
+            showFullValueOnHover
+          >
+            <p tabIndex={row.dispatchedAt ? 0 : undefined} className="max-w-full truncate">
+              Actual: {row.dispatchedAt ? <time dateTime={row.dispatchedAt}>{compactDateText(row.dispatchedAt)}</time> : 'Not recorded'}
+            </p>
+          </OverflowValue>
+          {row.scheduledDepartureAt && (
+            <OverflowValue
+              value={`Scheduled: ${compactDateText(row.scheduledDepartureAt)}`}
+              fullValue={`Scheduled: ${dateText(row.scheduledDepartureAt)} (Manila time)`}
+              className="max-w-full text-xs text-muted-foreground"
+              showFullValueOnHover
+            />
+          )}
+        </div>
+      ) : (
+        <OverflowValue
+          value={compactDateText(row.scheduledDepartureAt)}
+          fullValue={row.scheduledDepartureAt ? `${dateText(row.scheduledDepartureAt)} (Manila time)` : 'Not set'}
+          className="max-w-56"
+          showFullValueOnHover
+        />
+      ),
     },
     {
       id: 'progress',
@@ -461,7 +496,7 @@ export function DeliveryRunsHub({ history = false }: { history?: boolean }) {
         ) : (
           <DataTable
             className="rounded-none border-0"
-            tableClassName="min-w-[1100px]"
+            tableClassName="min-w-[1000px]"
             appearance="management"
             retainHeaders
             data={runs}
@@ -555,6 +590,12 @@ function RunEditor({
   const [departure, setDeparture] = useState(() => {
     return toManilaSchedule(run?.scheduledDepartureAt)
   })
+  let validDeparture = false
+  try {
+    validDeparture = !!manilaScheduleToIso(departure) && !departure.startsWith('0000-')
+  } catch {
+    validDeparture = false
+  }
   const [notes, setNotes] = useState(run?.notes ?? '')
   const [error, setError] = useState('')
   const [review, setReview] = useState(false)
@@ -589,6 +630,10 @@ function RunEditor({
     if (submitting.current || busy || review) return
     if (!warehouseId) {
       setWarehouseError('Choose an active warehouse.')
+      return
+    }
+    if (!validDeparture) {
+      setError('Choose a complete departure date and time before saving the trip.')
       return
     }
     submitting.current = true
@@ -733,8 +778,9 @@ function RunEditor({
                       label="Scheduled Departure"
                       value={departure}
                       onChange={setDeparture}
+                      required
                       disabled={busy || review}
-                      helperText="Optional · Manila time · 24-hour HH:mm"
+                      helperText="Required · Manila time · 24-hour HH:mm"
                     />
                   </div>
                 </div>
@@ -834,7 +880,7 @@ function RunEditor({
             <Button type="button" variant="outline" disabled={busy} onClick={onClose}>
               Cancel
             </Button>
-            <Button disabled={busy || review || (!run && !selection.canSave)}>
+            <Button disabled={busy || review || !warehouseId || !validDeparture || (!run && !selection.canSave)}>
               {busy ? 'Saving…' : run ? 'Save Trip' : 'Create Trip'}
             </Button>
           </DialogFooter>
@@ -859,9 +905,7 @@ function RunDetails({ id, onClose, readOnly = false }: { id: number; onClose: ()
   const cancelMember = useCancelRunMember()
   const cancelRun = useCancelDeliveryRun()
   const [editing, setEditing] = useState<DeliveryRunRecord>()
-  const [editingDeparture, setEditingDeparture] = useState(false)
   const [dispatching, setDispatching] = useState(false)
-  const [dispatchReviewRequest, setDispatchReviewRequest] = useState(0)
   const [reconcileId, setReconcileId] = useState<number>()
   const [resultsFeedback, setResultsFeedback] = useState('')
   const nextDelivery = run?.deliveries.find((member) => member.status === 'DISPATCHED')
@@ -1176,14 +1220,7 @@ function RunDetails({ id, onClose, readOnly = false }: { id: number; onClose: ()
       {!readOnly && dispatching && (
         <DispatchDeliveryModal
           runId={id}
-          reviewRequest={dispatchReviewRequest}
           onClose={() => setDispatching(false)}
-          onSetDeparture={canManage && run
-            ? () => {
-                setEditingDeparture(true)
-                setEditing(run)
-              }
-            : undefined}
         />
       )}
       {!readOnly && editing && (
@@ -1191,14 +1228,9 @@ function RunDetails({ id, onClose, readOnly = false }: { id: number; onClose: ()
           run={editing}
           onClose={() => {
             setEditing(undefined)
-            setEditingDeparture(false)
           }}
           onSaved={() => {
             setEditing(undefined)
-            if (editingDeparture) {
-              setEditingDeparture(false)
-              setDispatchReviewRequest((request) => request + 1)
-            }
           }}
         />
       )}
