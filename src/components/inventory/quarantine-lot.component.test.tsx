@@ -789,6 +789,28 @@ it('keeps the current summary compact and original values inside Audit history',
   expect(within(history).getByText('Shelf damage')).toBeTruthy()
 })
 
+it('explains which release requirements keep the action disabled', async () => {
+  mount()
+  await chooseAction('CLEAR')
+
+  expect(screen.getByRole('status').textContent).toContain(
+    'enter a quantity, add a reason, confirm inspection and safety',
+  )
+
+  quantity('12')
+  expect(screen.getByText('Quantity cannot exceed remaining quarantined stock.')).toBeTruthy()
+  expect(screen.getByRole('status').textContent).toContain(
+    'correct the quantity, add a reason, confirm inspection and safety',
+  )
+
+  quantity('1')
+  reason()
+  expect(screen.getByRole('status').textContent).toContain('confirm inspection and safety')
+  inspect()
+  expect(screen.queryByRole('status')).toBeNull()
+  expect(screen.getByRole('button', { name: 'Release Stock' }).hasAttribute('disabled')).toBe(false)
+})
+
 it('keeps per-action entries separate and resets release acknowledgement when changing actions', async () => {
   mount()
   await chooseAction('CLEAR')

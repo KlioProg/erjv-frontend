@@ -180,6 +180,25 @@ export function QuarantineLotDialog({
         remaining !== null &&
         amount <= remaining &&
         (action !== 'CLEAR' || safetyConfirmed))
+  const actionRequirements = [
+    action &&
+      action !== 'CORRECT' &&
+      (!draft.quantity.trim() || quantityError) &&
+      (draft.quantity.trim() ? 'correct the quantity' : 'enter a quantity'),
+    action && !draft.reason.trim() && 'add a reason',
+    action === 'CLEAR' && !safetyConfirmed && 'confirm inspection and safety',
+    action === 'CORRECT' && condition === lot?.condition && 'select a different condition',
+  ].filter((requirement): requirement is string => !!requirement)
+  const actionGuidance =
+    actionRequirements.length > 0
+      ? `To enable ${
+          action === 'CLEAR'
+            ? 'Release Stock'
+            : action === 'REMOVE'
+              ? 'Review Removal'
+              : 'Save Correction'
+        }, ${actionRequirements.join(', ')}.`
+      : ''
   function change(field: 'quantity' | 'reason', value: string) {
     if (!action) return
     setDrafts((current) => ({ ...current, [action]: { ...current[action], [field]: value } }))
@@ -633,6 +652,15 @@ export function QuarantineLotDialog({
                             I confirm these goods have been inspected and are safe to return to
                             available stock.
                           </Label>
+                        )}
+                        {actionGuidance && (
+                          <p
+                            role="status"
+                            aria-live="polite"
+                            className="text-xs text-muted-foreground sm:col-span-2"
+                          >
+                            {actionGuidance}
+                          </p>
                         )}
                       </fieldset>
                     )}
