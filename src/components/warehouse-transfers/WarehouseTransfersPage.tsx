@@ -98,32 +98,22 @@ export function WarehouseTransfersPage() {
     { header: 'Destination Warehouse', cell: ({ row }) => name(row.destinationWarehouseId) },
     {
       header: 'Departure',
-      width: 256,
+      width: 224,
       cell: ({ row }) => {
         const showActual = !!row.dispatchedAt || row.status === 'DISPATCHED' || row.status === 'COMPLETED'
+        const departure = showActual ? row.dispatchedAt : row.scheduledDepartureAt
+        const text = departure ? compactTransferTime(departure) : showActual ? 'Not recorded' : '—'
         return (
-          <div className="flex w-56 flex-col items-start gap-1 text-ui">
-            {showActual && (
-              <OverflowValue
-                asChild
-                value={`Actual: ${row.dispatchedAt ? compactTransferTime(row.dispatchedAt) : 'Not recorded'}`}
-                fullValue={`Actual: ${row.dispatchedAt ? `${transferTime(row.dispatchedAt)} (Manila time)` : 'Not recorded'}`}
-                showFullValueOnHover
-              >
-                <p tabIndex={row.dispatchedAt ? 0 : undefined} className="max-w-full truncate">
-                  Actual: {row.dispatchedAt ? (
-                    <time dateTime={row.dispatchedAt}>{compactTransferTime(row.dispatchedAt)}</time>
-                  ) : 'Not recorded'}
-                </p>
-              </OverflowValue>
-            )}
-            <OverflowValue
-              value={`Scheduled: ${compactTransferTime(row.scheduledDepartureAt)}`}
-              fullValue={`Scheduled: ${row.scheduledDepartureAt ? `${transferTime(row.scheduledDepartureAt)} (Manila time)` : 'Not scheduled'}`}
-              className={showActual ? 'max-w-full text-xs text-muted-foreground' : 'max-w-full'}
-              showFullValueOnHover
-            />
-          </div>
+          <OverflowValue
+            asChild
+            value={text}
+            fullValue={departure ? `${showActual ? 'Actual' : 'Planned'} departure: ${transferTime(departure)} (Manila time)` : text}
+            showFullValueOnHover
+          >
+            <span tabIndex={departure ? 0 : undefined} className="block w-48 max-w-full truncate">
+              {departure ? <time dateTime={departure}>{text}</time> : text}
+            </span>
+          </OverflowValue>
         )
       },
     },

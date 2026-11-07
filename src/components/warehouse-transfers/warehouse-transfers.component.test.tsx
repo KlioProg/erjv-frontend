@@ -153,12 +153,12 @@ it.each(['DRAFT', 'DISPATCHED', 'COMPLETED'] as const)('keeps the optional sched
   const client = mount()
   await screen.findByText('WT-000007')
   const transferRow = screen.getByText('WT-000007').closest('tr')!
-  expect(transferRow.textContent).toContain('Scheduled: Not scheduled')
+  const departure = transferRow.querySelectorAll('td')[3]
+  expect(departure.textContent).toBe(dispatchedAt ? 'Nov 4, 2026, 9:00 AM' : '—')
   if (dispatchedAt) {
-    expect(transferRow.textContent).toContain('Actual:')
     expect(transferRow.querySelector('time')?.getAttribute('datetime')).toBe(dispatchedAt)
   } else {
-    expect(transferRow.textContent).not.toContain('Actual:')
+    expect(transferRow.querySelector('time')).toBeNull()
   }
   await userEvent.click(screen.getByRole('button', { name: 'View transfer WT-000007' }))
   const dialog = await screen.findByRole('dialog')
@@ -170,6 +170,21 @@ it.each(['DRAFT', 'DISPATCHED', 'COMPLETED'] as const)('keeps the optional sched
   expect(actual.querySelector('time')?.getAttribute('dateTime') ?? null).toBe(dispatchedAt)
   expect(completion.querySelector('time')?.getAttribute('dateTime') ?? null).toBe(reconciledAt)
   if (!dispatchedAt) expect(actual.textContent).toContain('Not recorded')
+  expect(writes()).toHaveLength(0)
+  client.clear()
+})
+
+it.each([
+  { status: 'DRAFT', actual: null, expected: '2026-11-05T00:00:00Z', text: 'Nov 5, 2026, 8:00 AM' },
+  { status: 'DISPATCHED', actual: '2026-11-04T01:00:00Z', expected: '2026-11-04T01:00:00Z', text: 'Nov 4, 2026, 9:00 AM' },
+  { status: 'DISPATCHED', actual: null, expected: null, text: 'Not recorded' },
+] as const)('shows one departure for $status without substituting a planned time for a missing actual event ($text)', async ({ status, actual, expected, text }) => {
+  Object.assign(record, { status, scheduledDepartureAt: '2026-11-05T00:00:00Z', dispatchedAt: actual })
+  const client = mount()
+  const row = (await screen.findByText('WT-000007')).closest('tr')!
+  const departure = row.querySelectorAll('td')[3]
+  expect(departure.textContent).toBe(text)
+  expect(departure.querySelector('time')?.getAttribute('datetime') ?? null).toBe(expected)
   expect(writes()).toHaveLength(0)
   client.clear()
 })
