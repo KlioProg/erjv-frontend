@@ -38,6 +38,7 @@ import { ErjvPosLogo } from '@/components/ui/ErjvPosLogo'
 import { useAuth } from '@/features/auth/AuthContext'
 import { USER_ROLES, ROLE_DETAILS } from '@/features/auth/roles'
 import { StockNotifications } from './StockNotifications'
+import { HeaderDate } from './HeaderDate'
 import type { InventoryNavigationTarget } from '@/features/logistics/stock-warnings'
 import { routeForScreen, type NavItemKey } from '@/routes'
 
@@ -369,7 +370,7 @@ export function DashboardLayout({
         {/* Main Content Viewport */}
         <div className="flex-1 flex flex-col min-w-0 overflow-x-hidden">
           {/* Sticky Top Header */}
-          <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b bg-card px-4 sm:px-8">
+          <header className="sticky top-0 z-30 flex h-14 items-center justify-between gap-4 border-b bg-card px-4 sm:px-8">
             <div className="flex min-w-0 items-center gap-3">
               <DialogTrigger asChild>
                 <Button
@@ -410,12 +411,15 @@ export function DashboardLayout({
               )}
             </div>
 
-            <StockNotifications
-              onOpenInventory={(target) => {
-                onOpenInventory(target)
-                setIsMobileOpen(false)
-              }}
-            />
+            <div className="flex shrink-0 items-center gap-4">
+              <HeaderDate />
+              <StockNotifications
+                onOpenInventory={(target) => {
+                  onOpenInventory(target)
+                  setIsMobileOpen(false)
+                }}
+              />
+            </div>
           </header>
 
           {/* Dynamic Main Body Content */}

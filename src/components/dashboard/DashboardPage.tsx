@@ -107,16 +107,7 @@ export function DashboardPage() {
   ].sort((a, b) => a.priority - b.priority)
   return (
     <div className="min-w-0 space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <PageHeader description="Business overview">Dashboard</PageHeader>
-        <time className="text-sm text-muted-foreground" dateTime={now.toISOString()}>
-          Today (Manila):{' '}
-          {new Intl.DateTimeFormat('en-PH', {
-            timeZone: 'Asia/Manila',
-            dateStyle: 'long',
-          }).format(now)}
-        </time>
-      </div>
+      <PageHeader description="Business overview">Dashboard</PageHeader>
       {isAdmin && <DashboardFinancialOverview now={now} />}
       <div className="grid items-start gap-4 xl:grid-cols-2">
         <section

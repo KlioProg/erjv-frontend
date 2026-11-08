@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router'
@@ -7,8 +7,63 @@ import { DashboardLayout } from './DashboardLayout'
 
 const auth = vi.hoisted(() => ({ user: { role: 'ADMIN', fullName: 'Admin' }, isAdmin: true, isManager: false, logout: vi.fn() }))
 vi.mock('@/features/auth/AuthContext', () => ({ useAuth: () => auth }))
-afterEach(() => { auth.isAdmin = true; auth.isManager = false })
+afterEach(() => { auth.isAdmin = true; auth.isManager = false; vi.restoreAllMocks(); vi.useRealTimers() })
 vi.mock('./StockNotifications', () => ({ StockNotifications: () => null }))
+
+function mountHeader(currentScreen: 'dashboard' | 'clients' | 'inventory' | 'financial-reports' | 'delivery-runs' = 'dashboard') {
+  return render(<QueryClientProvider client={new QueryClient()}><MemoryRouter>
+    <DashboardLayout currentScreen={currentScreen} onNavigate={vi.fn()} onOpenInventory={vi.fn()}>
+      <h1>Page content</h1>
+    </DashboardLayout>
+  </MemoryRouter></QueryClientProvider>)
+}
+
+it.each(['dashboard', 'clients', 'inventory', 'financial-reports', 'delivery-runs'] as const)(
+  'shows the Philippine calendar date in the shared header on %s', (page) => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-11-07T16:00:00Z'))
+    mountHeader(page)
+    const date = within(screen.getByRole('banner')).getByLabelText(/^Today's date in the Philippines:/)
+    expect(date.tagName).toBe('TIME')
+    expect(date.getAttribute('datetime')).toBe('2026-11-08')
+    expect(date.textContent).toBe('Sunday, November 8, 2026')
+    expect(screen.getAllByLabelText(/^Today's date in the Philippines:/)).toHaveLength(1)
+  },
+)
+
+it('updates at successive Manila midnights and clears its timer when unmounted', () => {
+  vi.useFakeTimers()
+  vi.setSystemTime(new Date('2026-11-08T15:59:59.500Z'))
+  const { unmount } = mountHeader()
+  const date = screen.getByLabelText(/^Today's date in the Philippines:/)
+  act(() => { vi.advanceTimersByTime(499) })
+  expect(date.textContent).toBe('Sunday, November 8, 2026')
+  act(() => { vi.advanceTimersByTime(1) })
+  expect(date.textContent).toBe('Monday, November 9, 2026')
+  act(() => { vi.advanceTimersByTime(86_400_000) })
+  expect(date.getAttribute('datetime')).toBe('2026-11-10')
+  expect(vi.getTimerCount()).toBe(1)
+  unmount()
+  expect(vi.getTimerCount()).toBe(0)
+  fireEvent.focus(window)
+  fireEvent(document, new Event('visibilitychange'))
+  expect(vi.getTimerCount()).toBe(0)
+})
+
+it('refreshes the Philippine date when a suspended tab becomes visible or focused', () => {
+  vi.useFakeTimers()
+  vi.setSystemTime(new Date('2026-11-08T04:00:00Z'))
+  const { unmount } = mountHeader()
+  const date = screen.getByLabelText(/^Today's date in the Philippines:/)
+  vi.setSystemTime(new Date('2026-11-10T00:00:00Z'))
+  vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible')
+  fireEvent(document, new Event('visibilitychange'))
+  expect(date.getAttribute('datetime')).toBe('2026-11-10')
+  vi.setSystemTime(new Date('2026-11-10T16:00:00Z'))
+  fireEvent.focus(window)
+  expect(date.getAttribute('datetime')).toBe('2026-11-11')
+  unmount()
+})
 
 it('hides financial navigation from managers while preserving their staffing access', () => {
   auth.isAdmin = false

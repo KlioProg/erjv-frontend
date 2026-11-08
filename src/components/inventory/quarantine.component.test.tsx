@@ -154,7 +154,7 @@ it('preserves an unsubmitted resolution until discard is confirmed', async () =>
 })
 function fill(quantity = '1.25', reason = 'Inspection completed') {
   if (!screen.queryByLabelText('Quantity to release'))
-    fireEvent.click(screen.getByRole('radio', { name: /^Release to/ }))
+    fireEvent.click(screen.getByRole('radio', { name: /^Release Stock/ }))
   fireEvent.change(screen.getByLabelText('Quantity to release'), { target: { value: quantity } })
   fireEvent.change(screen.getByLabelText('Reason'), { target: { value: reason } })
   const inspected = screen.getByRole('checkbox') as HTMLInputElement
@@ -223,7 +223,7 @@ it('shows an empty state and allows zero-balance lots to be inspected without ac
   mount({ lots: [{ ...baseLot, remainingQuantity: '0.00' }] })
   await openLot()
   expect(await screen.findByText(/This lot is closed/)).toBeTruthy()
-  expect(screen.queryByRole('radio', { name: /^Release to/ })).toBeNull()
+  expect(screen.queryByRole('radio', { name: /^Release Stock/ })).toBeNull()
 })
 
 it('handles a genuinely empty quarantine list', async () => {
@@ -237,7 +237,7 @@ it('does not invent missing product or warehouse context or allow an unidentifie
   await screen.findByText('Stock #7 unavailable')
   await openLot()
   expect(screen.getByText(/Product, warehouse, or unit details are unavailable/)).toBeTruthy()
-  expect(screen.getByRole('radio', { name: /^Release to/ }).matches(':disabled')).toBe(true)
+  expect(screen.getByRole('radio', { name: /^Release Stock/ }).matches(':disabled')).toBe(true)
   expect(posts).toHaveLength(0)
 })
 
@@ -343,7 +343,7 @@ it('requires a nonblank reason and explicit removal confirmation, and blocks dup
   })
   const { posts } = mount({ post: async () => pending })
   await openLot()
-  fireEvent.click(screen.getByRole('radio', { name: /^Remove from Inventory/ }))
+  fireEvent.click(screen.getByRole('radio', { name: /^Remove Stock/ }))
   fireEvent.change(screen.getByLabelText('Quantity to remove'), { target: { value: '1.25' } })
   fireEvent.change(screen.getByLabelText('Reason'), { target: { value: '   ' } })
   expect(screen.getByRole('button', { name: 'Review Removal' }).matches(':disabled')).toBe(true)
@@ -373,7 +373,7 @@ it('preserves removal inputs after a conflict and requires another explicit conf
     },
   })
   await openLot()
-  fireEvent.click(screen.getByRole('radio', { name: /^Remove from Inventory/ }))
+  fireEvent.click(screen.getByRole('radio', { name: /^Remove Stock/ }))
   fireEvent.change(screen.getByLabelText('Quantity to remove'), { target: { value: '1.25' } })
   fireEvent.change(screen.getByLabelText('Reason'), { target: { value: 'Inspection completed' } })
   fireEvent.click(screen.getByRole('button', { name: 'Review Removal' }))
@@ -420,7 +420,7 @@ it.each([403, 409])('handles HTTP %i without losing inputs and refreshes lots', 
   fireEvent.click(screen.getByRole('button', { name: 'Release Stock' }))
   await screen.findByRole('alert')
   await waitFor(() =>
-    expect(screen.getByRole('radio', { name: /^Release to/ }).matches(':disabled')).toBe(false),
+    expect(screen.getByRole('radio', { name: /^Release Stock/ }).matches(':disabled')).toBe(false),
   )
   expect((screen.getByLabelText('Quantity to release') as HTMLInputElement).value).toBe('1.25')
   expect((screen.getByLabelText('Reason') as HTMLTextAreaElement).value).toBe(
@@ -448,7 +448,7 @@ it('never retries an uncertain mutation and requires refresh when authoritative 
       screen.getByRole('button', { name: 'Retry same request' }).hasAttribute('disabled'),
     ).toBe(false),
   )
-  expect(screen.getByRole('radio', { name: /^Release to/ }).matches(':disabled')).toBe(true)
+  expect(screen.getByRole('radio', { name: /^Release Stock/ }).matches(':disabled')).toBe(true)
   expect(posts).toHaveLength(1)
   expect((screen.getByLabelText('Quantity to release') as HTMLInputElement).value).toBe('1.25')
 })

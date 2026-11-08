@@ -353,20 +353,91 @@ it('does not expose draft mutation or dispatch actions on a completed run', asyn
   expect(writes()).toEqual([])
 })
 
-it.each([[1, 8], [2, 8], [2, 9]])('offers one result action per unfinished member (%s deliveries, target %s)', async (count, target) => {
+function prepareDispatchedTrip(count: number) {
   run.status = 'DISPATCHED'
   for (const delivery of deliveries.slice(0, count)) {
     delivery.status = 'DISPATCHED'
     delivery.runId = run.id
+    delivery.warehouseId = run.warehouseId
   }
   run.deliveries = deliveries.slice(0, count).map(({ id, revision, deliveryNumber, status, salesOrderId, warehouseId }) => ({ id, revision, deliveryNumber, status, salesOrderId, warehouseId }))
+}
+
+it.each([[1, 8], [2, 8], [2, 9]])('uses one footer result action (%s unfinished deliveries, target %s)', async (count, target) => {
+  prepareDispatchedTrip(count)
   mount()
   const trip = within(await screen.findByRole('dialog', { name: 'Delivery Trip RUN-1' }))
-  expect(trip.getAllByRole('button', { name: 'Record Results' })).toHaveLength(count)
-  const row = trip.getByText(`OUT-${target}`).closest('tr')!
-  await userEvent.click(within(row).getByRole('button', { name: 'Record Results' }))
+  const footer = within(await trip.findByRole('group', { name: 'Trip actions' }))
+  const record = footer.getByRole('button', { name: 'Record Results' })
+  expect(trip.getAllByRole('button', { name: 'Record Results' })).toHaveLength(1)
+  expect(within(trip.getByRole('table')).queryByRole('button', { name: 'Record Results' })).toBeNull()
+  expect(trip.getAllByRole('button', { name: 'Close' })).toHaveLength(1)
+  if (count > 1) {
+    expect(record.hasAttribute('disabled')).toBe(true)
+    await userEvent.click(trip.getByRole('radio', { name: `Select OUT-${target} for results` }))
+  } else expect(trip.queryByRole('radio')).toBeNull()
+  expect(record.hasAttribute('disabled')).toBe(false)
+  expect(footer.getByText(`Delivery: OUT-${target}`)).toBeTruthy()
+  await userEvent.click(record)
   await screen.findByRole('dialog', { name: 'Record Delivery Results' })
   await waitFor(() => expect(requests.some((request) => request.url === `/outgoing-deliveries/${target}`)).toBe(true))
+  expect(writes()).toHaveLength(0)
+})
+
+it('selects a delivery by keyboard and clears a selection that is no longer eligible after refresh', async () => {
+  prepareDispatchedTrip(3)
+  const client = mount()
+  const trip = within(await screen.findByRole('dialog', { name: 'Delivery Trip RUN-1' }))
+  const first = await trip.findByRole('radio', { name: 'Select OUT-8 for results' })
+  first.focus()
+  await userEvent.keyboard('{ArrowRight}')
+  expect((trip.getByRole('radio', { name: 'Select OUT-9 for results' }) as HTMLInputElement).checked).toBe(true)
+  expect(trip.getByText('Delivery: OUT-9')).toBeTruthy()
+  run.deliveries[1].status = 'RECONCILED'
+  await act(async () => { await client.invalidateQueries({ queryKey: ['delivery-runs'] }) })
+  await waitFor(() => expect(trip.queryByRole('radio', { name: 'Select OUT-9 for results' })).toBeNull())
+  expect(trip.getByRole('button', { name: 'View Results' })).toBeTruthy()
+  expect(trip.getByRole('button', { name: 'Record Results' }).hasAttribute('disabled')).toBe(true)
+  expect(trip.getAllByRole('radio').every((radio) => !(radio as HTMLInputElement).checked)).toBe(true)
+  expect(writes()).toHaveLength(0)
+})
+
+it('automatically targets the only unfinished delivery alongside recorded results', async () => {
+  prepareDispatchedTrip(2)
+  run.deliveries[0].status = 'RECONCILED'
+  mount()
+  const trip = within(await screen.findByRole('dialog', { name: 'Delivery Trip RUN-1' }))
+  await trip.findByRole('button', { name: 'View Results' })
+  expect(trip.queryByRole('radio')).toBeNull()
+  expect(trip.getByText('Delivery: OUT-9')).toBeTruthy()
+  await userEvent.click(trip.getByRole('button', { name: 'Record Results' }))
+  await waitFor(() => expect(requests.some((request) => request.url === '/outgoing-deliveries/9')).toBe(true))
+  expect(requests.some((request) => request.url === '/outgoing-deliveries/8')).toBe(false)
+  expect(writes()).toHaveLength(0)
+})
+
+it.each(['COMPLETED', 'CANCELLED'] as const)('keeps a %s trip read-only without an empty footer', async (status) => {
+  run.status = status
+  run.deliveries[0].status = status === 'COMPLETED' ? 'RECONCILED' : 'CANCELLED'
+  mount()
+  const trip = within(await screen.findByRole('dialog', { name: 'Delivery Trip RUN-1' }))
+  await trip.findByRole('button', { name: status === 'COMPLETED' ? 'View Results' : 'View Delivery' })
+  expect(trip.queryByRole('group', { name: 'Trip actions' })).toBeNull()
+  expect(trip.queryByRole('button', { name: 'Record Results' })).toBeNull()
+  expect(trip.queryByRole('radio')).toBeNull()
+  expect(trip.getAllByRole('button', { name: 'Close' })).toHaveLength(1)
+  expect(writes()).toHaveLength(0)
+})
+
+it.each(['X', 'Escape'])('closes the trip summary using %s without recording results', async (method) => {
+  prepareDispatchedTrip(1)
+  mount()
+  const dialog = await screen.findByRole('dialog', { name: 'Delivery Trip RUN-1' })
+  const trip = within(dialog)
+  await trip.findByRole('button', { name: 'Record Results' })
+  if (method === 'X') await userEvent.click(trip.getByRole('button', { name: 'Close' }))
+  else await userEvent.keyboard('{Escape}')
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
   expect(writes()).toHaveLength(0)
 })
 

@@ -1,4 +1,4 @@
-import { Check } from 'lucide-react'
+import { Check, PackageCheck, PackageMinus, PencilLine } from 'lucide-react'
 import { useRef, useState, type FormEvent } from 'react'
 import { decimalLimitError } from '@/lib/decimal-limits'
 import { toast } from 'sonner'
@@ -43,21 +43,21 @@ type Action = 'CLEAR' | 'REMOVE' | 'CORRECT'
 const choices = [
   {
     value: 'CLEAR',
-    label: 'Release to Available Stock',
-    shortLabel: 'Release',
-    description: 'Inspected goods will return to available stock.',
+    label: 'Release Stock',
+    icon: PackageCheck,
+    description: 'Return inspected goods to available stock.',
   },
   {
     value: 'REMOVE',
-    label: 'Remove from Inventory',
-    shortLabel: 'Remove',
-    description: 'This will permanently reduce physical inventory.',
+    label: 'Remove Stock',
+    icon: PackageMinus,
+    description: 'Permanently reduce physical inventory.',
   },
   {
     value: 'CORRECT',
     label: 'Correct Condition',
-    shortLabel: 'Correct',
-    description: 'The stock remains quarantined after correcting its condition.',
+    icon: PencilLine,
+    description: 'Change the condition while keeping goods quarantined.',
   },
 ] as const
 const conditionLabels: Record<QuarantineCondition, string> = {
@@ -536,44 +536,47 @@ export function QuarantineLotDialog({
                       <div
                         role="radiogroup"
                         aria-labelledby="quarantine-action-label"
-                        className="flex gap-1 rounded-md bg-muted p-1"
+                        className="flex flex-col gap-2"
                       >
-                        {choices.map((choice) => (
-                          <label key={choice.value} className="min-w-0 flex-1 cursor-pointer">
+                        {choices.map(({ value, label, description, icon: Icon }) => (
+                          <label key={value} className="min-w-0 cursor-pointer">
                             <input
                               type="radio"
                               name="quarantine-action"
-                              value={choice.value}
-                              aria-label={choice.label}
-                              checked={action === choice.value}
+                              value={value}
+                              aria-label={label}
+                              aria-describedby={`quarantine-action-${value}-description`}
+                              checked={action === value}
                               className="peer sr-only"
                               onChange={() => {
-                                setAction(choice.value)
+                                setAction(value)
                                 setConfirmedSnapshot(null)
                                 setRemoval(null)
                                 setError('')
                               }}
                             />
-                            <span className="flex min-h-10 items-center justify-center gap-2 rounded border border-input bg-background px-3 text-sm transition-colors hover:bg-muted peer-checked:border-primary-contrast peer-checked:bg-primary-subtle peer-checked:font-semibold peer-checked:ring-1 peer-checked:ring-primary-contrast peer-focus-visible:outline-none peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-disabled:cursor-not-allowed peer-disabled:opacity-50">
-                              {action === choice.value && (
-                                <Check aria-hidden="true" className="size-4" />
-                              )}
-                              {choice.shortLabel}
+                            <span className="flex min-h-14 items-center gap-3 rounded-md border border-input bg-card px-3 py-2 transition-colors hover:bg-accent peer-checked:border-primary-contrast peer-checked:bg-primary-subtle peer-checked:ring-1 peer-checked:ring-primary-contrast peer-focus-visible:outline-none peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2 peer-disabled:cursor-not-allowed peer-disabled:opacity-50">
+                              <Icon aria-hidden="true" className="size-5 shrink-0 text-muted-foreground" />
+                              <span className="flex min-w-0 flex-1 flex-col gap-1">
+                                <span className="text-sm font-medium leading-5">{label}</span>
+                                <span id={`quarantine-action-${value}-description`} className="text-xs leading-4 text-muted-foreground">
+                                  {description}
+                                </span>
+                              </span>
+                              <span aria-hidden="true" className="flex size-4 shrink-0 items-center justify-center rounded-full border border-input">
+                                {action === value && <Check className="size-3" />}
+                              </span>
                             </span>
                           </label>
                         ))}
                       </div>
                     </fieldset>
+                    {!action && <p className="text-sm text-muted-foreground">Select an action to continue.</p>}
                     {action && (
                       <fieldset
                         disabled={disabled}
                         className="grid min-w-0 gap-3 sm:grid-cols-[auto_minmax(0,1fr)]"
                       >
-                        <p
-                          className={`sm:col-span-2 text-sm ${action === 'REMOVE' ? 'text-destructive' : 'text-muted-foreground'}`}
-                        >
-                          {choices.find((choice) => choice.value === action)?.description}
-                        </p>
                         {action === 'CORRECT' ? (
                           <>
                             <div className="flex min-w-40 flex-col gap-2">
@@ -605,7 +608,8 @@ export function QuarantineLotDialog({
                                 <Input
                                   id="quarantine-quantity"
                                   inputMode="decimal"
-                                  style={{ width: `${Math.max(8, draft.quantity.length + 4)}ch` }}
+                                  className="min-w-28 max-w-full"
+                                  style={{ width: `${Math.max(14, draft.quantity.length + 4)}ch` }}
                                   value={draft.quantity}
                                   onChange={(event) => change('quantity', event.target.value)}
                                   aria-invalid={!!quantityError}

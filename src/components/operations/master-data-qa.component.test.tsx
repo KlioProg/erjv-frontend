@@ -147,10 +147,10 @@ it('keeps warehouse lookup authorization errors visible without creating a recor
 })
 it('opens the existing reorder settings from the mounted warehouse inventory and saves exact thresholds', async () => {
   mount(<WarehouseInventory warehouse={warehouse} onBack={vi.fn()} />)
-  const settings = await screen.findByRole('button', { name: 'Stock Alert Settings for Rice' })
-  expect(screen.getByRole('columnheader', { name: 'Stock Alert' })).toBeTruthy()
+  const settings = await screen.findByRole('button', { name: 'Set low-stock alert for Rice' })
+  expect(screen.getByRole('columnheader', { name: 'Low-Stock Alert' })).toBeTruthy()
   settings.focus()
-  expect(await screen.findByRole('tooltip', { name: 'Stock Alert Settings for Rice' })).toBeTruthy()
+  expect(await screen.findByRole('tooltip', { name: 'Set low-stock alert for Rice' })).toBeTruthy()
   await userEvent.keyboard('{Enter}')
   expect(await screen.findByRole('heading', { name: 'Warehouse Reorder Threshold' })).toBeTruthy()
   change('Reorder threshold', '2.25')
@@ -160,7 +160,10 @@ it('opens the existing reorder settings from the mounted warehouse inventory and
     url: '/stock-items/4/reorder-threshold',
     body: { reorderThreshold: '2.25' },
   })
-  fireEvent.click(screen.getByRole('button', { name: 'Stock Alert Settings for Rice' }))
+  const reopened = screen.getByRole('button', { name: 'Set low-stock alert for Rice' })
+  await userEvent.hover(reopened)
+  expect(await screen.findByRole('tooltip', { name: 'Set low-stock alert for Rice' })).toBeTruthy()
+  await userEvent.click(reopened)
   expect((screen.getByLabelText('Reorder threshold') as HTMLInputElement).value).toBe('2.25')
 })
 it.each(['1.234', '-1', '10000000000'])(

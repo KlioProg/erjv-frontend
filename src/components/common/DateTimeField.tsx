@@ -3,6 +3,9 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { manilaScheduleToIso } from '@/lib/manila-schedule'
 
+const normalizeCompactTime = (time: string) =>
+  /^(?:[01]\d|2[0-3])[0-5]\d$/.test(time) ? `${time.slice(0, 2)}:${time.slice(2)}` : time
+
 /** Controlled minute-precision wall time (YYYY-MM-DDTHH:mm), including partial edits.
  * Consumers convert saved timestamps with toManilaSchedule and serialize with manilaScheduleToIso.
  */
@@ -124,7 +127,17 @@ export function DateTimeField({
             required={required || started}
             readOnly={readOnly}
             disabled={disabled}
-            onChange={(event) => change(date, event.target.value)}
+            onChange={(event) => {
+              const next = event.target.value
+              change(
+                date,
+                event.target.selectionStart === next.length ? normalizeCompactTime(next) : next,
+              )
+            }}
+            onBlur={(event) => {
+              const normalized = normalizeCompactTime(event.target.value)
+              if (!readOnly && !disabled && normalized !== time) change(date, normalized)
+            }}
             aria-invalid={!!timeError || !!error}
             aria-describedby={`${description}${timeError ? ` ${id}-time-error` : ''}`}
             ref={(node) => {
@@ -140,7 +153,7 @@ export function DateTimeField({
         </div>
       </div>
       <p id={`${id}-help`} className="text-xs text-muted-foreground">
-        {helperText || '24-hour time (HH:mm).'}
+        {helperText || '24-hour time (HH:mm). Four digits such as 0800 are also accepted.'}
       </p>
       {error && (
         <p id={`${id}-error`} role="alert" className="text-xs text-destructive">

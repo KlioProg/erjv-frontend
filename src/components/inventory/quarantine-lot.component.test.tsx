@@ -138,9 +138,9 @@ function mount(stockRecord: StockItemWithRelations | null = stock) {
 async function chooseAction(action: 'CLEAR' | 'REMOVE' | 'CORRECT') {
   const label =
     action === 'CLEAR'
-      ? /^Release to Available Stock/
+      ? /^Release Stock/
       : action === 'REMOVE'
-        ? /^Remove from Inventory/
+        ? /^Remove Stock/
         : /^Correct Condition/
   const button = await screen.findByRole('radio', { name: label })
   await waitFor(() => expect(button.matches(':disabled')).toBe(false))
@@ -149,15 +149,15 @@ async function chooseAction(action: 'CLEAR' | 'REMOVE' | 'CORRECT') {
 
 it('selects compact quarantine actions with arrow keys without performing a stock change', async () => {
   mount()
-  const release = await screen.findByRole('radio', { name: 'Release to Available Stock' })
+  const release = await screen.findByRole('radio', { name: 'Release Stock' })
   await waitFor(() => expect(release.matches(':disabled')).toBe(false))
   release.focus()
   await userEvent.keyboard('{ArrowRight}')
-  expect((screen.getByRole('radio', { name: 'Remove from Inventory' }) as HTMLInputElement).checked).toBe(true)
-  expect(screen.getByText('This will permanently reduce physical inventory.')).toBeTruthy()
+  expect((screen.getByRole('radio', { name: 'Remove Stock' }) as HTMLInputElement).checked).toBe(true)
+  expect(screen.getByText('Permanently reduce physical inventory.')).toBeTruthy()
   await userEvent.keyboard('{ArrowRight}')
   expect((screen.getByRole('radio', { name: 'Correct Condition' }) as HTMLInputElement).checked).toBe(true)
-  expect(screen.getByText('The stock remains quarantined after correcting its condition.')).toBeTruthy()
+  expect(screen.getByText('Change the condition while keeping goods quarantined.')).toBeTruthy()
   expect(writes).toHaveLength(0)
 })
 it.each(['CLEAR', 'REMOVE'] as const)('preserves transfer provenance and its stock pool when applying %s', async (action) => {
@@ -211,8 +211,8 @@ it('starts with explicit choices and hides all action forms until selected', asy
   expect(screen.getByText('Rice')).toBeTruthy()
   expect(screen.getByText('Main Warehouse')).toBeTruthy()
   for (const label of [
-    /^Release to Available Stock/,
-    /^Remove from Inventory/,
+    /^Release Stock/,
+    /^Remove Stock/,
     /^Correct Condition/,
   ])
     expect((screen.getByRole('radio', { name: label }) as HTMLInputElement).checked).toBe(false)
@@ -220,6 +220,27 @@ it('starts with explicit choices and hides all action forms until selected', asy
   expect(screen.queryByRole('button', { name: 'Release Stock' })).toBeNull()
   expect(screen.queryByRole('button', { name: 'Review Removal' })).toBeNull()
   expect(screen.queryByRole('button', { name: 'Save Correction' })).toBeNull()
+  expect(screen.getByText('Select an action to continue.')).toBeTruthy()
+  expect(writes).toHaveLength(0)
+})
+
+it('shows each stock consequence before selection and selects the whole descriptive row', async () => {
+  mount()
+  await screen.findByText('2.00 kg')
+  const user = userEvent.setup()
+  await user.click(screen.getByText('Return inspected goods to available stock.'))
+  expect((screen.getByRole('radio', { name: 'Release Stock' }) as HTMLInputElement).checked).toBe(true)
+  expect((screen.getByRole('checkbox') as HTMLInputElement).checked).toBe(false)
+  expect(screen.getByLabelText('Quantity to release')).toBeTruthy()
+  await user.click(screen.getByText('Permanently reduce physical inventory.'))
+  expect((screen.getByRole('radio', { name: 'Remove Stock' }) as HTMLInputElement).checked).toBe(true)
+  expect(screen.getByRole('button', { name: 'Review Removal' }).hasAttribute('disabled')).toBe(true)
+  expect(screen.queryByRole('checkbox')).toBeNull()
+  await user.click(screen.getByText('Change the condition while keeping goods quarantined.'))
+  expect((screen.getByRole('radio', { name: 'Correct Condition' }) as HTMLInputElement).checked).toBe(true)
+  expect(screen.getByRole('combobox', { name: 'Corrected condition' })).toBeTruthy()
+  expect(screen.queryByLabelText('Quantity to remove')).toBeNull()
+  expect(screen.queryByLabelText('Quantity to release')).toBeNull()
   expect(writes).toHaveLength(0)
 })
 
@@ -302,7 +323,7 @@ it('does not expose condition changes or resolutions to staff', async () => {
   auth.isManager = false
   mount()
   await screen.findByText('2.00 kg')
-  expect(screen.queryByRole('radio', { name: /^Release to/ })).toBeNull()
+  expect(screen.queryByRole('radio', { name: /^Release Stock/ })).toBeNull()
   expect(screen.queryByRole('radio', { name: /^Correct Condition/ })).toBeNull()
   expect(screen.getByText('Audit history')).toBeTruthy()
 })
@@ -311,7 +332,7 @@ it('keeps closed lots and their history reviewable without mutation controls', a
   lot.remainingQuantity = '0.00'
   mount()
   await screen.findByText(/This lot is closed/)
-  expect(screen.queryByRole('radio', { name: /^Release to/ })).toBeNull()
+  expect(screen.queryByRole('radio', { name: /^Release Stock/ })).toBeNull()
   expect(screen.queryByRole('radio', { name: /^Correct Condition/ })).toBeNull()
   expect(screen.getByText('Audit history')).toBeTruthy()
 })
@@ -539,7 +560,7 @@ it.each(['bad', undefined])(
       'Remaining quarantined quantity is unavailable. Reload the lot before making changes.',
     )
     expect(screen.queryByText(/This lot is closed/)).toBeNull()
-    expect(screen.queryByRole('radio', { name: /^Release to/ })).toBeNull()
+    expect(screen.queryByRole('radio', { name: /^Release Stock/ })).toBeNull()
     expect(writes).toHaveLength(0)
   },
 )
@@ -548,7 +569,7 @@ it('allows Admin access and preserves keyboard action selection and dialog dismi
   auth.isManager = false
   auth.isAdmin = true
   const { close } = mount()
-  const button = await screen.findByRole('radio', { name: /^Release to Available Stock/ })
+  const button = await screen.findByRole('radio', { name: /^Release Stock/ })
   await waitFor(() => expect(button.matches(':disabled')).toBe(false))
   button.focus()
   const user = userEvent.setup()
@@ -644,7 +665,7 @@ it('blocks mutation when product units cannot be identified', async () => {
   await screen.findByText(
     'Product, warehouse, or unit details are unavailable. Reload inventory before making changes.',
   )
-  expect(screen.getByRole('radio', { name: /^Release to/ }).matches(':disabled')).toBe(true)
+  expect(screen.getByRole('radio', { name: /^Release Stock/ }).matches(':disabled')).toBe(true)
   expect(writes).toHaveLength(0)
 })
 
@@ -779,11 +800,11 @@ it.each(['network', 'product mismatch', 'warehouse mismatch'] as const)('blocks 
   }
   mount(null)
   const retry = await screen.findByRole('button', { name: 'Reload stock details' })
-  expect(screen.getByRole('radio', { name: /^Release to/ }).matches(':disabled')).toBe(true)
+  expect(screen.getByRole('radio', { name: /^Release Stock/ }).matches(':disabled')).toBe(true)
   expect(writes).toHaveLength(0)
   failing = false
   fireEvent.click(retry)
-  await waitFor(() => expect(screen.getByRole('radio', { name: /^Release to/ }).matches(':disabled')).toBe(false))
+  await waitFor(() => expect(screen.getByRole('radio', { name: /^Release Stock/ }).matches(':disabled')).toBe(false))
   expect(screen.queryByRole('button', { name: 'Reload stock details' })).toBeNull()
   expect(writes).toHaveLength(0)
 })
@@ -852,17 +873,17 @@ it('keeps per-action entries separate and resets release acknowledgement when ch
 
 it('supports keyboard selection through the compact radio group without writing stock', async () => {
   mount()
-  const release = await screen.findByRole('radio', { name: 'Release to Available Stock' })
+  const release = await screen.findByRole('radio', { name: 'Release Stock' })
   await waitFor(() => expect(release.matches(':disabled')).toBe(false))
   release.focus()
   const user = userEvent.setup()
   await user.keyboard('[Space]')
   expect((release as HTMLInputElement).checked).toBe(true)
-  await user.keyboard('{ArrowRight}')
-  expect((screen.getByRole('radio', { name: 'Remove from Inventory' }) as HTMLInputElement).checked).toBe(true)
+  await user.keyboard('{ArrowDown}')
+  expect((screen.getByRole('radio', { name: 'Remove Stock' }) as HTMLInputElement).checked).toBe(true)
   expect(screen.getByLabelText('Quantity to remove')).toBeTruthy()
   expect(screen.queryByRole('checkbox')).toBeNull()
-  await user.keyboard('{ArrowRight}')
+  await user.keyboard('{ArrowDown}')
   expect((screen.getByRole('radio', { name: 'Correct Condition' }) as HTMLInputElement).checked).toBe(true)
   expect(screen.getByRole('combobox', { name: 'Corrected condition' })).toBeTruthy()
   expect(screen.queryByLabelText('Quantity to remove')).toBeNull()

@@ -623,7 +623,7 @@ describe('inventory and global stock warnings', () => {
       within(table)
         .getAllByRole('columnheader')
         .map((header) => header.textContent),
-    ).toEqual(['Product', 'Stock Alert', 'Physical', 'Available', 'Quarantined'])
+    ).toEqual(['Product', 'Low-Stock Alert', 'Physical', 'Available', 'Quarantined'])
     const mango = within(table).getByRole('row', { name: new RegExp(longName) })
     const cells = within(mango).getAllByRole('cell')
     expect(cells.map((cell) => cell.textContent)).toEqual([

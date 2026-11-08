@@ -32,7 +32,7 @@ function mount(initial = '', required = false) {
   return submit
 }
 
-it.each(['09:40', '10:17', '14:55', '23:59', '00:00', '12:00'])(
+it.each(['08:00', '09:40', '10:17', '14:55', '23:59', '00:00', '12:00'])(
   'accepts 24-hour %s and round trips in Manila',
   async (time) => {
     const submit = mount()
@@ -46,12 +46,64 @@ it.each(['09:40', '10:17', '14:55', '23:59', '00:00', '12:00'])(
   },
 )
 
-it.each(['24:00', '14:60', '9:40', '12:99', 'ab:cd'])('blocks invalid time %s', async (time) => {
+it.each(['24:00', '14:60', '9:40', '12:99', 'ab:cd', '2400', '2360', '0969'])('blocks invalid time %s', async (time) => {
   const submit = mount('2026-11-05T09:40')
   fireEvent.change(screen.getByLabelText('Schedule Time'), { target: { value: time } })
   await userEvent.click(screen.getByRole('button', { name: 'Save' }))
   expect(submit).not.toHaveBeenCalled()
   expect(screen.getByLabelText('Schedule Time').getAttribute('aria-invalid')).toBe('true')
+})
+
+it.each([
+  ['0800', '08:00', '2026-11-05T00:00:00.000Z'],
+  ['0940', '09:40', '2026-11-05T01:40:00.000Z'],
+  ['0000', '00:00', '2026-11-04T16:00:00.000Z'],
+  ['2359', '23:59', '2026-11-05T15:59:00.000Z'],
+])('normalizes completed %s to %s with the same Manila instant', async (typed, display, instant) => {
+  const submit = mount('2026-11-05T')
+  const time = screen.getByLabelText('Schedule Time') as HTMLInputElement
+  await userEvent.type(time, typed)
+  expect(time.value).toBe(display)
+  expect(screen.getByLabelText('Saved value').textContent).toBe(`2026-11-05T${display}`)
+  await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+  expect(submit).toHaveBeenCalledWith(instant)
+  expect(toManilaSchedule(instant)).toBe(`2026-11-05T${display}`)
+})
+
+it('leaves partial time entry untouched until all four valid digits are complete', async () => {
+  mount('2026-11-05T')
+  const time = screen.getByLabelText('Schedule Time') as HTMLInputElement
+  const user = userEvent.setup()
+  await user.type(time, '080')
+  expect(time.value).toBe('080')
+  expect(document.activeElement).toBe(time)
+  await user.type(time, '0')
+  expect(time.value).toBe('08:00')
+  expect(document.activeElement).toBe(time)
+})
+
+it('does not force formatting during a middle edit and normalizes compact time on blur', async () => {
+  const submit = mount('2026-11-05T08:00')
+  const time = screen.getByLabelText('Schedule Time') as HTMLInputElement
+  time.focus()
+  const user = userEvent.setup()
+  await user.keyboard('{Home}{ArrowRight}{ArrowRight}{Delete}')
+  expect(time.value).toBe('0800')
+  expect(time.selectionStart).toBe(2)
+  await user.tab()
+  expect(time.value).toBe('08:00')
+  await user.click(screen.getByRole('button', { name: 'Save' }))
+  expect(submit).toHaveBeenCalledWith('2026-11-05T00:00:00.000Z')
+})
+
+it('does not normalize read-only or disabled values on blur', () => {
+  const change = vi.fn()
+  const { rerender } = render(<DateTimeField id="schedule" label="Schedule" value="2026-11-05T0800" onChange={change} readOnly />)
+  fireEvent.blur(screen.getByLabelText('Schedule Time'))
+  expect(change).not.toHaveBeenCalled()
+  rerender(<DateTimeField id="schedule" label="Schedule" value="2026-11-05T0800" onChange={change} disabled />)
+  fireEvent.blur(screen.getByLabelText('Schedule Time'))
+  expect(change).not.toHaveBeenCalled()
 })
 
 it('allows an optional blank schedule but blocks either partial schedule', async () => {

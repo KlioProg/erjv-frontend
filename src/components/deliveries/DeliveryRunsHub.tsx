@@ -61,6 +61,7 @@ import { useRunDeliverySelection } from '@/features/logistics/use-run-delivery-s
 import { RunDeliveryPicker } from './RunDeliveryPicker'
 import { DispatchDeliveryModal } from './shared/DispatchDeliveryModal'
 import { CompleteDeliveryModal } from './shared/CompleteDeliveryModal'
+import { deliveryFormStyles } from './shared/delivery-form.styles'
 
 const activeStatuses: DeliveryRunStatus[] = ['DRAFT', 'DISPATCHED']
 const historyStatuses: DeliveryRunStatus[] = ['COMPLETED', 'CANCELLED']
@@ -897,7 +898,14 @@ function RunDetails({ id, onClose, readOnly = false }: { id: number; onClose: ()
   const [editing, setEditing] = useState<DeliveryRunRecord>()
   const [dispatching, setDispatching] = useState(false)
   const [reconcileId, setReconcileId] = useState<number>()
+  const [selectedResultId, setSelectedResultId] = useState<number>()
   const [resultsFeedback, setResultsFeedback] = useState('')
+  const unfinished = canOperate && run?.status === 'DISPATCHED'
+    ? run.deliveries.filter((member) => member.status === 'DISPATCHED')
+    : []
+  const resultDelivery = unfinished.length === 1
+    ? unfinished[0]
+    : unfinished.find((member) => member.id === selectedResultId)
   const existingIds = run?.deliveries.map((delivery) => delivery.id) ?? []
   const selection = useRunDeliverySelection(run?.warehouseId, existingIds)
   const pendingAction = useRef(false)
@@ -912,6 +920,7 @@ function RunDetails({ id, onClose, readOnly = false }: { id: number; onClose: ()
   const busy =
     acting ||
     [changeMembers, reopen, cancelMember, cancelRun].some((mutation) => mutation.isPending)
+  const resultsBlocked = busy || review || query.isFetching || query.isError
   async function perform(action: () => Promise<unknown>) {
     if (readOnly || pendingAction.current || busy || review)
       throw Error('Refresh and review this trip before continuing.')
@@ -962,7 +971,25 @@ function RunDetails({ id, onClose, readOnly = false }: { id: number; onClose: ()
     )
   }
   const columns: ColumnDef<DeliveryRunMember>[] = [
-    { header: 'Delivery', accessorKey: 'deliveryNumber' },
+    {
+      header: 'Delivery',
+      accessorKey: 'deliveryNumber',
+      cell: ({ row }) => unfinished.length > 1 && row.status === 'DISPATCHED' ? (
+        <Label className="flex min-h-10 cursor-pointer items-center gap-2 rounded px-2 has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-60">
+          <input
+            type="radio"
+            name="trip-result-delivery"
+            aria-label={`Select ${row.deliveryNumber} for results`}
+            aria-describedby="trip-results-selection"
+            checked={resultDelivery?.id === row.id}
+            disabled={resultsBlocked}
+            onChange={() => setSelectedResultId(row.id)}
+            className={deliveryFormStyles.outcomeRadio}
+          />
+          {row.deliveryNumber}
+        </Label>
+      ) : row.deliveryNumber,
+    },
     {
       header: 'Status',
       accessorKey: 'status',
@@ -971,10 +998,10 @@ function RunDetails({ id, onClose, readOnly = false }: { id: number; onClose: ()
     { id: 'order', header: 'Sales order', cell: ({ row }) => `#${row.salesOrderId}` },
     ...(readOnly ? [{ id: 'customer', header: 'Customer', cell: ({ row }: { row: DeliveryRunMember }) =>
       clients.data.find((client) => client.id === orders.data.find((order) => order.id === row.salesOrderId)?.clientId)?.name ?? 'Customer unavailable' }] : []),
-    {
+    ...(readOnly || run?.deliveries.some((member) => member.status !== 'DISPATCHED') ? [{
       id: 'actions',
       header: 'Actions',
-      cell: ({ row }) => (
+      cell: ({ row }: { row: DeliveryRunMember }) => (
         <div className="flex flex-wrap gap-1">
           {(readOnly || row.status !== 'DISPATCHED') && <Button variant="outline" size="sm" onClick={() => setViewDeliveryId(row.id)}>
             {row.status === 'RECONCILED' ? 'View Results' : 'View Delivery'}
@@ -1001,14 +1028,9 @@ function RunDetails({ id, onClose, readOnly = false }: { id: number; onClose: ()
               </DropdownMenuContent>
             </DropdownMenu>
           )}
-          {canOperate && run?.status === 'DISPATCHED' && row.status === 'DISPATCHED' && (
-            <Button size="sm" disabled={busy || review || query.isFetching || query.isError} onClick={() => setReconcileId(row.id)}>
-              Record Results
-            </Button>
-          )}
         </div>
       ),
-    },
+    }] : []),
   ]
   return (
     <>
@@ -1097,13 +1119,24 @@ function RunDetails({ id, onClose, readOnly = false }: { id: number; onClose: ()
               {run.notes && <p className="text-sm">{run.notes}</p>}
               <section aria-label="Deliveries in This Trip" className="flex flex-col gap-3">
               <h2 className="font-semibold">Deliveries in This Trip</h2>
+              {unfinished.length > 1 && (
+                <p id="trip-results-selection" className="text-sm text-muted-foreground">
+                  Select a delivery, then choose Record Results.
+                </p>
+              )}
+              <div
+                role={unfinished.length > 1 ? 'radiogroup' : undefined}
+                aria-label={unfinished.length > 1 ? 'Delivery for results' : undefined}
+              >
               <DataTable
                 data={run.deliveries}
                 columns={columns}
                 getRowKey={(member) => member.id}
+                rowClassName={(member) => resultDelivery?.id === member.id ? 'bg-primary-subtle hover:bg-primary-subtle focus-within:bg-primary-subtle' : ''}
                 pagination={false}
                 emptyContent="No deliveries in this trip."
               />
+              </div>
               </section>
               {canManage && run.status === 'DRAFT' && (
                 <section aria-label="Add Deliveries" className="flex flex-col gap-3 border-t pt-4">
@@ -1162,7 +1195,8 @@ function RunDetails({ id, onClose, readOnly = false }: { id: number; onClose: ()
                   </Button>
                 </section>
               )}
-              <DialogFooter className="sticky bottom-0 flex-wrap border-t bg-background py-3">
+              {((run.status === 'DRAFT' && (canManage || canOperate)) || unfinished.length > 0) && (
+              <DialogFooter role="group" aria-label="Trip actions" className="sticky bottom-0 flex-wrap border-t bg-background py-3">
                 {canManage && run.status === 'DRAFT' && (
                   <>
                     <Button
@@ -1192,10 +1226,22 @@ function RunDetails({ id, onClose, readOnly = false }: { id: number; onClose: ()
                     Review Departure
                   </Button>
                 )}
-                <Button variant="outline" disabled={busy} onClick={onClose}>
-                  Close
-                </Button>
+                {unfinished.length > 0 && (
+                  <>
+                    <p id="trip-results-target" role="status" className="self-center text-sm text-muted-foreground sm:mr-auto">
+                      {resultDelivery ? `Delivery: ${resultDelivery.deliveryNumber}` : 'Select a delivery to record results.'}
+                    </p>
+                    <Button
+                      disabled={resultsBlocked || !resultDelivery}
+                      aria-describedby="trip-results-target"
+                      onClick={() => resultDelivery && setReconcileId(resultDelivery.id)}
+                    >
+                      Record Results
+                    </Button>
+                  </>
+                )}
               </DialogFooter>
+              )}
             </>
           )}
           </div>
@@ -1225,6 +1271,7 @@ function RunDetails({ id, onClose, readOnly = false }: { id: number; onClose: ()
           runId={id}
           deliveryId={reconcileId}
           onSaved={(saved) => {
+            setSelectedResultId(undefined)
             const remaining = saved.run.deliveries.filter((member) => member.status === 'DISPATCHED').length
             setResultsFeedback(`Results saved for ${saved.delivery.deliveryNumber}. ${remaining
               ? `${remaining} ${remaining === 1 ? 'delivery still needs' : 'deliveries still need'} results.`

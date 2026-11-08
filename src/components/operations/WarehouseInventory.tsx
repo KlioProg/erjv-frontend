@@ -104,22 +104,21 @@ export function WarehouseInventory({
       },
       ...(isAdmin || isManager ? [{
         id: 'stock-alert',
-        header: 'Stock Alert',
+        header: 'Low-Stock Alert',
         width: '12%',
         cell: ({ row }: { row: StockRow }) => (
           <OverflowValue
             asChild
-            value="Stock Alert"
-            fullValue={`Stock Alert Settings for ${row.stock.inventoryItem?.name ?? 'product'}`}
+            value="Low-Stock Alert"
+            fullValue={`Set low-stock alert for ${row.stock.inventoryItem?.name ?? 'product'}`}
             showFullValueOnHover
           >
             <Button
               variant="ghost"
               size="icon"
               className="size-8 pointer-coarse:size-11"
-              title="Stock Alert Settings"
               onClick={() => setThresholdStock(row.stock)}
-              aria-label={`Stock Alert Settings for ${row.stock.inventoryItem?.name ?? 'product'}`}
+              aria-label={`Set low-stock alert for ${row.stock.inventoryItem?.name ?? 'product'}`}
             >
               <Settings2 aria-hidden="true" />
             </Button>

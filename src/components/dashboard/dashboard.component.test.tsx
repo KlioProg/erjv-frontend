@@ -163,6 +163,7 @@ it.each(['ADMIN', 'SUPERADMIN', 'MANAGER', 'STAFF'])(
     auth.isStaff = role === 'STAFF'
     mount()
     await screen.findByText('Nothing needs attention.')
+    expect(screen.queryByText(/^Today \(Manila\):/)).toBeNull()
     expect(screen.getByRole('heading', { name: 'Inventory Overview' })).toBeTruthy()
     if (!auth.isAdmin) {
       expect(screen.queryByRole('heading', { name: 'Financial Overview' })).toBeNull()
