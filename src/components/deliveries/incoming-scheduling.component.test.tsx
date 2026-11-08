@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router'
 import { apiClient } from '@/lib/api-client'
@@ -68,7 +69,8 @@ beforeEach(() => {
       if (orderFails) throw Error('offline')
       data = structuredClone(order)
     }
-    if (url === '/warehouses') data = { items: [{ id: 1, name: 'Main', isActive: true }], nextCursor: null }
+    if (url === '/warehouses')
+      data = { items: [{ id: 1, name: 'Main', isActive: true }], nextCursor: null }
     if (url === '/warehouses/1') data = { id: 1, name: 'Main', isActive: activeWarehouse }
     if (url === '/incoming-deliveries/66/schedule') {
       if (rejection)
@@ -111,13 +113,35 @@ const open = async () => {
   return within(await screen.findByRole('dialog', { name: 'Schedule Arrival' }))
 }
 
-it('keeps an older draft accessible and replaces scheduling with an explanation for a received order', async () => {
+it('keeps a received-order draft compact and discloses its explanation only in details', async () => {
   order.status = 'RECEIVED'
   mount()
-  expect(await screen.findByText('Purchase Order Already Received')).toBeTruthy()
+  expect(await screen.findByText('PO already received')).toBeTruthy()
+  const row = within(screen.getByRole('row', { name: /ID-000066/ }))
+  expect(row.getByText('Inactive draft')).toBeTruthy()
+  expect(row.queryByText(/All goods for this purchase order/)).toBeNull()
+  expect(row.queryByText(/This draft remains saved/)).toBeNull()
+  expect(row.getAllByRole('cell')).toHaveLength(7)
+  expect(screen.getAllByRole('columnheader').map((cell) => cell.textContent)).toEqual([
+    'Delivery #',
+    'Purchase Order',
+    'Supplier',
+    'Schedule',
+    'Status',
+    'Issue',
+    'Actions',
+  ])
   expect(screen.queryByRole('button', { name: 'Schedule Arrival ID-000066' })).toBeNull()
-  fireEvent.click(screen.getByRole('button', { name: 'View delivery ID-000066' }))
-  expect(await screen.findByRole('dialog', { name: 'ID-000066' })).toBeTruthy()
+  const user = userEvent.setup()
+  await user.click(row.getByRole('button', { name: 'More actions for ID-000066' }))
+  expect(screen.queryByRole('menuitem', { name: 'View delivery details' })).toBeNull()
+  expect(screen.getByRole('menuitem', { name: /View Purchase Order/ })).toBeTruthy()
+  expect(screen.getByRole('menuitem', { name: 'Cancel Delivery ID-000066' })).toBeTruthy()
+  await user.keyboard('{Escape}')
+  await user.click(row.getByRole('button', { name: 'View Details ID-000066' }))
+  const details = within(await screen.findByRole('dialog', { name: 'ID-000066' }))
+  expect(details.getByText('Purchase Order Already Received')).toBeTruthy()
+  expect(details.getByText(/This draft remains saved for record purposes/)).toBeTruthy()
   expect(draft.status).toBe('DRAFT')
   expect(writes()).toHaveLength(0)
 })
@@ -202,9 +226,13 @@ it.each(['DRAFT', 'CANCELLED'] as const)(
   async (status) => {
     order.status = status
     mount()
-    await screen.findByText(
-      status === 'DRAFT' ? 'Purchase Order Not Confirmed' : 'Purchase Order Cancelled',
-    )
+    await screen.findByText('Needs review')
+    fireEvent.click(screen.getByRole('button', { name: 'View delivery ID-000066' }))
+    expect(
+      await screen.findByText(
+        status === 'DRAFT' ? 'Purchase Order Not Confirmed' : 'Purchase Order Cancelled',
+      ),
+    ).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Schedule Arrival ID-000066' })).toBeNull()
     expect(writes()).toHaveLength(0)
   },
@@ -215,6 +243,8 @@ it('does not trust a cached eligible order after a reference refresh fails', asy
   await screen.findByRole('button', { name: 'Schedule Arrival ID-000066' })
   orderFails = true
   await client.invalidateQueries({ queryKey: ['purchase-orders'] })
+  expect(await screen.findByText('Needs review')).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: 'View delivery ID-000066' }))
   expect(await screen.findByText('Purchase Order Eligibility Unavailable')).toBeTruthy()
   expect(screen.queryByRole('button', { name: 'Schedule Arrival ID-000066' })).toBeNull()
   expect(writes()).toHaveLength(0)
@@ -273,11 +303,36 @@ it('stops scheduling if management permission is lost while the dialog is open',
   expect(writes()).toHaveLength(0)
 })
 
-
 it('does not offer scheduling when the saved draft has no arrival date', async () => {
   draft = { ...draft, scheduledAt: null }
   mount()
-  await screen.findByText('Arrival Date Required')
+  await screen.findByText('Needs review')
+  fireEvent.click(screen.getByRole('button', { name: 'View delivery ID-000066' }))
+  expect(await screen.findByText('Arrival Date Required')).toBeTruthy()
   expect(screen.queryByRole('button', { name: 'Schedule Arrival ID-000066' })).toBeNull()
+  expect(writes()).toHaveLength(0)
+})
+
+it('keeps active row actions clear and moves review actions into the menu', async () => {
+  mount()
+  await screen.findByRole('button', { name: 'Schedule Arrival ID-000066' })
+  const user = userEvent.setup()
+  expect(screen.queryByRole('button', { name: 'View Details ID-000066' })).toBeNull()
+  await user.click(screen.getByRole('button', { name: 'More actions for ID-000066' }))
+  await user.click(screen.getByRole('menuitem', { name: 'View delivery details' }))
+  const details = within(await screen.findByRole('dialog', { name: 'ID-000066' }))
+  expect(details.queryByRole('alert')).toBeNull()
+  expect(writes()).toHaveLength(0)
+})
+
+it('keeps read-only users able to review deliveries without management actions', async () => {
+  auth.isAdmin = false
+  mount()
+  const user = userEvent.setup()
+  await user.click(await screen.findByRole('button', { name: 'More actions for ID-000066' }))
+  expect(screen.getByRole('menuitem', { name: 'View delivery details' })).toBeTruthy()
+  expect(screen.getByRole('menuitem', { name: /View Purchase Order/ })).toBeTruthy()
+  expect(screen.queryByRole('menuitem', { name: /Cancel Delivery/ })).toBeNull()
+  expect(screen.queryByRole('button', { name: /Schedule Arrival/ })).toBeNull()
   expect(writes()).toHaveLength(0)
 })

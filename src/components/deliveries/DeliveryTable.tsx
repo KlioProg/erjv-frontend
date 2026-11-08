@@ -4,6 +4,7 @@ import type { ReactNode } from 'react'
 import { CalendarCheck, Check, MoreHorizontal, PackageCheck, Send, X } from 'lucide-react'
 import { DataTable, type ColumnDef } from '@/components/ui/data-table'
 import { DataTableActions } from '@/components/ui/DataTableActions'
+import { StatusBadge } from '@/components/ui/StatusBadge'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -67,19 +68,45 @@ export function DeliveryTable({
       accessorKey: 'reference',
       sortable: false,
       cell: ({ row }) => (
-        <div className="min-w-0 max-w-44 whitespace-normal break-words sm:max-w-none">
-          <Button
-            variant="link"
-            className="h-auto min-h-8 justify-start whitespace-normal break-words p-0 text-left text-sm font-medium pointer-coarse:min-h-11"
-            onClick={() => onView(row)}
-            aria-label={`View delivery ${row.reference}`}
+        <div
+          className={
+            view === 'incoming'
+              ? 'min-w-0'
+              : 'min-w-0 max-w-44 whitespace-normal break-words sm:max-w-none'
+          }
+        >
+          <OverflowValue value={row.reference} asChild>
+            <Button
+              variant="link"
+              className={
+                view === 'incoming'
+                  ? 'h-auto min-h-8 max-w-44 justify-start p-0 text-left text-sm font-semibold text-foreground pointer-coarse:min-h-11'
+                  : 'h-auto min-h-8 justify-start whitespace-normal break-words p-0 text-left text-sm font-medium pointer-coarse:min-h-11'
+              }
+              onClick={() => onView(row)}
+              aria-label={`View delivery ${row.reference}`}
+            >
+              {view === 'incoming' ? (
+                <span data-overflow-text className="truncate">
+                  {row.reference}
+                </span>
+              ) : (
+                row.reference
+              )}
+            </Button>
+          </OverflowValue>
+          <span
+            className={
+              view === 'incoming' ? 'hidden' : 'block text-xs text-muted-foreground sm:hidden'
+            }
           >
-            {row.reference}
-          </Button>
-          <span className="block text-xs text-muted-foreground sm:hidden">
             {row.party} · {row.relatedOrder}
           </span>
-          <span className="block text-xs text-muted-foreground sm:hidden">
+          <span
+            className={
+              view === 'incoming' ? 'hidden' : 'block text-xs text-muted-foreground sm:hidden'
+            }
+          >
             {row.type === 'Outgoing'
               ? outgoingStatusLabel(row.record.status)
               : DELIVERY_STATUS_LABELS[row.status]}{' '}
@@ -93,17 +120,24 @@ export function DeliveryTable({
       header:
         headerFilters?.order ??
         (view === 'incoming'
-          ? 'Purchase Order / Warehouse'
+          ? 'Purchase Order'
           : view === 'outgoing'
             ? 'Sales Order / Warehouse'
             : 'Related Order'),
-      className: headerFilters?.order ? undefined : 'hidden lg:table-cell',
-      headerClassName: headerFilters?.order ? undefined : 'hidden lg:table-cell',
+      className: view === 'incoming' || headerFilters?.order ? undefined : 'hidden lg:table-cell',
+      headerClassName:
+        view === 'incoming' || headerFilters?.order ? undefined : 'hidden lg:table-cell',
       accessorKey: 'relatedOrder',
       sortable: false,
       cell: ({ row }) => (
-        <div className="flex min-w-0 items-center gap-2 whitespace-nowrap">
-          <span className="font-medium">{row.relatedOrder}</span>
+        <div
+          className={
+            view === 'incoming'
+              ? 'flex min-w-0 flex-col gap-0.5'
+              : 'flex min-w-0 items-center gap-2 whitespace-nowrap'
+          }
+        >
+          <OverflowValue value={row.relatedOrder} className="max-w-48 font-medium" />
           <OverflowValue value={row.warehouse} className="max-w-48 text-xs text-muted-foreground" />
         </div>
       ),
@@ -113,13 +147,11 @@ export function DeliveryTable({
       header:
         view === 'incoming' ? 'Supplier' : view === 'outgoing' ? 'Customer' : 'Customer / Supplier',
       accessorKey: 'party',
-      className: 'hidden md:table-cell',
-      headerClassName: 'hidden md:table-cell',
+      className: view === 'incoming' ? undefined : 'hidden md:table-cell',
+      headerClassName: view === 'incoming' ? undefined : 'hidden md:table-cell',
       sortable: false,
       cell: ({ row }) => (
-        <div className="flex flex-col gap-1">
-          <span>{row.party}</span>
-        </div>
+        <OverflowValue value={row.party} className={view === 'incoming' ? 'max-w-48' : undefined} />
       ),
     },
     ...(view === 'history'
@@ -139,10 +171,11 @@ export function DeliveryTable({
         (view === 'history'
           ? 'Recorded event'
           : view === 'incoming'
-            ? 'Scheduled / Expected Date'
+            ? 'Schedule'
             : 'Delivery Trip'),
-      className: headerFilters?.date ? undefined : 'hidden lg:table-cell',
-      headerClassName: headerFilters?.date ? undefined : 'hidden lg:table-cell',
+      className: view === 'incoming' || headerFilters?.date ? undefined : 'hidden lg:table-cell',
+      headerClassName:
+        view === 'incoming' || headerFilters?.date ? undefined : 'hidden lg:table-cell',
       sortable: false,
       sortKey: (row) => (row.date ? new Date(row.date).getTime() || 0 : 0),
       cell: ({ row }) => {
@@ -163,67 +196,104 @@ export function DeliveryTable({
           row.type === 'Incoming' && !!row.record.scheduledAt,
         )
         return (
-          <div title={schedule.title} className="flex items-center gap-2 whitespace-nowrap">
+          <div
+            title={schedule.title}
+            className={
+              view === 'incoming'
+                ? 'flex flex-col gap-0.5 whitespace-nowrap'
+                : 'flex items-center gap-2 whitespace-nowrap'
+            }
+          >
             <span>{schedule.date}</span>
-            <span className="text-xs text-muted-foreground">
-              {view === 'history' ? '' : schedule.time}
-            </span>
+            {schedule.time && view !== 'history' && (
+              <span className="text-xs text-muted-foreground">{schedule.time}</span>
+            )}
           </div>
         )
       },
     },
     {
       id: 'status',
-      header: headerFilters?.status ?? (view === 'history' ? 'Outcome' : 'Delivery Status'),
-      className: headerFilters?.status ? undefined : 'hidden sm:table-cell',
-      headerClassName: headerFilters?.status ? undefined : 'hidden sm:table-cell',
+      header:
+        headerFilters?.status ??
+        (view === 'history' ? 'Outcome' : view === 'incoming' ? 'Status' : 'Delivery Status'),
+      className: view === 'incoming' || headerFilters?.status ? undefined : 'hidden sm:table-cell',
+      headerClassName:
+        view === 'incoming' || headerFilters?.status ? undefined : 'hidden sm:table-cell',
       accessorKey: 'status',
       sortable: false,
       cell: ({ row }) =>
-        row.type === 'Incoming' ? (
+        view === 'incoming' && row.status === 'DRAFT' && row.purchaseOrderStatus === 'RECEIVED' ? (
+          <StatusBadge label="Inactive draft" />
+        ) : row.type === 'Incoming' ? (
           <IncomingDeliveryStatusBadge status={row.record.status} />
         ) : (
           <DeliveryStatusBadge status={row.record.status} runId={row.record.runId} />
         ),
     },
+    ...(view === 'incoming'
+      ? [
+          {
+            id: 'issue',
+            header: 'Issue',
+            sortable: false,
+            cell: ({ row }: { row: DeliveryRow }) => {
+              const issue =
+                row.status === 'DRAFT'
+                  ? (row.schedulingIssue ?? incomingOrderSchedulingIssue(row.purchaseOrderStatus))
+                  : null
+              return issue ? (
+                <StatusBadge
+                  label={
+                    row.purchaseOrderStatus === 'RECEIVED' ? 'PO already received' : 'Needs review'
+                  }
+                  tone="warning"
+                  appearance="emphasis"
+                  showDot={false}
+                  className="whitespace-nowrap"
+                />
+              ) : (
+                <span className="text-muted-foreground">—</span>
+              )
+            },
+          },
+        ]
+      : []),
     {
       id: 'actions',
-      header: view === 'history' ? 'Details' : 'Next Action',
+      header: view === 'history' ? 'Details' : view === 'incoming' ? 'Actions' : 'Next Action',
       align: 'right',
       cell: ({ row }) => {
-        const schedulingIssue = row.type === 'Incoming' && row.status === 'DRAFT' ? row.schedulingIssue ?? incomingOrderSchedulingIssue(row.purchaseOrderStatus) : null
         const available = canManage && view !== 'history' ? getDeliveryActions(row) : []
         const primary = available.find((action) =>
           ['schedule', 'ready', 'receive', 'run', 'reconcile'].includes(action),
         )
+        const showDetailsAction =
+          view === 'incoming' &&
+          !primary &&
+          row.status === 'DRAFT' &&
+          row.purchaseOrderStatus === 'RECEIVED'
         const label =
           primary === 'run' && row.type === 'Outgoing' && row.record.runId != null
             ? 'View Trip'
             : primary
               ? actions[primary].label
-              : view === 'history' &&
-                  row.type === 'Incoming' &&
-                  row.status === 'COMPLETED'
+              : view === 'history' && row.type === 'Incoming' && row.status === 'COMPLETED'
                 ? 'View Receipt'
                 : 'View Details'
         return (
-          <div className="flex flex-col items-end gap-2">
-          {schedulingIssue && (
-            <p className="max-w-72 whitespace-normal text-left text-xs text-muted-foreground">
-              <span className="block font-medium">{schedulingIssue.title}</span>
-              This incoming delivery remains saved as a draft. Review its details or purchase order.
-            </p>
-          )}
           <DataTableActions>
-            <Button
-              variant={primary ? 'outline' : 'ghost'}
-              size="sm"
-              disabled={pending}
-              onClick={() => (primary ? onAction(row, primary) : onView(row))}
-              aria-label={`${label} ${row.reference}`}
-            >
-              {label}
-            </Button>
+            {(view !== 'incoming' || primary || showDetailsAction) && (
+              <Button
+                variant={primary ? 'outline' : 'ghost'}
+                size="sm"
+                disabled={pending}
+                onClick={() => (primary ? onAction(row, primary) : onView(row))}
+                aria-label={`${label} ${row.reference}`}
+              >
+                {label}
+              </Button>
+            )}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
@@ -237,11 +307,14 @@ export function DeliveryTable({
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuGroup>
-                  <DropdownMenuItem onSelect={() => onView(row)}>
-                    View delivery details
-                  </DropdownMenuItem>
+                  {!showDetailsAction && (
+                    <DropdownMenuItem onSelect={() => onView(row)}>
+                      View delivery details
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuItem onSelect={() => onViewOrder(row)}>
-                    {row.type === 'Incoming' ? 'View Purchase Order' : 'View order'} {row.relatedOrder}
+                    {row.type === 'Incoming' ? 'View Purchase Order' : 'View order'}{' '}
+                    {row.relatedOrder}
                   </DropdownMenuItem>
                   {available
                     .filter((action) => action !== primary)
@@ -266,7 +339,6 @@ export function DeliveryTable({
               </DropdownMenuContent>
             </DropdownMenu>
           </DataTableActions>
-          </div>
         )
       },
     },
@@ -282,7 +354,13 @@ export function DeliveryTable({
       getRowKey={(row) => row.key}
       isLoading={isLoading}
       retainHeaders
-      tableClassName="w-full"
+      tableClassName={view === 'incoming' ? 'w-full min-w-[1000px]' : 'w-full'}
+      rowClassName={
+        view === 'incoming'
+          ? (row) =>
+              row.status === 'DRAFT' && row.purchaseOrderStatus === 'RECEIVED' ? 'bg-muted/30' : ''
+          : undefined
+      }
       emptyContent={
         <div className="py-2 text-center">
           <p className="text-sm font-semibold">

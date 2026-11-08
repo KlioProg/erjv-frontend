@@ -1,15 +1,40 @@
+import { lazy } from 'react'
 import { Link, Navigate, Outlet, useOutletContext, useParams } from 'react-router'
 import type { DashboardOutletContext } from '@/components/dashboard/MainDashboard'
-import { DashboardPage } from '@/components/dashboard/DashboardPage'
-import { InventoryHub } from '@/components/inventory/InventoryHub'
-import { WarehouseList } from '@/components/operations/WarehouseList'
-import { OrdersView } from '@/components/orders/OrdersView'
-import { PurchasesView, type PurchaseSection } from '@/components/purchases/PurchasesView'
-import { DeliveriesHub } from '@/components/deliveries/DeliveriesHub'
+import type { PurchaseSection } from '@/components/purchases/PurchasesView'
 import type { DeliveryView } from '@/features/logistics/delivery-workflow'
 import { useAuth } from '@/features/auth/AuthContext'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { isNavItemKey, ROUTES, routeForScreen } from '@/routes'
+
+const DashboardPage = lazy(() =>
+  import('@/components/dashboard/DashboardPage').then((module) => ({
+    default: module.DashboardPage,
+  })),
+)
+const InventoryHub = lazy(() =>
+  import('@/components/inventory/InventoryHub').then((module) => ({
+    default: module.InventoryHub,
+  })),
+)
+const WarehouseList = lazy(() =>
+  import('@/components/operations/WarehouseList').then((module) => ({
+    default: module.WarehouseList,
+  })),
+)
+const OrdersView = lazy(() =>
+  import('@/components/orders/OrdersView').then((module) => ({ default: module.OrdersView })),
+)
+const PurchasesView = lazy(() =>
+  import('@/components/purchases/PurchasesView').then((module) => ({
+    default: module.PurchasesView,
+  })),
+)
+const DeliveriesHub = lazy(() =>
+  import('@/components/deliveries/DeliveriesHub').then((module) => ({
+    default: module.DeliveriesHub,
+  })),
+)
 
 export function InventoryRoute({ quarantine = false }: { quarantine?: boolean }) {
   const context = useOutletContext<DashboardOutletContext>()

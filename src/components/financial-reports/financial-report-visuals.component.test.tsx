@@ -299,6 +299,8 @@ it('toggles every metric combination locally and retains selection across period
       const enabled = Boolean(mask & (1 << index))
       if ((button.getAttribute('aria-pressed') === 'true') !== enabled)
         await userEvent.click(button)
+      expect(button.getAttribute('aria-pressed')).toBe(String(enabled))
+      expect(button.classList.contains(enabled ? 'bg-card' : 'bg-secondary')).toBe(true)
       expect(Boolean(document.querySelector(`path[data-series="${kinds[index]}"]`))).toBe(enabled)
     }
     if (mask === 0)

@@ -158,7 +158,7 @@ export function ReportLineChart({
                 key={metric.kind}
                 type="button"
                 size="sm"
-                variant={selected.includes(metric.kind) ? 'secondary' : 'outline'}
+                variant={selected.includes(metric.kind) ? 'outline' : 'secondary'}
                 aria-pressed={selected.includes(metric.kind)}
                 onClick={() => onToggle(metric.kind)}
               >

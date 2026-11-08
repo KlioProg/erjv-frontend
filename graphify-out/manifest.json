@@ -78,8 +78,8 @@
     "semantic_hash": "89d39b2babe9f44d00ba7f1a6beafca6"
   },
   "src/components/dashboard/MainDashboard.tsx": {
-    "mtime": 1793620995.1585276,
-    "seen": 1793724723.9460032,
+    "mtime": 1794142444.5184112,
+    "seen": 1794142490.8952615,
     "ast_hash": "ac613e86ad5ebf826faef5aed29ee1ae",
     "semantic_hash": ""
   },
@@ -102,9 +102,9 @@
     "semantic_hash": ""
   },
   "src/components/deliveries/DeliveryTable.tsx": {
-    "mtime": 1793941154.4974232,
-    "seen": 1793941378.7103689,
-    "ast_hash": "514d2e02a47c18f910c2a213ed1cb0a5",
+    "mtime": 1794140539.3185248,
+    "seen": 1794141424.1949728,
+    "ast_hash": "f23bee6ee7d28c585e705ab8c85372df",
     "semantic_hash": ""
   },
   "src/components/deliveries/ReceiveProductsModal.tsx": {
@@ -228,9 +228,9 @@
     "semantic_hash": ""
   },
   "src/components/deliveries/shared/IncomingDeliveryDetailModal.tsx": {
-    "mtime": 1793808096.7642415,
-    "seen": 1793808376.9816642,
-    "ast_hash": "fad9ac22cf4ddeca60296c22fb33f9f4",
+    "mtime": 1794140474.3549445,
+    "seen": 1794140538.745877,
+    "ast_hash": "1257428b4557c555f90bdaa80a567de7",
     "semantic_hash": ""
   },
   "src/components/deliveries/shared/VehicleDetailModal.tsx": {
@@ -1464,10 +1464,10 @@
     "semantic_hash": ""
   },
   "src/features/logistics/stock-items.hooks.ts": {
-    "mtime": 1793337754.3472624,
-    "seen": 1793724723.946457,
+    "mtime": 1794142444.5688164,
+    "seen": 1794142490.9532824,
     "ast_hash": "23381ffefa6210158d93c90b42507ed6",
-    "semantic_hash": "23381ffefa6210158d93c90b42507ed6"
+    "semantic_hash": ""
   },
   "src/features/logistics/stock-items.types.ts": {
     "mtime": 1793337669.4845476,
@@ -1866,15 +1866,15 @@
     "semantic_hash": ""
   },
   "src/routing/AppRoutes.tsx": {
-    "mtime": 1793907618.2437818,
-    "seen": 1793908599.315888,
-    "ast_hash": "8a39e053789b3a0cd81b5e684a0f442a",
+    "mtime": 1794141542.7865224,
+    "seen": 1794141648.6237814,
+    "ast_hash": "ccf1cf087fe39e02cf6d22246f4a1923",
     "semantic_hash": ""
   },
   "src/routing/DashboardPages.tsx": {
-    "mtime": 1793907619.6472268,
-    "seen": 1793908599.3158922,
-    "ast_hash": "47a36c50e89740b2a6a0512ffb6e988c",
+    "mtime": 1794141366.403404,
+    "seen": 1794141424.2672248,
+    "ast_hash": "0a61e8825944fe0f9a35ff9409ade2de",
     "semantic_hash": ""
   },
   "src/routing/WarehouseDetailsRoute.tsx": {
@@ -1890,9 +1890,9 @@
     "semantic_hash": ""
   },
   "src/routing/financial-reports-routing.component.test.tsx": {
-    "mtime": 1793719217.334582,
-    "seen": 1793724723.9466345,
-    "ast_hash": "1e1beb37c7a8a0a3fa8b58e5caf957be",
+    "mtime": 1794141804.4877787,
+    "seen": 1794141874.5085597,
+    "ast_hash": "bde85eac89cc0ce4d81d2d081171544a",
     "semantic_hash": ""
   },
   "src/routing/logistics-routing.component.test.tsx": {
@@ -1902,8 +1902,8 @@
     "semantic_hash": ""
   },
   "src/routing/staffing-routing.component.test.tsx": {
-    "mtime": 1793721662.655257,
-    "seen": 1793724723.946638,
+    "mtime": 1794142444.6167068,
+    "seen": 1794142490.9707081,
     "ast_hash": "e49998d5bcb190954774550f2f8c6ed7",
     "semantic_hash": ""
   },
@@ -1938,9 +1938,9 @@
     "semantic_hash": ""
   },
   "src/components/financial-reports/ReportCharts.tsx": {
-    "mtime": 1793817653.738767,
-    "seen": 1793817733.4408517,
-    "ast_hash": "ebdcd7c3a9b3bf6cc6ab42b2e6cb549e",
+    "mtime": 1794142953.68276,
+    "seen": 1794143143.7318845,
+    "ast_hash": "38ef61dd266769afa00d80ea5214f62b",
     "semantic_hash": ""
   },
   "src/components/financial-reports/ReportDetails.tsx": {
@@ -1962,9 +1962,9 @@
     "semantic_hash": ""
   },
   "src/components/financial-reports/financial-report-visuals.component.test.tsx": {
-    "mtime": 1793817862.8163579,
-    "seen": 1793817961.4301915,
-    "ast_hash": "df16311897a09347e21ae13e385c61a6",
+    "mtime": 1794142953.7406614,
+    "seen": 1794143143.732481,
+    "ast_hash": "544c000034effdf245415495f3673059",
     "semantic_hash": ""
   },
   "src/components/financial-reports/report-period-presentation.component.test.tsx": {
@@ -6990,9 +6990,9 @@
     "semantic_hash": ""
   },
   "src/components/deliveries/incoming-scheduling.component.test.tsx": {
-    "mtime": 1793941154.4959183,
-    "seen": 1793941378.7131581,
-    "ast_hash": "973af0a7afd37aa8fd1d357601c9d8c5",
+    "mtime": 1794140474.4094057,
+    "seen": 1794140538.7421215,
+    "ast_hash": "79da0e67cdc7e05d14bc0269937675c2",
     "semantic_hash": ""
   },
   "src/features/logistics/incoming-scheduling.ts": {

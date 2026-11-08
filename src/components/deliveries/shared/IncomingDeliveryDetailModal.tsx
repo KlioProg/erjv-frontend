@@ -1,6 +1,8 @@
 import { formatProductUnit } from '@/lib/product-unit'
 import { DataTable } from '@/components/ui/data-table'
 import { StatusBadge } from '@/components/ui/StatusBadge'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { incomingOrderSchedulingIssue } from '@/features/logistics/incoming-scheduling'
 import {
   Dialog,
   DialogContent,
@@ -29,7 +31,9 @@ export function IncomingDeliveryStatusBadge({
           ? 'success'
           : status === 'CANCELLED'
             ? 'destructive'
-            : status === 'SCHEDULED' ? 'info' : 'neutral'
+            : status === 'SCHEDULED'
+              ? 'info'
+              : 'neutral'
       }
     />
   )
@@ -47,6 +51,10 @@ export function IncomingDeliveryDetailModal({
   onClose: () => void
 }) {
   const delivery = row?.record
+  const schedulingIssue =
+    delivery?.status === 'DRAFT'
+      ? (row?.schedulingIssue ?? incomingOrderSchedulingIssue(row?.purchaseOrderStatus))
+      : null
   return (
     <Dialog open={row !== undefined} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-h-[calc(100svh-2rem)] overflow-y-auto sm:max-w-2xl">
@@ -58,6 +66,14 @@ export function IncomingDeliveryDetailModal({
         </DialogHeader>
         {delivery && (
           <>
+            {schedulingIssue && (
+              <Alert>
+                <AlertTitle>{schedulingIssue.title}</AlertTitle>
+                <AlertDescription>
+                  {schedulingIssue.message} This draft remains saved for record purposes.
+                </AlertDescription>
+              </Alert>
+            )}
             <div className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
               <div>
                 <p className="text-xs text-muted-foreground">Destination Warehouse</p>
