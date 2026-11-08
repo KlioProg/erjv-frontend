@@ -87,16 +87,11 @@ export function WarehouseInventory({
       {
         id: 'product',
         header: 'Product',
-        width: '36%',
+        width: isAdmin || isManager ? '30%' : '36%',
         sortable: false,
         sortKey: (row) => row.stock.inventoryItem?.name ?? '',
         cell: ({ row }) => (
-          <div
-            className={cn(
-              'relative flex min-w-0 flex-col gap-0.5',
-              (isAdmin || isManager) && 'pr-8 pointer-coarse:pr-12',
-            )}
-          >
+          <div className="flex min-w-0 flex-col gap-0.5">
             <OverflowValue
               value={row.stock.inventoryItem?.name || 'Product unavailable'}
               className="whitespace-normal text-sm font-medium leading-5 [overflow-wrap:anywhere]"
@@ -104,21 +99,33 @@ export function WarehouseInventory({
             <span className="text-xs text-muted-foreground">
               {formatProductUnit(row.stock.inventoryItem?.unit) || 'Unit unavailable'}
             </span>
-            {(isAdmin || isManager) && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="absolute right-0 top-0 size-8 pointer-coarse:size-11"
-                title="Stock Alert Settings"
-                onClick={() => setThresholdStock(row.stock)}
-                aria-label={`Stock Alert Settings for ${row.stock.inventoryItem?.name ?? 'product'}`}
-              >
-                <Settings2 className="size-3.5" />
-              </Button>
-            )}
           </div>
         ),
       },
+      ...(isAdmin || isManager ? [{
+        id: 'stock-alert',
+        header: 'Stock Alert',
+        width: '12%',
+        cell: ({ row }: { row: StockRow }) => (
+          <OverflowValue
+            asChild
+            value="Stock Alert"
+            fullValue={`Stock Alert Settings for ${row.stock.inventoryItem?.name ?? 'product'}`}
+            showFullValueOnHover
+          >
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-8 pointer-coarse:size-11"
+              title="Stock Alert Settings"
+              onClick={() => setThresholdStock(row.stock)}
+              aria-label={`Stock Alert Settings for ${row.stock.inventoryItem?.name ?? 'product'}`}
+            >
+              <Settings2 aria-hidden="true" />
+            </Button>
+          </OverflowValue>
+        ),
+      }] : []),
       {
         id: 'quantity',
         header: 'Physical',
@@ -138,7 +145,7 @@ export function WarehouseInventory({
       {
         id: 'available',
         header: 'Available',
-        width: '22%',
+        width: isAdmin || isManager ? '20%' : '22%',
         align: 'right',
         sortable: false,
         sortKey: (row) => stockSortKey(row.availableCents),
@@ -171,7 +178,7 @@ export function WarehouseInventory({
       {
         id: 'quarantined',
         header: 'Quarantined',
-        width: '24%',
+        width: isAdmin || isManager ? '20%' : '24%',
         align: 'right',
         sortable: false,
         sortKey: (row) => stockSortKey(row.quarantinedCents),

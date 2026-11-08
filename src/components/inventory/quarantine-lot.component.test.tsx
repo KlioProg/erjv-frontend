@@ -146,6 +146,20 @@ async function chooseAction(action: 'CLEAR' | 'REMOVE' | 'CORRECT') {
   await waitFor(() => expect(button.matches(':disabled')).toBe(false))
   fireEvent.click(button)
 }
+
+it('selects compact quarantine actions with arrow keys without performing a stock change', async () => {
+  mount()
+  const release = await screen.findByRole('radio', { name: 'Release to Available Stock' })
+  await waitFor(() => expect(release.matches(':disabled')).toBe(false))
+  release.focus()
+  await userEvent.keyboard('{ArrowRight}')
+  expect((screen.getByRole('radio', { name: 'Remove from Inventory' }) as HTMLInputElement).checked).toBe(true)
+  expect(screen.getByText('This will permanently reduce physical inventory.')).toBeTruthy()
+  await userEvent.keyboard('{ArrowRight}')
+  expect((screen.getByRole('radio', { name: 'Correct Condition' }) as HTMLInputElement).checked).toBe(true)
+  expect(screen.getByText('The stock remains quarantined after correcting its condition.')).toBeTruthy()
+  expect(writes).toHaveLength(0)
+})
 it.each(['CLEAR', 'REMOVE'] as const)('preserves transfer provenance and its stock pool when applying %s', async (action) => {
   lot.sourceKind = 'WAREHOUSE_TRANSFER'
   lot.warehouseTransferItemId = 71

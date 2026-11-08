@@ -110,6 +110,7 @@ export function DashboardPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <PageHeader description="Business overview">Dashboard</PageHeader>
         <time className="text-sm text-muted-foreground" dateTime={now.toISOString()}>
+          Today (Manila):{' '}
           {new Intl.DateTimeFormat('en-PH', {
             timeZone: 'Asia/Manila',
             dateStyle: 'long',

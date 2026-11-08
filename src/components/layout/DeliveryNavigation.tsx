@@ -71,7 +71,7 @@ export function DeliveryNavigation({
               cn(
                 'ui-text flex h-9 w-full items-center rounded-md px-3 py-2 text-left font-medium transition-colors duration-150 pointer-coarse:min-h-11 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                 isActive
-                  ? 'bg-primary-subtle text-foreground'
+                  ? 'bg-primary-subtle text-foreground font-semibold ring-1 ring-inset ring-primary-contrast/30'
                   : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
               )
             }

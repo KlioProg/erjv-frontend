@@ -50,7 +50,7 @@ export function InventoryNavigation({
               cn(
                 'ui-text flex h-9 items-center rounded-md px-3 py-2 font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                 isActive
-                  ? 'bg-primary-subtle text-foreground'
+                  ? 'bg-primary-subtle text-foreground font-semibold ring-1 ring-inset ring-primary-contrast/30'
                   : 'text-muted-foreground hover:bg-muted/60',
               )
             }

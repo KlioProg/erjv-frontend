@@ -554,7 +554,7 @@ export function QuarantineLotDialog({
                                 setError('')
                               }}
                             />
-                            <span className="flex min-h-10 items-center justify-center gap-2 rounded px-3 text-sm peer-checked:bg-background peer-checked:font-semibold peer-checked:shadow-sm peer-focus-visible:outline-none peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-disabled:cursor-not-allowed peer-disabled:opacity-50">
+                            <span className="flex min-h-10 items-center justify-center gap-2 rounded border border-input bg-background px-3 text-sm transition-colors hover:bg-muted peer-checked:border-primary-contrast peer-checked:bg-primary-subtle peer-checked:font-semibold peer-checked:ring-1 peer-checked:ring-primary-contrast peer-focus-visible:outline-none peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-disabled:cursor-not-allowed peer-disabled:opacity-50">
                               {action === choice.value && (
                                 <Check aria-hidden="true" className="size-4" />
                               )}

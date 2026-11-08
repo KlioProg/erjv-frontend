@@ -189,6 +189,17 @@ afterEach(() => {
 })
 
 describe('delivery progress', () => {
+  it('keeps draft creation separate from the future schedule and actual lifecycle events in Manila', () => {
+    render(<DeliveryTimeline delivery={{ ...deliveryFixture, status: 'RECONCILED', createdAt: '2026-11-06T16:17:00Z', reconciledAt: '2026-11-11T01:40:00Z' }} run={{ ...runFixture, scheduledDepartureAt: '2026-11-10T00:00:00Z', dispatchedAt: '2026-11-10T00:17:00Z' }} />)
+    const steps = within(screen.getByRole('list', { name: 'Delivery progress' })).getAllByRole('listitem')
+    expect(steps[0].textContent).toContain('Draft Created')
+    expect(steps[0].textContent).toContain('Nov 7, 2026')
+    expect(steps[0].textContent).toContain('12:17 AM')
+    expect(steps[2].textContent).toContain('Nov 10, 2026')
+    expect(steps[2].textContent).toContain('8:17 AM')
+    expect(steps[3].textContent).toContain('Nov 11, 2026')
+    expect(steps[3].textContent).toContain('9:40 AM')
+  })
   it.each(['DRAFT', 'READY', 'DISPATCHED', 'RECONCILED'] as const)(
     'marks the current %s step and shows only reached timestamps',
     (status) => {

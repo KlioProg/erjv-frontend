@@ -229,6 +229,7 @@ export function DeliveryDetailModal({ deliveryId, open, onClose }: DeliveryDetai
               )}
 
               <section aria-label="Delivery progress" className="border-t border-border pt-4">
+                <p className="mb-3 text-xs text-muted-foreground">Times shown in Manila time (UTC+08:00).</p>
                 <DeliveryTimeline delivery={delivery} run={run} />
               </section>
 

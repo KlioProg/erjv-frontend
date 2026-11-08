@@ -23,7 +23,7 @@ import {
 } from '@/features/crm/clients.hooks'
 import type { Client } from '@/features/crm/clients.types'
 import { getErrorMessage } from '@/lib/api-client'
-import { sanitizePhilippinePhone, validatePhilippinePhone } from '@/lib/phone-utils'
+import { normalizeContactPhone, validateContactPhone } from '@/lib/phone-utils'
 
 type ClientModalProps = {
   client: Client | null
@@ -119,7 +119,7 @@ function ClientFormContent({ client, onClose }: { client: Client | null; onClose
         }
       }
 
-      const phoneError = validatePhilippinePhone(phone, 'Phone number')
+      const phoneError = validateContactPhone(phone)
       if (phoneError) {
         setErrorField('phone')
         setErrorMsg(phoneError)
@@ -127,7 +127,7 @@ function ClientFormContent({ client, onClose }: { client: Client | null; onClose
       }
 
       try {
-        const cleanPhone = sanitizePhilippinePhone(phone) || null
+        const cleanPhone = normalizeContactPhone(phone) || null
 
         if (isEditing && client) {
           await updateMutation.mutateAsync({
@@ -286,8 +286,7 @@ function ClientFormContent({ client, onClose }: { client: Client | null; onClose
                 inputMode="tel"
                 placeholder="09171234567"
                 value={phone}
-                maxLength={11}
-                onChange={(e) => setPhone(sanitizePhilippinePhone(e.target.value))}
+                onChange={(e) => setPhone(e.target.value)}
                 aria-invalid={errorField === 'phone' || undefined}
                 aria-describedby={
                   errorField === 'phone' ? 'client-phone-error' : 'client-phone-hint'
@@ -299,7 +298,8 @@ function ClientFormContent({ client, onClose }: { client: Client | null; onClose
                 </p>
               ) : (
                 <p id="client-phone-hint" className="customer-field-hint">
-                  11 digits, starting with 09.
+                  Use 09171234567 or +63 917 123 4567 for mobiles; include the area or country
+                  code for other numbers.
                 </p>
               )}
             </div>

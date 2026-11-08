@@ -898,7 +898,6 @@ function RunDetails({ id, onClose, readOnly = false }: { id: number; onClose: ()
   const [dispatching, setDispatching] = useState(false)
   const [reconcileId, setReconcileId] = useState<number>()
   const [resultsFeedback, setResultsFeedback] = useState('')
-  const nextDelivery = run?.deliveries.find((member) => member.status === 'DISPATCHED')
   const existingIds = run?.deliveries.map((delivery) => delivery.id) ?? []
   const selection = useRunDeliverySelection(run?.warehouseId, existingIds)
   const pendingAction = useRef(false)
@@ -1003,7 +1002,7 @@ function RunDetails({ id, onClose, readOnly = false }: { id: number; onClose: ()
             </DropdownMenu>
           )}
           {canOperate && run?.status === 'DISPATCHED' && row.status === 'DISPATCHED' && (
-            <Button size="sm" onClick={() => setReconcileId(row.id)}>
+            <Button size="sm" disabled={busy || review || query.isFetching || query.isError} onClick={() => setReconcileId(row.id)}>
               Record Results
             </Button>
           )}
@@ -1055,6 +1054,7 @@ function RunDetails({ id, onClose, readOnly = false }: { id: number; onClose: ()
             <>
               <section aria-label="Trip Summary" className="flex flex-col gap-3">
               <h2 className="font-semibold">Trip Summary</h2>
+              <p className="text-xs text-muted-foreground">Times shown in Manila time (UTC+08:00).</p>
               <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-3 [&_dt]:text-xs [&_dt]:text-muted-foreground [&_dd]:mt-1 [&_dd]:font-medium">
                 <div>
                   <dt>Warehouse</dt>
@@ -1163,11 +1163,6 @@ function RunDetails({ id, onClose, readOnly = false }: { id: number; onClose: ()
                 </section>
               )}
               <DialogFooter className="sticky bottom-0 flex-wrap border-t bg-background py-3">
-                {canOperate && run.status === 'DISPATCHED' && nextDelivery && (
-                  <Button disabled={busy || review || query.isFetching || query.isError} onClick={() => setReconcileId(nextDelivery.id)}>
-                    {resultsFeedback ? 'Record Next' : 'Record Results'}
-                  </Button>
-                )}
                 {canManage && run.status === 'DRAFT' && (
                   <>
                     <Button

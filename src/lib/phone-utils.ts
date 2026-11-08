@@ -1,10 +1,9 @@
 /**
- * Utilities for Philippine phone and contact number formatting and validation.
- * Standard format: Exactly 11 digits starting with "09" (e.g., 09171234567).
+ * Philippine mobiles use 11 digits starting with 09; business contacts may use other formats.
  */
 
 /**
- * Cleans user input to keep only digits up to 11 characters.
+ * Cleans mobile input without discarding excess digits needed for validation.
  * Handles pasted values with country code (+63 or 63) by converting them to leading '0'.
  */
 export function sanitizePhilippinePhone(input: string): string {
@@ -19,8 +18,24 @@ export function sanitizePhilippinePhone(input: string): string {
     cleaned = '0' + cleaned.slice(2)
   }
 
-  // Strip all non-digit characters and clamp to 11 digits
-  return cleaned.replace(/\D/g, '').slice(0, 11)
+  return cleaned.replace(/\D/g, '')
+}
+
+/** Normalize equivalent Philippine mobiles; preserve other business contact formats. */
+export function normalizeContactPhone(input: string): string {
+  const compact = input.trim().replace(/[\s().-]/g, '')
+  return /^(?:0|\+?63)9\d{9}$/.test(compact)
+    ? sanitizePhilippinePhone(compact)
+    : input.trim()
+}
+
+export function validateContactPhone(input: string): string | null {
+  if (!input.trim()) return null
+  const compact = input.trim().replace(/[\s().-]/g, '')
+  if (/^(?:0|\+?63)9\d*$/.test(compact)) return validatePhilippinePhone(compact)
+  if (!/^\+?\d{7,15}$/.test(compact))
+    return 'Enter a valid phone number, including the area or country code.'
+  return null
 }
 
 /**

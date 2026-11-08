@@ -348,7 +348,26 @@ it('does not expose draft mutation or dispatch actions on a completed run', asyn
   expect(screen.queryByRole('button', { name: 'Edit Trip' })).toBeNull()
   expect(screen.queryByRole('button', { name: 'Review Departure' })).toBeNull()
   expect(screen.queryByRole('button', { name: 'Cancel Trip' })).toBeNull()
+  expect(screen.queryByRole('button', { name: 'Record Results' })).toBeNull()
+  expect(screen.getByRole('button', { name: 'View Results' })).toBeTruthy()
   expect(writes()).toEqual([])
+})
+
+it.each([[1, 8], [2, 8], [2, 9]])('offers one result action per unfinished member (%s deliveries, target %s)', async (count, target) => {
+  run.status = 'DISPATCHED'
+  for (const delivery of deliveries.slice(0, count)) {
+    delivery.status = 'DISPATCHED'
+    delivery.runId = run.id
+  }
+  run.deliveries = deliveries.slice(0, count).map(({ id, revision, deliveryNumber, status, salesOrderId, warehouseId }) => ({ id, revision, deliveryNumber, status, salesOrderId, warehouseId }))
+  mount()
+  const trip = within(await screen.findByRole('dialog', { name: 'Delivery Trip RUN-1' }))
+  expect(trip.getAllByRole('button', { name: 'Record Results' })).toHaveLength(count)
+  const row = trip.getByText(`OUT-${target}`).closest('tr')!
+  await userEvent.click(within(row).getByRole('button', { name: 'Record Results' }))
+  await screen.findByRole('dialog', { name: 'Record Delivery Results' })
+  await waitFor(() => expect(requests.some((request) => request.url === `/outgoing-deliveries/${target}`)).toBe(true))
+  expect(writes()).toHaveLength(0)
 })
 
 it('blocks trip creation until a complete valid departure is entered', async () => {
@@ -868,6 +887,23 @@ it('keeps stored departure precision when editing other trip information', async
   await waitFor(() => expect(writes()).toHaveLength(1))
   expect(writes()[0].body.scheduledDepartureAt).toBe('2026-11-05T01:40:27.123Z')
   expect(writes()[0].url).toBe('/delivery-runs/1/draft')
+})
+
+it('saves a changed November 11 Manila schedule without substituting the creation date', async () => {
+  run.createdAt = '2026-11-07T02:00:00Z'
+  run.scheduledDepartureAt = '2026-11-10T00:17:00Z'
+  mount()
+  await userEvent.click(await screen.findByRole('button', { name: 'Edit Trip' }))
+  expect((screen.getByLabelText('Scheduled Departure Date') as HTMLInputElement).value).toBe('2026-11-10')
+  expect((screen.getByLabelText('Scheduled Departure Time') as HTMLInputElement).value).toBe('08:17')
+  fireEvent.change(screen.getByLabelText('Scheduled Departure Date'), { target: { value: '2026-11-11' } })
+  fireEvent.change(screen.getByLabelText('Scheduled Departure Time'), { target: { value: '00:17' } })
+  await userEvent.click(screen.getByRole('button', { name: 'Save Trip' }))
+  await waitFor(() => expect(writes()).toHaveLength(1))
+  expect(writes()[0].body.scheduledDepartureAt).toBe('2026-11-10T16:17:00.000Z')
+  await userEvent.click(await screen.findByRole('button', { name: 'Edit Trip' }))
+  expect((screen.getByLabelText('Scheduled Departure Date') as HTMLInputElement).value).toBe('2026-11-11')
+  expect((screen.getByLabelText('Scheduled Departure Time') as HTMLInputElement).value).toBe('00:17')
 })
 
 it('groups the draft workspace and uses an honest load explanation until departure review', async () => {

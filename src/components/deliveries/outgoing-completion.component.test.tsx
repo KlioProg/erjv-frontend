@@ -649,7 +649,9 @@ it.each([true, false])('records trip members independently and uses backend comp
   expect(afterFirst.getByText('Results saved for OD-90. 1 delivery still needs results.')).toBeTruthy()
   expect(memberDeliveries[1].status).toBe('DISPATCHED')
   expect(writes).toHaveLength(1)
-  await user.click(afterFirst.getByRole('button', { name: 'Record Next' }))
+  expect(afterFirst.getAllByRole('button', { name: 'Record Results' })).toHaveLength(1)
+  const next = afterFirst.getByText('OD-91').closest('tr')!
+  await user.click(within(next).getByRole('button', { name: 'Record Results' }))
   await screen.findByRole('dialog', { name: 'Record Delivery Results' })
   expect(screen.getByRole('dialog').textContent).toContain('OD-91')
   expect(screen.getAllByRole('radio').every((radio) => !(radio as HTMLInputElement).checked)).toBe(true)

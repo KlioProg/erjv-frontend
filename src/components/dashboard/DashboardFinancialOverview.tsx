@@ -26,14 +26,14 @@ function FinancialMetric({
   query,
 }: (typeof metrics)[number] & { query: ReturnType<typeof useFinancialReport> }) {
   return (
-    <div className="min-h-28 min-w-0 rounded-lg border p-4">
+    <div className="min-h-28 min-w-0 rounded-lg border bg-muted/30 p-5">
       <Link
         to={`${ROUTES.financialReports}?report=${kind}`}
         className="block rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
-        <h3 className="text-sm font-medium">{label}</h3>
+        <h3 className="text-sm font-medium text-muted-foreground">{label}</h3>
         <p
-          className="mt-2 break-words text-2xl font-semibold tabular-nums tracking-tight"
+          className="mt-3 break-words text-3xl font-semibold tabular-nums tracking-tight"
           aria-live="polite"
         >
           {query.isError
@@ -66,7 +66,7 @@ export function DashboardFinancialOverview({ now }: { now: Date }) {
     ),
   }
   return (
-    <section aria-labelledby="financial-overview" className="space-y-3">
+    <section aria-labelledby="financial-overview" className="flex flex-col gap-3">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <div>
           <h2 id="financial-overview" className="text-base font-semibold">

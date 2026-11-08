@@ -242,7 +242,7 @@ export function DashboardLayout({
                       className={({ isActive }) =>
                         `group relative flex h-9 w-full items-center justify-between rounded-md px-3 py-2 text-ui font-medium transition-colors duration-150 cursor-pointer select-none pointer-coarse:min-h-11 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                           isActive
-                            ? 'bg-primary-subtle text-foreground'
+                            ? 'bg-primary-subtle text-foreground font-semibold ring-1 ring-inset ring-primary-contrast/30'
                             : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
                         }`
                       }

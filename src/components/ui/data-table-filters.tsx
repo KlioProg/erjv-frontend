@@ -112,7 +112,7 @@ export function DataTableFilters({
         <div className="flex items-center justify-between gap-2">
           <Button
             type="button"
-            variant="ghost"
+            variant="outline"
             size="sm"
             disabled={!count}
             onClick={() => filters.filter(active).forEach(clear)}
@@ -155,7 +155,7 @@ export function DataTableFilterChips({ filters }: { filters: DataTableFilter[] }
           </Button>
         )
       })}
-      <Button type="button" size="sm" variant="ghost" onClick={() => selected.forEach(clear)}>
+      <Button type="button" size="sm" variant="outline" onClick={() => selected.forEach(clear)}>
         Clear All
       </Button>
     </div>

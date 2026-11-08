@@ -147,7 +147,11 @@ it('keeps warehouse lookup authorization errors visible without creating a recor
 })
 it('opens the existing reorder settings from the mounted warehouse inventory and saves exact thresholds', async () => {
   mount(<WarehouseInventory warehouse={warehouse} onBack={vi.fn()} />)
-  fireEvent.click(await screen.findByRole('button', { name: 'Stock Alert Settings for Rice' }))
+  const settings = await screen.findByRole('button', { name: 'Stock Alert Settings for Rice' })
+  expect(screen.getByRole('columnheader', { name: 'Stock Alert' })).toBeTruthy()
+  settings.focus()
+  expect(await screen.findByRole('tooltip', { name: 'Stock Alert Settings for Rice' })).toBeTruthy()
+  await userEvent.keyboard('{Enter}')
   expect(await screen.findByRole('heading', { name: 'Warehouse Reorder Threshold' })).toBeTruthy()
   change('Reorder threshold', '2.25')
   fireEvent.submit(screen.getByLabelText('Reorder threshold').closest('form')!)

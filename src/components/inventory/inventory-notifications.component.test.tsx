@@ -557,7 +557,7 @@ describe('inventory and global stock warnings', () => {
     await screen.findByText('Zulu Empty')
     const table = screen.getByRole('table')
     const visibleRows = () => within(table).getAllByRole('row').slice(1)
-    expect(within(table).getAllByRole('columnheader')).toHaveLength(4)
+    expect(within(table).getAllByRole('columnheader')).toHaveLength(5)
     expect(screen.queryByRole('columnheader', { name: 'Status' })).toBeNull()
     expect(visibleRows()).toHaveLength(16)
     expect(visibleRows().slice(0, 4).map(row => within(row).getAllByRole('cell')[0].textContent)).toEqual(['Alpha Healthysacks', 'Zulu Emptysacks', 'Yield Lowsacks', 'Omega Fractionalsacks'])
@@ -623,11 +623,12 @@ describe('inventory and global stock warnings', () => {
       within(table)
         .getAllByRole('columnheader')
         .map((header) => header.textContent),
-    ).toEqual(['Product', 'Physical', 'Available', 'Quarantined'])
+    ).toEqual(['Product', 'Stock Alert', 'Physical', 'Available', 'Quarantined'])
     const mango = within(table).getByRole('row', { name: new RegExp(longName) })
     const cells = within(mango).getAllByRole('cell')
     expect(cells.map((cell) => cell.textContent)).toEqual([
       `${longName}kg`,
+      '',
       '50.25',
       '42.25',
       '8 kg',
@@ -639,7 +640,7 @@ describe('inventory and global stock warnings', () => {
     expect(
       within(zero)
         .getAllByRole('cell')
-        .slice(1)
+        .slice(2)
         .map((cell) => cell.textContent),
     ).toEqual(['0', '0', '0'])
     expect(within(zero).getByText('piece(s)')).toBeTruthy()
@@ -647,7 +648,7 @@ describe('inventory and global stock warnings', () => {
     expect(
       within(unknown)
         .getAllByRole('cell')
-        .slice(1)
+        .slice(2)
         .map((cell) => cell.textContent),
     ).toEqual(['10', '—', '—'])
     const summary = screen.getByRole('region', { name: 'Warehouse stock summary' })
@@ -660,7 +661,7 @@ describe('inventory and global stock warnings', () => {
       within(table)
         .getAllByRole('row')
         .slice(1)
-        .map((row) => within(row).getAllByRole('cell')[2].textContent),
+        .map((row) => within(row).getAllByRole('cell')[3].textContent),
     ).toEqual(['42.25', '0', '—'])
   })
 

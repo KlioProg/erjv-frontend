@@ -109,6 +109,7 @@ export class DeliveryUtils {
     const date = typeof dateStr === 'string' ? new Date(dateStr) : dateStr
     if (isNaN(date.getTime())) return '—'
     return date.toLocaleDateString('en-US', {
+      timeZone: 'Asia/Manila',
       month: 'short',
       day: 'numeric',
       year: 'numeric',
