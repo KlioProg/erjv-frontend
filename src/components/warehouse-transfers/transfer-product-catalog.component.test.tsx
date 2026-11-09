@@ -23,6 +23,7 @@ let reads: { url: string; params: Record<string, unknown> }[]
 let failure: boolean
 let emptyFirstPage: boolean
 let gate: Promise<void> | undefined
+let blockedWarehouse: number
 const stock = (id: number, warehouseId = 1, availableQuantity = '109.75') => ({
   id,
   inventoryItemId: id,
@@ -64,6 +65,7 @@ beforeEach(() => {
   failure = false
   emptyFirstPage = false
   gate = undefined
+  blockedWarehouse = 2
   apiClient.defaults.adapter = async (config) => {
     reads.push({ url: config.url!, params: config.params ?? {} })
     let data: unknown = { items: [], nextCursor: null }
@@ -72,6 +74,7 @@ beforeEach(() => {
         items: [
           { id: 1, name: 'Main', isActive: true },
           { id: 2, name: 'Other', isActive: true },
+          { id: 3, name: 'Remote', isActive: true },
         ],
         nextCursor: null,
       }
@@ -80,7 +83,7 @@ beforeEach(() => {
     if (config.url?.startsWith('/stock-items/warehouses/')) {
       if (failure) throw Error('Offline')
       const warehouseId = Number(config.url.split('/').at(-1))
-      if (warehouseId === 2) await gate
+      if (warehouseId === blockedWarehouse) await gate
       data = config.params?.q
         ? { items: [], nextCursor: null }
         : warehouseId === 2
@@ -124,6 +127,10 @@ function mount(record?: WarehouseTransfer) {
 }
 async function chooseSource(user: ReturnType<typeof userEvent.setup>, name = 'Main') {
   await user.click(screen.getByRole('button', { name: 'Choose from warehouse' }))
+  await user.click(await screen.findByRole('menuitem', { name }))
+}
+async function chooseDestination(user: ReturnType<typeof userEvent.setup>, name: string) {
+  await user.click(screen.getByRole('button', { name: 'Choose to warehouse' }))
   await user.click(await screen.findByRole('menuitem', { name }))
 }
 
@@ -179,38 +186,94 @@ it('keeps pagination usable when the current page has no transferable products',
   ).toBeTruthy()
 })
 
-it('preserves quantities on source/destination changes and replaces old availability while loading', async () => {
+it('confirms source changes before clearing items and loads the new warehouse catalog', async () => {
   const user = mount()
+  await chooseDestination(user, 'Remote')
   await chooseSource(user)
   await user.click(await screen.findByRole('button', { name: 'Add Rice' }))
   await user.clear(screen.getByRole('textbox', { name: 'Quantity for item 1' }))
   await user.type(screen.getByRole('textbox', { name: 'Quantity for item 1' }), '3.75')
+  await user.type(screen.getByRole('textbox', { name: 'Notes (optional)' }), 'Keep sealed')
+
+  await chooseSource(user, 'Main')
+  expect(screen.queryByRole('heading', { name: 'Change Source Warehouse?' })).toBeNull()
+  expect(screen.getByRole('textbox', { name: 'Quantity for item 1' }).getAttribute('value')).toBe(
+    '3.75',
+  )
+
   let release!: () => void
   gate = new Promise<void>((resolve) => {
     release = resolve
   })
   await chooseSource(user, 'Other')
+  expect(screen.getByRole('heading', { name: 'Change Source Warehouse?' })).toBeTruthy()
+  expect(screen.getByText('Changing the warehouse will clear your selected items.')).toBeTruthy()
+  await user.click(screen.getByRole('button', { name: 'Keep Editing' }))
+  expect(screen.getByRole('textbox', { name: 'Quantity for item 1' }).getAttribute('value')).toBe(
+    '3.75',
+  )
+  expect(reads.some((read) => read.url === '/stock-items/warehouses/2')).toBe(false)
+
+  await chooseSource(user, 'Other')
+  await user.click(screen.getByRole('button', { name: 'Change Warehouse' }))
+  const selected = within(screen.getByRole('region', { name: 'Selected Items' }))
+  expect(selected.getByText('No products selected. Add products from Available Products.')).toBeTruthy()
+  expect(screen.queryByRole('textbox', { name: 'Quantity for item 1' })).toBeNull()
+  expect((screen.getByRole('textbox', { name: 'Notes (optional)' }) as HTMLTextAreaElement).value)
+    .toBe('Keep sealed')
+  expect(screen.getByRole('button', { name: 'Choose to warehouse' }).textContent).toContain(
+    'Remote',
+  )
   expect(screen.queryByText('109.75 kg')).toBeNull()
   expect(screen.getByText('Loading warehouse products...')).toBeTruthy()
-  expect(screen.getByRole('textbox', { name: 'Quantity for item 1' }).getAttribute('value')).toBe(
-    '3.75',
-  )
   await act(async () => release())
-  const selected = within(screen.getByRole('region', { name: 'Selected Items' }))
-  await selected.findByText('2.5 kg')
-  expect(selected.getByText('Cannot exceed 2.5 kg.')).toBeTruthy()
-  expect(screen.queryByText(/Current stock is insufficient/)).toBeNull()
-  expect(screen.getByRole('button', { name: 'Save Transfer' }).hasAttribute('disabled')).toBe(true)
-  await user.click(screen.getByRole('button', { name: 'Choose from warehouse' }))
-  await user.click(await screen.findByRole('menuitem', { name: 'Main' }))
-  expect(screen.getByRole('textbox', { name: 'Quantity for item 1' }).getAttribute('value')).toBe(
-    '3.75',
-  )
-  expect(selected.queryByText('Cannot exceed 2.5 kg.')).toBeNull()
-  expect(screen.getByRole('button', { name: 'Save Transfer' }).hasAttribute('disabled')).toBe(false)
+  await screen.findByRole('button', { name: 'Add Rice' })
+  expect(screen.getByText('2.5 kg')).toBeTruthy()
+  expect(selected.getByText('No products selected. Add products from Available Products.')).toBeTruthy()
   expect(reads.some((read) => read.url === '/stock-items/warehouses/2' && read.params.cursor)).toBe(
     false,
   )
+})
+
+it('clears the destination only when it becomes the new source warehouse', async () => {
+  const user = mount()
+  await chooseDestination(user, 'Other')
+  await chooseSource(user, 'Main')
+  expect(screen.getByRole('button', { name: 'Choose to warehouse' }).textContent).toContain('Other')
+
+  await chooseSource(user, 'Other')
+  expect(screen.queryByRole('heading', { name: 'Change Source Warehouse?' })).toBeNull()
+  expect(screen.getByRole('button', { name: 'Choose to warehouse' }).textContent).toContain(
+    'Choose to warehouse',
+  )
+})
+
+it('does not show delayed catalog results from the previous source warehouse', async () => {
+  blockedWarehouse = 1
+  let release!: () => void
+  gate = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  const user = mount()
+  await chooseSource(user, 'Main')
+  expect(screen.getByText('Loading warehouse products...')).toBeTruthy()
+
+  await chooseSource(user, 'Other')
+  expect(screen.queryByRole('heading', { name: 'Change Source Warehouse?' })).toBeNull()
+  await screen.findByRole('button', { name: 'Add Rice' })
+  expect(screen.getByText('2.5 kg')).toBeTruthy()
+
+  await act(async () => release())
+  expect(screen.getByText('2.5 kg')).toBeTruthy()
+  expect(screen.queryByText('109.75 kg')).toBeNull()
+})
+
+it('keeps saved drafts unchanged until the edited form is saved', async () => {
+  const user = mount(overstockedDraft)
+  await user.click(screen.getByRole('button', { name: 'Choose from warehouse' }))
+  await user.click(await screen.findByRole('menuitem', { name: 'Remote' }))
+  await user.click(screen.getByRole('button', { name: 'Change Warehouse' }))
+  expect(reads.some((read) => read.url.startsWith('/warehouse-transfers/'))).toBe(false)
 })
 
 it('offers an actual retry without presenting failed stock as zero or empty', async () => {

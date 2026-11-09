@@ -3312,9 +3312,9 @@
     "semantic_hash": ""
   },
   "src/components/warehouse-transfers/TransferForms.tsx": {
-    "mtime": 1793942465.1449661,
-    "seen": 1793942601.8155513,
-    "ast_hash": "32f460c7e9a2b99212bcf5d0d1fb79ad",
+    "mtime": 1794247911.517987,
+    "seen": 1794247955.886556,
+    "ast_hash": "deb6c2b1dcbc6bab3d009e66f3552b38",
     "semantic_hash": ""
   },
   "src/components/warehouse-transfers/WarehouseTransfersPage.tsx": {
@@ -6948,9 +6948,9 @@
     "semantic_hash": ""
   },
   "src/components/warehouse-transfers/transfer-product-catalog.component.test.tsx": {
-    "mtime": 1793942708.324851,
-    "seen": 1793942741.771742,
-    "ast_hash": "ec11e6caa7feddb87f3a2916910a8179",
+    "mtime": 1794247911.5239868,
+    "seen": 1794247955.886972,
+    "ast_hash": "442427fa0b1d501516ca21686a4ae347",
     "semantic_hash": ""
   },
   "src/features/warehouse-transfers/use-transfer-catalog.ts": {

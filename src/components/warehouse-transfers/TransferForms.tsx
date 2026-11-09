@@ -13,7 +13,14 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { CursorLookup } from '@/components/ui/CursorLookup'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { DialogFooter } from '@/components/ui/dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { DataTable } from '@/components/ui/data-table'
 import { deliveryFormStyles } from '@/components/deliveries/shared/delivery-form.styles'
 import { getApiError, getApiFieldErrors, getErrorMessage } from '@/lib/api-client'
@@ -129,6 +136,30 @@ export function TransferDraftForm(props: FormProps) {
   const [items, setItems] = useState(
     record?.items.map(({ inventoryItemId, quantity }) => ({ inventoryItemId, quantity })) ?? [],
   )
+  const [pendingSource, setPendingSource] = useState<string | null>(null)
+  const clearItemErrors = () =>
+    state.setErrors((errors) =>
+      Object.fromEntries(Object.entries(errors).filter(([field]) => !field.startsWith('items.'))),
+    )
+  const applySource = (nextSource: string) => {
+    setSource(nextSource)
+    if (nextSource === destination) setDestination('')
+    clearItemErrors()
+  }
+  const changeSource = (nextSource: string) => {
+    if (nextSource === source) return
+    if (items.length) {
+      setPendingSource(nextSource)
+      return
+    }
+    applySource(nextSource)
+  }
+  const confirmSourceChange = () => {
+    if (pendingSource === null) return
+    applySource(pendingSource)
+    setItems([])
+    setPendingSource(null)
+  }
   const products = useRecordsById<Reference>(
     '/inventory-items',
     items.map((item) => item.inventoryItemId || undefined),
@@ -253,8 +284,8 @@ export function TransferDraftForm(props: FormProps) {
           <fieldset className="flex min-w-0 flex-col gap-3">
             <legend className="mb-3 font-semibold">Warehouses</legend>
             <p className="text-xs text-muted-foreground">
-              Choose where the stock will come from and where it will go. Items stay selected if you
-              change the source. Their availability is checked again at the new warehouse.
+              Changing the source warehouse clears selected items. Add products from the new
+              warehouse&apos;s catalog.
             </p>
             <div className="grid min-w-0 gap-3 sm:grid-cols-2">
               {(
@@ -263,15 +294,7 @@ export function TransferDraftForm(props: FormProps) {
                     field: 'sourceWarehouseId',
                     label: 'From Warehouse',
                     value: source,
-                    set: (value: string) => {
-                      setSource(value)
-                      state.setErrors((errors) => {
-                        const next = { ...errors }
-                        for (const key of Object.keys(next))
-                          if (key.startsWith('items.') && key.endsWith('.quantity')) delete next[key]
-                        return next
-                      })
-                    },
+                    set: changeSource,
                   },
                   {
                     field: 'destinationWarehouseId',
@@ -540,6 +563,29 @@ export function TransferDraftForm(props: FormProps) {
           {state.busy ? 'Saving…' : 'Save Transfer'}
         </Button>
       </DialogFooter>
+      <Dialog
+        open={pendingSource !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingSource(null)
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Change Source Warehouse?</DialogTitle>
+            <DialogDescription>
+              Changing the warehouse will clear your selected items.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setPendingSource(null)}>
+              Keep Editing
+            </Button>
+            <Button type="button" variant="destructive" onClick={confirmSourceChange}>
+              Change Warehouse
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </form>
   )
 }
