@@ -174,24 +174,52 @@ it('shows the stored accepted quantity after quarantine clearance in receipt det
   expect(screen.getByRole('columnheader', { name: 'Damaged at receipt' })).toBeTruthy()
 })
 
-it('shows unavailable receipt counts without treating null as zero', () => {
-  const row = {
+it('does not show receipt quantities before an incoming delivery is confirmed', () => {
+  const row: Extract<DeliveryRow, { type: 'Incoming' }> = {
+    key: 'incoming-7',
+    reference: 'IN-7',
     type: 'Incoming',
+    party: 'Supplier #9',
+    relatedOrder: 'PO #7',
+    orderId: 7,
+    method: 'To Be Confirmed',
+    warehouse: 'Warehouse #3',
+    vehicle: '—',
+    driver: '—',
+    date: null,
+    status: 'DRAFT',
     record: {
       id: 7,
+      revision: 1,
       deliveryNumber: 'IN-7',
+      purchaseOrderId: 7,
+      warehouseId: 3,
       status: 'DRAFT',
+      outcome: null,
+      noReceiptReason: null,
+      confirmedByUserId: null,
+      scheduledAt: null,
+      completedAt: null,
+      cancelledAt: null,
+      supplierReference: null,
+      notes: null,
+      createdAt: '',
+      updatedAt: '',
       items: [
         {
           id: 11,
+          incomingDeliveryId: 7,
           purchaseOrderItemId: 9,
-          receivedQuantity: null,
+          receivedQuantity: '0.00',
           damagedQuantity: null,
           acceptedQuantity: null,
+          createdAt: '',
+          updatedAt: '',
+          purchaseOrderItem: { inventoryItemId: 1, quantity: '2.00' },
         },
       ],
     },
-  } as Extract<DeliveryRow, { type: 'Incoming' }>
+  }
   render(
     createElement(IncomingDeliveryDetailModal, {
       row,
@@ -200,7 +228,14 @@ it('shows unavailable receipt counts without treating null as zero', () => {
       onClose: vi.fn(),
     }),
   )
-  expect(screen.getAllByRole('cell', { name: /Unavailable/ })).toHaveLength(3)
+  expect(screen.getAllByRole('columnheader').map((header) => header.textContent)).toEqual([
+    'Product',
+    'Expected',
+  ])
+  expect(screen.getByRole('cell', { name: '2.00' })).toBeTruthy()
+  expect(screen.queryByRole('columnheader', { name: 'Received' })).toBeNull()
+  expect(screen.queryByRole('columnheader', { name: 'Accepted' })).toBeNull()
+  expect(screen.queryByRole('columnheader', { name: 'Damaged' })).toBeNull()
 })
 
 it('shows a conflicting receipt retry as a conflict without retrying or writing stock', async () => {
@@ -237,19 +272,17 @@ it('shows a conflicting receipt retry as a conflict without retrying or writing 
   client.clear()
 })
 
-it.each([
-  ['NONE', 'Nothing delivered'],
-  ['PARTIAL', 'Partially delivered'],
-  ['FULL', 'Fully delivered'],
-  [null, null],
-] as const)(
-  'displays backend fulfillment %s separately from the lifecycle',
-  (fulfillmentOutcome, label) => {
-    render(createElement(DeliveryStatusBadge, { status: 'RECONCILED', fulfillmentOutcome }))
+it.each(['NONE', 'PARTIAL', 'FULL', null] as const)(
+  'keeps lifecycle status separate from backend fulfillment %s',
+  (fulfillmentOutcome) => {
+    const delivery = {
+      status: 'RECONCILED',
+      fulfillmentOutcome,
+    } satisfies Pick<OutgoingDeliveryRecord, 'status' | 'fulfillmentOutcome'>
+    render(createElement(DeliveryStatusBadge, { status: delivery.status }))
     expect(screen.getByText('Completed')).toBeTruthy()
-    if (label) expect(screen.getByText(label)).toBeTruthy()
-    else
-      expect(screen.queryByText(/Nothing delivered|Partially delivered|Fully delivered/)).toBeNull()
+    expect(screen.queryByText(/Nothing delivered|Partially delivered|Fully delivered/)).toBeNull()
+    expect(delivery.fulfillmentOutcome).toBe(fulfillmentOutcome)
   },
 )
 

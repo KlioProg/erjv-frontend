@@ -1,7 +1,7 @@
 # Graph Report - erjv-frontend  (2026-11-10)
 
 ## Corpus Check
-- 990 files · ~1,598,782 words
+- 990 files · ~1,598,873 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 26 file(s) not represented in the graph (top: .css 11, (none) 8, .toml 4)
 
@@ -11,7 +11,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `2198a82a`
+- Built from commit: `8ef4f462`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
