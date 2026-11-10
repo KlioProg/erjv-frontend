@@ -145,7 +145,11 @@ it('rejects malformed actual transfer event timestamps instead of displaying an 
   expect(() => validateTransfer(Object.assign(transferFixture(), { dispatchedAt: 'invalid' }))).toThrow(/incomplete transfer/)
 })
 
-it.each(['DRAFT', 'DISPATCHED', 'COMPLETED'] as const)('keeps the optional schedule distinct from actual events for %s', async (status) => {
+it.each([
+  ['DRAFT', 'Draft'],
+  ['DISPATCHED', 'In Transit'],
+  ['COMPLETED', 'Completed'],
+] as const)('keeps the optional schedule distinct from actual events for %s', async (status, label) => {
   const dispatchedAt = status === 'DRAFT' ? null : '2026-11-04T01:00:00Z'
   const reconciledAt = status === 'COMPLETED' ? '2026-11-04T03:00:00Z' : null
   Object.assign(record, { status, dispatchedAt, reconciledAt })
@@ -163,13 +167,42 @@ it.each(['DRAFT', 'DISPATCHED', 'COMPLETED'] as const)('keeps the optional sched
   await userEvent.click(screen.getByRole('button', { name: 'View transfer WT-000007' }))
   const dialog = await screen.findByRole('dialog')
   await waitFor(() => expect(within(dialog).queryByText('Loading transfer…')).toBeNull())
-  const scheduled = within(dialog).getByText('Scheduled Departure').parentElement!
+  expect(within(dialog).getByText(label)).toBeTruthy()
+  expect(within(dialog).queryByText(/Trip/)).toBeNull()
+  expect(within(dialog).getByText('From warehouse')).toBeTruthy()
+  expect(within(dialog).getByText('To warehouse')).toBeTruthy()
+  const itemsTable = within(dialog).getByRole('table')
+  await within(itemsTable).findByText('Test Item')
+  expect(within(itemsTable).getByText('kg')).toBeTruthy()
+  expect(within(itemsTable).getAllByText('10.00')).toHaveLength(status === 'COMPLETED' ? 2 : 1)
+  expect(within(itemsTable).getAllByRole('columnheader').map((header) => header.textContent)).toEqual(
+    status === 'COMPLETED'
+      ? [
+          'Item',
+          'Sent',
+          'Received at Destination',
+          'Damaged',
+          'Returned in Good Condition',
+          'Returned Damaged',
+          'Missing',
+        ]
+      : ['Item', 'Sent'],
+  )
+  const scheduled = within(dialog).getByText('Scheduled departure').parentElement!
   expect(scheduled.textContent).toContain('Not scheduled')
-  const actual = within(dialog).getByText('Actual Departure').parentElement!
-  const completion = within(dialog).getByText('Completion Time').parentElement!
-  expect(actual.querySelector('time')?.getAttribute('dateTime') ?? null).toBe(dispatchedAt)
-  expect(completion.querySelector('time')?.getAttribute('dateTime') ?? null).toBe(reconciledAt)
-  if (!dispatchedAt) expect(actual.textContent).toContain('Not recorded')
+  const actual = within(dialog).queryByText('Actual departure')?.parentElement
+  const completion = within(dialog).queryByText('Completed at')?.parentElement
+  expect(actual?.querySelector('time')?.getAttribute('dateTime') ?? null).toBe(dispatchedAt)
+  expect(completion?.querySelector('time')?.getAttribute('dateTime') ?? null).toBe(reconciledAt)
+  expect(actual !== undefined).toBe(status !== 'DRAFT')
+  expect(completion !== undefined).toBe(status === 'COMPLETED')
+  if (status === 'DRAFT') {
+    expect(within(dialog).getByRole('button', { name: 'Review & Send' })).toBeTruthy()
+  } else if (status === 'DISPATCHED') {
+    expect(within(dialog).getByRole('button', { name: 'Receive Goods' })).toBeTruthy()
+  } else {
+    expect(within(dialog).queryByRole('button', { name: 'Receive Goods' })).toBeNull()
+  }
   expect(writes()).toHaveLength(0)
   client.clear()
 })
@@ -246,6 +279,55 @@ it('edits notes without replacing saved lines and submits the saved revision', a
   expect(writes()[0].body).toEqual({ expectedRevision: 1, notes: 'Handle with care' })
   expect(record.items).toHaveLength(1)
   expect(record.revision).toBe(2)
+})
+it('does not change a saved draft until its source reset is explicitly saved', async () => {
+  record = {
+    ...record,
+    scheduledDepartureAt: '2026-11-05T14:55:00+08:00',
+    notes: 'Saved details',
+  }
+  const saved = { ...record, items: record.items.map((item) => ({ ...item })) }
+  mount()
+  await open()
+  await userEvent.click(screen.getByRole('button', { name: 'Edit Draft' }))
+  const draft = within(screen.getByRole('dialog'))
+
+  await userEvent.click(draft.getByRole('button', { name: 'Choose from warehouse' }))
+  await userEvent.click(await screen.findByRole('menuitem', { name: 'Destination' }))
+  const keepEditing = within(
+    await screen.findByRole('dialog', { name: 'Change Source Warehouse?' }),
+  )
+  await userEvent.click(keepEditing.getByRole('button', { name: 'Keep Editing' }))
+  expect(draft.getByRole('button', { name: 'Choose from warehouse' }).textContent).toContain(
+    'Source',
+  )
+  expect(draft.getByRole('button', { name: 'Choose to warehouse' }).textContent).toContain(
+    'Destination',
+  )
+  expect(
+    (draft.getByRole('textbox', { name: 'Quantity for item 1' }) as HTMLInputElement).value,
+  ).toBe('10.00')
+  expect(record).toEqual(saved)
+  expect(writes()).toHaveLength(0)
+
+  await userEvent.click(draft.getByRole('button', { name: 'Choose from warehouse' }))
+  await userEvent.click(await screen.findByRole('menuitem', { name: 'Destination' }))
+  const changeWarehouse = within(
+    await screen.findByRole('dialog', { name: 'Change Source Warehouse?' }),
+  )
+  await userEvent.click(changeWarehouse.getByRole('button', { name: 'Change Warehouse' }))
+  expect(draft.getByRole('heading', { name: 'Selected Items (0)' })).toBeTruthy()
+  expect((draft.getByLabelText('Scheduled Departure Date') as HTMLInputElement).value).toBe(
+    '2026-11-05',
+  )
+  expect(
+    (draft.getByRole('textbox', { name: 'Scheduled Departure Time' }) as HTMLInputElement).value,
+  ).toBe('14:55')
+  expect((draft.getByLabelText('Notes (optional)') as HTMLTextAreaElement).value).toBe(
+    'Saved details',
+  )
+  expect(record).toEqual(saved)
+  expect(writes()).toHaveLength(0)
 })
 it('lets Staff dispatch with confirmation and blocks duplicate submissions', async () => {
   auth.isAdmin = false
@@ -540,7 +622,7 @@ it.each(['state', 'revision'])('does not report a successful departure for an un
   expect(send.getByRole('button', { name: 'Send Goods' }).hasAttribute('disabled')).toBe(true)
 })
 
-it('preserves the destination and explains a source conflict instead of discarding input', async () => {
+it('clears a destination that conflicts with a changed source warehouse', async () => {
   mount()
   await userEvent.click(screen.getByRole('button', { name: 'Create Transfer' }))
   const draft = within(screen.getByRole('dialog'))
@@ -553,10 +635,14 @@ it('preserves the destination and explains a source conflict instead of discardi
   await userEvent.click(screen.getByRole('menuitem', { name: 'Destination' }))
   await userEvent.click(draft.getByRole('button', { name: 'Choose from warehouse' }))
   await userEvent.click(await screen.findByRole('menuitem', { name: 'Destination' }))
-  expect(draft.getByRole('button', { name: 'Choose to warehouse' }).textContent).toContain('Destination')
-  expect(draft.getByText('Choose different source and destination warehouses.')).toBeTruthy()
+  expect(draft.getByRole('button', { name: 'Choose from warehouse' }).textContent).toContain(
+    'Destination',
+  )
+  expect(draft.getByRole('button', { name: 'Choose to warehouse' }).textContent).toContain(
+    'Choose to warehouse',
+  )
+  expect(draft.queryByText('Choose different source and destination warehouses.')).toBeNull()
   await userEvent.click(draft.getByRole('button', { name: 'Save Transfer' }))
-  expect(draft.getByText('Choose a different destination warehouse.')).toBeTruthy()
   expect(writes()).toHaveLength(0)
 })
 
@@ -576,11 +662,12 @@ it.each(['dispatch', 'reconcile'] as const)('rejects unauthorized %s commands at
   client.clear()
 })
 
-it('groups transfer preparation, keeps quantities when changing the source, and saves only a scheduled draft', async () => {
+it('confirms source changes before clearing selections and saves only an explicitly scheduled draft', async () => {
   mount()
   await userEvent.click(screen.getByRole('button', { name: 'Create Transfer' }))
   const draft = within(screen.getByRole('dialog'))
-  for (const section of ['Warehouses', 'Additional Details']) expect(draft.getByRole('group', { name: section })).toBeTruthy()
+  for (const section of ['Warehouses', 'Additional Details'])
+    expect(draft.getByRole('group', { name: section })).toBeTruthy()
   await userEvent.click(draft.getByRole('button', { name: 'Choose from warehouse' }))
   await userEvent.click(await screen.findByRole('menuitem', { name: 'Source' }))
   await userEvent.click(draft.getByRole('button', { name: 'Choose to warehouse' }))
@@ -590,27 +677,94 @@ it('groups transfer preparation, keeps quantities when changing the source, and 
   await userEvent.type(draft.getByRole('textbox', { name: 'Quantity for item 1' }), '3.75')
   expect(draft.getByRole('button', { name: 'Add Test Item' }).hasAttribute('disabled')).toBe(false)
   await userEvent.click(draft.getByRole('button', { name: 'Add Other Item' }))
-  expect(draft.getByRole('textbox', { name: 'Quantity for item 2' })).toBeTruthy()
   await userEvent.clear(draft.getByRole('textbox', { name: 'Quantity for item 2' }))
   await userEvent.type(draft.getByRole('textbox', { name: 'Quantity for item 2' }), '2.00')
-  expect((draft.getByRole('textbox', { name: 'Quantity for item 1' }) as HTMLInputElement).value).toBe('3.75')
-  await userEvent.click(draft.getByRole('button', { name: 'Remove Other Item' }))
-  expect(draft.queryByRole('textbox', { name: 'Quantity for item 2' })).toBeNull()
+  fireEvent.change(draft.getByRole('textbox', { name: 'Quantity for item 1' }), {
+    target: { value: 'not-a-quantity' },
+  })
+  const form = draft.getByRole('button', { name: 'Save Transfer' }).closest('form')!
+  fireEvent.submit(form)
+  expect(draft.getByText('Use a decimal with at most two decimal places.')).toBeTruthy()
+  fireEvent.change(draft.getByLabelText('Scheduled Departure Date'), {
+    target: { value: '2026-11-05' },
+  })
+  await userEvent.type(draft.getByRole('textbox', { name: 'Scheduled Departure Time' }), '14:55')
+  await userEvent.type(draft.getByLabelText('Notes (optional)'), 'Keep details')
+
   await userEvent.click(draft.getByRole('button', { name: 'Choose from warehouse' }))
   await userEvent.click(await screen.findByRole('menuitem', { name: 'Destination' }))
-  expect((draft.getByRole('textbox', { name: 'Quantity for item 1' }) as HTMLInputElement).value).toBe('3.75')
-  expect(within(draft.getByRole('region', { name: 'Selected Items' })).getByText('Test Item')).toBeTruthy()
+  const confirmation = within(
+    await screen.findByRole('dialog', { name: 'Change Source Warehouse?' }),
+  )
+  await userEvent.click(confirmation.getByRole('button', { name: 'Keep Editing' }))
+  expect(draft.getByRole('button', { name: 'Choose from warehouse' }).textContent).toContain(
+    'Source',
+  )
+  expect(draft.getByRole('button', { name: 'Choose to warehouse' }).textContent).toContain(
+    'Destination',
+  )
+  expect(
+    (draft.getByRole('textbox', { name: 'Quantity for item 1' }) as HTMLInputElement).value,
+  ).toBe('not-a-quantity')
+  expect(
+    (draft.getByRole('textbox', { name: 'Quantity for item 2' }) as HTMLInputElement).value,
+  ).toBe('2.00')
+  expect(draft.getByText('Use a decimal with at most two decimal places.')).toBeTruthy()
   expect(writes()).toHaveLength(0)
+
   await userEvent.click(draft.getByRole('button', { name: 'Choose from warehouse' }))
+  await userEvent.click(await screen.findByRole('menuitem', { name: 'Destination' }))
+  const confirm = within(await screen.findByRole('dialog', { name: 'Change Source Warehouse?' }))
+  await userEvent.click(confirm.getByRole('button', { name: 'Change Warehouse' }))
+  expect(draft.getByRole('heading', { name: 'Selected Items (0)' })).toBeTruthy()
+  expect(draft.queryByRole('textbox', { name: 'Quantity for item 1' })).toBeNull()
+  expect(
+    within(draft.getByRole('region', { name: 'Selected Items' })).queryByRole('alert'),
+  ).toBeNull()
+  expect(draft.getByRole('button', { name: 'Choose from warehouse' }).textContent).toContain(
+    'Destination',
+  )
+  expect(draft.getByRole('button', { name: 'Choose to warehouse' }).textContent).toContain(
+    'Choose to warehouse',
+  )
+  expect((draft.getByLabelText('Scheduled Departure Date') as HTMLInputElement).value).toBe(
+    '2026-11-05',
+  )
+  expect(
+    (draft.getByRole('textbox', { name: 'Scheduled Departure Time' }) as HTMLInputElement).value,
+  ).toBe('14:55')
+  expect((draft.getByLabelText('Notes (optional)') as HTMLTextAreaElement).value).toBe(
+    'Keep details',
+  )
+  expect(writes()).toHaveLength(0)
+
+  await userEvent.click(draft.getByRole('button', { name: 'Choose to warehouse' }))
   await userEvent.click(await screen.findByRole('menuitem', { name: 'Source' }))
-  fireEvent.change(draft.getByLabelText('Scheduled Departure Date'), { target: { value: '2026-11-05' } })
-  await userEvent.type(draft.getByRole('textbox', { name: 'Scheduled Departure Time' }), '14:55')
+  await userEvent.click(await draft.findByRole('button', { name: 'Add Test Item' }))
+  await userEvent.clear(draft.getByRole('textbox', { name: 'Quantity for item 1' }))
+  await userEvent.type(draft.getByRole('textbox', { name: 'Quantity for item 1' }), '3.75')
   await userEvent.click(draft.getByRole('button', { name: 'Save Transfer' }))
   await waitFor(() => expect(writes()).toHaveLength(1))
-  expect(writes()[0]).toMatchObject({ method: 'post', url: '/warehouse-transfers', body: { scheduledDepartureAt: '2026-11-05T14:55:00+08:00', items: [{ inventoryItemId: 10, quantity: '3.75' }] } })
+  expect(writes()[0]).toMatchObject({
+    method: 'post',
+    url: '/warehouse-transfers',
+    body: {
+      sourceWarehouseId: 2,
+      destinationWarehouseId: 1,
+      scheduledDepartureAt: '2026-11-05T14:55:00+08:00',
+      notes: 'Keep details',
+      items: [{ inventoryItemId: 10, quantity: '3.75' }],
+    },
+  })
   expect(record.status).toBe('DRAFT')
-  expect(requests.some((request) => (request.url.includes('/stock-items') && request.method !== 'get') || request.url.endsWith('/dispatch'))).toBe(false)
-})
+  expect(
+    requests.some(
+      (request) =>
+        (request.url.includes('/stock-items') && request.method !== 'get') ||
+        request.url.endsWith('/dispatch'),
+    ),
+  ).toBe(false)
+}, 15_000)
 
 
 it('aligns transfer quantities under shared headers and expands only the requested reason', async () => {

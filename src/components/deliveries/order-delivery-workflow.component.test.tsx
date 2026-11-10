@@ -15,7 +15,7 @@ import type { SalesOrderRecord } from '@/features/crm/sales-orders.types'
 import type { PurchaseOrderRecord } from '@/features/logistics/purchase-orders.types'
 import type { IncomingDeliveryRecord } from '@/features/logistics/incoming-deliveries.types'
 import type { OutgoingDeliveryRecord } from '@/features/logistics/outgoing-deliveries.types'
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { toast } from 'sonner'
 import { exportPurchaseReceiptPdf } from '@/lib/purchase-receipt'
 
@@ -484,11 +484,13 @@ describe.each(['Sales', 'Purchase'])('%s composer confirmation', (kind) => {
     expect(toast.success).toHaveBeenCalledTimes(1)
     expect(navigate).not.toHaveBeenCalled()
     const deliveries = screen.getByRole('button', {
-      name: salesOrder ? 'Outgoing Deliveries' : 'Incoming Deliveries',
+      name: salesOrder ? 'Plan Delivery' : 'Schedule Arrival',
     })
     expect(deliveries.className).toContain('bg-primary')
     await user.click(deliveries)
-    expect(navigate.mock.calls).toEqual([salesOrder ? ['outgoing', savedId] : [savedId]])
+    expect(navigate.mock.calls).toEqual(
+      salesOrder ? [['outgoing', savedId, true]] : [[savedId, true]],
+    )
     expect(mutations()).toHaveLength(2)
     expect(exportPurchaseReceiptPdf).not.toHaveBeenCalled()
   })
@@ -971,7 +973,8 @@ describe('order to delivery workflow', () => {
     sales[0].status = 'CONFIRMED'
     outgoing = []
     const user = userEvent.setup()
-    mount(<OrdersView />)
+    const navigate = vi.fn()
+    mount(<OrdersView onNavigateToDeliveries={navigate} />)
 
     await user.click(await screen.findByRole('button', { name: 'More actions for SO-TEST' }))
     await user.click(screen.getByRole('menuitem', { name: 'View Order' }))
@@ -983,9 +986,11 @@ describe('order to delivery workflow', () => {
     expect(screen.queryByText('What should you do next?')).toBeNull()
     expect(screen.getByRole('button', { name: 'Cancel Order' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Arrange Delivery' })).toBeTruthy()
+    await user.click(screen.getByRole('button', { name: 'Arrange Delivery' }))
+    expect(navigate).toHaveBeenCalledWith('outgoing', 1, true)
   })
 
-  it('returns from sales details after confirmation and navigates to outgoing on request', async () => {
+  it('plans directly from the sales-order list after confirmation', async () => {
     outgoing = []
     const user = userEvent.setup()
     const navigate = vi.fn()
@@ -995,12 +1000,25 @@ describe('order to delivery workflow', () => {
     await user.click(screen.getByRole('button', { name: 'Confirm Order' }))
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
     expect(navigate).not.toHaveBeenCalled()
-    await user.click(await screen.findByRole('button', { name: 'Outgoing Deliveries' }))
-    expect(navigate).toHaveBeenCalledWith('outgoing', 1)
+    await user.click(await screen.findByRole('button', { name: 'Plan Delivery' }))
+    expect(navigate).toHaveBeenCalledWith('outgoing', 1, true)
     expect(requests.filter((request) => request.method === 'post')).toHaveLength(0)
   })
 
-  it('retains purchase confirmation errors, then returns to the list with incoming navigation', async () => {
+  it('keeps View Deliveries separate for sales orders with linked deliveries', async () => {
+    sales[0].status = 'CONFIRMED'
+    outgoing = [outgoingFixture(6, 'READY')]
+    const user = userEvent.setup()
+    const navigate = vi.fn()
+    mount(<OrdersView onNavigateToDeliveries={navigate} />)
+
+    await user.click(await screen.findByRole('button', { name: 'More actions for SO-TEST' }))
+    await user.click(screen.getByRole('menuitem', { name: 'View Deliveries' }))
+
+    expect(navigate).toHaveBeenCalledWith('outgoing', 1)
+  })
+
+  it('retains purchase confirmation errors, then opens the filtered deliveries list on request', async () => {
     const user = userEvent.setup()
     const navigate = vi.fn()
     mount(<PurchasesView onNavigateToDeliveries={navigate} />)
@@ -1017,37 +1035,81 @@ describe('order to delivery workflow', () => {
     await user.click(screen.getByRole('button', { name: 'Confirm Purchase Order' }))
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
     expect(navigate).not.toHaveBeenCalled()
-    await user.click(await screen.findByRole('button', { name: 'Incoming Deliveries' }))
+    await user.click(await screen.findByRole('button', { name: 'More actions for PO-TEST' }))
+    await user.click(screen.getByRole('menuitem', { name: 'View Deliveries' }))
     expect(navigate).toHaveBeenCalledWith(2)
     expect(requests.filter((request) => request.method === 'post')).toHaveLength(0)
   })
 
   it.each(['CONFIRMED', 'PARTIALLY_RECEIVED'] as const)(
-    'uses the same green incoming action for %s purchases',
+    'schedules arrivals directly and preserves delivery review for %s purchases',
     async (status) => {
       purchases[0].status = status
       const user = userEvent.setup()
       const navigate = vi.fn()
       mount(<PurchasesView onNavigateToDeliveries={navigate} />)
-      const incomingButton = await screen.findByRole('button', { name: 'Incoming Deliveries' })
-      expect(incomingButton.className).toContain('bg-primary')
-      expect(incomingButton.className).toContain('h-8')
-      expect(incomingButton.querySelector('svg')).toBeNull()
-      expect(screen.queryByRole('button', { name: 'View Incoming' })).toBeNull()
-      await user.click(incomingButton)
-      expect(navigate).toHaveBeenCalledWith(2)
+      const scheduleButton = await screen.findByRole('button', { name: 'Schedule Arrival' })
+      expect(scheduleButton.className).toContain('bg-primary')
+      expect(scheduleButton.className).toContain('h-8')
+      expect(scheduleButton.querySelector('svg')).toBeNull()
+      await user.click(scheduleButton)
+      expect(navigate).toHaveBeenCalledWith(2, true)
       expect(mutations()).toHaveLength(0)
       await user.click(screen.getByRole('button', { name: 'More actions for PO-TEST' }))
       expect(screen.queryByRole('menuitem', { name: 'Cancel Order' }) !== null).toBe(
         status === 'CONFIRMED',
       )
+      await user.click(screen.getByRole('menuitem', { name: 'View Deliveries' }))
+      expect(navigate).toHaveBeenLastCalledWith(2)
+      await user.click(screen.getByRole('button', { name: 'More actions for PO-TEST' }))
       await user.click(screen.getByRole('menuitem', { name: 'View Order' }))
-      expect(
-        within(screen.getByRole('dialog')).getByRole('button', { name: 'Incoming Deliveries' })
-          .className,
-      ).toContain('bg-primary')
+      const detail = within(screen.getByRole('dialog'))
+      expect(detail.getByRole('button', { name: 'Schedule Arrival' }).className).toContain(
+        'bg-primary',
+      )
+      await user.click(detail.getByRole('button', { name: 'Schedule Arrival' }))
+      expect(navigate).toHaveBeenLastCalledWith(2, true)
+      await user.click(detail.getByRole('button', { name: 'View Incoming Deliveries' }))
+      expect(navigate).toHaveBeenLastCalledWith(2)
     },
   )
+
+  it('consumes an arrangement request once and does not reopen planning after cancellation', async () => {
+    purchases[0].status = 'CONFIRMED'
+    const user = userEvent.setup()
+    const handled = vi.fn()
+
+    function ArrangementHandoff() {
+      const [arrange, setArrange] = useState(true)
+      const [, setRefresh] = useState(0)
+      return (
+        <>
+          <button type="button" onClick={() => setRefresh((refresh) => refresh + 1)}>
+            Refresh route
+          </button>
+          <DeliveriesHub
+            initialTab="incoming"
+            purchaseOrderId={2}
+            arrangeOrder={arrange}
+            onArrangeHandled={() => {
+              handled()
+              setArrange(false)
+            }}
+          />
+        </>
+      )
+    }
+
+    mount(<ArrangementHandoff />)
+    await screen.findByRole('region', { name: 'Purchase order receiving summary' })
+    expect(handled).toHaveBeenCalledOnce()
+    expect(screen.getByRole('dialog')).toBeTruthy()
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    await user.click(screen.getByRole('button', { name: 'Refresh route' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(handled).toHaveBeenCalledOnce()
+  })
 
   it('saves decimal outgoing quantities and retries the saved draft schedule without duplicate creation', async () => {
     sales[0].status = 'CONFIRMED'
@@ -1095,8 +1157,10 @@ describe('order to delivery workflow', () => {
     mount(<DeliveriesHub initialTab="incoming" purchaseOrderId={2} arrangeOrder />)
     const summary = await screen.findByRole('region', { name: 'Purchase order receiving summary' })
     await waitFor(() => expect(within(summary).getByText('0.05')).toBeTruthy())
-    expect(within(summary).queryByRole('textbox')).toBeNull()
-    await user.click(screen.getByRole('button', { name: /Destination Warehouse/ }))
+    expect(
+      within(summary).queryByRole('textbox', { name: /Quantity to receive/ }),
+    ).toBeNull()
+    await user.click(screen.getByRole('button', { name: /Receiving Warehouse/ }))
     await user.click(screen.getByRole('menuitem', { name: 'Test Warehouse' }))
     await user.type(screen.getByLabelText('Supplier Reference (optional)'), ' WAYBILL-12 ')
     await user.type(screen.getByLabelText('Notes (optional)'), ' Dock 2 ')
@@ -1114,6 +1178,25 @@ describe('order to delivery workflow', () => {
     ).toEqual({ expectedRevision: 1 })
     expect(await screen.findByText('IN-91')).toBeTruthy()
     expect(requests.some((request) => request.url.endsWith('/complete'))).toBe(false)
+  })
+
+  it('opens outgoing planning directly with the selected Sales Order context', async () => {
+    sales[0].status = 'CONFIRMED'
+    outgoing = []
+    const user = userEvent.setup()
+    mount(<DeliveriesHub initialTab="outgoing" salesOrderId={1} arrangeOrder />)
+
+    const orderLookup = await screen.findByRole('button', { name: 'Sales Order to Fulfill' })
+    await waitFor(() => expect(orderLookup.textContent).toContain('SO-TEST / Customer #1'))
+    await user.click(screen.getByRole('button', { name: /Stock Source \/ Warehouse/ }))
+    await user.click(screen.getByRole('menuitem', { name: 'Test Warehouse' }))
+    await waitFor(() =>
+      expect(
+        requests.some((request) => request.url.includes('/outgoing-deliveries/planning-options')),
+      ).toBe(true),
+    )
+    expect(screen.getByRole('dialog', { name: 'Plan Outgoing Delivery' })).toBeTruthy()
+    expect(requests.filter((request) => request.method === 'post')).toHaveLength(0)
   })
 
   it('hides fully received purchases while retaining scheduled and cancelled shipment balances', async () => {
@@ -1170,7 +1253,7 @@ describe('order to delivery workflow', () => {
       ),
     ).toHaveLength(2)
     expect(screen.queryByRole('textbox', { name: /Quantity to receive/ })).toBeNull()
-    await user.click(screen.getByRole('button', { name: /Destination Warehouse/ }))
+    await user.click(screen.getByRole('button', { name: /Receiving Warehouse/ }))
     await user.click(screen.getByRole('menuitem', { name: 'Test Warehouse' }))
     await user.click(screen.getByRole('button', { name: 'Schedule Arrival' }))
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
@@ -1370,7 +1453,7 @@ it('preserves a created incoming draft when scheduling fails and prevents duplic
   failSchedule = true
   const user = userEvent.setup()
   mount(<DeliveriesHub initialTab="incoming" purchaseOrderId={2} arrangeOrder />)
-  await user.click(await screen.findByRole('button', { name: /Destination Warehouse/ }))
+  await user.click(await screen.findByRole('button', { name: /Receiving Warehouse/ }))
   await user.click(screen.getByRole('menuitem', { name: 'Test Warehouse' }))
   await user.click(screen.getByRole('button', { name: 'Schedule Arrival' }))
   const failure = await screen.findByText(/IN-91 was created, but scheduling was not confirmed/)
@@ -1440,7 +1523,7 @@ it.each(['create', 'schedule'])('keeps an uncertain incoming %s response safe wi
   }
   mount(<DeliveriesHub initialTab="incoming" purchaseOrderId={2} arrangeOrder />)
   const user = userEvent.setup()
-  await user.click(await screen.findByRole('button', { name: 'Destination Warehouse' }))
+  await user.click(await screen.findByRole('button', { name: 'Receiving Warehouse' }))
   await user.click(await screen.findByRole('menuitem', { name: 'Test Warehouse' }))
   const schedule = screen.getByRole('button', { name: 'Schedule Arrival' })
   await waitFor(() => expect(schedule.hasAttribute('disabled')).toBe(false))

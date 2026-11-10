@@ -84,6 +84,7 @@ export function DeliveriesRoute({ view }: { view: DeliveryView }) {
       purchaseOrderId={context.deliveryPurchaseOrderId}
       salesOrderId={context.deliverySalesOrderId}
       arrangeOrder={context.arrangeDelivery}
+      onArrangeHandled={context.onDeliveryArrangementHandled}
     />
   )
 }

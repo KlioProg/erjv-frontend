@@ -37,7 +37,7 @@ type Props = {
   onConfirm?: () => Promise<unknown> | void
   onExportReceipt?: () => void
   confirming?: boolean
-  onNavigateToDeliveries?: (purchaseOrderId?: number) => void
+  onNavigateToDeliveries?: (purchaseOrderId?: number, arrange?: boolean) => void
 }
 
 const currency = (value: string | number) =>
@@ -211,6 +211,11 @@ export function PurchaseOrderDetailModal({
           isLoading={receivingLoading}
           unavailable={receivingUnavailable}
           onRetry={onRetryReceiving}
+          onNavigateToDeliveries={
+            onNavigateToDeliveries
+              ? (purchaseOrderId) => onNavigateToDeliveries(purchaseOrderId)
+              : undefined
+          }
         />
         {onExportReceipt && order.status !== 'DRAFT' && order.status !== 'CANCELLED' && (
           <Button size="sm" variant="outline" onClick={onExportReceipt}>
@@ -218,8 +223,8 @@ export function PurchaseOrderDetailModal({
           </Button>
         )}
         {onNavigateToDeliveries && ['CONFIRMED', 'PARTIALLY_RECEIVED'].includes(order.status) && (
-          <Button size="sm" onClick={() => onNavigateToDeliveries(order.id)}>
-            Incoming Deliveries
+          <Button size="sm" onClick={() => onNavigateToDeliveries(order.id, true)}>
+            Schedule Arrival
           </Button>
         )}
       </DialogContent>

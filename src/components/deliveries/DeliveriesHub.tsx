@@ -22,7 +22,7 @@ import {
   type DeliveryView,
   type DeliveryRow,
 } from '@/features/logistics/delivery-workflow'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate, useSearchParams } from 'react-router'
 import { ArrowDownToLine, Plus } from 'lucide-react'
@@ -85,6 +85,7 @@ export interface DeliveriesHubProps {
   purchaseOrderId?: number
   salesOrderId?: number
   arrangeOrder?: boolean
+  onArrangeHandled?: () => void
 }
 function DeliveryFilter({
   label,
@@ -124,6 +125,7 @@ export function DeliveriesHub({
   purchaseOrderId,
   salesOrderId,
   arrangeOrder,
+  onArrangeHandled,
 }: DeliveriesHubProps = {}) {
   const { isAdmin, isManager } = useAuth()
   const canManage = isAdmin || isManager
@@ -145,6 +147,9 @@ export function DeliveriesHub({
   const [createType, setCreateType] = useState<'Incoming' | 'Outgoing' | null>(
     arrangeOrder ? (view === 'incoming' ? 'Incoming' : 'Outgoing') : null,
   )
+  useEffect(() => {
+    if (arrangeOrder) onArrangeHandled?.()
+  }, [arrangeOrder, onArrangeHandled])
   const [outgoingDraftId, setOutgoingDraftId] = useState<number | undefined>()
   const [lastSavedOutgoing, setLastSavedOutgoing] = useState<OutgoingDeliveryRecord | null>(null)
   const [incomingScheduleFailure, setIncomingScheduleFailure] = useState('')
@@ -883,12 +888,38 @@ export function DeliveriesHub({
         deliveryId={viewOutgoingId}
         open={viewOutgoingId !== null}
         onClose={() => setViewOutgoingId(null)}
+        canManage={canManage}
+        onNextAction={(id, action) => {
+          setViewOutgoingId(null)
+          const row = rows.find(
+            (candidate) =>
+              candidate.type === 'Outgoing' && candidate.record.id === id,
+          )
+          if (row?.type === 'Outgoing') handleAction(row, action)
+        }}
+        onViewOrder={(id) => {
+          setViewOutgoingId(null)
+          setViewOrder({ type: 'Outgoing', id })
+        }}
+        onViewTrip={(id) => {
+          setViewOutgoingId(null)
+          navigate(`/deliveries/runs?run=${id}`)
+        }}
       />
       <IncomingDeliveryDetailModal
         row={viewRow?.type === 'Incoming' ? viewRow : undefined}
         purchaseOrders={purchaseOrders}
         products={products}
         onClose={() => setViewIncomingId(null)}
+        canManage={canManage}
+        onAction={(row, action) => {
+          setViewIncomingId(null)
+          handleAction(row, action)
+        }}
+        onViewOrder={(row) => {
+          setViewIncomingId(null)
+          setViewOrder({ type: 'Incoming', id: row.orderId })
+        }}
       />
       {purchaseOrderToView && (
         <PurchaseOrderDetailModal

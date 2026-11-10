@@ -498,10 +498,10 @@ export function PurchasesView({
               type="button"
               size="sm"
               className="pointer-coarse:min-h-11"
-              onClick={() => onNavigateToDeliveries(po.id)}
-              title="Open Incoming Deliveries for this purchase order"
+              onClick={() => onNavigateToDeliveries(po.id, true)}
+              title="Schedule an arrival for this purchase order"
             >
-              Incoming Deliveries
+              Schedule Arrival
             </Button>
           )}
           <DropdownMenu>
@@ -523,6 +523,12 @@ export function PurchasesView({
                   <Eye aria-hidden="true" className="mr-2 size-3.5" />
                   View Order
                 </DropdownMenuItem>
+                {['CONFIRMED', 'PARTIALLY_RECEIVED'].includes(po.status) &&
+                  onNavigateToDeliveries && (
+                    <DropdownMenuItem onSelect={() => onNavigateToDeliveries(po.id)}>
+                      View Deliveries
+                    </DropdownMenuItem>
+                  )}
                 {canManage && po.status === 'DRAFT' && (
                   <DropdownMenuItem
                     onSelect={() => {

@@ -1,12 +1,8 @@
 import { formatProductUnit } from '@/lib/product-unit'
-import type { ReactNode } from 'react'
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
-  DialogHeader,
-  DialogTitle,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
@@ -25,14 +21,34 @@ import { getErrorMessage } from '@/lib/api-client'
 import { DeliveryStatusBadge } from './DeliveryStatusBadge'
 import { DeliveryTimeline } from './DeliveryTimeline'
 import { DeliveryUtils } from '@/features/logistics/delivery-utils'
+import { getDeliveryActions, type DeliveryAction } from '@/features/logistics/delivery-workflow'
+import { MovementDetailFields, MovementDetailHeader } from './MovementDetailLayout'
 
-interface DeliveryDetailModalProps {
+export interface DeliveryDetailModalProps {
   deliveryId: number | null
   open: boolean
   onClose: () => void
+  canManage?: boolean
+  onNextAction?: (deliveryId: number, action: DeliveryAction) => void
+  onViewOrder?: (salesOrderId: number) => void
+  onViewTrip?: (runId: number) => void
 }
 
-export function DeliveryDetailModal({ deliveryId, open, onClose }: DeliveryDetailModalProps) {
+const nextActionLabels: Partial<Record<DeliveryAction, string>> = {
+  ready: 'Edit Delivery',
+  run: 'Add to Trip',
+  reconcile: 'Record Results',
+}
+
+export function DeliveryDetailModal({
+  deliveryId,
+  open,
+  onClose,
+  canManage = false,
+  onNextAction,
+  onViewOrder,
+  onViewTrip,
+}: DeliveryDetailModalProps) {
   const deliveryQuery = useOutgoingDeliveryById(deliveryId || undefined)
   const delivery = deliveryQuery.data
   const runQuery = useDeliveryRunById(delivery?.runId ?? undefined)
@@ -96,12 +112,7 @@ export function DeliveryDetailModal({ deliveryId, open, onClose }: DeliveryDetai
             </p>
             {product?.variety && <p className="text-xs text-muted-foreground">{product.variety}</p>}
             <p className="text-xs text-muted-foreground">
-              Source:{' '}
-              {row.stockItem?.warehouseId === undefined
-                ? 'Warehouse unavailable'
-                : warehouses.find(
-                    (candidate) => candidate.id === row.stockItem?.warehouseId,
-                  )?.name ?? `Warehouse #${row.stockItem.warehouseId}`}
+              {formatProductUnit(product?.unit, 'Unit unavailable')}
             </p>
           </div>
         )
@@ -113,12 +124,9 @@ export function DeliveryDetailModal({ deliveryId, open, onClose }: DeliveryDetai
       width: delivery?.status === 'RECONCILED' ? undefined : '30%',
       align: 'right',
       cell: ({ row }) => (
-        <div className="[overflow-wrap:anywhere]">
-          <p className="text-sm font-normal tabular-nums">{row.loadedQuantity ?? row.quantity}</p>
-          <p className="text-xs text-muted-foreground">
-            {formatProductUnit(cargoProduct(row).product?.unit, 'Unit unavailable')}
-          </p>
-        </div>
+        <p className="text-sm font-normal tabular-nums [overflow-wrap:anywhere]">
+          {row.loadedQuantity ?? row.quantity}
+        </p>
       ),
     },
     ...(delivery?.status === 'RECONCILED' ? ([
@@ -130,32 +138,144 @@ export function DeliveryDetailModal({ deliveryId, open, onClose }: DeliveryDetai
       id: field, header, align: 'right', cell: ({ row }) => row[field] ?? 'Not recorded',
     })) : []),
   ]
+  const nextAction = delivery && onNextAction
+    ? getDeliveryActions({
+        type: 'Outgoing',
+        status: delivery.status,
+        runId: delivery.runId,
+        record: delivery,
+      }).find(
+        (action) =>
+          action in nextActionLabels &&
+          (canManage || (action === 'run' && delivery.runId != null)),
+      )
+    : undefined
+  const nextActionLabel = nextAction
+    ? nextAction === 'run' && delivery?.runId != null
+      ? 'View Trip'
+      : nextActionLabels[nextAction]
+    : undefined
+  const tripReference = delivery?.runId
+    ? run?.runNumber ?? `Trip #${delivery.runId}`
+    : null
+  const detailFields = delivery
+    ? [
+        {
+          label: 'Source warehouse',
+          value: sourceWarehouseNames.join(', ') || 'Source warehouse unavailable',
+        },
+        {
+          label: 'Destination',
+          value: (
+            <div className="flex flex-col gap-0.5">
+              <span>
+                {client?.name ||
+                  (order
+                    ? `Customer #${order.clientId}`
+                    : ordersQuery.isLoading
+                      ? 'Loading customer details...'
+                      : 'Customer details unavailable')}
+              </span>
+              <span className="text-xs font-normal text-muted-foreground">
+                {order?.deliveryAddress || 'Delivery address unavailable'}
+              </span>
+            </div>
+          ),
+        },
+        {
+          label: 'Sales order',
+          value: onViewOrder ? (
+            <Button
+              variant="link"
+              size="sm"
+              className="h-auto p-0 font-medium"
+              aria-label={`View sales order ${order?.orderNumber ?? `#${delivery.salesOrderId}`}`}
+              onClick={() => onViewOrder(delivery.salesOrderId)}
+            >
+              {order?.orderNumber ?? `SO #${delivery.salesOrderId}`}
+            </Button>
+          ) : order?.orderNumber ?? `SO #${delivery.salesOrderId}`,
+        },
+        {
+          label: 'Delivery trip',
+          value: tripReference
+            ? onViewTrip && nextAction !== 'run' ? (
+                <Button
+                  variant="link"
+                  size="sm"
+                  className="h-auto p-0 font-medium"
+                  aria-label={`View delivery trip ${tripReference}`}
+                  onClick={() => {
+                    if (delivery.runId !== null) onViewTrip(delivery.runId)
+                  }}
+                >
+                  {tripReference}
+                </Button>
+              ) : tripReference
+            : 'Not assigned',
+        },
+        ...(delivery.runId
+          ? [
+              {
+                label: 'Scheduled departure',
+                value: run
+                  ? DeliveryUtils.formatDateTime(run.scheduledDepartureAt)
+                  : runQuery.isFetching
+                    ? 'Loading trip details...'
+                    : 'Trip details unavailable',
+              },
+              {
+                label: 'Driver / logistics officer',
+                value: driver
+                  ? `${driver.firstName} ${driver.lastName}`
+                  : run?.driverEmployeeId
+                    ? `Employee #${run.driverEmployeeId}`
+                    : run
+                      ? 'Unassigned'
+                      : 'Trip details unavailable',
+                secondary: driver ? driver.phone || driver.email || 'No contact listed' : undefined,
+              },
+              {
+                label: 'Vehicle',
+                value: vehicle
+                  ? `${vehicle.plateNumber} (${vehicle.vehicleType})`
+                  : run?.deliveryVehicleId
+                    ? `Vehicle #${run.deliveryVehicleId}`
+                    : run
+                      ? 'Unassigned'
+                      : 'Trip details unavailable',
+                secondary: vehicle
+                  ? [
+                      vehicle.model,
+                      `Capacity: ${vehicle.capacityKg ? `${vehicle.capacityKg} kg` : 'Not recorded'}`,
+                    ]
+                      .filter(Boolean)
+                      .join(' / ')
+                  : undefined,
+              },
+            ]
+          : []),
+      ]
+    : []
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
       <DialogContent className="flex max-h-[min(880px,90dvh)] w-[calc(100vw-2rem)] max-w-3xl flex-col gap-0 overflow-hidden p-0 sm:max-w-3xl [&>button:last-child]:grid [&>button:last-child]:size-8 [&>button:last-child]:place-items-center pointer-coarse:[&>button:last-child]:size-11">
-        <DialogHeader className="shrink-0 px-5 py-5 pr-14 text-left sm:pl-6">
-          <div className="flex min-w-0 items-start justify-between gap-3">
-            <div className="min-w-0">
-              <DialogTitle className="text-xl font-semibold leading-6 [overflow-wrap:anywhere]">
-                {delivery?.deliveryNumber || 'Delivery Details'}
-              </DialogTitle>
-              <DialogDescription className="mt-1 text-xs">
-                {delivery
-                  ? `Sales Order ${order?.orderNumber || `#${delivery.salesOrderId}`}`
-                  : 'Outgoing delivery record'}
-              </DialogDescription>
-            </div>
-            {delivery && (
+        <MovementDetailHeader
+          title={delivery?.deliveryNumber || 'Delivery Details'}
+          description="Outgoing delivery record"
+          status={
+            delivery && (
               <DeliveryStatusBadge
                 status={delivery.status}
                 runId={delivery.runId}
                 className="mt-0.5 shrink-0"
                 showDot={false}
               />
-            )}
-          </div>
-        </DialogHeader>
+            )
+          }
+          className="px-5 py-5 pr-14 sm:pl-6"
+        />
 
         <div className="min-h-0 min-w-0 flex-1 overflow-y-auto px-5 pb-5 sm:px-6">
           {deliveryQuery.isLoading ? (
@@ -190,23 +310,6 @@ export function DeliveryDetailModal({ deliveryId, open, onClose }: DeliveryDetai
             </div>
           ) : (
             <div className="flex flex-col gap-5">
-              <section
-                aria-label="Customer and order"
-                className="flex min-w-0 flex-col gap-1 [overflow-wrap:anywhere]"
-              >
-                <h2 className="text-base font-semibold">
-                  {client?.name ||
-                    (order
-                      ? `Customer #${order.clientId}`
-                      : ordersQuery.isLoading
-                        ? 'Loading customer details...'
-                        : 'Customer details unavailable')}
-                </h2>
-                <p className="text-xs text-muted-foreground">
-                  {order?.deliveryAddress || 'Delivery address unavailable'}
-                </p>
-              </section>
-
               {referencesFailed && (
                 <div
                   role="alert"
@@ -228,58 +331,8 @@ export function DeliveryDetailModal({ deliveryId, open, onClose }: DeliveryDetai
                 </div>
               )}
 
-              <section aria-label="Delivery progress" className="border-t border-border pt-4">
-                <p className="mb-3 text-xs text-muted-foreground">Times shown in Manila time (UTC+08:00).</p>
-                <DeliveryTimeline delivery={delivery} run={run} />
-              </section>
-
-              <section
-                aria-labelledby="delivery-details-heading"
-                className="border-t border-border pt-4"
-              >
-                <h2 id="delivery-details-heading" className="mb-3 text-base font-semibold">
-                  Delivery details
-                </h2>
-                <dl className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
-                  <DeliveryDetailField
-                    label="Source warehouses"
-                    value={sourceWarehouseNames.join(', ') || 'No source records'}
-                  />
-                  <DeliveryDetailField
-                    label="Scheduled departure"
-                    value={run ? DeliveryUtils.formatDateTime(run.scheduledDepartureAt) : delivery.runId ? (runQuery.isFetching ? 'Loading trip...' : 'Trip details unavailable') : 'No trip assigned'}
-                  />
-                  <DeliveryDetailField
-                    label="Driver / Logistics Officer"
-                    value={
-                      driver
-                        ? `${driver.firstName} ${driver.lastName}`
-                        : run?.driverEmployeeId
-                          ? `Employee #${run?.driverEmployeeId}`
-                          : delivery.runId && !run ? 'Trip details unavailable' : 'Unassigned'
-                    }
-                    secondary={
-                      driver ? driver.phone || driver.email || 'No contact listed' : undefined
-                    }
-                  />
-                  <DeliveryDetailField
-                    label="Vehicle"
-                    value={
-                      vehicle
-                        ? `${vehicle.plateNumber} (${vehicle.vehicleType})`
-                        : run?.deliveryVehicleId
-                          ? `Vehicle #${run?.deliveryVehicleId}`
-                          : delivery.runId && !run ? 'Trip details unavailable' : 'Unassigned'
-                    }
-                    secondary={
-                      vehicle
-                        ? [vehicle.model, `Capacity: ${vehicle.capacityKg ? `${vehicle.capacityKg} kg` : 'Not recorded'}`]
-                            .filter(Boolean)
-                            .join(' / ')
-                        : undefined
-                    }
-                  />
-                </dl>
+              <section aria-label="Movement details" className="border-t border-border pt-4">
+                <MovementDetailFields fields={detailFields} />
               </section>
 
               <section
@@ -303,6 +356,11 @@ export function DeliveryDetailModal({ deliveryId, open, onClose }: DeliveryDetai
                 )}
               </section>
 
+              <section aria-label="Delivery progress" className="border-t border-border pt-4">
+                <p className="mb-3 text-xs text-muted-foreground">Times shown in Manila time (UTC+08:00).</p>
+                <DeliveryTimeline delivery={delivery} run={run} />
+              </section>
+
               {delivery.notes && (
                 <section aria-labelledby="delivery-notes-heading">
                   <h2
@@ -320,33 +378,21 @@ export function DeliveryDetailModal({ deliveryId, open, onClose }: DeliveryDetai
           )}
         </div>
         <DialogFooter className="shrink-0 flex-row justify-end border-t border-border px-5 py-3 sm:px-6">
+          {nextAction && nextActionLabel && delivery && (
+            <Button
+              size="sm"
+              className="pointer-coarse:min-h-11"
+              aria-label={`${nextActionLabel} ${delivery.deliveryNumber}`}
+              onClick={() => onNextAction?.(delivery.id, nextAction)}
+            >
+              {nextActionLabel}
+            </Button>
+          )}
           <Button variant="outline" size="sm" className="pointer-coarse:min-h-11" onClick={onClose}>
             Close
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  )
-}
-
-function DeliveryDetailField({
-  label,
-  value,
-  secondary,
-}: {
-  label: string
-  value: ReactNode
-  secondary?: string
-}) {
-  return (
-    <div className="min-w-0 [overflow-wrap:anywhere]">
-      <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className="mt-1 text-sm font-medium">
-        {value}
-        {secondary && (
-          <p className="mt-0.5 text-xs font-normal text-muted-foreground">{secondary}</p>
-        )}
-      </dd>
-    </div>
   )
 }

@@ -296,9 +296,14 @@ export function OrdersView({
       .join(', ')
     const itemLabel = items.length === 1 ? itemSummary : `${items.length} items`
     const orderTotal = items.reduce((sum, item) => sum + Number(item.totalAmount), 0)
-    const activeDelivery = outgoingDeliveries.find(
+    const tiedDeliveries = outgoingDeliveries.filter(
       (delivery) => delivery.salesOrderId === order.id && delivery.status !== 'CANCELLED',
     )
+    const activeDelivery =
+      tiedDeliveries.find((delivery) => delivery.status === 'DISPATCHED') ||
+      tiedDeliveries.find((delivery) => ['DRAFT', 'READY'].includes(delivery.status)) ||
+      tiedDeliveries[0]
+    const hasDeliveries = tiedDeliveries.length > 0
     const deliveryDisplay = getSalesOrderDeliveryDisplay(order, activeDelivery, outgoingDeliveries)
 
     return {
@@ -308,6 +313,7 @@ export function OrdersView({
       itemLabel,
       orderTotal,
       activeDelivery,
+      hasDeliveries,
       deliveryDisplay,
     }
   })
@@ -334,7 +340,7 @@ export function OrdersView({
         break
       case 'prepare-delivery':
       case 'continue-delivery':
-        if (onNavigateToDeliveries) onNavigateToDeliveries('outgoing', order.id)
+        if (onNavigateToDeliveries) onNavigateToDeliveries('outgoing', order.id, true)
         else setDispatchOrder(order)
         break
       case 'view-delivery':
@@ -437,14 +443,14 @@ export function OrdersView({
       width: 185,
       align: 'right',
       className: 'whitespace-nowrap',
-      cell: ({ row: { order, activeDelivery } }) => {
+      cell: ({ row: { order, activeDelivery, hasDeliveries } }) => {
         const primaryAction = canManage
           ? getSalesOrderPrimaryAction(order, activeDelivery)
           : 'view-order'
         const primaryLabel: Record<SalesOrderPrimaryAction, string> = {
           confirm: 'Confirm',
-          'prepare-delivery': 'Outgoing Deliveries',
-          'continue-delivery': 'Outgoing Deliveries',
+          'prepare-delivery': 'Plan Delivery',
+          'continue-delivery': 'Plan Delivery',
           'view-delivery': 'View Delivery',
           'confirm-arrival': 'Confirm Arrival',
           'view-order': 'View',
@@ -509,6 +515,13 @@ export function OrdersView({
                     {showViewDelivery && activeDelivery && (
                       <DropdownMenuItem onSelect={() => setDeliveryToView(activeDelivery.id)}>
                         View Delivery
+                      </DropdownMenuItem>
+                    )}
+                    {hasDeliveries && onNavigateToDeliveries && (
+                      <DropdownMenuItem
+                        onSelect={() => onNavigateToDeliveries('outgoing', order.id)}
+                      >
+                        View Deliveries
                       </DropdownMenuItem>
                     )}
                     {canCancelOrder && (

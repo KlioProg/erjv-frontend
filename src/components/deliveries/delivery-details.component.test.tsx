@@ -6,9 +6,15 @@ import { apiClient } from '@/lib/api-client'
 import type { OutgoingDeliveryRecord } from '@/features/logistics/outgoing-deliveries.types'
 import type { DeliveryRunRecord } from '@/features/logistics/delivery-runs.types'
 import type { SalesOrderRecord } from '@/features/crm/sales-orders.types'
+import type { IncomingDeliveryRecord } from '@/features/logistics/incoming-deliveries.types'
+import type { PurchaseOrderRecord } from '@/features/logistics/purchase-orders.types'
+import type { DeliveryRow } from '@/features/logistics/delivery-workflow'
+import type { InventoryItemResponse } from '@/features/products/products.types'
 import { DeliveryUtils } from '@/features/logistics/delivery-utils'
 import { DeliveryDetailModal } from './shared/DeliveryDetailModal'
 import { DeliveryTimeline } from './shared/DeliveryTimeline'
+import { IncomingDeliveryDetailModal } from './shared/IncomingDeliveryDetailModal'
+import type { DeliveryDetailModalProps } from './shared/DeliveryDetailModal'
 
 const stamps = { createdAt: '2026-10-01T00:00:00Z', updatedAt: '2026-10-01T00:00:00Z' }
 const deliveryFixture: OutgoingDeliveryRecord = {
@@ -84,6 +90,16 @@ const orderFixture: SalesOrderRecord = {
 }
 const customerName = 'Davao Fresh Produce Cooperative with a long customer name'
 const productName = 'Fresh Carabao Mangoes with a long descriptive product name'
+const productFixture: InventoryItemResponse = {
+  id: 2,
+  name: productName,
+  variety: 'Carabao',
+  unit: 'kg',
+  unitPrice: '20.00',
+  description: null,
+  isActive: false,
+  ...stamps,
+}
 let delivery: OutgoingDeliveryRecord
 let records: Record<string, unknown>
 let failedUrl: string | undefined
@@ -91,7 +107,15 @@ let deliveryGate: Promise<void> | undefined
 let requests: { url: string; method: string; params: Record<string, unknown> }[]
 const originalAdapter = apiClient.defaults.adapter
 
-function mount(onClose = vi.fn()) {
+function mount(
+  onClose = vi.fn(),
+  options: Partial<
+    Pick<
+      DeliveryDetailModalProps,
+      'canManage' | 'onNextAction' | 'onViewOrder' | 'onViewTrip'
+    >
+  > = {},
+) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: 0 }, mutations: { retry: false } },
   })
@@ -99,7 +123,7 @@ function mount(onClose = vi.fn()) {
     onClose,
     ...render(
       <QueryClientProvider client={queryClient}>
-        <DeliveryDetailModal deliveryId={10} open onClose={onClose} />
+        <DeliveryDetailModal deliveryId={10} open onClose={onClose} {...options} />
       </QueryClientProvider>,
     ),
   }
@@ -241,11 +265,11 @@ describe('delivery progress', () => {
 describe('outgoing delivery details', () => {
   it('preserves historical linked details and exact cargo in the canonical table', async () => {
     const user = userEvent.setup()
-    const { onClose } = mount()
+    const { onClose } = mount(vi.fn(), { onViewOrder: vi.fn() })
     await screen.findByText(customerName)
     await screen.findByText('Ana Cruz')
     const dialog = screen.getByRole('dialog', { name: 'OD-000010' })
-    expect(within(dialog).getByText('Sales Order SO-000011')).toBeTruthy()
+    expect(within(dialog).getByRole('button', { name: 'View sales order SO-000011' })).toBeTruthy()
     expect(within(dialog).getByText(orderFixture.deliveryAddress!)).toBeTruthy()
     expect(within(dialog).getByText('Archived Warehouse')).toBeTruthy()
     expect(within(dialog).getByText('Ana Cruz')).toBeTruthy()
@@ -282,8 +306,8 @@ describe('outgoing delivery details', () => {
     records['/clients'] = []
     mount()
     await screen.findByText('Customer #6')
-    expect(screen.getByText('No source records')).toBeTruthy()
-    expect(screen.getAllByText('Unassigned')).toHaveLength(2)
+    expect(screen.getByText('Source warehouse unavailable')).toBeTruthy()
+    expect(screen.getByText('Not assigned')).toBeTruthy()
     expect(screen.getByText('No cargo items recorded.')).toBeTruthy()
     expect(screen.queryByText('Delivery notes')).toBeNull()
   })
@@ -336,5 +360,246 @@ describe('outgoing delivery details', () => {
     await screen.findByRole('dialog', { name: 'OD-000010' })
     await user.keyboard('{Escape}')
     expect(onClose).toHaveBeenCalledOnce()
+  })
+
+  it('shows a permission-aware next action and keeps the trip relationship navigable', async () => {
+    delivery.status = 'DISPATCHED'
+    const user = userEvent.setup()
+    const onNextAction = vi.fn()
+    const onViewOrder = vi.fn()
+    const onViewTrip = vi.fn()
+    mount(vi.fn(), { canManage: true, onNextAction, onViewOrder, onViewTrip })
+    const dialog = await screen.findByRole('dialog', { name: 'OD-000010' })
+    expect(within(dialog).getAllByText('Dispatched').length).toBeGreaterThan(1)
+    expect(within(dialog).getByRole('button', { name: 'Record Results OD-000010' })).toBeTruthy()
+    await user.click(within(dialog).getByRole('button', { name: 'View sales order SO-000011' }))
+    expect(onViewOrder).toHaveBeenCalledWith(11)
+    await user.click(within(dialog).getByRole('button', { name: 'View delivery trip RUN-000012' }))
+    expect(onViewTrip).toHaveBeenCalledWith(12)
+    await user.click(within(dialog).getByRole('button', { name: 'Record Results OD-000010' }))
+    expect(onNextAction).toHaveBeenCalledWith(10, 'reconcile')
+  })
+
+  it('does not expose outgoing mutations without management permission but still permits viewing an assigned trip', async () => {
+    delivery.status = 'READY'
+    const onNextAction = vi.fn()
+    mount(vi.fn(), { canManage: false, onNextAction })
+    const dialog = await screen.findByRole('dialog', { name: 'OD-000010' })
+    expect(within(dialog).getByRole('button', { name: 'View Trip OD-000010' })).toBeTruthy()
+    expect(within(dialog).queryByRole('button', { name: 'Record Results OD-000010' })).toBeNull()
+  })
+
+  it('lets a manager add an unassigned ready delivery to a trip without changing its status', async () => {
+    delivery.status = 'READY'
+    delivery.runId = null
+    const user = userEvent.setup()
+    const onNextAction = vi.fn()
+    mount(vi.fn(), { canManage: true, onNextAction })
+    const dialog = await screen.findByRole('dialog', { name: 'OD-000010' })
+    expect(within(dialog).getAllByText('Ready').length).toBeGreaterThan(1)
+    await user.click(within(dialog).getByRole('button', { name: 'Add to Trip OD-000010' }))
+    expect(onNextAction).toHaveBeenCalledWith(10, 'run')
+    expect(delivery.status).toBe('READY')
+  })
+})
+
+const incomingDeliveryFixture: IncomingDeliveryRecord = {
+  id: 20,
+  revision: 1,
+  deliveryNumber: 'ID-000020',
+  purchaseOrderId: 21,
+  warehouseId: 3,
+  status: 'DRAFT',
+  outcome: null,
+  noReceiptReason: null,
+  confirmedByUserId: null,
+  scheduledAt: '2026-10-04T04:15:00Z',
+  completedAt: null,
+  cancelledAt: null,
+  supplierReference: 'SUP-REF-20',
+  notes: 'Keep chilled.',
+  ...stamps,
+  items: [{
+    id: 201,
+    incomingDeliveryId: 20,
+    purchaseOrderItemId: 210,
+    receivedQuantity: '1.25',
+    acceptedQuantity: '1.00',
+    damagedQuantity: '0.25',
+    ...stamps,
+  }],
+}
+
+const purchaseOrderFixture: PurchaseOrderRecord = {
+  id: 21,
+  revision: 1,
+  orderNumber: 'PO-000021',
+  status: 'CONFIRMED',
+  supplierId: 9,
+  orderedAt: stamps.createdAt,
+  expectedAt: null,
+  confirmedAt: stamps.createdAt,
+  completedAt: null,
+  cancelledAt: null,
+  externalReference: null,
+  notes: null,
+  ...stamps,
+  items: [{
+    id: 210,
+    purchaseOrderId: 21,
+    lineNumber: 1,
+    inventoryItemId: 2,
+    quantity: '2.00',
+    unitPrice: '20.00',
+    discountRate: '0.00',
+    discountAmount: '0.00',
+    taxRate: '0.00',
+    taxAmount: '0.00',
+    subtotalAmount: '40.00',
+    taxableAmount: '40.00',
+    totalAmount: '40.00',
+    notes: null,
+    ...stamps,
+  }],
+}
+
+function incomingRow(
+  record: IncomingDeliveryRecord,
+  purchaseOrderStatus: PurchaseOrderRecord['status'] = 'CONFIRMED',
+): Extract<DeliveryRow, { type: 'Incoming' }> {
+  return {
+    key: `incoming-${record.id}`,
+    reference: record.deliveryNumber,
+    type: 'Incoming',
+    record,
+    party: 'Supplier #9',
+    relatedOrder: purchaseOrderFixture.orderNumber,
+    orderId: record.purchaseOrderId,
+    purchaseOrderStatus,
+    schedulingIssue: null,
+    method: 'To Be Confirmed',
+    warehouse: 'Receiving Warehouse',
+    vehicle: '—',
+    driver: '—',
+    date: record.scheduledAt,
+    status: record.status,
+  }
+}
+
+describe('incoming delivery details', () => {
+  it('shows expected order quantities and continues only eligible scheduling', async () => {
+    const user = userEvent.setup()
+    const row = incomingRow(structuredClone(incomingDeliveryFixture))
+    const onAction = vi.fn()
+    const onViewOrder = vi.fn()
+    render(
+      <IncomingDeliveryDetailModal
+        row={row}
+        purchaseOrders={[purchaseOrderFixture]}
+        products={[productFixture]}
+        onClose={vi.fn()}
+        canManage
+        onAction={onAction}
+        onViewOrder={onViewOrder}
+      />,
+    )
+    const dialog = screen.getByRole('dialog', { name: 'ID-000020' })
+    expect(within(dialog).getByText('Draft')).toBeTruthy()
+    expect(within(dialog).getByText('Supplier #9')).toBeTruthy()
+    expect(within(dialog).getByText('Receiving Warehouse')).toBeTruthy()
+    const table = within(dialog).getByRole('table')
+    expect(within(table).getAllByRole('columnheader').map((cell) => cell.textContent)).toEqual([
+      'Product',
+      'Expected',
+    ])
+    expect(within(table).getByText('2.00')).toBeTruthy()
+    expect(within(table).getByText('kg')).toBeTruthy()
+    await user.click(within(dialog).getByRole('button', { name: 'View purchase order PO-000021' }))
+    expect(onViewOrder).toHaveBeenCalledWith(row)
+    await user.click(within(dialog).getByRole('button', { name: 'Continue Scheduling ID-000020' }))
+    expect(onAction).toHaveBeenCalledWith(row, 'schedule')
+  })
+
+  it('distinguishes received, accepted, and damaged quantities after confirmed receipt', () => {
+    const completed = {
+      ...structuredClone(incomingDeliveryFixture),
+      status: 'COMPLETED' as const,
+      outcome: 'RECEIVED_WITH_DAMAGE' as const,
+      completedAt: '2026-10-05T04:15:00Z',
+    }
+    render(
+      <IncomingDeliveryDetailModal
+        row={incomingRow(completed)}
+        purchaseOrders={[purchaseOrderFixture]}
+        products={[productFixture]}
+        onClose={vi.fn()}
+        canManage
+        onAction={vi.fn()}
+      />,
+    )
+    const dialog = screen.getByRole('dialog', { name: 'ID-000020' })
+    const table = within(dialog).getByRole('table')
+    expect(within(table).getAllByRole('columnheader').map((cell) => cell.textContent)).toEqual([
+      'Product',
+      'Expected',
+      'Received',
+      'Accepted',
+      'Damaged',
+    ])
+    for (const quantity of ['2.00', '1.25', '1.00', '0.25']) {
+      expect(within(table).getByText(quantity)).toBeTruthy()
+    }
+    expect(within(dialog).getByText(/Received with damage/)).toBeTruthy()
+    expect(within(dialog).queryByRole('button', { name: 'Receive Goods ID-000020' })).toBeNull()
+  })
+
+  it('does not imply a receipt or allow rescheduling for a no-receipt or fully received order', () => {
+    const noReceipt = {
+      ...structuredClone(incomingDeliveryFixture),
+      status: 'COMPLETED' as const,
+      outcome: 'NO_RECEIPT' as const,
+      noReceiptReason: 'Supplier could not deliver',
+      completedAt: '2026-10-05T04:15:00Z',
+      items: [],
+    }
+    const row = incomingRow(noReceipt, 'RECEIVED')
+    render(
+      <IncomingDeliveryDetailModal
+        row={row}
+        purchaseOrders={[purchaseOrderFixture]}
+        products={[]}
+        onClose={vi.fn()}
+        canManage
+        onAction={vi.fn()}
+      />,
+    )
+    const dialog = screen.getByRole('dialog', { name: 'ID-000020' })
+    const table = within(dialog).getByRole('table')
+    expect(within(table).getAllByRole('columnheader').map((cell) => cell.textContent)).toEqual([
+      'Product',
+      'Expected',
+    ])
+    expect(within(dialog).getByText('No goods were received; inventory was not updated.')).toBeTruthy()
+    expect(within(dialog).getByText('Reason: Supplier could not deliver')).toBeTruthy()
+    expect(within(dialog).queryByText('0.00')).toBeNull()
+    expect(within(dialog).queryByRole('button', { name: 'Continue Scheduling ID-000020' })).toBeNull()
+  })
+
+  it('keeps new scheduling unavailable for an ineligible Purchase Order', () => {
+    const draft = structuredClone(incomingDeliveryFixture)
+    const row = incomingRow(draft, 'RECEIVED')
+    render(
+      <IncomingDeliveryDetailModal
+        row={row}
+        purchaseOrders={[{ ...purchaseOrderFixture, status: 'RECEIVED' }]}
+        products={[productFixture]}
+        onClose={vi.fn()}
+        canManage
+        onAction={vi.fn()}
+      />,
+    )
+    const dialog = screen.getByRole('dialog', { name: 'ID-000020' })
+    expect(within(dialog).getByText('Purchase Order Already Received')).toBeTruthy()
+    expect(within(dialog).queryByRole('button', { name: 'Continue Scheduling ID-000020' })).toBeNull()
   })
 })

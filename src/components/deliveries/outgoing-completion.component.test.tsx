@@ -26,6 +26,17 @@ const input = (category = 'Delivered', product = 'Banana') =>
   screen.getByLabelText(
     `${category} for ${product} (${product === 'Banana' ? 1 : 2})`,
   ) as HTMLInputElement
+async function reasonInput(product = 'Banana') {
+  const reasonToggle = await screen.findByRole('button', { name: `Reason for ${product}` })
+  if (reasonToggle.getAttribute('aria-expanded') === 'false') {
+    reasonToggle.focus()
+    await userEvent.keyboard('{Enter}')
+  }
+  expect(reasonToggle.getAttribute('aria-expanded')).toBe('true')
+  return screen.getByLabelText(
+    `Reason for Difference for ${product} (${product === 'Banana' ? 1 : 2})`,
+  ) as HTMLInputElement
+}
 const button = () => screen.getByRole('button', { name: /Review Results|Save Results|Saving/ })
 function mount() {
   const onClose = vi.fn()
@@ -279,8 +290,10 @@ it('sends delivered, sellable, damaged and missing categories exactly with a tri
     ['Returned damaged', '0.50'],
     ['Missing', '0.50'],
     ['Reason for Difference', ' Torn bag and missing stock '],
-  ])
-    fireEvent.change(input(category), { target: { value } })
+  ]) {
+    const field = category === 'Reason for Difference' ? await reasonInput() : input(category)
+    fireEvent.change(field, { target: { value } })
+  }
   submit()
   await waitFor(() => expect(onClose).toHaveBeenCalledOnce())
   expect((writes[0].body.items as unknown[])[0]).toEqual({
@@ -324,7 +337,7 @@ it.each(['Returned damaged', 'Missing'])(
     fireEvent.change(input(), { target: { value: '1.25' } })
     fireEvent.change(input(category), { target: { value: '1' } })
     submit()
-    expect(input('Reason for Difference').required).toBe(true)
+    expect((await reasonInput()).required).toBe(true)
     expect(button().hasAttribute('disabled')).toBe(true)
     expect(input(category).value).toBe('1')
     expect(writes).toHaveLength(0)
@@ -438,14 +451,14 @@ it('retains unsent exceptions when switching to full delivery requires confirmat
   await fill()
   fireEvent.change(input(), { target: { value: '1.25' } })
   fireEvent.change(input('Returned damaged'), { target: { value: '1.00' } })
-  fireEvent.change(input('Reason for Difference'), { target: { value: 'Damaged packaging' } })
+  fireEvent.change(await reasonInput(), { target: { value: 'Damaged packaging' } })
   await choose()
   expect(screen.getByRole('button', { name: 'Keep exceptions' })).toBeTruthy()
   expect(writes).toHaveLength(0)
   fireEvent.click(screen.getByRole('button', { name: 'Confirm everything delivered' }))
   await choose(false)
   expect(input('Returned damaged').value).toBe('1.00')
-  expect(input('Reason for Difference').value).toBe('Damaged packaging')
+  expect((await reasonInput()).value).toBe('Damaged packaging')
 })
 it('requires an explicit new outcome after the loaded member revision changes', async () => {
   const { client } = mount()

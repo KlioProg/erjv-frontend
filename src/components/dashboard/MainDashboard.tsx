@@ -12,6 +12,7 @@ export type DashboardOutletContext = {
   deliveryPurchaseOrderId?: number
   deliverySalesOrderId?: number
   arrangeDelivery: boolean
+  onDeliveryArrangementHandled: () => void
   inventoryTarget?: InventoryNavigationTarget & { requestId: number }
   onOpenWarehouse: (id: number) => void
   onOpenInventory: (target: InventoryNavigationTarget) => void
@@ -106,10 +107,13 @@ export function MainDashboard() {
       )
     }
 
+  const onDeliveryArrangementHandled = () => setArrangeDelivery(false)
+
   const outletContext: DashboardOutletContext = {
     deliveryPurchaseOrderId,
     deliverySalesOrderId,
     arrangeDelivery,
+    onDeliveryArrangementHandled,
     inventoryTarget,
     onOpenInventory,
     onOpenWarehouse: (id) => navigate(warehouseDetailsPath(id)),
