@@ -129,7 +129,7 @@ export function DashboardPage() {
             {(['LOW', 'OUT'] as const).map((severity) => (
               <button
                 key={severity}
-                className="flex min-h-11 min-w-0 items-center justify-between gap-3 rounded py-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring hover:bg-muted/40 sm:block sm:px-3 sm:py-1 sm:first:pl-0"
+                className="flex min-h-11 min-w-0 flex-col items-start gap-1 rounded py-3 pl-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring hover:bg-muted/40 sm:block sm:px-3 sm:py-1"
                 onClick={() => onOpenInventory({ warningFilter: severity })}
               >
                 <h3 className="text-sm font-medium">
@@ -150,7 +150,7 @@ export function DashboardPage() {
             ))}
             <Link
               to={ROUTES.warehouses}
-              className="flex min-h-11 min-w-0 items-center justify-between gap-3 rounded py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring hover:bg-muted/40 sm:block sm:py-1 sm:pl-3"
+              className="flex min-h-11 min-w-0 flex-col items-start gap-1 rounded py-3 pl-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring hover:bg-muted/40 sm:block sm:px-3 sm:py-1"
             >
               <h3 className="text-sm font-medium">Active Warehouses</h3>
               <p className="break-words text-xl font-semibold tabular-nums sm:mt-1">
@@ -283,12 +283,12 @@ export function DashboardPage() {
             }))}
           />
         </div>
-        <ul className="mt-1 grid gap-x-6 gap-y-2 sm:grid-cols-2 xl:grid-cols-4">
+        <ul className="mt-1 grid sm:grid-cols-4">
           {previews.map(({ label, description, href, query }) => (
             <li key={label} className="min-w-0">
               <Link
                 to={href}
-                className="flex min-h-14 items-center justify-between gap-3 rounded py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring hover:bg-muted/40"
+                className="relative flex min-h-14 w-full flex-col items-start justify-center gap-1 rounded-md px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring hover:bg-muted/40 after:absolute after:inset-x-2 after:bottom-0 after:h-px after:rounded-full after:bg-border after:content-[''] last:after:hidden sm:after:inset-x-auto sm:after:inset-y-2 sm:after:right-0 sm:after:h-auto sm:after:w-px sm:last:after:hidden"
               >
                 <span className="min-w-0">
                   <span className="block text-sm font-medium">{label}</span>
@@ -297,7 +297,7 @@ export function DashboardPage() {
                     {query.hasNext ? ' · Partial count' : ''}
                   </span>
                 </span>
-                <span className="shrink-0 text-sm font-semibold tabular-nums" aria-live="polite">
+                <span className="text-xl font-semibold tabular-nums" aria-live="polite">
                   {query.isError
                     ? 'Unavailable'
                     : query.isPending
