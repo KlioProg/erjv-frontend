@@ -35,6 +35,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { DeliveryNavigation } from './DeliveryNavigation'
 import { InventoryNavigation } from './InventoryNavigation'
+import { SidebarActiveIndicator } from './SidebarActiveIndicator'
 import { ErjvPosLogo } from '@/components/ui/ErjvPosLogo'
 import { useAuth } from '@/features/auth/AuthContext'
 import { USER_ROLES, ROLE_DETAILS } from '@/features/auth/roles'
@@ -214,7 +215,11 @@ export function DashboardLayout({
           {visibleGroups.map((group) => (
             <div key={group.title} className="flex flex-col gap-2">
               <div className="px-3 text-xs font-medium text-muted-foreground">{group.title}</div>
-              <div className="flex flex-col gap-1">
+              <SidebarActiveIndicator
+                active={group.title === currentGroup?.title}
+                routeKey={currentScreen}
+                className="gap-1"
+              >
                 {group.items.map((item) => {
                   if (item.key === 'inventory') return <InventoryNavigation key={item.key}
                     view={currentScreen === 'inventory' ? 'products' : currentScreen === 'quarantined-stock' ? 'quarantine' : null}
@@ -241,9 +246,9 @@ export function DashboardLayout({
                         setIsMobileOpen(false)
                       }}
                       className={({ isActive }) =>
-                        `group relative flex h-9 w-full items-center justify-between rounded-md px-3 py-2 text-ui font-medium transition-colors duration-150 cursor-pointer select-none pointer-coarse:min-h-11 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                        `group relative z-10 flex h-9 w-full items-center justify-between rounded-md px-3 py-2 text-ui font-medium transition-colors duration-150 cursor-pointer select-none pointer-coarse:min-h-11 hover:font-semibold focus-visible:font-semibold focus-visible:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                           isActive
-                            ? 'bg-primary-subtle text-foreground font-semibold ring-1 ring-inset ring-primary-contrast/30'
+                            ? 'text-foreground font-semibold'
                             : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
                         }`
                       }
@@ -256,13 +261,15 @@ export function DashboardLayout({
                               : 'text-muted-foreground group-hover:text-foreground'
                           }`}
                         />
-                        <span>{item.label}</span>
+                        <span className="transition-[font-weight] duration-100 ease-out motion-reduce:transition-none">
+                          {item.label}
+                        </span>
                       </div>
 
                     </NavLink>
                   )
                 })}
-              </div>
+              </SidebarActiveIndicator>
             </div>
           ))}
         </nav>
