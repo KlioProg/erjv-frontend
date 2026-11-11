@@ -1,0 +1,282 @@
+{
+  "latestPerFile": true,
+  "component": {
+    "passed": 539,
+    "failed": 17,
+    "total": 556,
+    "files": [
+      {
+        "file": "src/features/backend-change-integration.component.test.tsx",
+        "run": "components.json",
+        "passed": 15,
+        "failed": 7,
+        "total": 22,
+        "failures": [
+          {
+            "name": "rejects invalid replacement job IDs [] without any HTTP or deletion",
+            "error": "Error: promise resolved \"undefined\" instead of rejecting"
+          },
+          {
+            "name": "rejects invalid replacement job IDs [ 2, 2 ] without any HTTP or deletion",
+            "error": "Error: promise resolved \"undefined\" instead of rejecting"
+          },
+          {
+            "name": "rejects invalid replacement job IDs [ 0 ] without any HTTP or deletion",
+            "error": "Error: promise resolved \"undefined\" instead of rejecting"
+          },
+          {
+            "name": "rejects invalid replacement job IDs [ -1 ] without any HTTP or deletion",
+            "error": "Error: promise resolved \"undefined\" instead of rejecting"
+          },
+          {
+            "name": "rejects invalid replacement job IDs [ 1.5 ] without any HTTP or deletion",
+            "error": "Error: promise resolved \"undefined\" instead of rejecting"
+          },
+          {
+            "name": "rejects invalid replacement job IDs [ NaN ] without any HTTP or deletion",
+            "error": "Error: promise resolved \"undefined\" instead of rejecting"
+          },
+          {
+            "name": "shows the stored accepted quantity after quarantine clearance in receipt details",
+            "error": "TestingLibraryElementError: Unable to find an accessible element with the role \"columnheader\" and name \"Damaged at receipt\""
+          }
+        ]
+      },
+      {
+        "file": "src/features/integration-contracts.component.test.tsx",
+        "run": "components.json",
+        "passed": 19,
+        "failed": 0,
+        "total": 19,
+        "failures": []
+      },
+      {
+        "file": "src/components/deliveries/deliveries-hub-paging.component.test.tsx",
+        "run": "recheck.json",
+        "passed": 21,
+        "failed": 0,
+        "total": 21,
+        "failures": []
+      },
+      {
+        "file": "src/components/deliveries/delivery-confirmation-forms.component.test.tsx",
+        "run": "components.json",
+        "passed": 35,
+        "failed": 0,
+        "total": 35,
+        "failures": []
+      },
+      {
+        "file": "src/components/deliveries/delivery-details.component.test.tsx",
+        "run": "components.json",
+        "passed": 18,
+        "failed": 0,
+        "total": 18,
+        "failures": []
+      },
+      {
+        "file": "src/components/deliveries/delivery-runs.component.test.tsx",
+        "run": "recheck.json",
+        "passed": 60,
+        "failed": 0,
+        "total": 60,
+        "failures": []
+      },
+      {
+        "file": "src/components/deliveries/delivery-table-toolbar.component.test.tsx",
+        "run": "components.json",
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "failures": []
+      },
+      {
+        "file": "src/components/deliveries/history-trips.component.test.tsx",
+        "run": "components.json",
+        "passed": 23,
+        "failed": 0,
+        "total": 23,
+        "failures": []
+      },
+      {
+        "file": "src/components/deliveries/incoming-receiving.component.test.tsx",
+        "run": "components.json",
+        "passed": 40,
+        "failed": 0,
+        "total": 40,
+        "failures": []
+      },
+      {
+        "file": "src/components/deliveries/incoming-scheduling.component.test.tsx",
+        "run": "components.json",
+        "passed": 19,
+        "failed": 0,
+        "total": 19,
+        "failures": []
+      },
+      {
+        "file": "src/components/deliveries/incoming-selectors.component.test.tsx",
+        "run": "components.json",
+        "passed": 16,
+        "failed": 0,
+        "total": 16,
+        "failures": []
+      },
+      {
+        "file": "src/components/deliveries/order-delivery-workflow.component.test.tsx",
+        "run": "critical-recheck.json",
+        "passed": 58,
+        "failed": 0,
+        "total": 58,
+        "failures": []
+      },
+      {
+        "file": "src/components/deliveries/outgoing-completion.component.test.tsx",
+        "run": "components.json",
+        "passed": 41,
+        "failed": 0,
+        "total": 41,
+        "failures": []
+      },
+      {
+        "file": "src/components/deliveries/outgoing-dispatch.component.test.tsx",
+        "run": "critical-recheck.json",
+        "passed": 41,
+        "failed": 10,
+        "total": 51,
+        "failures": [
+          {
+            "name": "explains zero stock and permits a partial load of another stocked product in the same delivery",
+            "error": "TestingLibraryElementError: Unable to find an element with the text: Banana: No stock available at this warehouse.. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible."
+          },
+          {
+            "name": "requires review before Send Trip and invalidates that review when an entered quantity changes",
+            "error": "TestingLibraryElementError: Unable to find an accessible element with the role \"button\" and name \"Review Departure\""
+          },
+          {
+            "name": "retains entries after 400 and requires explicit review before retry",
+            "error": "TestingLibraryElementError: Unable to find an accessible element with the role \"button\" and name \"Refresh trip data\""
+          },
+          {
+            "name": "retains entries after 403 and requires explicit review before retry",
+            "error": "TestingLibraryElementError: Unable to find an accessible element with the role \"button\" and name \"Refresh trip data\""
+          },
+          {
+            "name": "retains entries after 404 and requires explicit review before retry",
+            "error": "TestingLibraryElementError: Unable to find an accessible element with the role \"button\" and name \"Refresh trip data\""
+          },
+          {
+            "name": "retains entries after 409 and requires explicit review before retry",
+            "error": "TestingLibraryElementError: Unable to find an accessible element with the role \"button\" and name \"Refresh trip data\""
+          },
+          {
+            "name": "retains entries after network and requires explicit review before retry",
+            "error": "TestingLibraryElementError: Unable to find an accessible element with the role \"button\" and name \"Refresh trip data\""
+          },
+          {
+            "name": "never retries an uncertain departure when refresh shows the run already dispatched",
+            "error": "TestingLibraryElementError: Unable to find an accessible element with the role \"button\" and name \"Refresh trip data\""
+          },
+          {
+            "name": "recovers a run load failure by explicit refresh",
+            "error": "TestingLibraryElementError: Unable to find an accessible element with the role \"button\" and name \"Refresh trip data\""
+          },
+          {
+            "name": "preserves explicit quantities after current stock falls instead of clamping",
+            "error": "TestingLibraryElementError: Unable to find an accessible element with the role \"button\" and name \"Refresh trip data\""
+          }
+        ]
+      },
+      {
+        "file": "src/components/deliveries/outgoing-scheduling.component.test.tsx",
+        "run": "recheck.json",
+        "passed": 41,
+        "failed": 0,
+        "total": 41,
+        "failures": []
+      },
+      {
+        "file": "src/components/warehouse-transfers/transfer-product-catalog.component.test.tsx",
+        "run": "recheck.json",
+        "passed": 21,
+        "failed": 0,
+        "total": 21,
+        "failures": []
+      },
+      {
+        "file": "src/components/warehouse-transfers/warehouse-transfers.component.test.tsx",
+        "run": "recheck.json",
+        "passed": 36,
+        "failed": 0,
+        "total": 36,
+        "failures": []
+      },
+      {
+        "file": "src/features/logistics/incoming-revision.component.test.tsx",
+        "run": "components.json",
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "failures": []
+      },
+      {
+        "file": "src/features/logistics/purchase-entry.component.test.tsx",
+        "run": "components.json",
+        "passed": 1,
+        "failed": 0,
+        "total": 1,
+        "failures": []
+      },
+      {
+        "file": "src/features/logistics/purchase-revision.component.test.tsx",
+        "run": "components.json",
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "failures": []
+      },
+      {
+        "file": "src/features/warehouse-transfers/warehouse-transfers.component.test.tsx",
+        "run": "components.json",
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "failures": []
+      },
+      {
+        "file": "src/components/deliveries/shared/delivery-dates.component.test.tsx",
+        "run": "components.json",
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "failures": []
+      },
+      {
+        "file": "src/components/deliveries/shared/status-badges.component.test.tsx",
+        "run": "components.json",
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "failures": []
+      },
+      {
+        "file": "src/features/logistics/run-load-validation.component.test.tsx",
+        "run": "critical-recheck.json",
+        "passed": 9,
+        "failed": 0,
+        "total": 9,
+        "failures": []
+      }
+    ]
+  },
+  "unit": {
+    "passed": 81,
+    "failed": 0
+  },
+  "backendService": {
+    "passed": 9,
+    "failed": 0
+  },
+  "authenticatedBrowser": false,
+  "persistedInventoryVerified": false
+}

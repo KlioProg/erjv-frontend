@@ -1,0 +1,54 @@
+{
+  "checkedAt": "2026-11-11T00:05:35.406Z",
+  "node": "v24.19.0",
+  "results": [
+    {
+      "url": "http://127.0.0.1:3000/auth/profile",
+      "error": "ECONNREFUSED"
+    },
+    {
+      "url": "http://127.0.0.1:5173/",
+      "status": 200,
+      "body": "<!doctype html>\r\n<html lang=\"en\">\r\n  <head>\n    <script type=\"module\">import { injectIntoGlobalHook } from \"/@react-refresh\";\ninjectIntoGlobalHook(window);\nwind"
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/auth/profile",
+      "status": 502,
+      "body": ""
+    }
+  ],
+  "frontendCommit": "caefeac",
+  "backendCommit": "9386c24",
+  "databaseChecks": [
+    {
+      "host": "localhost",
+      "port": 5433,
+      "database": "erjv",
+      "result": "ECONNREFUSED"
+    },
+    {
+      "host": "localhost",
+      "port": 5432,
+      "database": "erjv",
+      "result": "28P01",
+      "note": "Read-only probe using configured development identity; no alternative password attempted."
+    }
+  ],
+  "browser": {
+    "authenticated": false,
+    "desktopScreenshot": "login-desktop.png",
+    "viewport": {
+      "width": 1440,
+      "height": 1000
+    },
+    "sandboxedExit": -2147483645,
+    "permittedOutsideSandboxExit": 0
+  },
+  "limitations": [
+    "No configured usable authenticated development/test account",
+    "No running backend API at localhost:3000",
+    "No database available at configured localhost:5433",
+    "Node 24.19.0 differs from required Node 22",
+    "Graphify CLI unavailable"
+  ]
+}
