@@ -6,6 +6,7 @@ import type {
   DeliveryRunRecord, DispatchDeliveryRunPayload, ReconcileRunMemberPayload,
   RunMemberActionPayload, RunMemberReconciliationResponse, RunMemberRevision,
   UpdateDeliveryRunDraftPayload,
+  RunTransferRevision, ChangeRunTransfersPayload,
 } from './delivery-runs.types'
 
 function requireId(id: number): number {
@@ -39,6 +40,23 @@ function draftFields(payload: Partial<CreateDeliveryRunPayload>) {
   }
 }
 
+function transfers(entries: RunTransferRevision[]): RunTransferRevision[] {
+  if (entries.length > 100 || new Set(entries.map((entry) => entry.transferId)).size !== entries.length)
+    throw Error('Include each transfer only once, with at most 100 transfers.')
+  return entries.map(({ transferId, expectedRevision }) => ({
+    transferId: requireId(transferId), expectedRevision: requireRevision(expectedRevision),
+  }))
+}
+
+export async function changeRunTransfersApi(id: number, payload: ChangeRunTransfersPayload): Promise<DeliveryRunRecord> {
+  const { data } = await apiClient.patch<DeliveryRunRecord>(`/delivery-runs/${requireId(id)}/warehouse-transfers`, {
+    expectedRevision: requireRevision(payload.expectedRevision),
+    ...(payload.add !== undefined ? { add: transfers(payload.add) } : {}),
+    ...(payload.remove !== undefined ? { remove: transfers(payload.remove) } : {}),
+  })
+  return data
+}
+
 export async function fetchDeliveryRunsPageApi(filter: DeliveryRunFilter = {}, signal?: AbortSignal): Promise<DeliveryRunPage> {
   const { limit = 50, cursor, statuses, warehouseId, driverEmployeeId, deliveryVehicleId, scheduledFrom, scheduledBefore, q } = filter
   if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw new Error('Page size must be between 1 and 100.')
@@ -61,6 +79,7 @@ export async function createDeliveryRunApi(payload: CreateDeliveryRunPayload): P
   const { data } = await apiClient.post<DeliveryRunRecord>('/delivery-runs', {
     ...draftFields(payload), warehouseId: requireId(payload.warehouseId),
     ...(payload.deliveries !== undefined ? { deliveries: members(payload.deliveries) } : {}),
+    ...(payload.warehouseTransfers !== undefined ? { warehouseTransfers: transfers(payload.warehouseTransfers) } : {}),
   })
   return data
 }
@@ -101,7 +120,7 @@ export async function cancelDeliveryRunApi(id: number, expectedRevision: number)
 }
 
 export async function dispatchDeliveryRunApi(id: number, payload: DispatchDeliveryRunPayload): Promise<DeliveryRunRecord> {
-  if (!payload.loads.length) throw new Error('Enter a load for every delivery in this trip.')
+  if (!payload.loads.length && !payload.transferLoads?.length) throw new Error('Enter a load for every delivery or transfer in this trip.')
   members(payload.loads)
   const loads = payload.loads.map((load) => {
     if (!load.items.length) throw new Error('Each delivery needs at least one loaded item.')
@@ -118,6 +137,7 @@ export async function dispatchDeliveryRunApi(id: number, payload: DispatchDelive
   })
   const { data } = await apiClient.patch<DeliveryRunRecord>(`/delivery-runs/${requireId(id)}/dispatch`, {
     expectedRevision: requireRevision(payload.expectedRevision), loadedWeightKg: decimal(payload.loadedWeightKg, true), loads,
+    ...(payload.transferLoads !== undefined ? { transferLoads: transfers(payload.transferLoads) } : {}),
   })
   return data
 }

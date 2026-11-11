@@ -68,6 +68,24 @@ function mount(selected: boolean | string = true) {
   return client
 }
 const writes = () => requests.filter((request) => request.method !== 'get')
+
+it('describes preparing membership without claiming results have been recorded', async () => {
+  mount(false)
+  const row = (await screen.findByText('RUN-1')).closest('tr')!
+  expect(within(row).queryByText(/results recorded/)).toBeNull()
+  expect(within(row).getByText('1 delivery assigned')).toBeTruthy()
+})
+
+it('shows actual departure and distinguishes unsaved results from delivery outcomes', async () => {
+  run.status = 'DISPATCHED'
+  run.dispatchedAt = '2026-11-10T01:23:00Z'
+  run.deliveries[0].status = 'DISPATCHED'
+  mount()
+  const trip = within(await screen.findByRole('dialog', { name: 'Delivery Trip RUN-1' }))
+  expect(trip.getByText('Actual departure').nextElementSibling?.textContent).not.toBe('Not recorded')
+  expect(trip.getByText('Results not recorded')).toBeTruthy()
+  expect(trip.queryByText('Not delivered')).toBeNull()
+})
 function fillDeparture() {
   fireEvent.change(screen.getByLabelText('Scheduled Departure Date'), { target: { value: '2026-12-01' } })
   fireEvent.change(screen.getByLabelText('Scheduled Departure Time'), { target: { value: '09:30' } })

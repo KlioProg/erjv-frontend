@@ -16,6 +16,7 @@ import {
 import { incomingSchedulingIssue } from '@/features/logistics/incoming-scheduling'
 import { formatDeliverySchedule } from '@/features/logistics/delivery-workflow'
 import { getErrorMessage } from '@/lib/api-client'
+import type { IncomingDeliveryRecord } from '@/features/logistics/incoming-deliveries.types'
 
 export function ScheduleIncomingDraftModal({
   id,
@@ -23,12 +24,14 @@ export function ScheduleIncomingDraftModal({
   onClose,
   onViewOrder,
   canManage,
+  onScheduled,
 }: {
   id: number
   canManage: boolean
   reference: string
   onClose: () => void
   onViewOrder: (id: number) => void
+  onScheduled?: (delivery: IncomingDeliveryRecord) => void
 }) {
   const query = useIncomingSchedulingEligibility(id)
   const schedule = useScheduleIncomingDelivery()
@@ -51,7 +54,8 @@ export function ScheduleIncomingDraftModal({
     lock.current = true
     setError('')
     try {
-      await schedule.mutateAsync({ id, expectedRevision: query.data.delivery.revision })
+      const saved = await schedule.mutateAsync({ id, expectedRevision: query.data.delivery.revision })
+      onScheduled?.(saved)
       onClose()
     } catch (error) {
       setError(getErrorMessage(error))
@@ -67,7 +71,7 @@ export function ScheduleIncomingDraftModal({
         <DialogHeader>
           <DialogTitle>Schedule Arrival</DialogTitle>
           <DialogDescription>
-            Mark this draft as scheduled and ready for receiving. Physical stock is unchanged.
+            Save the arrival schedule. Receive Goods when the supplier physically arrives. Physical stock is unchanged.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-1 rounded-md bg-muted/50 p-4">

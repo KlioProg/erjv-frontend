@@ -626,7 +626,8 @@ it('rejects an inconsistent member confirmation without reporting success or adv
 
 it.each([true, false])('records trip members independently and uses backend completion=%s', async (completes) => {
   run = { ...run, driverEmployeeId: null, deliveryVehicleId: null,
-    deliveries: [...run.deliveries, { ...run.deliveries[0], id: 91, deliveryNumber: 'OD-91' }] }
+    deliveries: [...run.deliveries, { ...run.deliveries[0], id: 91, deliveryNumber: 'OD-91' }],
+    warehouseTransfers: completes ? [] : [{ id: 7, transferNumber: 'WT-7', revision: 2, status: 'DISPATCHED', destinationWarehouseId: 3 }] }
   const memberDeliveries = [structuredClone(delivery), { ...structuredClone(delivery), id: 91, deliveryNumber: 'OD-91', items: delivery.items.map((item) => ({ ...item, id: item.id + 100, outgoingDeliveryId: 91 })) }]
   const base = getAdapter(apiClient.defaults.adapter)
   apiClient.defaults.adapter = async (config) => {
@@ -647,7 +648,7 @@ it.each([true, false])('records trip members independently and uses backend comp
     return { config, data: structuredClone(data), status: 200, statusText: '', headers: {} }
   }
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
-  render(<QueryClientProvider client={client}><MemoryRouter initialEntries={['/deliveries/runs?run=40']}><DeliveryRunsHub /></MemoryRouter></QueryClientProvider>)
+  const view = render(<QueryClientProvider client={client}><MemoryRouter initialEntries={['/deliveries/runs?run=40']}><DeliveryRunsHub /></MemoryRouter></QueryClientProvider>)
   const user = userEvent.setup()
   const trip = within(await screen.findByRole('dialog', { name: 'Delivery Trip RUN-40' }))
   await trip.findByText('0 of 2 deliveries recorded')
@@ -665,7 +666,14 @@ it.each([true, false])('records trip members independently and uses backend comp
   expect(afterFirst.getAllByRole('button', { name: 'Record Results' })).toHaveLength(1)
   expect(afterFirst.queryByRole('radio')).toBeNull()
   expect(afterFirst.getByText('Delivery: OD-91')).toBeTruthy()
-  await user.click(within(afterFirst.getByRole('group', { name: 'Trip actions' })).getByRole('button', { name: 'Record Results' }))
+  view.unmount()
+  auth.isAdmin = false
+  auth.isStaff = true
+  render(<QueryClientProvider client={client}><MemoryRouter initialEntries={['/deliveries/runs?run=40']}><DeliveryRunsHub /></MemoryRouter></QueryClientProvider>)
+  const resumed = within(await screen.findByRole('dialog', { name: 'Delivery Trip RUN-40' }))
+  await resumed.findByText('1 of 2 deliveries recorded')
+  await waitFor(() => expect(resumed.getByRole('button', { name: 'Record Results' }).hasAttribute('disabled')).toBe(false))
+  await user.click(within(resumed.getByRole('group', { name: 'Trip actions' })).getByRole('button', { name: 'Record Results' }))
   await screen.findByRole('dialog', { name: 'Record Delivery Results' })
   expect(screen.getByRole('dialog').textContent).toContain('OD-91')
   expect(screen.getAllByRole('radio').every((radio) => !(radio as HTMLInputElement).checked)).toBe(true)

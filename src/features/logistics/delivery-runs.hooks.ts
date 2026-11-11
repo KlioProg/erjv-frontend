@@ -3,11 +3,13 @@ import {
   cancelDeliveryRunApi, cancelRunMemberApi, changeRunMembersApi, createDeliveryRunApi,
   dispatchDeliveryRunApi, fetchDeliveryRunByIdApi, fetchDeliveryRunsPageApi,
   reconcileRunMemberApi, reopenRunMemberApi, updateDeliveryRunDraftApi,
+  changeRunTransfersApi,
 } from './delivery-runs.api'
 import type {
   ChangeRunMembersPayload, CreateDeliveryRunPayload, DeliveryRunFilter, DeliveryRunRecord,
   DispatchDeliveryRunPayload, ReconcileRunMemberPayload, RunMemberActionPayload,
   RunMemberReconciliationResponse, UpdateDeliveryRunDraftPayload,
+  ChangeRunTransfersPayload,
 } from './delivery-runs.types'
 
 export const DELIVERY_RUNS_QUERY_KEY = ['delivery-runs'] as const
@@ -45,7 +47,7 @@ function useRunMutation<T, R extends DeliveryRunRecord | RunMemberReconciliation
     // A rejected or interrupted workflow can still leave these operational views stale.
     onSettled: () => Promise.all([
       DELIVERY_RUNS_QUERY_KEY, ['outgoing-deliveries'], ['sales-orders'], ['stock-items'],
-      ['quarantine-lots'], ['delivery-vehicles'], ['staffing'], ['products'], ['warehouses'],
+      ['quarantine-lots'], ['delivery-vehicles'], ['staffing'], ['products'], ['warehouses'], ['warehouse-transfers'],
     ].map((queryKey) => queryClient.invalidateQueries({ queryKey }))),
   })
 }
@@ -58,6 +60,9 @@ export function useUpdateDeliveryRunDraft() {
 }
 export function useChangeRunMembers() {
   return useRunMutation(({ id, payload }: { id: number; payload: ChangeRunMembersPayload }) => changeRunMembersApi(id, payload))
+}
+export function useChangeRunTransfers() {
+  return useRunMutation(({ id, payload }: { id: number; payload: ChangeRunTransfersPayload }) => changeRunTransfersApi(id, payload))
 }
 export function useReopenRunMember() {
   return useRunMutation(({ id, deliveryId, payload }: { id: number; deliveryId: number; payload: RunMemberActionPayload }) => reopenRunMemberApi(id, deliveryId, payload))

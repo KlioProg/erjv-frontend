@@ -14,6 +14,7 @@ import type {
 import { useTransferWrite } from '@/features/warehouse-transfers/warehouse-transfers.hooks'
 import { validateTransfer } from '@/features/warehouse-transfers/warehouse-transfers.api'
 import { renderHook } from '@testing-library/react'
+import { MemoryRouter } from 'react-router'
 
 const auth = vi.hoisted(() => ({ isAdmin: true, isManager: false, isStaff: false }))
 vi.mock('@/features/auth/AuthContext', () => ({ useAuth: () => auth }))
@@ -124,7 +125,7 @@ function mount() {
   })
   render(
     <QueryClientProvider client={client}>
-      <WarehouseTransfersPage />
+      <MemoryRouter><WarehouseTransfersPage /></MemoryRouter>
     </QueryClientProvider>,
   )
   return client
@@ -168,7 +169,7 @@ it.each([
   const dialog = await screen.findByRole('dialog')
   await waitFor(() => expect(within(dialog).queryByText('Loading transfer…')).toBeNull())
   expect(within(dialog).getByText(label)).toBeTruthy()
-  expect(within(dialog).queryByText(/Trip/)).toBeNull()
+  if (status === 'DRAFT') expect(within(dialog).getByRole('button', { name: 'Add to Trip' })).toBeTruthy()
   expect(within(dialog).getByText('From warehouse')).toBeTruthy()
   expect(within(dialog).getByText('To warehouse')).toBeTruthy()
   const itemsTable = within(dialog).getByRole('table')
@@ -197,7 +198,7 @@ it.each([
   expect(actual !== undefined).toBe(status !== 'DRAFT')
   expect(completion !== undefined).toBe(status === 'COMPLETED')
   if (status === 'DRAFT') {
-    expect(within(dialog).getByRole('button', { name: 'Review & Send' })).toBeTruthy()
+    expect(within(dialog).getByRole('button', { name: 'Add to Trip' })).toBeTruthy()
   } else if (status === 'DISPATCHED') {
     expect(within(dialog).getByRole('button', { name: 'Receive Goods' })).toBeTruthy()
   } else {
@@ -259,10 +260,8 @@ it('supports manager draft creation within verified stock without inventory muta
     },
   ])
   expect(record.status).toBe('DRAFT')
-  await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Review & Send' }))
-  const send = within(await screen.findByRole('dialog', { name: 'Send Goods?' }))
-  await userEvent.click(send.getByRole('button', { name: 'Back' }))
-  await screen.findByRole('dialog', { name: 'WT-000007' })
+  expect(within(screen.getByRole('dialog')).getByRole('button', { name: 'Add to Trip' })).toBeTruthy()
+  expect(screen.queryByRole('button', { name: 'Send Goods' })).toBeNull()
   await userEvent.click(screen.getByRole('button', { name: 'Close' }))
   expect(screen.getByRole('textbox', { name: 'Search warehouse transfers' }).getAttribute('value')).toBe('WT-000007')
   expect(screen.getByText('Page 2')).toBeTruthy()
@@ -329,34 +328,22 @@ it('does not change a saved draft until its source reset is explicitly saved', a
   expect(record).toEqual(saved)
   expect(writes()).toHaveLength(0)
 })
-it('lets Staff dispatch with confirmation and blocks duplicate submissions', async () => {
+it('lets Staff resume an assigned trip while leaving an unassigned draft for a manager', async () => {
   auth.isAdmin = false
   auth.isStaff = true
-  let release!: () => void
-  dispatchWait = new Promise<void>((resolve) => {
-    release = resolve
-  })
   const client = mount()
   await open()
   expect(screen.queryByRole('button', { name: 'Create Transfer' })).toBeNull()
   expect(screen.queryByRole('button', { name: 'Edit Draft' })).toBeNull()
-  await userEvent.click(screen.getByRole('button', { name: 'Review & Send' }))
+  expect(screen.queryByRole('button', { name: 'Add to Trip' })).toBeNull()
+  expect(screen.queryByRole('button', { name: 'Send Goods' })).toBeNull()
   expect(writes()).toHaveLength(0)
-  const confirm = screen.getByRole('button', { name: 'Send Goods' })
-  fireEvent.click(confirm)
-  fireEvent.click(confirm)
-  await waitFor(() => expect(writes()).toHaveLength(1))
-  expect(record.status).toBe('DRAFT')
-  expect(confirm.hasAttribute('disabled')).toBe(true)
+  record = { ...record, runId: 40, revision: 2 }
   await act(async () => {
-    release()
-    await dispatchWait
+    await client.invalidateQueries({ queryKey: ['warehouse-transfers'] })
   })
-  await screen.findByRole('dialog', { name: 'WT-000007' })
-  expect(record.status).toBe('DISPATCHED')
-  expect(
-    client.getQueryData<WarehouseTransfer>(['warehouse-transfers', 'detail', 7])?.revision,
-  ).toBe(2)
+  expect(await within(screen.getByRole('dialog')).findByRole('button', { name: 'View Trip' })).toBeTruthy()
+  expect(writes()).toHaveLength(0)
 })
 it.each([
   'STALE_REVISION',
@@ -365,24 +352,27 @@ it.each([
   'STOCK_CHANGED',
 ])('requires saved-state review after %s without automatic retries', async (code) => {
   conflict = code
+  record = { ...record, status: 'DISPATCHED' }
   mount()
-  await open()
-  await userEvent.click(screen.getByRole('button', { name: 'Review & Send' }))
-  await userEvent.click(screen.getByRole('button', { name: 'Send Goods' }))
+  const receipt = await openReceiving()
+  await userEvent.click(receipt.getByRole('radio', { name: 'All items received in good condition' }))
+  await userEvent.click(receipt.getByRole('button', { name: 'Review Receipt' }))
+  await userEvent.click(receipt.getByRole('button', { name: 'Save Receipt' }))
   await screen.findByRole('alert')
-  expect(writes()).toHaveLength(1)
-  expect(screen.getByRole('button', { name: 'Send Goods' }).hasAttribute('disabled')).toBe(
+  expect(writes(), screen.getAllByRole('alert').map((alert) => alert.textContent).join(' ')).toHaveLength(1)
+  expect(screen.getByRole('button', { name: 'Review Receipt' }).hasAttribute('disabled')).toBe(
     true,
   )
-  expect(record.status).toBe('DRAFT')
+  expect(record.status).toBe('DISPATCHED')
   conflict = ''
   record = { ...record, revision: 2 }
   await userEvent.click(screen.getByRole('button', { name: 'Review saved transfers' }))
-  await screen.findByRole('button', { name: 'Review & Send' })
-  await userEvent.click(screen.getByRole('button', { name: 'Review & Send' }))
-  await userEvent.click(screen.getByRole('button', { name: 'Send Goods' }))
+  await userEvent.click(await within(screen.getByRole('dialog')).findByRole('button', { name: 'Receive Goods' }))
+  await userEvent.click(screen.getByRole('radio', { name: 'All items received in good condition' }))
+  await userEvent.click(screen.getByRole('button', { name: 'Review Receipt' }))
+  await userEvent.click(screen.getByRole('button', { name: 'Save Receipt' }))
   await screen.findByRole('dialog', { name: 'WT-000007' })
-  expect(writes()[1].body).toEqual({ expectedRevision: 2 })
+  expect(writes()[1].body).toMatchObject({ expectedRevision: 2 })
 })
 it('reconciles mixed outcomes with saved line IDs, required reason, and final quantity balancing', async () => {
   auth.isAdmin = false
@@ -604,22 +594,24 @@ it('does not repeat an uncertain receipt when the saved transfer is already comp
   expect(writes()).toHaveLength(1)
 })
 
-it.each(['state', 'revision'])('does not report a successful departure for an unconfirmed response (%s)', async (kind) => {
+it.each(['state', 'revision'])('does not report a successful receipt for an unconfirmed response (%s)', async (kind) => {
+  record = { ...record, status: 'DISPATCHED' }
   const base = getAdapter(apiClient.defaults.adapter)
   apiClient.defaults.adapter = async (config) => {
     const response = await base(config)
-    if (config.url?.endsWith('/dispatch')) return { ...response, data: { ...response.data, ...(kind === 'state' ? { status: 'DRAFT' } : { revision: 1 }) } }
+    if (config.url?.endsWith('/reconcile')) return { ...response, data: { ...response.data, ...(kind === 'state' ? { status: 'DISPATCHED' } : { revision: 1 }) } }
     return response
   }
   mount()
-  await userEvent.click(await screen.findByRole('button', { name: 'Review & Send' }))
-  const send = within(await screen.findByRole('dialog', { name: 'Send Goods?' }))
+  const send = await openReceiving()
+  await userEvent.click(send.getByRole('radio', { name: 'All items received in good condition' }))
+  await userEvent.click(send.getByRole('button', { name: 'Review Receipt' }))
   expect(writes()).toHaveLength(0)
-  await userEvent.click(send.getByRole('button', { name: 'Send Goods' }))
+  await userEvent.click(send.getByRole('button', { name: 'Save Receipt' }))
   await send.findByRole('alert')
-  expect(screen.queryByText(/departure recorded/)).toBeNull()
+  expect(screen.queryByText(/receipt saved\./)).toBeNull()
   expect(writes()).toHaveLength(1)
-  expect(send.getByRole('button', { name: 'Send Goods' }).hasAttribute('disabled')).toBe(true)
+  expect(send.getByRole('button', { name: 'Review Receipt' }).hasAttribute('disabled')).toBe(true)
 })
 
 it('clears a destination that conflicts with a changed source warehouse', async () => {

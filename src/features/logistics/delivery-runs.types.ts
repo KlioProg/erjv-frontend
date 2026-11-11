@@ -1,5 +1,20 @@
 import type { CursorParams } from '@/lib/cursor-pagination'
 import type { OutgoingDeliveryRecord, OutgoingDeliveryStatus } from './outgoing-deliveries.types'
+import type { TransferStatus } from '@/features/warehouse-transfers/warehouse-transfers.types'
+
+export interface RunTransferRevision { transferId: number; expectedRevision: number }
+export interface DeliveryRunTransferMember {
+  id: number
+  transferNumber: string
+  revision: number
+  status: TransferStatus
+  destinationWarehouseId: number
+}
+export interface ChangeRunTransfersPayload {
+  expectedRevision: number
+  add?: RunTransferRevision[]
+  remove?: RunTransferRevision[]
+}
 
 export type DeliveryRunStatus = 'DRAFT' | 'DISPATCHED' | 'COMPLETED' | 'CANCELLED'
 export interface DeliveryRunMember {
@@ -29,6 +44,7 @@ export interface DeliveryRunRecord {
   createdAt: string
   updatedAt: string
   deliveries: DeliveryRunMember[]
+  warehouseTransfers?: DeliveryRunTransferMember[]
 }
 export interface DeliveryRunFilter extends CursorParams {
   statuses?: DeliveryRunStatus[]
@@ -54,8 +70,9 @@ export interface CreateDeliveryRunPayload {
   deliveryVehicleId?: number | null
   notes?: string | null
   deliveries?: RunMemberRevision[]
+  warehouseTransfers?: RunTransferRevision[]
 }
-export interface UpdateDeliveryRunDraftPayload extends Partial<Omit<CreateDeliveryRunPayload, 'deliveries'>> {
+export interface UpdateDeliveryRunDraftPayload extends Partial<Omit<CreateDeliveryRunPayload, 'deliveries' | 'warehouseTransfers'>> {
   expectedRevision: number
 }
 export interface ChangeRunMembersPayload {
@@ -74,6 +91,7 @@ export interface DispatchDeliveryRunPayload {
   expectedRevision: number
   loadedWeightKg: string
   loads: RunLoad[]
+  transferLoads?: RunTransferRevision[]
 }
 export interface ReconcileRunMemberPayload {
   expectedRevision: number

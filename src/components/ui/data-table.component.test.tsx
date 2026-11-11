@@ -1,10 +1,95 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { useState } from 'react'
 import { DataTable } from './data-table'
+import { OverflowValue } from './OverflowValue'
 
 describe('DataTable accessibility', () => {
+  it('preserves row quick actions inside focusable dialogs and on focusable read-only values', async () => {
+    const user = userEvent.setup()
+    const add = vi.fn()
+    render(
+      <div tabIndex={-1}>
+        <DataTable
+          data={[{ id: 1 }]}
+          pagination={false}
+          onRowClick={add}
+          columns={[{ header: 'Product', cell: () => <span tabIndex={0}>Mango</span> }]}
+        />
+      </div>,
+    )
+    await user.click(screen.getByText('Mango'))
+    expect(add).toHaveBeenCalledTimes(1)
+  })
+
+  it('uses one concise empty message and preserves the single pagination context', () => {
+    render(<DataTable data={[]} columns={[{ header: 'Record', accessorKey: 'id' }]} />)
+    expect(screen.getByText('No records found.')).toBeTruthy()
+    expect(screen.queryByText('There are currently no items to display.')).toBeNull()
+    expect(screen.queryByRole('heading')).toBeNull()
+    expect(screen.getAllByRole('navigation')).toHaveLength(1)
+    expect(screen.getByRole('button', { name: 'Next page' }).hasAttribute('disabled')).toBe(true)
+  })
+
+  it('keeps direct controls independent of the optional row-opening shortcut', async () => {
+    const user = userEvent.setup()
+    const openRow = vi.fn()
+    const act = vi.fn()
+    render(
+      <DataTable
+        data={[{ id: 1 }]}
+        pagination={false}
+        onRowClick={openRow}
+        columns={[
+          {
+            header: 'Record',
+            cell: () => (
+              <>
+                <span>SO-001</span>
+                <button onClick={act}>Adjust quantity</button>
+                <input aria-label="Quantity" defaultValue="1" />
+                <a href="#receipt">View receipt</a>
+              </>
+            ),
+          },
+        ]}
+      />,
+    )
+    await user.click(screen.getByRole('button', { name: 'Adjust quantity' }))
+    await user.click(screen.getByRole('textbox', { name: 'Quantity' }))
+    await user.click(screen.getByRole('link', { name: 'View receipt' }))
+    expect(act).toHaveBeenCalledTimes(1)
+    expect(openRow).not.toHaveBeenCalled()
+    await user.click(screen.getByText('SO-001'))
+    expect(openRow).toHaveBeenCalledTimes(1)
+  })
+
+  it('opens a record once from its identifier by keyboard without adding a row tab stop', async () => {
+    const user = userEvent.setup()
+    const open = vi.fn()
+    render(
+      <DataTable
+        data={[{ id: 'SO-001' }]}
+        pagination={false}
+        onRowClick={open}
+        columns={[
+          {
+            header: 'Order',
+            cell: ({ row }) => <OverflowValue value={row.id} onActivate={open} />,
+          },
+        ]}
+      />,
+    )
+    const row = screen.getAllByRole('row')[1]
+    expect(row.hasAttribute('tabindex')).toBe(false)
+    await user.tab()
+    expect(document.activeElement).toBe(within(row).getByRole('button', { name: 'SO-001' }))
+    await user.keyboard('{Enter}')
+    await user.keyboard(' ')
+    expect(open).toHaveBeenCalledTimes(2)
+  })
+
   it('announces loading without exposing stale records, then reveals the ready table', () => {
     const props = {
       data: [{ id: 1, name: 'Customer account' }],
@@ -133,7 +218,9 @@ describe('DataTable pagination', () => {
 })
 
 it('keeps opt-in interactive headers mounted while loading and when filters return no rows', () => {
-  const columns = [{ id: 'name', header: <button>Filter by name</button>, accessorKey: 'name' as const }]
+  const columns = [
+    { id: 'name', header: <button>Filter by name</button>, accessorKey: 'name' as const },
+  ]
   const props = { columns, pagination: false, retainHeaders: true, emptyContent: 'No matches.' }
   const view = render(<DataTable {...props} data={[{ id: 1, name: 'Old record' }]} />)
   const trigger = screen.getByRole('button', { name: 'Filter by name' })
@@ -151,11 +238,20 @@ it('keeps opt-in interactive headers mounted while loading and when filters retu
 
 it('keeps its footer through loading and empty results without inventing a row summary', async () => {
   const onPageSizeChange = vi.fn()
-  const props = { data: [] as { id: number }[], columns: [{ header: 'ID', accessorKey: 'id' as const }], onPageSizeChange, pageSize: 50, pageSizeOptions: [10, 25, 50, 100], emptyContent: 'No matches.' }
+  const props = {
+    data: [] as { id: number }[],
+    columns: [{ header: 'ID', accessorKey: 'id' as const }],
+    onPageSizeChange,
+    pageSize: 50,
+    pageSizeOptions: [10, 25, 50, 100],
+    emptyContent: 'No matches.',
+  }
   const view = render(<DataTable {...props} isLoading />)
   expect(screen.getAllByRole('navigation')).toHaveLength(1)
   expect(screen.getByText('Page 1')).toBeTruthy()
-  expect(screen.getByRole('combobox', { name: 'Rows per page' }).hasAttribute('disabled')).toBe(true)
+  expect(screen.getByRole('combobox', { name: 'Rows per page' }).hasAttribute('disabled')).toBe(
+    true,
+  )
   expect(screen.queryByText(/Showing/)).toBeNull()
   view.rerender(<DataTable {...props} />)
   expect(screen.getByText('No matches.')).toBeTruthy()

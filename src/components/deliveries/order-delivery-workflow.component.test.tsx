@@ -925,7 +925,7 @@ describe('order to delivery workflow', () => {
       </MemoryRouter>,
     )
     expect(screen.getByRole('link', { name: 'Incoming' }).getAttribute('aria-current')).toBe('page')
-    expect(screen.getAllByRole('link').map((link) => link.textContent)).toEqual(['Incoming', 'Outgoing', 'Delivery Trips', 'History'])
+    expect(screen.getAllByRole('link').map((link) => link.textContent)).toEqual(['Incoming', 'Outgoing', 'History'])
     await user.click(screen.getByRole('button', { name: 'Deliveries' }))
     expect(screen.queryByRole('button', { name: 'Incoming' })).toBeNull()
     await user.keyboard('{Enter}')

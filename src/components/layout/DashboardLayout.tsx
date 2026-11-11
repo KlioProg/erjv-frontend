@@ -83,6 +83,7 @@ const NAV_GROUPS: NavGroup[] = [
       { key: 'warehouses', label: 'Warehouses', icon: WarehouseIcon },
       { key: 'warehouse-transfers', label: 'Warehouse Transfers', icon: ArrowLeftRight },
       { key: 'deliveries', label: 'Deliveries', icon: MapPinned },
+      { key: 'delivery-runs', label: 'Delivery Trips', icon: Truck },
       { key: 'fleet', label: 'Vehicles', icon: Truck },
     ],
   },
@@ -159,9 +160,7 @@ export function DashboardLayout({
   })).filter((group) => group.items.length > 0)
 
   const deliveryView =
-    currentScreen === 'delivery-runs'
-      ? 'runs'
-      : currentScreen === 'incoming-deliveries'
+    currentScreen === 'incoming-deliveries'
         ? 'incoming'
         : currentScreen === 'delivery-history'
           ? 'history'
@@ -403,7 +402,7 @@ export function DashboardLayout({
                     )}
                     <span aria-current="page" className="font-medium text-foreground">
                       {deliveryView
-                        ? `Deliveries / ${deliveryView === 'incoming' ? 'Incoming' : deliveryView === 'outgoing' ? 'Outgoing' : deliveryView === 'runs' ? 'Delivery Trips' : 'History'}`
+                        ? `Deliveries / ${deliveryView === 'incoming' ? 'Incoming' : deliveryView === 'outgoing' ? 'Outgoing' : 'History'}`
                         : currentItem?.label}
                     </span>
                   </div>

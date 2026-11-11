@@ -37,6 +37,7 @@ export function useIncomingDeliveryById(id?: number) {
     queryKey: [...INCOMING_DELIVERIES_QUERY_KEY, 'id', id],
     queryFn: () => (id ? fetchIncomingDeliveryByIdApi(id) : Promise.reject('No ID')),
     enabled: Boolean(id && id > 0),
+    staleTime: 0,
   })
 }
 

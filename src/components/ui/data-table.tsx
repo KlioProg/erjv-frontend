@@ -1,5 +1,5 @@
 import { Fragment, useState, useMemo, type MouseEvent, type ReactNode } from 'react'
-import { ArrowUpDown, ArrowUp, ArrowDown, Package } from 'lucide-react'
+import { ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
   Table,
@@ -9,7 +9,6 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { DataTableFooter } from '@/components/ui/DataTableFooter'
 import { OverflowValue } from '@/components/ui/OverflowValue'
@@ -475,32 +474,17 @@ export function DataTable<T>({
 
   // Empty View
   if (sortedData.length === 0 && !retainHeaders) {
-    if (emptyContent) {
-      if (pagination)
-        return (
-          <div className={cn('rounded-lg border bg-card', className)}>
-            <div className="py-4">{emptyContent}</div>
-            {footer}
-          </div>
-        )
-      return appearance === 'management' ? (
-        <div className={cn('rounded-lg border bg-card py-4', className)}>{emptyContent}</div>
-      ) : (
-        <>{emptyContent}</>
-      )
+    // Embedded operational tables may supply their own complete empty presentation.
+    if (emptyContent && !pagination && appearance !== 'management') {
+      return <>{emptyContent}</>
     }
-
     return (
-      <Card className="bg-card shadow-none">
-        <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-          <Package className="size-8 text-muted-foreground mb-3" />
-          <h3 className="text-sm font-semibold text-foreground">No records found</h3>
-          <p className="text-xs text-muted-foreground mt-1 max-w-xs">
-            There are currently no items to display.
-          </p>
-        </CardContent>
+      <div className={cn('ui-typography rounded-lg border border-border bg-card', className)}>
+        <div className="px-4 py-6 text-center text-sm text-muted-foreground">
+          {emptyContent ?? 'No records found.'}
+        </div>
         {footer}
-      </Card>
+      </div>
     )
   }
 
@@ -626,7 +610,22 @@ export function DataTable<T>({
                 return (
                   <Fragment key={rowKey}>
                     <TableRow
-                      onClick={onRowClick ? (event) => onRowClick(row, rowIndex, event) : undefined}
+                      onClick={
+                        onRowClick
+                          ? (event) => {
+                              if (event.defaultPrevented || window.getSelection()?.toString())
+                                return
+                              const control =
+                                event.target instanceof Element
+                                  ? event.target.closest(
+                                      'button, a, label, input, select, textarea, summary, [role="button"], [role="link"], [role="checkbox"], [role="radio"], [role="menuitem"], [role="combobox"], [contenteditable="true"]',
+                                    )
+                                  : null
+                              if (control && event.currentTarget.contains(control)) return
+                              onRowClick(row, rowIndex, event)
+                            }
+                          : undefined
+                      }
                       className={cn(
                         'hover:bg-accent/70 focus-within:bg-accent/70 transition-colors duration-150',
                         // The unlayered global border rule otherwise overrides Tailwind colors.

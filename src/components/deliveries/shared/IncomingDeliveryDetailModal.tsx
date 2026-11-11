@@ -43,6 +43,9 @@ export function IncomingDeliveryDetailModal({
   canManage = false,
   onAction,
   onViewOrder,
+  refreshing,
+  refreshError,
+  onRefresh,
 }: {
   row?: Extract<DeliveryRow, { type: 'Incoming' }>
   purchaseOrders: PurchaseOrderRecord[]
@@ -51,6 +54,9 @@ export function IncomingDeliveryDetailModal({
   canManage?: boolean
   onAction?: (row: Extract<DeliveryRow, { type: 'Incoming' }>, action: DeliveryAction) => void
   onViewOrder?: (row: Extract<DeliveryRow, { type: 'Incoming' }>) => void
+  refreshing?: boolean
+  refreshError?: string
+  onRefresh?: () => void
 }) {
   const delivery = row?.record
   const purchaseOrder = purchaseOrders.find((order) => order.id === delivery?.purchaseOrderId)
@@ -161,7 +167,7 @@ export function IncomingDeliveryDetailModal({
           },
           { label: 'Scheduled / expected', value: DeliveryUtils.formatDateTime(row.date) },
           ...(delivery.completedAt
-            ? [{ label: 'Received at', value: DeliveryUtils.formatDateTime(delivery.completedAt) }]
+            ? [{ label: delivery.outcome === 'NO_RECEIPT' ? 'Outcome recorded at' : 'Received at', value: DeliveryUtils.formatDateTime(delivery.completedAt) }]
             : []),
           ...(delivery.supplierReference
             ? [{ label: 'Supplier reference', value: delivery.supplierReference }]
@@ -180,6 +186,9 @@ export function IncomingDeliveryDetailModal({
         <div className="min-h-0 min-w-0 flex-1 overflow-y-auto px-5 pb-5 sm:px-6">
           {delivery && (
             <div className="flex flex-col gap-5">
+              {refreshing && <p role="status" className="text-sm text-muted-foreground">Refreshing incoming delivery…</p>}
+              {refreshError && <Alert variant="destructive"><AlertDescription>{refreshError} <Button variant="link" onClick={onRefresh}>Refresh delivery</Button></AlertDescription></Alert>}
+              {delivery.status === 'SCHEDULED' && <p className="text-sm text-muted-foreground">Arrival scheduled. Return here to Receive Goods when the supplier arrives.</p>}
               {schedulingIssue && (
                 <Alert>
                   <AlertTitle>{schedulingIssue.title}</AlertTitle>

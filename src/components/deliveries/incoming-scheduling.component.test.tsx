@@ -7,6 +7,7 @@ import { apiClient } from '@/lib/api-client'
 import { DeliveriesHub } from './DeliveriesHub'
 import type { IncomingDeliveryRecord } from '@/features/logistics/incoming-deliveries.types'
 import type { PurchaseOrderRecord } from '@/features/logistics/purchase-orders.types'
+import type { AxiosAdapter } from 'axios'
 
 const auth = vi.hoisted(() => ({ isAdmin: true, isManager: false }))
 vi.mock('@/features/auth/AuthContext', () => ({ useAuth: () => auth }))
@@ -162,8 +163,51 @@ it.each(['CONFIRMED', 'PARTIALLY_RECEIVED'] as const)(
     await waitFor(() => expect(writes()).toHaveLength(1))
     expect(writes()[0].url).toBe('/incoming-deliveries/66/schedule')
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    const confirmation = within(screen.getByRole('alert'))
+    expect(confirmation.getByText(/Arrival scheduled for ID-000066/)).toBeTruthy()
+    expect(confirmation.getByRole('button', { name: 'View Details' })).toBeTruthy()
+    expect(confirmation.queryByRole('button', { name: 'Receive Goods' })).toBeNull()
   },
 )
+
+it('reopens a scheduled arrival before its planned date and refreshes a receipt saved by another employee', async () => {
+  draft.status = 'SCHEDULED'
+  mount()
+  const user = userEvent.setup()
+  await user.click(await screen.findByRole('button', { name: 'View delivery ID-000066' }))
+  const details = within(await screen.findByRole('dialog', { name: 'ID-000066' }))
+  const receive = await details.findByRole('button', { name: /^Receive Goods/ })
+  await waitFor(() => expect(receive.hasAttribute('disabled')).toBe(false))
+  expect(details.queryByText('Received at')).toBeNull()
+  expect(writes()).toHaveLength(0)
+  await user.keyboard('{Escape}')
+  draft = { ...draft, status: 'COMPLETED', revision: 3, completedAt: '2026-11-11T02:00:00Z' }
+  await user.click(screen.getByRole('button', { name: 'View delivery ID-000066' }))
+  const resumed = within(await screen.findByRole('dialog', { name: 'ID-000066' }))
+  expect(await resumed.findByText('Received at')).toBeTruthy()
+  expect(resumed.queryByRole('button', { name: /^Receive Goods/ })).toBeNull()
+  expect(requests.filter((request) => request.url === '/incoming-deliveries/66')).toHaveLength(2)
+  expect(writes()).toHaveLength(0)
+})
+
+it.each(['unavailable', 'missing'])('blocks receiving from stale details when the current incoming record is %s', async (failure) => {
+  draft.status = 'SCHEDULED'
+  const base = apiClient.defaults.adapter as AxiosAdapter
+  apiClient.defaults.adapter = async (config) => {
+    if (config.url === '/incoming-deliveries/66') {
+      if (failure === 'unavailable') throw Error('Current arrival unavailable')
+      return { config, status: 200, statusText: 'OK', headers: {}, data: null }
+    }
+    return base(config)
+  }
+  mount()
+  await userEvent.click(await screen.findByRole('button', { name: 'View delivery ID-000066' }))
+  const details = within(await screen.findByRole('dialog', { name: 'ID-000066' }))
+  await details.findByRole('alert')
+  expect(details.queryByRole('button', { name: /^Receive Goods/ })).toBeNull()
+  expect(details.getByRole('button', { name: 'Refresh delivery' })).toBeTruthy()
+  expect(writes()).toHaveLength(0)
+})
 
 it('rechecks a warm cached order on opening and stops a newly received order', async () => {
   mount()

@@ -15,8 +15,9 @@ import { fetchWarehouseByIdApi } from './warehouses.api'
 import type { DeliveryRunRecord } from './delivery-runs.types'
 import { validateRunLoad, type RunLoadRow } from './run-load-validation'
 import { parseStockCents } from './stock-display'
+import { fetchTransfer } from '@/features/warehouse-transfers/warehouse-transfers.api'
 
-export function useOutgoingDispatch(runId: number, onSuccess: () => void) {
+export function useOutgoingDispatch(runId: number, onSuccess: (run: DeliveryRunRecord) => void) {
   const { isAdmin, isManager, isStaff } = useAuth()
   const runQuery = useDeliveryRunById(runId)
   const run = runQuery.data
@@ -29,6 +30,7 @@ export function useOutgoingDispatch(runId: number, onSuccess: () => void) {
   const [message, setMessage] = useState('')
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [refreshing, setRefreshing] = useState(false)
+  const [loadReview, setLoadReview] = useState<string>()
   const lock = useRef(false)
   const contextKey = (current: DeliveryRunRecord | undefined) => [
     'delivery-runs',
@@ -36,9 +38,10 @@ export function useOutgoingDispatch(runId: number, onSuccess: () => void) {
     runId,
     current?.revision,
     current?.deliveries.map((member) => `${member.id}:${member.revision}`).join(','),
+    current?.warehouseTransfers?.map((member) => `${member.id}:${member.revision}`).join(','),
   ]
   async function loadContext(run: DeliveryRunRecord) {
-    const [deliveries, vehicle, driver, activeDriverRuns, warehouse] = await Promise.all([
+    const [deliveries, vehicle, driver, activeDriverRuns, warehouse, transfers] = await Promise.all([
       Promise.all(run.deliveries.map((member) => fetchOutgoingDeliveryByIdApi(member.id))),
       run.deliveryVehicleId ? fetchVehicleByIdApi(run.deliveryVehicleId) : null,
       run.driverEmployeeId ? fetchEmployeeByIdApi(run.driverEmployeeId) : null,
@@ -50,7 +53,13 @@ export function useOutgoingDispatch(runId: number, onSuccess: () => void) {
           })
         : null,
       fetchWarehouseByIdApi(run.warehouseId),
+      Promise.all((run.warehouseTransfers ?? []).map((member) => fetchTransfer(member.id))),
     ])
+    transfers.forEach((transfer, index) => {
+      const member = run.warehouseTransfers![index]
+      if (transfer.runId !== runId || transfer.status !== 'DRAFT' || transfer.revision !== member.revision || transfer.sourceWarehouseId !== run.warehouseId)
+        throw Error('A transfer changed. Refresh and review the trip before departure.')
+    })
     const orders = await Promise.all(
       deliveries.map((delivery) =>
         delivery ? fetchSalesOrderByIdApi(delivery.salesOrderId) : null,
@@ -124,7 +133,7 @@ export function useOutgoingDispatch(runId: number, onSuccess: () => void) {
         })
       }
     })
-    return { deliveries, rows, vehicle, driver, activeDriverRuns, warehouse }
+    return { deliveries, rows, vehicle, driver, activeDriverRuns, warehouse, transfers }
   }
   const context = useQuery({
     queryKey: contextKey(run),
@@ -142,6 +151,7 @@ export function useOutgoingDispatch(runId: number, onSuccess: () => void) {
           run.revision,
           run.deliveries.map((member) => [member.id, member.revision]),
           context.data.deliveries.map((delivery) => [delivery?.id, delivery?.revision]),
+          context.data.transfers.map((transfer) => [transfer.id, transfer.revision]),
         ])
       : null
   if (signature && reviewed === null && runQuery.isFetchedAfterMount && context.isFetchedAfterMount)
@@ -162,7 +172,7 @@ export function useOutgoingDispatch(runId: number, onSuccess: () => void) {
     issue = 'Trip details or a delivery plan changed. Refresh and review the updated loads.'
   else if (!warehouse.isActive) issue = 'The source warehouse is inactive.'
   else if (!run.scheduledDepartureAt) issue = 'Edit the trip to set a departure date and time before sending.'
-  else if (!run.deliveries.length) issue = 'Add at least one delivery.'
+  else if (!run.deliveries.length && !run.warehouseTransfers?.length) issue = 'Add at least one delivery or transfer.'
   else if (
     !vehicle?.isActive ||
     vehicle.operationalStatus !== 'SERVICEABLE' ||
@@ -182,6 +192,7 @@ export function useOutgoingDispatch(runId: number, onSuccess: () => void) {
   async function refresh() {
     if (lock.current || busy) return
     setRefreshing(true)
+    setLoadReview(undefined)
     try {
       const result = await runQuery.refetch()
       const latest = result.data
@@ -197,6 +208,7 @@ export function useOutgoingDispatch(runId: number, onSuccess: () => void) {
           latest.revision,
           latest.deliveries.map((member) => [member.id, member.revision]),
           details.deliveries.map((delivery) => [delivery?.id, delivery?.revision]),
+          details.transfers.map((transfer) => [transfer.id, transfer.revision]),
         ]),
       )
       setNeedsRefresh(false)
@@ -208,6 +220,8 @@ export function useOutgoingDispatch(runId: number, onSuccess: () => void) {
       setRefreshing(false)
     }
   }
+  const reviewSignature = JSON.stringify([signature, quantities, loadedWeightKg])
+  const reviewing = loadReview === reviewSignature
   async function submit() {
     if (lock.current || !canSubmit || !run) return
     setMessage('')
@@ -229,12 +243,14 @@ export function useOutgoingDispatch(runId: number, onSuccess: () => void) {
       payload = {
         expectedRevision: run.revision,
         loadedWeightKg: loadedWeightKg.trim(),
-        ...validateRunLoad(run.deliveries, rows, quantities),
+        ...(run.deliveries.length ? validateRunLoad(run.deliveries, rows, quantities) : { loads: [] }),
+        ...(run.warehouseTransfers?.length ? { transferLoads: run.warehouseTransfers.map((member) => ({ transferId: member.id, expectedRevision: member.revision })) } : {}),
       }
     } catch (cause) {
       setMessage(getErrorMessage(cause))
       return
     }
+    if (!reviewing) { setLoadReview(reviewSignature); return }
     lock.current = true
     try {
       const saved = await mutation.mutateAsync({ id: runId, payload })
@@ -248,7 +264,7 @@ export function useOutgoingDispatch(runId: number, onSuccess: () => void) {
       toast.success('Trip Sent', {
         description: 'The departure has been recorded. The goods are now listed as in transit.',
       })
-      onSuccess()
+      onSuccess(saved)
     } catch (cause) {
       setNeedsRefresh(true)
       const issues = getApiFieldErrors(cause)
@@ -269,6 +285,8 @@ export function useOutgoingDispatch(runId: number, onSuccess: () => void) {
   return {
     run,
     rows,
+    transfers: context.data?.transfers ?? [],
+    reviewing,
     warehouse,
     vehicle,
     driver,

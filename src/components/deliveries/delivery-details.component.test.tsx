@@ -581,6 +581,8 @@ describe('incoming delivery details', () => {
     ])
     expect(within(dialog).getByText('No goods were received; inventory was not updated.')).toBeTruthy()
     expect(within(dialog).getByText('Reason: Supplier could not deliver')).toBeTruthy()
+    expect(within(dialog).getByText('Outcome recorded at')).toBeTruthy()
+    expect(within(dialog).queryByText('Received at')).toBeNull()
     expect(within(dialog).queryByText('0.00')).toBeNull()
     expect(within(dialog).queryByRole('button', { name: 'Continue Scheduling ID-000020' })).toBeNull()
   })

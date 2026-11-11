@@ -10,6 +10,7 @@ const originalAdapter = apiClient.defaults.adapter
 afterEach(() => { apiClient.defaults.adapter = originalAdapter })
 
 const member = { deliveryId: 3, expectedRevision: 7 }
+const transfer = { transferId: 7, expectedRevision: 3 }
 const dispatch = {
   expectedRevision: 2, loadedWeightKg: '12.50',
   loads: [{ ...member, items: [{ salesOrderItemId: 8, stockItemId: 9, loadedQuantity: '4.25' }] }],
@@ -20,6 +21,9 @@ const reconcile = {
 }
 
 it.each([
+  { method: 'post', path: '', body: { warehouseId: 1, warehouseTransfers: [transfer] }, send: () => api.createDeliveryRunApi({ warehouseId: 1, warehouseTransfers: [transfer] }) },
+  { method: 'patch', path: '/4/warehouse-transfers', body: { expectedRevision: 2, add: [transfer] }, send: () => api.changeRunTransfersApi(4, { expectedRevision: 2, add: [transfer] }) },
+  { method: 'patch', path: '/4/dispatch', body: { expectedRevision: 2, loadedWeightKg: '12.50', loads: [], transferLoads: [transfer] }, send: () => api.dispatchDeliveryRunApi(4, { expectedRevision: 2, loadedWeightKg: '12.50', loads: [], transferLoads: [transfer] }) },
   { method: 'post', path: '', body: { warehouseId: 1, deliveries: [member] }, send: () => api.createDeliveryRunApi({ warehouseId: 1, deliveries: [member], legacy: true } as never) },
   { method: 'patch', path: '/4/draft', body: { expectedRevision: 2, notes: null, driverEmployeeId: null }, send: () => api.updateDeliveryRunDraftApi(4, { expectedRevision: 2, notes: null, driverEmployeeId: null, deliveries: [member] } as never) },
   { method: 'patch', path: '/4/deliveries', body: { expectedRevision: 2, add: [member], remove: [] }, send: () => api.changeRunMembersApi(4, { expectedRevision: 2, add: [member], remove: [] }) },

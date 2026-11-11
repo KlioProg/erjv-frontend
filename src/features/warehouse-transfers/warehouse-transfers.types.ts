@@ -31,6 +31,7 @@ export type WarehouseTransfer = {
   transferNumber: string
   revision: number
   status: TransferStatus
+  runId?: number | null
   sourceWarehouseId: number
   destinationWarehouseId: number
   scheduledDepartureAt: string | null

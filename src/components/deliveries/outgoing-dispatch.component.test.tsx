@@ -243,7 +243,7 @@ it('reports an inactive warehouse separately from the recorded schedule and assi
 it('identifies a trip with no member deliveries', async () => {
   run.deliveries = []
   mount()
-  await screen.findByText('Add at least one delivery.')
+  await screen.findByText('Add at least one delivery or transfer.')
   expect(writes).toHaveLength(0)
 })
 it('explains zero stock and permits a partial load of another stocked product in the same delivery', async () => {
@@ -300,7 +300,9 @@ it('requires older unscheduled trips to be scheduled in Edit Trip before departu
   await ready()
   fill()
   submit()
-  await screen.findByRole('dialog', { name: 'Delivery Trip RUN-40' })
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+  expect(screen.queryByRole('dialog', { name: 'Record Delivery Results' })).toBeNull()
+  expect(writes.every((entry) => !entry.url.includes('reconcile'))).toBe(true)
   expect(writes.map(entry => entry.url)).toEqual(['/delivery-runs/40/draft', '/delivery-runs/40/dispatch'])
   expect(writes[0].body.scheduledDepartureAt).toBe('2026-11-06T01:30:00.000Z')
   expect(writes[1].body.expectedRevision).toBe(3)

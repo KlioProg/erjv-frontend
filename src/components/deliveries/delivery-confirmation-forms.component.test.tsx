@@ -275,7 +275,12 @@ function setupDispatch() {
     canDrive: true,
   })
 }
-const departure = () => screen.getByRole('button', { name: 'Send Trip' })
+const departure = () => screen.getByRole('button', { name: /^(Review Departure|Send Trip)$/ })
+function confirmDeparture() {
+  fireEvent.click(departure())
+  const send = screen.queryByRole('button', { name: 'Send Trip' })
+  if (send) fireEvent.click(send)
+}
 function dispatchValue(valueToLoad: string, kg = '10.00') {
   value('Quantity loaded for Rice on OUT-8', valueToLoad)
   value('Actual total loaded weight (kg)', kg)
@@ -426,11 +431,11 @@ it('dispatches explicit actual quantities from the run warehouse, not the first 
   mount(<DispatchDeliveryModal runId={40} onClose={close} />)
   await ready('Use Planned Quantities')
   dispatchValue('2.01')
-  fireEvent.click(departure())
+  confirmDeparture()
   expect((await screen.findByRole('alert')).textContent).toMatch(/within the plan/)
   expect(writes).toHaveLength(0)
   dispatchValue('1.5')
-  fireEvent.click(departure())
+  confirmDeparture()
   await waitFor(() => expect(close).toHaveBeenCalledOnce())
   expect(writes[0]).toEqual({
     url: '/delivery-runs/40/dispatch',
@@ -513,15 +518,15 @@ it('rejects duplicate member plan lines before dispatch and refreshes conflicts 
   fireEvent.change(screen.getAllByLabelText('Quantity loaded for Rice on OUT-8')[0], {
     target: { value: '1' },
   })
-  fireEvent.click(departure())
+  confirmDeparture()
   expect((await screen.findByRole('alert')).textContent).toMatch(/duplicate/i)
   expect(writes).toHaveLength(0)
   duplicate = false
-  fireEvent.click(screen.getByRole('button', { name: 'Refresh trip and review current data' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Refresh trip data' }))
   await ready('Use Planned Quantities')
   dispatchValue('1')
   fail = true
-  fireEvent.click(departure())
+  confirmDeparture()
   await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('Counts changed'))
   expect(close).not.toHaveBeenCalled()
   expect(client.getQueryState(['outgoing-deliveries', 'check'])?.isInvalidated).toBe(true)
@@ -539,7 +544,7 @@ it('uses planned quantities without submitting and keeps recognizable member pro
   expect(screen.getByRole('dialog').textContent).not.toMatch(/Stock #|Order line #/)
   expect(writes).toHaveLength(0)
   dispatchValue('0.75')
-  fireEvent.click(departure())
+  confirmDeparture()
   await waitFor(() => expect(writes).toHaveLength(1))
   expect(writes[0].body).toMatchObject({
     loads: [{ deliveryId: 8, items: [{ loadedQuantity: '0.75', stockItemId: 22 }] }],
@@ -564,7 +569,7 @@ it('rejects the planned shortcut when source availability falls and retains actu
     (screen.getByLabelText('Quantity loaded for Rice on OUT-8') as HTMLInputElement).value,
   ).toBe('1')
   dispatchValue('1.26')
-  fireEvent.click(departure())
+  confirmDeparture()
   expect(screen.getByRole('alert').textContent).toMatch(/exceed/)
   expect(writes).toHaveLength(0)
 })
@@ -604,6 +609,9 @@ it('shows full saved assignment labels and supports keyboard departure without s
   dispatchValue('2.00')
   const user = userEvent.setup()
   departure().focus()
+  await user.keyboard('{Enter}')
+  expect(writes).toHaveLength(0)
+  expect(screen.getByRole('button', { name: 'Send Trip' })).toBeTruthy()
   await user.keyboard('{Enter}')
   await waitFor(() => expect(writes).toHaveLength(1))
   expect(writes[0].body).toMatchObject({
@@ -811,9 +819,9 @@ it('retains dispatch input and blocks mutation after current source stock change
   fireEvent.click(await ready('Use Planned Quantities'))
   value('Actual total loaded weight (kg)', '10')
   available = '1.00'
-  fireEvent.click(screen.getByRole('button', { name: 'Refresh trip and review current data' }))
-  await ready('Send Trip')
-  fireEvent.click(departure())
+  fireEvent.click(screen.getByRole('button', { name: 'Refresh trip data' }))
+  await ready('Review Departure')
+  confirmDeparture()
   expect((await screen.findByRole('alert')).textContent).toMatch(/exceed/)
   expect(
     (screen.getByLabelText('Quantity loaded for Rice on OUT-8') as HTMLInputElement).value,
@@ -836,7 +844,7 @@ it('prevents duplicate run departure while the inventory mutation is pending', a
   mount(<DispatchDeliveryModal runId={40} onClose={close} />)
   fireEvent.click(await ready('Use Planned Quantities'))
   value('Actual total loaded weight (kg)', '10')
-  const button = await ready('Send Trip')
+  const button = await ready('Review Departure')
   fireEvent.submit(button.closest('form')!)
   fireEvent.submit(button.closest('form')!)
   await waitFor(() => expect(button.hasAttribute('disabled')).toBe(true))

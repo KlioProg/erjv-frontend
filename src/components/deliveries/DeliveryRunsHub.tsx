@@ -11,6 +11,10 @@ import { useRecordsById } from '@/lib/use-records-by-id'
 import { RUN_STATUS_LABELS } from '@/features/logistics/delivery-workflow'
 import type { OutgoingDeliveryRecord } from '@/features/logistics/outgoing-deliveries.types'
 import { AssignDeliveryToRun } from './AssignDeliveryToRun'
+import { AssignTransferToRun } from './AssignTransferToRun'
+import type { WarehouseTransfer } from '@/features/warehouse-transfers/warehouse-transfers.types'
+import { fetchTransfer } from '@/features/warehouse-transfers/warehouse-transfers.api'
+import { TransferDialog } from '@/components/warehouse-transfers/WarehouseTransfersPage'
 import { useAuth } from '@/features/auth/AuthContext'
 import { PageHeader } from '@/components/ui/ManagementPage'
 import { Button } from '@/components/ui/button'
@@ -48,6 +52,7 @@ import {
   useCreateDeliveryRun,
   useUpdateDeliveryRunDraft,
   useChangeRunMembers,
+  useChangeRunTransfers,
   useReopenRunMember,
   useCancelRunMember,
   useCancelDeliveryRun,
@@ -138,12 +143,16 @@ export function DeliveryRunsHub({ history = false }: { history?: boolean }) {
   const [params, setParams] = useSearchParams()
   const runValue = Number(params.get('run'))
   const assignmentValue = Number(params.get('assign'))
+  const transferValue = Number(params.get('transfer'))
+  const transferId = Number.isSafeInteger(transferValue) && transferValue > 0 ? transferValue : undefined
   const selectedId = Number.isSafeInteger(runValue) && runValue > 0 ? runValue : undefined
   const assignmentId =
     Number.isSafeInteger(assignmentValue) && assignmentValue > 0 ? assignmentValue : undefined
-  const invalidLink = (params.has('run') && !selectedId) || (!history && params.has('assign') && !assignmentId)
+  const invalidLink = (params.has('run') && !selectedId) || (!history && params.has('assign') && !assignmentId) || (!history && params.has('transfer') && !transferId)
   const [creating, setCreating] = useState(false)
   const [initialDelivery, setInitialDelivery] = useState<OutgoingDeliveryRecord>()
+  const [initialTransfer, setInitialTransfer] = useState<WarehouseTransfer>()
+  const [departedTrip, setDepartedTrip] = useState<DeliveryRunRecord>()
   const [q, setQ] = useState('')
   const [status, setStatus] = useState('ALL')
   const [warehouseFilter, setWarehouseFilter] = useState('')
@@ -187,14 +196,15 @@ export function DeliveryRunsHub({ history = false }: { history?: boolean }) {
     setParams((previous) => {
       const next = new URLSearchParams(previous)
       next.delete('assign')
+      next.delete('transfer')
       if (id) next.set('run', String(id))
       else next.delete('run')
       return next
     })
   const preparation = (run: DeliveryRunRecord) =>
     run.status === 'DRAFT'
-      ? !run.deliveries.length
-        ? 'No deliveries in this trip'
+      ? !run.deliveries.length && !run.warehouseTransfers?.length
+        ? 'No deliveries or transfers in this trip'
         : !run.driverEmployeeId || !run.deliveryVehicleId
           ? 'Assign driver / vehicle, then review load'
           : 'Review load and eligibility before departure'
@@ -403,10 +413,17 @@ export function DeliveryRunsHub({ history = false }: { history?: boolean }) {
       cell: ({ row }) => (
         <div>
           <p className={history ? 'text-xs text-muted-foreground' : undefined}>
-            {row.deliveries.length
+            {row.status === 'DRAFT' && row.deliveries.length > 0
+              ? `${row.deliveries.length} ${row.deliveries.length === 1 ? 'delivery' : 'deliveries'} assigned`
+              : row.deliveries.length
               ? `${row.deliveries.filter((member) => member.status === 'RECONCILED').length} / ${row.deliveries.length} results recorded`
               : 'No deliveries added'}
           </p>
+          {!!row.warehouseTransfers?.length && <p className="text-xs text-muted-foreground">
+            {row.status === 'DRAFT'
+              ? `${row.warehouseTransfers.length} ${row.warehouseTransfers.length === 1 ? 'transfer' : 'transfers'} assigned`
+              : `${row.warehouseTransfers.filter((member) => member.status === 'COMPLETED').length} / ${row.warehouseTransfers.length} transfer receipts recorded`}
+          </p>}
         </div>
       ),
     },
@@ -435,7 +452,7 @@ export function DeliveryRunsHub({ history = false }: { history?: boolean }) {
   if (history && !canViewHistory) return <Alert><AlertDescription>You do not have permission to view Delivery Trips.</AlertDescription></Alert>
   return (
     <div className="flex min-w-0 flex-col gap-4">
-      {!history && <PageHeader description="Group customer deliveries, review departure loads, then record results after departure.">
+      {!history && <PageHeader description="Group deliveries and warehouse transfers, confirm departure, then return to record outcomes.">
         Delivery Trips
       </PageHeader>}
       <DeliveryTableToolbar
@@ -459,6 +476,10 @@ export function DeliveryRunsHub({ history = false }: { history?: boolean }) {
         )}
       </DeliveryTableToolbar>
       <DataTableFilterChips filters={Object.values(filterHeaders)} />
+      {!history && departedTrip && <Alert><AlertDescription>
+        {departedTrip.runNumber} has departed. Return when delivery outcomes are known.{' '}
+        <Button variant="link" size="sm" onClick={() => select(departedTrip.id)}>View Trip</Button>
+      </AlertDescription></Alert>}
       {invalidLink && (
         <Alert variant="destructive">
           <AlertDescription>
@@ -513,18 +534,26 @@ export function DeliveryRunsHub({ history = false }: { history?: boolean }) {
       {!history && creating && (
         <RunEditor
           initialDelivery={initialDelivery}
+          initialTransfer={initialTransfer}
           onReview={select}
           onClose={() => {
             setCreating(false)
             setInitialDelivery(undefined)
+            setInitialTransfer(undefined)
           }}
           onSaved={(run) => {
             setCreating(false)
             setInitialDelivery(undefined)
+            setInitialTransfer(undefined)
             select(run.id)
           }}
         />
       )}
+      {!history && transferId && !creating && (isAdmin || isManager) && <AssignTransferToRun
+        key={transferId} transferId={transferId} onClose={() => select()} onAssigned={select}
+        onCreate={(transfer) => { setInitialTransfer(transfer); setCreating(true) }}
+      />}
+      {!history && transferId && !(isAdmin || isManager) && <Alert><AlertDescription>Only administrators and managers can assign transfers to trips.</AlertDescription></Alert>}
       {!history && assignmentId && !creating && (isAdmin || isManager) && (
         <AssignDeliveryToRun
           key={assignmentId}
@@ -544,8 +573,9 @@ export function DeliveryRunsHub({ history = false }: { history?: boolean }) {
           </AlertDescription>
         </Alert>
       )}
-      {selectedId && (history || !assignmentId) && (
-        <RunDetails key={selectedId} id={selectedId} readOnly={history} onClose={() => select()} />
+      {selectedId && (history || (!assignmentId && !transferId)) && (
+        <RunDetails key={selectedId} id={selectedId} readOnly={history} onClose={() => select()}
+          onDeparted={(run) => { setDepartedTrip(run); select() }} />
       )}
     </div>
   )
@@ -553,12 +583,14 @@ export function DeliveryRunsHub({ history = false }: { history?: boolean }) {
 function RunEditor({
   run,
   initialDelivery,
+  initialTransfer,
   onReview,
   onClose,
   onSaved,
 }: {
   run?: DeliveryRunRecord
   initialDelivery?: OutgoingDeliveryRecord
+  initialTransfer?: WarehouseTransfer
   onReview?: (id: number) => void
   onClose: () => void
   onSaved: (run: DeliveryRunRecord) => void
@@ -570,7 +602,7 @@ function RunEditor({
       ? String(run.warehouseId)
       : initialDelivery?.warehouseId
         ? String(initialDelivery.warehouseId)
-        : '',
+        : initialTransfer ? String(initialTransfer.sourceWarehouseId) : '',
   )
   const [driverId, setDriverId] = useState(
     run?.driverEmployeeId ? String(run.driverEmployeeId) : '',
@@ -592,7 +624,7 @@ function RunEditor({
   const [review, setReview] = useState(false)
   const [savedTripId, setSavedTripId] = useState<number>()
   const selection = useRunDeliverySelection(Number(warehouseId) || undefined)
-  const warehouseLocked = !!run?.deliveries.length || !!initialDelivery
+  const warehouseLocked = !!run?.deliveries.length || !!run?.warehouseTransfers?.length || !!initialDelivery || !!initialTransfer
   const fixedWarehouse = useRecordsById<NamedRecord>(
     '/warehouses',
     [warehouseLocked ? Number(warehouseId) || undefined : undefined],
@@ -640,12 +672,24 @@ function RunEditor({
         if (mounted.current) setError('Review the selected deliveries before saving.')
         return
       }
+      if (!run && selection.selected.length + (initialTransfer ? 1 : 0) > 100) {
+        setError('A trip can contain at most 100 deliveries and transfers combined.')
+        return
+      }
+      let transferRevision: number | undefined
+      if (!run && initialTransfer) {
+        const latest = await fetchTransfer(initialTransfer.id)
+        if (latest.revision !== initialTransfer.revision || latest.status !== 'DRAFT' || latest.runId !== null || latest.sourceWarehouseId !== Number(warehouseId))
+          throw Error('The transfer changed. Reopen its saved record before creating a trip.')
+        transferRevision = latest.revision
+      }
       const payload = {
         warehouseId: Number(warehouseId),
         scheduledDepartureAt: run?.scheduledDepartureAt && departure === toManilaSchedule(run.scheduledDepartureAt) ? run.scheduledDepartureAt : manilaScheduleToIso(departure),
         driverEmployeeId: driverId ? Number(driverId) : null,
         deliveryVehicleId: vehicleId ? Number(vehicleId) : null,
         notes: notes.trim() || null,
+        ...(!run && initialTransfer ? { warehouseTransfers: [{ transferId: initialTransfer.id, expectedRevision: transferRevision! }] } : {}),
         ...(!run && selection.selected.length
           ? {
               deliveries: selection.selected.map((delivery) => ({
@@ -666,6 +710,7 @@ function RunEditor({
         (!Number.isSafeInteger(saved.id) || saved.id < 1 ||
           !Number.isSafeInteger(saved.revision) || saved.revision < 1 ||
           saved.warehouseId !== Number(warehouseId) ||
+          (initialTransfer && !saved.warehouseTransfers?.some((member) => member.id === initialTransfer.id)) ||
           selection.selected.some(
             (delivery) => !saved.deliveries?.some((member) => member.id === delivery.id),
           ))
@@ -752,7 +797,7 @@ function RunEditor({
                     )}
                     {warehouseLocked ? (
                       <p className="text-xs text-muted-foreground">
-                        {initialDelivery
+                        {initialTransfer ? 'Fixed by the selected warehouse transfer.' : initialDelivery
                           ? 'Fixed by the selected outgoing delivery.'
                           : 'Fixed by the deliveries in this trip.'}
                       </p>
@@ -845,6 +890,7 @@ function RunEditor({
                     scrollSelected={false}
                   />
                 )}
+                {initialTransfer && <p className="text-sm">Warehouse transfer: {initialTransfer.transferNumber}</p>}
 
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="run-notes">Notes (optional)</Label>
@@ -881,7 +927,7 @@ function RunEditor({
   )
 }
 
-function RunDetails({ id, onClose, readOnly = false }: { id: number; onClose: () => void; readOnly?: boolean }) {
+function RunDetails({ id, onClose, onDeparted, readOnly = false }: { id: number; onClose: () => void; onDeparted: (run: DeliveryRunRecord) => void; readOnly?: boolean }) {
   const { isAdmin, isManager, isStaff } = useAuth()
   const canManage = !readOnly && (isAdmin || isManager)
   const canOperate = !readOnly && (isAdmin || isManager || isStaff)
@@ -891,7 +937,9 @@ function RunDetails({ id, onClose, readOnly = false }: { id: number; onClose: ()
   const orders = useRecordsById<{ id: number; clientId: number | null }>('/sales-orders', readOnly ? run?.deliveries.map((member) => member.salesOrderId) ?? [] : [])
   const clients = useRecordsById<NamedRecord>('/clients', orders.data.map((order) => order.clientId))
   const [viewDeliveryId, setViewDeliveryId] = useState<number>()
+  const [viewTransferId, setViewTransferId] = useState<number>()
   const changeMembers = useChangeRunMembers()
+  const changeTransfers = useChangeRunTransfers()
   const reopen = useReopenRunMember()
   const cancelMember = useCancelRunMember()
   const cancelRun = useCancelDeliveryRun()
@@ -919,7 +967,7 @@ function RunDetails({ id, onClose, readOnly = false }: { id: number; onClose: ()
   }>()
   const busy =
     acting ||
-    [changeMembers, reopen, cancelMember, cancelRun].some((mutation) => mutation.isPending)
+    [changeMembers, changeTransfers, reopen, cancelMember, cancelRun].some((mutation) => mutation.isPending)
   const resultsBlocked = busy || review || query.isFetching || query.isError
   async function perform(action: () => Promise<unknown>) {
     if (readOnly || pendingAction.current || busy || review)
@@ -993,7 +1041,11 @@ function RunDetails({ id, onClose, readOnly = false }: { id: number; onClose: ()
     {
       header: 'Status',
       accessorKey: 'status',
-      cell: ({ row }) => <DeliveryStatusBadge status={row.status} runId={run?.id} />,
+      cell: ({ row }) => <div className="flex flex-col gap-1">
+        <DeliveryStatusBadge status={row.status} runId={run?.id} />
+        {row.status === 'DISPATCHED' && <span className="text-xs text-muted-foreground">Results not recorded</span>}
+        {row.status === 'RECONCILED' && <span className="text-xs text-muted-foreground">Results recorded</span>}
+      </div>,
     },
     { id: 'order', header: 'Sales order', cell: ({ row }) => `#${row.salesOrderId}` },
     ...(readOnly ? [{ id: 'customer', header: 'Customer', cell: ({ row }: { row: DeliveryRunMember }) =>
@@ -1034,7 +1086,7 @@ function RunDetails({ id, onClose, readOnly = false }: { id: number; onClose: ()
   ]
   return (
     <>
-      <Dialog open={!editing && !dispatching && !reconcileId && !viewDeliveryId} onOpenChange={(open) => !open && !busy && onClose()}>
+      <Dialog open={!editing && !dispatching && !reconcileId && !viewDeliveryId && !viewTransferId} onOpenChange={(open) => !open && !busy && onClose()}>
         <DialogContent
           closeDisabled={busy}
           className="flex max-h-[90dvh] flex-col overflow-hidden sm:max-w-5xl"
@@ -1042,7 +1094,7 @@ function RunDetails({ id, onClose, readOnly = false }: { id: number; onClose: ()
           <DialogHeader>
             <div className="flex items-center gap-3 pr-6"><DialogTitle>{run ? readOnly ? run.runNumber : `Delivery Trip ${run.runNumber}` : 'Delivery Trip'}</DialogTitle>{run && <RunStatusBadge status={run.status} />}</div>
             <DialogDescription>
-              {readOnly ? 'Review the saved trip and its member deliveries.' : run?.status === 'DRAFT' ? 'Review the deliveries and load before sending this trip.' : run?.status === 'DISPATCHED' ? 'Record results for each delivery after departure.' : 'Review the saved trip and delivery information.'}
+              {readOnly ? 'Review the saved trip and its member deliveries.' : run?.status === 'DRAFT' ? 'Review the deliveries and load before sending this trip.' : run?.status === 'DISPATCHED' ? 'Departure recorded. Return here to save each delivery result when its outcome is known.' : 'Review the saved trip and delivery information.'}
             </DialogDescription>
           </DialogHeader>
           <div className="flex min-h-0 flex-col gap-4 overflow-y-auto">
@@ -1086,7 +1138,7 @@ function RunDetails({ id, onClose, readOnly = false }: { id: number; onClose: ()
                   <dt>Scheduled departure</dt>
                   <dd>{dateText(run.scheduledDepartureAt)}</dd>
                 </div>
-                {readOnly && <div><dt>Actual departure</dt><dd>{run.dispatchedAt ? dateText(run.dispatchedAt) : 'Not recorded'}</dd></div>}
+                {(readOnly || run.status === 'DISPATCHED' || run.dispatchedAt) && <div><dt>Actual departure</dt><dd>{run.dispatchedAt ? dateText(run.dispatchedAt) : 'Not recorded'}</dd></div>}
                 <div>
                   <dt>Driver</dt>
                   <dd>{names.driver(run.driverEmployeeId)}</dd>
@@ -1105,15 +1157,20 @@ function RunDetails({ id, onClose, readOnly = false }: { id: number; onClose: ()
               </section>
               {!readOnly && run.status === 'DRAFT' && (
                 <p className="text-sm text-muted-foreground">
-                  {!run.deliveries.length
-                    ? 'Add ready deliveries before reviewing departure.'
+                  {!run.deliveries.length && !run.warehouseTransfers?.length
+                    ? 'Add ready deliveries or warehouse transfers before reviewing departure.'
                     : 'Review the driver, vehicle, and every loaded quantity before departure. Capacity and availability are checked in the departure review.'}
                 </p>
               )}
               {(run.status === 'DISPATCHED' || run.status === 'COMPLETED') && (
+                <>
                 <p role="status" className="text-sm font-medium">
                   {run.deliveries.filter((member) => member.status === 'RECONCILED').length} of {run.deliveries.length} deliveries recorded
                 </p>
+                {!!run.warehouseTransfers?.length && <p role="status" className="text-sm font-medium">
+                  {run.warehouseTransfers.filter((member) => member.status === 'COMPLETED').length} of {run.warehouseTransfers.length} transfer receipts recorded
+                </p>}
+                </>
               )}
               {resultsFeedback && <Alert><AlertDescription><p role="status">{resultsFeedback}</p></AlertDescription></Alert>}
               {run.notes && <p className="text-sm">{run.notes}</p>}
@@ -1138,6 +1195,20 @@ function RunDetails({ id, onClose, readOnly = false }: { id: number; onClose: ()
               />
               </div>
               </section>
+              {!!run.warehouseTransfers?.length && <section aria-label="Warehouse Transfers in This Trip" className="flex flex-col gap-3">
+                <h2 className="font-semibold">Warehouse Transfers in This Trip</h2>
+                <DataTable data={run.warehouseTransfers} pagination={false} getRowKey={(member) => member.id} columns={[
+                  { header: 'Transfer', accessorKey: 'transferNumber' },
+                  { header: 'Status', cell: ({ row }) => row.status === 'DISPATCHED' ? 'In Transit · Receipt not recorded' : row.status === 'COMPLETED' ? 'Receipt recorded' : row.status === 'DRAFT' ? 'Assigned · Awaiting departure' : 'Cancelled' },
+                  { header: 'Actions', cell: ({ row }) => <div className="flex gap-2">
+                    <Button variant="outline" size="sm" onClick={() => setViewTransferId(row.id)}>View Transfer</Button>
+                    {canManage && run.status === 'DRAFT' && <Button variant="ghost" size="sm" disabled={resultsBlocked}
+                      onClick={() => void perform(async () => {
+                        await changeTransfers.mutateAsync({ id, payload: { expectedRevision: run.revision, remove: [{ transferId: row.id, expectedRevision: row.revision }] } })
+                      }).catch(() => undefined)}>Remove from Trip</Button>}
+                  </div> },
+                ]} />
+              </section>}
               {canManage && run.status === 'DRAFT' && (
                 <section aria-label="Add Deliveries" className="flex flex-col gap-3 border-t pt-4">
                   <h2 className="font-semibold">Add Deliveries</h2>
@@ -1155,7 +1226,7 @@ function RunDetails({ id, onClose, readOnly = false }: { id: number; onClose: ()
                       !selection.canSave ||
                       busy ||
                       review ||
-                      run.deliveries.length >= 100
+                      run.deliveries.length + (run.warehouseTransfers?.length ?? 0) >= 100
                     }
                     onClick={() =>
                       void perform(async () => {
@@ -1220,7 +1291,7 @@ function RunDetails({ id, onClose, readOnly = false }: { id: number; onClose: ()
                 )}
                 {canOperate && run.status === 'DRAFT' && (
                   <Button
-                    disabled={busy || review || !run.deliveries.length}
+                    disabled={resultsBlocked || (!run.deliveries.length && !run.warehouseTransfers?.length)}
                     onClick={() => setDispatching(true)}
                   >
                     Review Departure
@@ -1248,10 +1319,13 @@ function RunDetails({ id, onClose, readOnly = false }: { id: number; onClose: ()
         </DialogContent>
       </Dialog>
       {viewDeliveryId && <DeliveryDetailModal deliveryId={viewDeliveryId} open onClose={() => setViewDeliveryId(undefined)} />}
+      {viewTransferId && <TransferDialog id={viewTransferId} canEdit={false} canOperate={canOperate}
+        onOpen={() => undefined} onClose={() => { setViewTransferId(undefined); void query.refetch() }} />}
       {!readOnly && dispatching && (
         <DispatchDeliveryModal
           runId={id}
           onClose={() => setDispatching(false)}
+          onDeparted={onDeparted}
         />
       )}
       {!readOnly && editing && (

@@ -11,12 +11,23 @@ afterEach(() => { auth.isAdmin = true; auth.isManager = false; vi.restoreAllMock
 vi.mock('./StockNotifications', () => ({ StockNotifications: () => null }))
 
 function mountHeader(currentScreen: 'dashboard' | 'clients' | 'inventory' | 'financial-reports' | 'delivery-runs' = 'dashboard') {
-  return render(<QueryClientProvider client={new QueryClient()}><MemoryRouter>
+  return render(<QueryClientProvider client={new QueryClient()}><MemoryRouter initialEntries={[currentScreen === 'delivery-runs' ? '/deliveries/runs' : '/']}>
     <DashboardLayout currentScreen={currentScreen} onNavigate={vi.fn()} onOpenInventory={vi.fn()}>
       <h1>Page content</h1>
     </DashboardLayout>
   </MemoryRouter></QueryClientProvider>)
 }
+
+it('keeps Delivery Trips active at the top level while Deliveries stays collapsed', () => {
+  mountHeader('delivery-runs')
+  const nav = within(screen.getByRole('navigation', { name: 'Main navigation' }))
+  const trips = nav.getByRole('link', { name: 'Delivery Trips' })
+  expect(trips.getAttribute('href')).toBe('/deliveries/runs')
+  expect(trips.getAttribute('aria-current')).toBe('page')
+  expect(nav.getByRole('button', { name: 'Deliveries' }).getAttribute('aria-expanded')).toBe('false')
+  expect(screen.getByRole('navigation', { name: 'Application breadcrumb' }).textContent).toContain('Delivery Trips')
+  expect(screen.getByRole('navigation', { name: 'Application breadcrumb' }).textContent).not.toContain('Deliveries /')
+})
 
 it.each(['dashboard', 'clients', 'inventory', 'financial-reports', 'delivery-runs'] as const)(
   'shows the Philippine calendar date in the shared header on %s', (page) => {

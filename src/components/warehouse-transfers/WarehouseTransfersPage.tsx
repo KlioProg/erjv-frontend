@@ -1,5 +1,6 @@
 import { DataTableFilters, DataTableFilterChips, type DataTableFilter } from '@/components/ui/data-table-filters'
 import { useState } from 'react'
+import { useNavigate } from 'react-router'
 import { Search } from 'lucide-react'
 import { useAuth } from '@/features/auth/AuthContext'
 import { useResourcePage } from '@/lib/use-cursor-page'
@@ -60,6 +61,7 @@ const compactTransferTime = (value: string | null) =>
   }) : 'Not scheduled'
 
 export function WarehouseTransfersPage() {
+  const navigate = useNavigate()
   const { isAdmin, isManager, isStaff } = useAuth()
   const [status, setStatus] = useState('ALL')
   const [search, setSearch] = useState('')
@@ -68,7 +70,7 @@ export function WarehouseTransfersPage() {
   const [from, setFrom] = useState('')
   const [before, setBefore] = useState('')
   const [opened, setOpened] = useState<number | 'create' | null>(null)
-  const [entryAction, setEntryAction] = useState<'dispatch' | 'reconcile'>()
+  const [entryAction, setEntryAction] = useState<'reconcile'>()
   const dateError = Boolean(from && before && from >= before)
   const query = useResourcePage<WarehouseTransfer>(
     '/warehouse-transfers',
@@ -129,11 +131,15 @@ export function WarehouseTransfersPage() {
       cell: ({ row }) => (
         <DataTableActions>
           <Button variant="outline" size="sm" onClick={() => {
-            setEntryAction(isAdmin || isManager || isStaff ? row.status === 'DRAFT' ? 'dispatch' : row.status === 'DISPATCHED' ? 'reconcile' : undefined : undefined)
+            if (row.status === 'DRAFT' && (row.runId != null || isAdmin || isManager)) {
+              navigate(`/deliveries/runs?${row.runId != null ? `run=${row.runId}` : `transfer=${row.id}`}`)
+              return
+            }
+            setEntryAction((isAdmin || isManager || isStaff) && row.status === 'DISPATCHED' ? 'reconcile' : undefined)
             setOpened(row.id)
           }}>
             {row.status === 'DRAFT' && (isAdmin || isManager || isStaff)
-              ? 'Review & Send'
+              ? row.runId != null ? 'View Trip' : isAdmin || isManager ? 'Add to Trip' : 'View Details'
               : row.status === 'DISPATCHED' && (isAdmin || isManager || isStaff) ? 'Receive Goods' : 'View Details'}
           </Button>
         </DataTableActions>
@@ -261,27 +267,30 @@ export function WarehouseTransfersPage() {
           onClose={() => setOpened(null)}
           canEdit={isAdmin || isManager}
           canOperate={isAdmin || isManager || isStaff}
+          onOpenTrip={(transfer) => navigate(`/deliveries/runs?${transfer.runId != null ? `run=${transfer.runId}` : `transfer=${transfer.id}`}`)}
         />
       )}
     </div>
   )
 }
 
-type Action = 'draft' | 'dispatch' | 'reconcile' | 'cancel'
-function TransferDialog({
+type Action = 'draft' | 'reconcile' | 'cancel'
+export function TransferDialog({
   id,
   onClose,
   canEdit,
   canOperate,
   onOpen,
   initialAction,
+  onOpenTrip,
 }: {
   id: number | 'create'
   onClose: () => void
   canEdit: boolean
   canOperate: boolean
   onOpen: (id: number) => void
-  initialAction?: 'dispatch' | 'reconcile'
+  initialAction?: 'reconcile'
+  onOpenTrip?: (transfer: WarehouseTransfer) => void
 }) {
   const query = useTransfer(typeof id === 'number' ? id : undefined)
   const [busy, setBusy] = useState(false)
@@ -292,7 +301,7 @@ function TransferDialog({
   const [entered, setEntered] = useState(false)
   if (!entered && initialAction && record && !query.isFetching && !query.isError) {
     setEntered(true)
-    if (canOperate && record.status === (initialAction === 'dispatch' ? 'DRAFT' : 'DISPATCHED'))
+    if (canOperate && record.status === 'DISPATCHED')
       setSession({ action: initialAction, record })
   }
   const { data: warehouses } = useRecordsById<Warehouse>(
@@ -334,9 +343,7 @@ function TransferDialog({
       ? 'Create Transfer'
       : session?.action === 'draft'
         ? 'Edit Transfer Draft'
-        : session?.action === 'dispatch'
-          ? 'Send Goods?'
-          : session?.action === 'reconcile'
+        : session?.action === 'reconcile'
             ? 'Record Goods Received'
             : session?.action === 'cancel'
               ? 'Cancel Transfer'
@@ -371,6 +378,12 @@ function TransferDialog({
             <div className="min-h-0 min-w-0 flex-1 overflow-y-auto px-5 pb-5 sm:px-6">
               <div className="flex flex-col gap-5">
                 {feedback && <p role="status" className="text-sm">{feedback}</p>}
+                <p className="text-sm text-muted-foreground">
+                  {record.status === 'DRAFT'
+                    ? record.runId != null ? 'Assigned to a delivery trip. Departure is confirmed in the trip.' : 'Draft saved. Add this transfer to a delivery trip before sending.'
+                    : record.status === 'DISPATCHED' ? 'Departure recorded. Goods are In Transit. Return here when the destination confirms what arrived.'
+                      : record.status === 'COMPLETED' ? 'Receipt saved. Review the actual quantities below.' : 'This transfer was cancelled.'}
+                </p>
                 <section aria-label="Movement details">
                   <MovementDetailFields
                     fields={[
@@ -491,7 +504,7 @@ function TransferDialog({
               </Button>
               {record.status === 'DRAFT' && (
                 <>
-                  {canEdit && (
+                  {canEdit && record.runId == null && (
                     <>
                       <Button
                         variant="outline"
@@ -513,14 +526,14 @@ function TransferDialog({
                       </Button>
                     </>
                   )}
-                  {canOperate && (
+                  {onOpenTrip && (record.runId != null || canEdit) && (
                     <Button
                       size="sm"
                       className="pointer-coarse:min-h-11"
                       disabled={busy || query.isFetching}
-                      onClick={() => start('dispatch')}
+                      onClick={() => onOpenTrip(record)}
                     >
-                      Review &amp; Send
+                      {record.runId != null ? 'View Trip' : 'Add to Trip'}
                     </Button>
                   )}
                 </>
@@ -544,9 +557,7 @@ function TransferDialog({
               <DialogDescription>
                 {id === 'create' || session?.action === 'draft'
                   ? 'Drafts do not move or reserve stock.'
-                  : session?.action === 'dispatch'
-                    ? 'This records that the goods have left the source warehouse and moves source stock into transit.'
-                    : session?.action === 'reconcile'
+                  : session?.action === 'reconcile'
                       ? 'Record what arrived at the destination, including damaged, returned, or missing goods. Transfer results are final.'
                       : session?.action === 'cancel'
                         ? 'This cancels the draft transfer. No stock has moved.'

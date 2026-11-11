@@ -67,7 +67,7 @@ export function AssignDeliveryToRun({
     entry.status === 'DRAFT' &&
     Array.isArray(entry.deliveries) &&
     entry.warehouseId === delivery?.warehouseId &&
-    entry.deliveries.length < 100 &&
+    entry.deliveries.length + (entry.warehouseTransfers?.length ?? 0) < 100 &&
     !entry.deliveries.some((member) => member.id === deliveryId)
   const availableTrips = trips.items.filter(acceptsTrip)
   const run = runQuery.data
@@ -85,7 +85,7 @@ export function AssignDeliveryToRun({
     run.id === Number(runId) &&
     Array.isArray(run.deliveries) &&
     run.warehouseId === delivery?.warehouseId &&
-    run.deliveries.length < 100 &&
+    run.deliveries.length + (run.warehouseTransfers?.length ?? 0) < 100 &&
     !run.deliveries.some((member) => member.id === deliveryId)
   async function assign() {
     if (submitting.current || busy || review || !eligible || !eligibleRun || !delivery || !run)
@@ -111,7 +111,7 @@ export function AssignDeliveryToRun({
         latestRun.data.status !== 'DRAFT' ||
         latestRun.data.warehouseId !== delivery.warehouseId ||
         !Array.isArray(latestRun.data.deliveries) ||
-        latestRun.data.deliveries.length >= 100 ||
+        latestRun.data.deliveries.length + (latestRun.data.warehouseTransfers?.length ?? 0) >= 100 ||
         latestRun.data.deliveries.some((member) => member.id === deliveryId)
       ) {
         setReview(true)

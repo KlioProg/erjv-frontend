@@ -10,6 +10,7 @@ export function useTransfer(id?: number) {
     queryKey: ['warehouse-transfers', 'detail', id],
     enabled: Boolean(id),
     retry: false,
+    staleTime: 0,
     queryFn: ({ signal }) => fetchTransfer(id!, signal),
   })
 }
@@ -44,6 +45,7 @@ export function useTransferWrite() {
       Promise.all(
         [
           'warehouse-transfers',
+          'delivery-runs',
           'stock-items',
           'products',
           'warehouses',

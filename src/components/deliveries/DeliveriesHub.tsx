@@ -48,6 +48,7 @@ import {
   useCreateIncomingDelivery,
   useScheduleIncomingDelivery,
   useCancelIncomingDelivery,
+  useIncomingDeliveryById,
 } from '@/features/logistics/incoming-deliveries.hooks'
 import {
   useCancelOutgoingDelivery,
@@ -155,6 +156,7 @@ export function DeliveriesHub({
   const [incomingScheduleFailure, setIncomingScheduleFailure] = useState('')
   const [lastSavedIncoming, setLastSavedIncoming] = useState<IncomingDeliveryRecord | null>(null)
   const [viewIncomingId, setViewIncomingId] = useState<number | null>(null)
+  const incomingDetail = useIncomingDeliveryById(viewIncomingId ?? undefined)
   const [viewOutgoingId, setViewOutgoingId] = useState<number | null>(null)
   const [viewOrder, setViewOrder] = useState<{ type: 'Incoming' | 'Outgoing'; id: number } | null>(
     null,
@@ -244,6 +246,7 @@ export function DeliveriesHub({
   const { data: purchaseOrders, failedIds: unavailablePurchaseOrderIds } = useRecordsById<PurchaseOrderRecord>('/purchase-orders', [
     ...incoming.map((delivery) => delivery.purchaseOrderId),
     lastSavedIncoming?.purchaseOrderId,
+    incomingDetail.data?.purchaseOrderId,
     viewOrder?.type === 'Incoming' ? viewOrder.id : undefined,
   ])
   const { data: salesOrders } = useRecordsById<SalesOrderRecord>('/sales-orders', [
@@ -359,10 +362,13 @@ export function DeliveriesHub({
     fetchMore: loadMoreHistory,
   })
   const listedViewRow = rows.find((row) => row.type === 'Incoming' && row.record.id === viewIncomingId)
-  const viewRow = lastSavedIncoming?.id === viewIncomingId &&
+  const fallbackViewRow = lastSavedIncoming?.id === viewIncomingId &&
     (!listedViewRow || lastSavedIncoming.revision >= listedViewRow.record.revision) ? buildDeliveryRows({
       incoming: [lastSavedIncoming], outgoing: [], purchaseOrders, salesOrders, suppliers, clients, warehouses, vehicles, employees,
     })[0] : listedViewRow
+  const viewRow = incomingDetail.data?.id === viewIncomingId ? buildDeliveryRows({
+    incoming: [incomingDetail.data], outgoing: [], purchaseOrders, salesOrders, suppliers, clients, warehouses, vehicles, employees,
+  })[0] : fallbackViewRow
   const selectedPurchase = usePurchaseOrderById(
     viewOrder?.type === 'Incoming' ? viewOrder.id : undefined,
   )
@@ -669,9 +675,7 @@ export function DeliveriesHub({
               : lastSavedIncoming.status === 'SCHEDULED'
                 ? `Arrival scheduled for ${lastSavedIncoming.deliveryNumber}.`
                 : `Draft created for ${lastSavedIncoming.deliveryNumber}.`}{' '}
-            {canManage && lastSavedIncoming.status === 'SCHEDULED' && (
-              <Button variant="link" size="sm" onClick={() => setReceiveId(lastSavedIncoming.id)}>Receive Goods</Button>
-            )}
+            {lastSavedIncoming.status === 'SCHEDULED' && 'Return to this record when the supplier arrives. '}
             <Button variant="link" size="sm" onClick={() => setViewIncomingId(lastSavedIncoming.id)}>
               {lastSavedIncoming.status === 'COMPLETED' ? 'View Receipt' : 'View Details'}
             </Button>
@@ -911,7 +915,10 @@ export function DeliveriesHub({
         purchaseOrders={purchaseOrders}
         products={products}
         onClose={() => setViewIncomingId(null)}
-        canManage={canManage}
+        canManage={canManage && incomingDetail.data?.id === viewIncomingId && !incomingDetail.isFetching && !incomingDetail.isError}
+        refreshing={incomingDetail.isFetching}
+        refreshError={incomingDetail.isError ? getErrorMessage(incomingDetail.error) : !incomingDetail.isFetching && viewIncomingId !== null && incomingDetail.data?.id !== viewIncomingId ? 'The current incoming delivery could not be verified.' : undefined}
+        onRefresh={() => void incomingDetail.refetch()}
         onAction={(row, action) => {
           setViewIncomingId(null)
           handleAction(row, action)
@@ -972,7 +979,7 @@ export function DeliveriesHub({
           </Alert>
         )}
       {confirmation?.action === 'schedule' && confirmation.row.type === 'Incoming' ? (
-        <ScheduleIncomingDraftModal canManage={canManage} id={confirmation.row.record.id} reference={confirmation.row.reference}
+        <ScheduleIncomingDraftModal canManage={canManage} id={confirmation.row.record.id} reference={confirmation.row.reference} onScheduled={setLastSavedIncoming}
           onClose={() => setConfirmation(null)}
           onViewOrder={(id) => { setConfirmation(null); setViewOrder({ type: 'Incoming', id }) }} />
       ) : <ConfirmDeleteModal

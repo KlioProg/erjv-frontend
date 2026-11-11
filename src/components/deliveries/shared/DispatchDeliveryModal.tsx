@@ -13,15 +13,20 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { DataTable } from '@/components/ui/data-table'
 import { useOutgoingDispatch } from '@/features/logistics/use-outgoing-dispatch'
 import { formatStockCents, parseStockCents } from '@/features/logistics/stock-display'
+import type { DeliveryRunRecord } from '@/features/logistics/delivery-runs.types'
+import { useRecordsById } from '@/lib/use-records-by-id'
 
 export function DispatchDeliveryModal({
   runId,
   onClose,
+  onDeparted,
 }: {
   runId: number
   onClose: () => void
+  onDeparted?: (run: DeliveryRunRecord) => void
 }) {
-  const form = useOutgoingDispatch(runId, onClose)
+  const form = useOutgoingDispatch(runId, onDeparted ?? onClose)
+  const products = useRecordsById<{ id: number; name: string; unit: string }>('/inventory-items', form.transfers.flatMap((transfer) => transfer.items.map((item) => item.inventoryItemId)))
   return (
     <Dialog open onOpenChange={(open) => !open && !form.busy && onClose()}>
       <DialogContent
@@ -46,6 +51,7 @@ export function DispatchDeliveryModal({
               type="button"
               variant="link"
               disabled={form.busy}
+              aria-label="Refresh trip data"
               onClick={() => void form.refresh()}
             >
               Refresh trip and review current data
@@ -86,7 +92,7 @@ export function DispatchDeliveryModal({
                 </dd>
               </div>
             </dl>
-            <section className="flex min-w-0 flex-col gap-3" aria-labelledby="run-loading-heading">
+            {!!form.rows.length && <section className="flex min-w-0 flex-col gap-3" aria-labelledby="run-loading-heading">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h3 id="run-loading-heading" className="text-sm font-medium">
                   Delivery product loading
@@ -115,6 +121,7 @@ export function DispatchDeliveryModal({
                       <div>
                         <p className="font-medium">{row.productName}</p>
                         <p className="text-xs text-muted-foreground">{row.unit}</p>
+                        {parseStockCents(row.availableQuantity) === 0n && <p className="text-xs text-muted-foreground">{row.productName}: No stock available at this warehouse.</p>}
                       </div>
                     ),
                   },
@@ -157,7 +164,18 @@ export function DispatchDeliveryModal({
                 delivery needs at least one loaded product; remove fully unloaded deliveries before
                 departure. Availability is shared across this trip.
               </p>
-            </section>
+            </section>}
+            {!!form.transfers.length && <section aria-label="Warehouse transfer loads" className="flex flex-col gap-3">
+              <h3 className="text-sm font-medium">Warehouse transfer loads</h3>
+              {form.transfers.map((transfer) => <div key={transfer.id} className="flex flex-col gap-2">
+                <p className="text-sm font-medium">{transfer.transferNumber}</p>
+                <DataTable data={transfer.items} pagination={false} getRowKey={(item) => item.id} columns={[
+                  { header: 'Product', cell: ({ row }) => products.data.find((product) => product.id === row.inventoryItemId)?.name ?? `Item #${row.inventoryItemId}` },
+                  { header: 'Quantity to send', accessorKey: 'quantity' },
+                ]} />
+              </div>)}
+              <p className="text-xs text-muted-foreground">Confirm every saved transfer quantity is loaded. To change quantities, remove the transfer from this trip and edit its draft. Stock for the combined load is checked when sending.</p>
+            </section>}
             <div className="flex max-w-sm flex-col gap-2">
               <Label htmlFor="run-loaded-weight">Actual total loaded weight (kg)</Label>
               <Input
@@ -176,16 +194,17 @@ export function DispatchDeliveryModal({
               </p>
             </div>
             <p className="text-xs text-muted-foreground">
-              Send Trip records departure for all included deliveries. Loaded goods move from
+              Send Trip records departure for all included deliveries and transfers. Loaded goods move from
               on-hand stock to in transit. Confirm the actual quantities before sending.
             </p>
           </div>
+          {form.reviewing && <p role="status" className="px-6 pb-3 text-sm">Load reviewed. Confirm Send Trip when the goods physically leave.</p>}
           <DialogFooter className="shrink-0 border-t px-6 py-4">
             <Button type="button" variant="outline" disabled={form.busy} onClick={onClose}>
               Cancel
             </Button>
             <Button type="submit" disabled={!form.canSubmit}>
-              {form.sending ? 'Sending...' : 'Send Trip'}
+              {form.sending ? 'Sending...' : form.reviewing ? 'Send Trip' : 'Review Departure'}
             </Button>
           </DialogFooter>
         </form>
