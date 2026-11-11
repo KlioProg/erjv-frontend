@@ -239,10 +239,13 @@ describe('delivery progress', () => {
         deliveryFixture.reconciledAt,
       ]
       expect(steps).toHaveLength(4)
+      expect(screen.getByRole('list', { name: 'Delivery progress' }).classList.contains('w-full')).toBe(true)
       steps.forEach((step, index) => {
-        expect(step.getAttribute('aria-current')).toBe(index === current ? 'step' : null)
+        const state = index < current || status === 'RECONCILED' ? 'complete' : index === current ? 'current' : 'upcoming'
+        expect(step.getAttribute('aria-current')).toBe(state === 'current' ? 'step' : null)
+        expect(step.querySelector('[data-slot="lifecycle-segment"]')?.getAttribute('data-state')).toBe(state)
         expect(step.textContent).toContain(
-          index === current ? 'current step' : index < current ? 'completed' : 'upcoming',
+          state === 'current' ? 'Current' : state === 'complete' ? 'Completed' : 'Upcoming',
         )
         if (dates[index]) expect(step.textContent?.includes(DeliveryUtils.formatDateTime(dates[index]))).toBe(index <= current)
       })

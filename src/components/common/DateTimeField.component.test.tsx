@@ -127,6 +127,18 @@ it('requires both fields for a required schedule', async () => {
   expect(screen.getByLabelText('Schedule Date').hasAttribute('required')).toBe(true)
 })
 
+it('waits for an attempted submission before showing errors on untouched required fields', async () => {
+  const submit = mount('', true)
+  expect(screen.queryByText('Choose a date.')).toBeNull()
+  expect(screen.queryByText('Enter a time in HH:mm.')).toBeNull()
+  expect(screen.getByLabelText('Schedule Date').getAttribute('aria-invalid')).toBe('false')
+  await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+  expect(screen.getByText('Choose a date.')).toBeTruthy()
+  expect(screen.getByText('Enter a time in HH:mm.')).toBeTruthy()
+  expect(document.activeElement).toBe(screen.getByLabelText('Schedule Date'))
+  expect(submit).not.toHaveBeenCalled()
+})
+
 it('initializes saved timestamps and preserves keyboard editing and descriptions', async () => {
   const submit = mount(toManilaSchedule('2026-11-05T01:40:00Z'))
   expect((screen.getByLabelText('Schedule Date') as HTMLInputElement).value).toBe('2026-11-05')

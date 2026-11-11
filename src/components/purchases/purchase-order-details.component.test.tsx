@@ -93,12 +93,27 @@ function setup(props: Partial<Parameters<typeof PurchaseOrderDetailModal>[0]> = 
       products={[product]}
       warehouses={[]}
       incomingDeliveries={[]}
+      canScheduleArrival
       {...actions}
       {...props}
     />,
   )
   return actions
 }
+
+it('explains confirmation-only requirements without submitting an incomplete saved purchase draft', async () => {
+  const actions = setup({ order: { ...order, status: 'DRAFT', supplierId: null, items: [] } })
+  await userEvent.click(screen.getByRole('button', { name: 'Confirm Purchase Order' }))
+  expect(actions.onConfirm).not.toHaveBeenCalled()
+  expect(screen.getByRole('alert').textContent).toContain('supplier and at least one item')
+  expect(screen.getByRole('dialog')).toBeTruthy()
+})
+
+it('shows saved purchasing dates in Manila even when the instant falls on the prior UTC day', () => {
+  setup({ order: { ...order, orderedAt: '2026-11-11T16:30:00Z', expectedAt: '2026-11-12T16:15:00Z' } })
+  expect(screen.getByText('Purchase order · 11/12/2026')).toBeTruthy()
+  expect(screen.getByText('11/13/2026')).toBeTruthy()
+})
 it.each([
   ['DRAFT', 'Draft'],
   ['CONFIRMED', 'Confirmed'],

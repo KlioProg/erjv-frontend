@@ -79,7 +79,7 @@ it.each([false, true])(
       await user.paste(phone)
       await user.click(save)
       await waitFor(() => expect(writes.at(-1)?.body.phone).toBe('09171234567'))
-      expect((input as HTMLInputElement).value).toBe(phone)
+      expect((input as HTMLInputElement).value).toBe('9171234567')
       writes = []
     }
   },

@@ -75,8 +75,7 @@ function RunStatusBadge({ status }: { status: DeliveryRunStatus }) {
   return (
     <StatusBadge
       label={RUN_STATUS_LABELS[status]}
-      appearance="emphasis"
-      tone={status === 'COMPLETED' ? 'success' : status === 'DISPATCHED' ? 'warning' : status === 'CANCELLED' ? 'destructive' : 'info'}
+      tone={status === 'COMPLETED' ? 'success' : status === 'DISPATCHED' ? 'warning' : status === 'CANCELLED' ? 'destructive' : 'neutral'}
     />
   )
 }
@@ -615,7 +614,7 @@ function RunEditor({
   })
   let validDeparture = false
   try {
-    validDeparture = !!manilaScheduleToIso(departure) && !departure.startsWith('0000-')
+    validDeparture = !departure || (!!manilaScheduleToIso(departure) && !departure.startsWith('0000-'))
   } catch {
     validDeparture = false
   }
@@ -624,6 +623,18 @@ function RunEditor({
   const [review, setReview] = useState(false)
   const [savedTripId, setSavedTripId] = useState<number>()
   const selection = useRunDeliverySelection(Number(warehouseId) || undefined)
+  const [discardOpen, setDiscardOpen] = useState(false)
+  const initialSnapshot = useRef(JSON.stringify([
+    warehouseId, driverId, vehicleId, departure, notes, initialDelivery ? [initialDelivery.id] : [],
+  ]))
+  const snapshot = JSON.stringify([
+    warehouseId, driverId, vehicleId, departure, notes, selection.selected.map((delivery) => delivery.id),
+  ])
+  const requestClose = () => {
+    if (busy) return
+    if (snapshot !== initialSnapshot.current) setDiscardOpen(true)
+    else onClose()
+  }
   const warehouseLocked = !!run?.deliveries.length || !!run?.warehouseTransfers?.length || !!initialDelivery || !!initialTransfer
   const fixedWarehouse = useRecordsById<NamedRecord>(
     '/warehouses',
@@ -653,10 +664,11 @@ function RunEditor({
     if (submitting.current || busy || review) return
     if (!warehouseId) {
       setWarehouseError('Choose an active warehouse.')
+      document.getElementById('run-warehouse')?.focus()
       return
     }
     if (!validDeparture) {
-      setError('Choose a complete departure date and time before saving the trip.')
+      setError('Enter a complete departure date and time, or clear it to save an unscheduled draft.')
       return
     }
     submitting.current = true
@@ -738,7 +750,7 @@ function RunEditor({
     }
   }
   return (
-    <Dialog open onOpenChange={(open) => !open && !busy && onClose()}>
+    <Dialog open onOpenChange={(open) => !open && requestClose()}>
       <DialogContent
         closeDisabled={busy}
         className="flex h-auto min-h-0 max-h-[calc(100dvh-2rem)] flex-col gap-4 overflow-hidden sm:max-w-3xl"
@@ -746,7 +758,7 @@ function RunEditor({
         <DialogHeader>
           <DialogTitle>{run ? `Edit ${run.runNumber}` : 'Create Delivery Trip'}</DialogTitle>
           <DialogDescription>
-            Choose a warehouse, schedule, transport, and deliveries for this trip.
+            Choose a warehouse to save a draft. Set the departure, driver and vehicle before sending.
           </DialogDescription>
         </DialogHeader>
         <form
@@ -783,6 +795,7 @@ function RunEditor({
                       </output>
                     ) : (
                       <CursorLookup<NamedRecord>
+                        required
                         id="run-warehouse"
                         path="/warehouses"
                         value={warehouseId}
@@ -814,9 +827,8 @@ function RunEditor({
                       label="Scheduled Departure"
                       value={departure}
                       onChange={setDeparture}
-                      required
                       disabled={busy || review}
-                      helperText="Required · Manila time · 24-hour HH:mm"
+                      helperText="Optional for drafts; required before Send Trip. Manila time · 24-hour HH:mm"
                     />
                   </div>
                 </div>
@@ -914,14 +926,23 @@ function RunEditor({
                 Review Trip
               </Button>
             )}
-            <Button type="button" variant="outline" disabled={busy} onClick={onClose}>
+            <Button type="button" variant="outline" disabled={busy} onClick={requestClose}>
               Cancel
             </Button>
-            <Button disabled={busy || review || !warehouseId || !validDeparture || (!run && !selection.canSave)}>
+            <Button disabled={busy || review || (!run && !selection.canSave)}>
               {busy ? 'Saving…' : run ? 'Save Trip' : 'Create Trip'}
             </Button>
           </DialogFooter>
         </form>
+        <ConfirmDeleteModal
+          open={discardOpen}
+          title="Discard Changes?"
+          description="Your unsubmitted trip changes will be lost. The saved trip will stay unchanged."
+          confirmText="Discard Changes"
+          cancelText="Keep Editing"
+          onClose={() => setDiscardOpen(false)}
+          onConfirm={onClose}
+        />
       </DialogContent>
     </Dialog>
   )

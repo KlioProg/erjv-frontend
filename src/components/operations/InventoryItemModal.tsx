@@ -224,7 +224,7 @@ function ItemFormContent({
             </span>
           </Label>
           <Input
-            id="item-name"
+            id="item-name" pattern=".*\S.*" title="Product name is required."
             placeholder="Enter product name"
             value={name}
             onChange={(event) => {

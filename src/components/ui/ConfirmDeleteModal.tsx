@@ -45,6 +45,7 @@ export function ConfirmDeleteModal({
 }: ConfirmDeleteModalProps) {
   const [isProcessing, setIsProcessing] = useState(false)
   const [error, setError] = useState('')
+  const launcherRef = useRef<HTMLElement | null>(null)
   const pending = useRef(false)
 
   const handleConfirm = async () => {
@@ -70,7 +71,17 @@ export function ConfirmDeleteModal({
       <DialogContent
         className={cn('sm:max-w-[440px] p-6', className)}
         closeDisabled={isProcessing}
-        onOpenAutoFocus={() => setError('')}
+        onOpenAutoFocus={() => {
+          setError('')
+          launcherRef.current =
+            document.activeElement instanceof HTMLElement ? document.activeElement : null
+        }}
+        onCloseAutoFocus={(event) => {
+          if (launcherRef.current?.isConnected) {
+            event.preventDefault()
+            launcherRef.current.focus({ preventScroll: true })
+          }
+        }}
       >
         <DialogHeader className="gap-2">
           <div

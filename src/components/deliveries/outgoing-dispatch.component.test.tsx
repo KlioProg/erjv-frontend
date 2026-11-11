@@ -292,7 +292,7 @@ it('requires older unscheduled trips to be scheduled in Edit Trip before departu
   await user.click(screen.getByRole('button', { name: 'Cancel' }))
   await user.click(await screen.findByRole('button', { name: 'Edit Trip' }))
   const editor = within(await screen.findByRole('dialog', { name: 'Edit RUN-40' }))
-  expect(editor.getByRole('button', { name: 'Save Trip' }).hasAttribute('disabled')).toBe(true)
+  expect(editor.getByRole('button', { name: 'Save Trip' }).hasAttribute('disabled')).toBe(false)
   fireEvent.change(editor.getByLabelText('Scheduled Departure Date'), { target: { value: '2026-11-06' } })
   fireEvent.change(editor.getByLabelText('Scheduled Departure Time'), { target: { value: '09:30' } })
   await user.click(editor.getByRole('button', { name: 'Save Trip' }))

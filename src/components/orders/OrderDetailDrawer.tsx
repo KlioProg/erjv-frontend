@@ -86,6 +86,7 @@ export function OrderDetailDrawer({
   const confirmMutation = useConfirmSalesOrder()
   const cancelMutation = useCancelSalesOrder()
   const confirming = useRef(false)
+  const launcherRef = useRef<HTMLElement | null>(null)
   const [error, setError] = useState('')
   const [orderToCancel, setOrderToCancel] = useState<SalesOrderRecord | null>(null)
   const [dispatching, setDispatching] = useState(false)
@@ -193,6 +194,10 @@ export function OrderDetailDrawer({
           : undefined
   async function confirm() {
     if (blocked || confirming.current || !canManage || !order || order.status !== 'DRAFT') return
+    if (!order.deliveryAddress?.trim() || !order.items.length) {
+      setError('Confirmation requires a delivery address and at least one item. Use More Actions to edit the draft.')
+      return
+    }
     confirming.current = true
     setError('')
     try {
@@ -215,6 +220,17 @@ export function OrderDetailDrawer({
       >
         <DialogContent
           closeDisabled={busy}
+          onOpenAutoFocus={() => {
+            const target = document.activeElement
+            if (target instanceof HTMLElement && !target.closest('[role="dialog"], [role="menu"]'))
+              launcherRef.current = target
+          }}
+          onCloseAutoFocus={(event) => {
+            if (launcherRef.current?.isConnected) {
+              event.preventDefault()
+              launcherRef.current.focus({ preventScroll: true })
+            }
+          }}
           className="flex h-auto min-h-0 max-h-[calc(100dvh-2rem)] flex-col gap-3 overflow-hidden p-4 sm:max-w-4xl sm:p-5"
         >
           <div className="flex w-full min-w-0 shrink-0 flex-col gap-2">

@@ -1,7 +1,7 @@
 import { render, screen, within, waitFor, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { MemoryRouter, Routes, Route } from 'react-router'
+import { Link, MemoryRouter, Routes, Route } from 'react-router'
 import { beforeEach, afterEach, expect, it, vi } from 'vitest'
 import { apiClient } from '@/lib/api-client'
 import { getAdapter } from 'axios'
@@ -133,6 +133,7 @@ function mount(path = '/warehouse-transfers', controls = false) {
       }
     >
       <MemoryRouter initialEntries={[path]}>
+        <Link to="/warehouse-transfers/history">Transfer history navigation</Link>
         <Routes>
           <Route path="/warehouse-transfers" element={<WarehouseTransfersPage key="active" />} />
           <Route
@@ -153,6 +154,7 @@ it('shows only operational transfers with compact outgoing-style controls and ve
   expect(screen.queryByText('WT-10')).toBeNull()
   expect(screen.queryByText('WT-11')).toBeNull()
   expect(screen.queryByRole('button', { name: 'All Transfers' })).toBeNull()
+  expect(screen.queryByRole('link', { name: 'History' })).toBeNull()
   expect(screen.getAllByRole('columnheader').map((node) => node.textContent)).toEqual([
     'Transfer #',
     'Source / Destination',
@@ -172,7 +174,7 @@ it('shows only operational transfers with compact outgoing-style controls and ve
 it('opens read-only completed and cancelled records through History and returns to active work', async () => {
   mount()
   await screen.findByText('WT-7')
-  await userEvent.click(screen.getByRole('link', { name: 'History' }))
+  await userEvent.click(screen.getByRole('link', { name: 'Transfer history navigation' }))
   await screen.findByRole('heading', { name: 'Warehouse Transfer History' })
   await screen.findByText('WT-10')
   expect(reads.at(-1)?.statuses).toEqual(['COMPLETED', 'CANCELLED'])
@@ -226,7 +228,7 @@ it('moves a completed record out of active work and makes it available in Histor
   await userEvent.click(screen.getByRole('button', { name: 'Finish test transfer' }))
   await waitFor(() => expect(screen.queryByText('WT-9')).toBeNull())
   expect(writes).toEqual(['/warehouse-transfers/9/reconcile'])
-  await userEvent.click(screen.getByRole('link', { name: 'History' }))
+  await userEvent.click(screen.getByRole('link', { name: 'Transfer history navigation' }))
   await screen.findByText('WT-9')
   expect(screen.queryByRole('dialog')).toBeNull()
 })

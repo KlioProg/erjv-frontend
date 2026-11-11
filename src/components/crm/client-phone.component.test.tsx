@@ -80,15 +80,15 @@ it.each([
 })
 
 it.each([
-  ['+63 917 123 4567', '09171234567'],
-  ['09171234567', '09171234567'],
-  ['+639171234567', '09171234567'],
-  ['+63 (82) 555-1234', '+63 (82) 555-1234'],
-  ['(02) 8123-4567', '(02) 8123-4567'],
-  ['+1 202 555 0123', '+1 202 555 0123'],
-])('loads and saves existing customer contact %s consistently', async (phone, expected) => {
+  ['+63 917 123 4567', '09171234567', '9171234567'],
+  ['09171234567', '09171234567', '9171234567'],
+  ['+639171234567', '09171234567', '9171234567'],
+  ['+63 (82) 555-1234', '+63 (82) 555-1234', '+63 (82) 555-1234'],
+  ['(02) 8123-4567', '(02) 8123-4567', '(02) 8123-4567'],
+  ['+1 202 555 0123', '+1 202 555 0123', '+1 202 555 0123'],
+])('loads and saves existing customer contact %s consistently', async (phone, expected, display) => {
   const { writes, close } = mount(phone)
-  expect((screen.getByLabelText('Phone Number') as HTMLInputElement).value).toBe(phone)
+  expect((screen.getByLabelText('Phone Number') as HTMLInputElement).value).toBe(display)
   await userEvent.click(screen.getByRole('button', { name: 'Save Changes' }))
   await waitFor(() => expect(close).toHaveBeenCalledOnce())
   expect(writes).toEqual([
@@ -99,7 +99,7 @@ it.each([
 it('rejects an overlong mobile without silently truncating or saving it', async () => {
   const { writes } = mount()
   await userEvent.type(screen.getByLabelText('Phone Number'), '091712345678')
-  expect((screen.getByLabelText('Phone Number') as HTMLInputElement).value).toBe('091712345678')
+  expect((screen.getByLabelText('Phone Number') as HTMLInputElement).value).toBe('91712345678')
   await userEvent.click(screen.getByRole('button', { name: 'Register Customer Profile' }))
   await screen.findByRole('alert')
   expect(writes).toHaveLength(0)

@@ -603,7 +603,7 @@ export function QuarantineLotDialog({
                         ) : (
                           <>
                             <div className="flex flex-col gap-2">
-                              <Label htmlFor="quarantine-quantity">{quantityLabel}</Label>
+                              <Label htmlFor="quarantine-quantity">{quantityLabel} <span aria-hidden="true">*</span></Label>
                               <div className="flex items-center gap-2">
                                 <Input
                                   id="quarantine-quantity"
@@ -635,7 +635,7 @@ export function QuarantineLotDialog({
                           </>
                         )}
                         <div className="flex flex-col gap-2">
-                          <Label htmlFor="quarantine-reason">Reason</Label>
+                          <Label htmlFor="quarantine-reason">Reason <span aria-hidden="true">*</span></Label>
                           <Input
                             id="quarantine-reason"
                             value={draft.reason}

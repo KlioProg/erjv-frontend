@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { PhoneInput } from '@/components/common/PhoneInput'
 import { Label } from '@/components/ui/label'
 import { Spinner } from '@/components/ui/spinner'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -216,7 +217,7 @@ function ClientFormContent({ client, onClose }: { client: Client | null; onClose
               Business / Customer Name <span aria-hidden="true">*</span>
             </Label>
             <Input
-              id="client-name"
+              id="client-name" pattern=".*\S.*" title="Customer name is required."
               placeholder="e.g. Davao Central Supermarket"
               value={name}
               onChange={(e) => {
@@ -242,7 +243,7 @@ function ClientFormContent({ client, onClose }: { client: Client | null; onClose
               Delivery / Billing Address <span aria-hidden="true">*</span>
             </Label>
             <Input
-              id="client-address"
+              id="client-address" pattern=".*\S.*" title="Delivery / billing address is required."
               placeholder="Street, barangay, city"
               value={address}
               onChange={(e) => setAddress(e.target.value)}
@@ -280,13 +281,10 @@ function ClientFormContent({ client, onClose }: { client: Client | null; onClose
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="client-phone">Phone Number</Label>
-              <Input
+              <PhoneInput
                 id="client-phone"
-                type="tel"
-                inputMode="tel"
-                placeholder="09171234567"
                 value={phone}
-                onChange={(e) => setPhone(e.target.value)}
+                onValueChange={setPhone}
                 aria-invalid={errorField === 'phone' || undefined}
                 aria-describedby={
                   errorField === 'phone' ? 'client-phone-error' : 'client-phone-hint'
@@ -298,8 +296,7 @@ function ClientFormContent({ client, onClose }: { client: Client | null; onClose
                 </p>
               ) : (
                 <p id="client-phone-hint" className="customer-field-hint">
-                  Use 09171234567 or +63 917 123 4567 for mobiles; include the area or country
-                  code for other numbers.
+                  Leave blank if no contact number is available.
                 </p>
               )}
             </div>

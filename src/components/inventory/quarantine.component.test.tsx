@@ -146,17 +146,17 @@ it('preserves an unsubmitted resolution until discard is confirmed', async () =>
   fill()
   fireEvent.click(screen.getAllByRole('button', { name: 'Close' })[0])
   fireEvent.click(screen.getByRole('button', { name: 'Keep Editing' }))
-  expect((screen.getByLabelText('Quantity to release') as HTMLInputElement).value).toBe('1.25')
+  expect((screen.getByRole('textbox', { name: 'Quantity to release' }) as HTMLInputElement).value).toBe('1.25')
   fireEvent.click(screen.getAllByRole('button', { name: 'Close' })[0])
   fireEvent.click(screen.getByRole('button', { name: 'Discard Changes' }))
   await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
   expect(posts).toHaveLength(0)
 })
 function fill(quantity = '1.25', reason = 'Inspection completed') {
-  if (!screen.queryByLabelText('Quantity to release'))
+  if (!screen.queryByRole('textbox', { name: 'Quantity to release' }))
     fireEvent.click(screen.getByRole('radio', { name: /^Release Stock/ }))
-  fireEvent.change(screen.getByLabelText('Quantity to release'), { target: { value: quantity } })
-  fireEvent.change(screen.getByLabelText('Reason'), { target: { value: reason } })
+  fireEvent.change(screen.getByRole('textbox', { name: 'Quantity to release' }), { target: { value: quantity } })
+  fireEvent.change(screen.getByRole('textbox', { name: 'Reason' }), { target: { value: reason } })
   const inspected = screen.getByRole('checkbox') as HTMLInputElement
   if (!inspected.checked) fireEvent.click(inspected)
 }
@@ -281,7 +281,7 @@ it.each(['STAFF', 'UNKNOWN'])('%s has read-only resolution access', async (role)
   auth.role = role
   const { posts } = mount()
   await openLot()
-  expect(screen.queryByLabelText('Quantity to release')).toBeNull()
+  expect(screen.queryByRole('textbox', { name: 'Quantity to release' })).toBeNull()
   expect(posts).toEqual([])
 })
 
@@ -293,7 +293,7 @@ it.each(['MANAGER', 'ADMIN', 'SUPERADMIN'])(
     await openLot()
     fill()
     fireEvent.click(screen.getByRole('button', { name: 'Release Stock' }))
-    await waitFor(() => expect(screen.queryByLabelText('Quantity to release')).toBeNull())
+    await waitFor(() => expect(screen.queryByRole('textbox', { name: 'Quantity to release' })).toBeNull())
     expect(posts).toEqual([
       {
         url: '/stock-items/quarantine-lots/11/resolutions',
@@ -344,10 +344,10 @@ it('requires a nonblank reason and explicit removal confirmation, and blocks dup
   const { posts } = mount({ post: async () => pending })
   await openLot()
   fireEvent.click(screen.getByRole('radio', { name: /^Remove Stock/ }))
-  fireEvent.change(screen.getByLabelText('Quantity to remove'), { target: { value: '1.25' } })
-  fireEvent.change(screen.getByLabelText('Reason'), { target: { value: '   ' } })
+  fireEvent.change(screen.getByRole('textbox', { name: 'Quantity to remove' }), { target: { value: '1.25' } })
+  fireEvent.change(screen.getByRole('textbox', { name: 'Reason' }), { target: { value: '   ' } })
   expect(screen.getByRole('button', { name: 'Review Removal' }).matches(':disabled')).toBe(true)
-  fireEvent.change(screen.getByLabelText('Reason'), { target: { value: 'Inspection completed' } })
+  fireEvent.change(screen.getByRole('textbox', { name: 'Reason' }), { target: { value: 'Inspection completed' } })
   fireEvent.click(screen.getByRole('button', { name: 'Review Removal' }))
   const confirm = await screen.findByRole('button', { name: 'Confirm Removal' })
   expect(posts).toHaveLength(0)
@@ -374,12 +374,12 @@ it('preserves removal inputs after a conflict and requires another explicit conf
   })
   await openLot()
   fireEvent.click(screen.getByRole('radio', { name: /^Remove Stock/ }))
-  fireEvent.change(screen.getByLabelText('Quantity to remove'), { target: { value: '1.25' } })
-  fireEvent.change(screen.getByLabelText('Reason'), { target: { value: 'Inspection completed' } })
+  fireEvent.change(screen.getByRole('textbox', { name: 'Quantity to remove' }), { target: { value: '1.25' } })
+  fireEvent.change(screen.getByRole('textbox', { name: 'Reason' }), { target: { value: 'Inspection completed' } })
   fireEvent.click(screen.getByRole('button', { name: 'Review Removal' }))
   fireEvent.click(await screen.findByRole('button', { name: 'Confirm Removal' }))
   await screen.findByText(/Quarantine balance changed/)
-  expect((screen.getByLabelText('Quantity to remove') as HTMLInputElement).value).toBe('1.25')
+  expect((screen.getByRole('textbox', { name: 'Quantity to remove' }) as HTMLInputElement).value).toBe('1.25')
   fail = false
   fireEvent.click(screen.getByRole('button', { name: 'Review Removal' }))
   fireEvent.click(await screen.findByRole('button', { name: 'Confirm Removal' }))
@@ -422,8 +422,8 @@ it.each([403, 409])('handles HTTP %i without losing inputs and refreshes lots', 
   await waitFor(() =>
     expect(screen.getByRole('radio', { name: /^Release Stock/ }).matches(':disabled')).toBe(false),
   )
-  expect((screen.getByLabelText('Quantity to release') as HTMLInputElement).value).toBe('1.25')
-  expect((screen.getByLabelText('Reason') as HTMLTextAreaElement).value).toBe(
+  expect((screen.getByRole('textbox', { name: 'Quantity to release' }) as HTMLInputElement).value).toBe('1.25')
+  expect((screen.getByRole('textbox', { name: 'Reason' }) as HTMLTextAreaElement).value).toBe(
     'Inspection completed',
   )
   expect(posts).toHaveLength(1)
@@ -450,5 +450,5 @@ it('never retries an uncertain mutation and requires refresh when authoritative 
   )
   expect(screen.getByRole('radio', { name: /^Release Stock/ }).matches(':disabled')).toBe(true)
   expect(posts).toHaveLength(1)
-  expect((screen.getByLabelText('Quantity to release') as HTMLInputElement).value).toBe('1.25')
+  expect((screen.getByRole('textbox', { name: 'Quantity to release' }) as HTMLInputElement).value).toBe('1.25')
 })

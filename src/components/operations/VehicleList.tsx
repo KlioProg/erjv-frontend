@@ -11,7 +11,7 @@ import { Eye, MoreVertical, Plus, Search, Truck } from 'lucide-react'
 import { DataTable, type ColumnDef } from '@/components/ui/data-table'
 import { ArchiveTabNav } from '@/components/ui/ArchiveTabNav'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
+import { StatusBadge } from '@/components/ui/StatusBadge'
 import { Input } from '@/components/ui/input'
 import {
   DropdownMenu,
@@ -178,7 +178,7 @@ export function VehicleList() {
       sortable: false,
       cell: ({ row }) =>
         row.status === 'ARCHIVED' ? (
-          <Badge variant="outline">Archived</Badge>
+          <StatusBadge label="Archived" />
         ) : (
           <VehicleStatusBadge status={row.status} />
         ),

@@ -398,13 +398,17 @@ export function DashboardLayout({
                   <div className="flex flex-wrap items-center gap-x-2 text-ui text-muted-foreground">
                     {currentGroup && (
                       <>
-                        <Link
-                          className="font-medium hover:text-foreground"
-                          to={routeForScreen(currentGroup.items[0].key)}
-                          onClick={handleNavigate}
-                        >
-                          {currentGroup.title}
-                        </Link>
+                        {currentGroup.title === 'Logistics' ? (
+                          <span className="font-medium">{currentGroup.title}</span>
+                        ) : (
+                          <Link
+                            className="font-medium hover:text-foreground"
+                            to={routeForScreen(currentGroup.items[0].key)}
+                            onClick={handleNavigate}
+                          >
+                            {currentGroup.title}
+                          </Link>
+                        )}
                         <span>/</span>
                       </>
                     )}

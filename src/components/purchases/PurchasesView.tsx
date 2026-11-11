@@ -747,6 +747,7 @@ export function PurchasesView({
           statusBadge={renderStatusBadge(selectedOrder.status)}
           onClose={() => setSelectedOrderId(null)}
           onNavigateToDeliveries={onNavigateToDeliveries}
+          canScheduleArrival={canManage}
           receivingLoading={selectedDeliveries?.isPending ?? true}
           receivingUnavailable={selectedDeliveries?.isError ?? false}
           onRetryReceiving={() => void selectedDeliveries?.refetch()}

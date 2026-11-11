@@ -468,13 +468,11 @@ export function InventoryStockList({
           if (row.status === 'UNKNOWN') return <span>Stock status unavailable</span>
           if (row.status === 'UNCONFIGURED') {
             return (
-              <Badge variant="outline" className="text-xs">
-                Threshold not set
-              </Badge>
+              <StatusBadge label="Threshold not set" />
             )
           }
           return (
-            <StatusBadge label="In Stock" tone="success" appearance="emphasis" />
+            <StatusBadge label="In Stock" tone="success" />
           )
         },
       },
@@ -945,15 +943,9 @@ export function InventoryStockList({
                                     {whDisplayName}
                                   </span>
                                   {isOut ? (
-                                    <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-md bg-destructive/10 text-destructive border border-destructive/30">
-                                      <span className="size-1.5 rounded-full bg-destructive shrink-0" />
-                                      Out of Stock
-                                    </span>
+                                    <StatusBadge label="Out of Stock" tone="destructive" appearance="emphasis" />
                                   ) : isLow ? (
-                                    <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-md bg-status-warning text-status-warning-foreground border border-status-warning-foreground/30">
-                                      <span className="size-1.5 rounded-full bg-status-warning-foreground shrink-0" />
-                                      Low Stock
-                                    </span>
+                                    <StatusBadge label="Low Stock" tone="warning" appearance="emphasis" />
                                   ) : null}
                                 </div>
                                 <div className="flex items-baseline gap-1.5 mt-1.5">

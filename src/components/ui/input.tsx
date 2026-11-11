@@ -1,9 +1,35 @@
 import * as React from 'react'
 import { cn } from '@/lib/utils'
 
-const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<'input'>>(
-  ({ className, type, ...props }, ref) => {
-    return (
+const Input = React.forwardRef<
+  HTMLInputElement,
+  React.ComponentProps<'input'> & { error?: string }
+>(({ className, type, error: fieldError, ...props }, ref) => {
+  const errorId = React.useId()
+  const constraints = JSON.stringify([
+    type,
+    props.required,
+    props.pattern,
+    props.min,
+    props.max,
+    props.step,
+    props.minLength,
+    props.maxLength,
+    props.readOnly,
+    props.disabled,
+  ])
+  const [validation, setValidation] = React.useState({
+    message: '',
+    value: props.value,
+    constraints,
+  })
+  const error =
+    fieldError ||
+    (validation.value === props.value && validation.constraints === constraints
+      ? validation.message
+      : '')
+  return (
+    <>
       <input
         type={type}
         className={cn(
@@ -12,10 +38,55 @@ const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<'input'>>(
         )}
         ref={ref}
         {...props}
+        aria-invalid={error ? true : props['aria-invalid']}
+        aria-describedby={
+          [props['aria-describedby'], error && errorId].filter(Boolean).join(' ') || undefined
+        }
+        onInvalid={(event) => {
+          props.onInvalid?.(event)
+          if (event.defaultPrevented) return
+          event.preventDefault()
+          const input = event.currentTarget
+          const label = (
+            input.labels?.[0]?.textContent ||
+            input.getAttribute('aria-label') ||
+            'This field'
+          )
+            .replace(/\*/g, '')
+            .replace(/\s+/g, ' ')
+            .trim()
+          if (!props['aria-invalid']) {
+            const message = input.validity.customError
+              ? input.validationMessage
+              : input.validity.valueMissing
+                ? `${label} is required.`
+                : input.type === 'email'
+                  ? 'Enter a valid email address.'
+                  : input.title ||
+                    (input.validity.patternMismatch
+                      ? `Enter a valid ${label.toLowerCase()}.`
+                      : input.validationMessage)
+            setValidation({ message, value: props.value, constraints })
+          }
+          if (
+            !input.form ||
+            input.form.querySelector('input:invalid, select:invalid, textarea:invalid') === input
+          )
+            input.focus()
+        }}
+        onChange={(event) => {
+          if (validation.message) setValidation({ message: '', value: props.value, constraints })
+          props.onChange?.(event)
+        }}
       />
-    )
-  },
-)
+      {error && (
+        <p id={errorId} role="alert" className="text-xs text-destructive">
+          {error}
+        </p>
+      )}
+    </>
+  )
+})
 Input.displayName = 'Input'
 
 export { Input }

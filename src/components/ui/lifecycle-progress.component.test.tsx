@@ -112,3 +112,19 @@ it('lets a single terminal segment use the full available width', () => {
   expect(screen.getByRole('list').style.gridTemplateColumns).toBe('repeat(1, minmax(0, 1fr))')
   expect(screen.getByRole('listitem').className).not.toMatch(/min-w-24|max-w-32/)
 })
+
+it('keeps recorded milestone details below the label without changing the segment layout', () => {
+  render(
+    <LifecycleProgress
+      label="Recorded delivery dates"
+      milestones={[
+        { id: 'draft', label: 'Draft Created', state: 'complete', detail: 'Nov 7, 2026, 12:17 AM' },
+        { id: 'ready', label: 'Ready', state: 'current' },
+      ]}
+    />,
+  )
+  const items = screen.getAllByRole('listitem')
+  expect(items[0].lastElementChild?.textContent).toBe('Nov 7, 2026, 12:17 AM')
+  expect(items[1].children).toHaveLength(2)
+  expect(screen.getByRole('list').style.gridTemplateColumns).toBe('repeat(2, minmax(0, 1fr))')
+})

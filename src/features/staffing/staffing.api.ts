@@ -212,6 +212,9 @@ export async function unassignEmployeeJobApi(
 }
 
 export async function replaceEmployeeJobsApi(employeeId: number, jobIds: number[]): Promise<void> {
+  if (!Number.isSafeInteger(employeeId) || employeeId < 1 ||
+      jobIds.some((id) => !Number.isSafeInteger(id) || id < 1) || new Set(jobIds).size !== jobIds.length)
+    throw Error('Choose an employee and unique valid job positions.')
   if (jobIds.length === 0) {
     const assignments = await fetchEmployeeJobsByEmployeeApi(employeeId)
     for (const assignment of assignments) await unassignEmployeeJobApi(employeeId, assignment.jobId)

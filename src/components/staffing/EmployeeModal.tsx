@@ -1,6 +1,6 @@
 import { useAuth } from '@/features/auth/AuthContext'
 import { useRef, useState, type FormEvent } from 'react'
-import { Calendar, Mail, Phone, MapPin, User as UserIcon, RotateCcw } from 'lucide-react'
+import { Calendar, Mail, MapPin, User as UserIcon, RotateCcw } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { PhoneInput } from '@/components/common/PhoneInput'
 import { Label } from '@/components/ui/label'
 import { CursorLookup } from '@/components/ui/CursorLookup'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -26,7 +27,7 @@ import {
 } from '@/features/staffing/staffing.hooks'
 import type { Employee, UserAccount } from '@/features/staffing/staffing.types'
 import { getErrorMessage } from '@/lib/api-client'
-import { sanitizePhilippinePhone, validatePhilippinePhone } from '@/lib/phone-utils'
+import { normalizeContactPhone, validateContactPhone } from '@/lib/phone-utils'
 
 type EmployeeModalProps = {
   employee: Employee | null
@@ -84,7 +85,7 @@ function EmployeeFormContent({
       return
     }
 
-    const phoneError = validatePhilippinePhone(phone, 'Phone number')
+    const phoneError = validateContactPhone(phone)
     if (phoneError) {
       setErrorMsg(phoneError)
       return
@@ -102,7 +103,7 @@ function EmployeeFormContent({
     try {
       const parsedHireDate = new Date(hireDate).toISOString()
       const userId = selectedUserId !== 'none' ? Number(selectedUserId) : null
-      const cleanPhone = sanitizePhilippinePhone(phone) || null
+      const cleanPhone = normalizeContactPhone(phone) || null
 
       if (isEditing && employee) {
         await updateMutation.mutateAsync({
@@ -199,12 +200,12 @@ function EmployeeFormContent({
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="emp-fname" className="text-ui font-medium">
-              First Name <span className="text-primary">*</span>
+              First Name <span aria-hidden="true" className="text-primary">*</span>
             </Label>
             <div className="relative">
               <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
               <Input
-                id="emp-fname"
+                id="emp-fname" pattern=".*\S.*" title="First name is required."
                 placeholder="e.g. Ada"
                 value={firstName}
                 onChange={(e) => {
@@ -220,10 +221,10 @@ function EmployeeFormContent({
 
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="emp-lname" className="text-ui font-medium">
-              Last Name <span className="text-primary">*</span>
+              Last Name <span aria-hidden="true" className="text-primary">*</span>
             </Label>
             <Input
-              id="emp-lname"
+              id="emp-lname" pattern=".*\S.*" title="Last name is required."
               placeholder="e.g. Santos"
               value={lastName}
               onChange={(e) => {
@@ -263,30 +264,12 @@ function EmployeeFormContent({
               <Label htmlFor="emp-phone" className="text-ui font-medium">
                 Phone Number
               </Label>
-              {phone && (
-                <span
-                  className={`text-ui font-medium ${
-                    phone.length === 11 && phone.startsWith('09')
-                      ? 'text-status-success-foreground'
-                      : 'text-status-warning-foreground'
-                  }`}
-                >
-                  {phone.length}/11 digits
-                </span>
-              )}
             </div>
-            <div className="relative">
-              <Phone className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
-              <Input
+              <PhoneInput
                 id="emp-phone"
-                type="tel"
-                placeholder="09171234567"
                 value={phone}
-                maxLength={11}
-                onChange={(e) => setPhone(sanitizePhilippinePhone(e.target.value))}
-                className="pl-9"
+                onValueChange={setPhone}
               />
-            </div>
           </div>
         </div>
 
@@ -309,7 +292,7 @@ function EmployeeFormContent({
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="emp-hiredate" className="text-ui font-medium">
-              Hire Date <span className="text-primary">*</span>
+              Hire Date <span aria-hidden="true" className="text-primary">*</span>
             </Label>
             <div className="relative">
               <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />

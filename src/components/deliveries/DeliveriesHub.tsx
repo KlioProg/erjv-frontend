@@ -29,7 +29,7 @@ import { ArrowDownToLine, Plus } from 'lucide-react'
 import { DeliveryTable } from './DeliveryTable'
 import { OrderDetailDrawer } from '@/components/orders/OrderDetailDrawer'
 import { PurchaseOrderDetailModal } from '@/components/purchases/PurchaseOrderDetailModal'
-import { Badge } from '@/components/ui/badge'
+import { PurchaseOrderStatusBadge } from '@/components/purchases/PurchaseOrderStatusBadge'
 import { useAuth } from '@/features/auth/AuthContext'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -60,7 +60,6 @@ import { fetchIncomingDeliveriesApi } from '@/features/logistics/incoming-delive
 import { fetchOutgoingDeliveriesApi } from '@/features/logistics/outgoing-deliveries.api'
 import { useAllWarehouses } from '@/features/logistics/warehouses.hooks'
 import { useStockItems } from '@/features/logistics/stock-items.hooks'
-import type { PurchaseOrderStatus } from '@/features/logistics/purchase-orders.types'
 import type { CreateIncomingDeliveryPayload } from '@/features/logistics/incoming-deliveries.types'
 import { ScheduleIncomingDeliveryModal } from './ScheduleIncomingDeliveryModal'
 import { ScheduleDeliveryModal } from './ScheduleDeliveryModal'
@@ -939,7 +938,7 @@ export function DeliveriesHub({
           receivingUnavailable={purchaseDeliveries.isError}
           onRetryReceiving={() => void purchaseDeliveries.refetch()}
           statusBadge={
-            <Badge variant="outline">{purchaseOrderStatusLabels[purchaseOrderToView.status]}</Badge>
+            <PurchaseOrderStatusBadge status={purchaseOrderToView.status} />
           }
           onClose={() => setViewOrder(null)}
         />
@@ -1006,12 +1005,4 @@ export function DeliveriesHub({
       </>}
     </div>
   )
-}
-
-const purchaseOrderStatusLabels: Record<PurchaseOrderStatus, string> = {
-  DRAFT: 'Draft',
-  CONFIRMED: 'Confirmed',
-  PARTIALLY_RECEIVED: 'Partially Received',
-  RECEIVED: 'Received',
-  CANCELLED: 'Cancelled',
 }

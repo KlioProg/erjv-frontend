@@ -7,7 +7,6 @@ import {
   Search,
   UserPlus,
   Calendar,
-  ShieldCheck,
   Users,
   RotateCcw,
   AlertCircle,
@@ -15,7 +14,7 @@ import {
 import { ArchiveTabNav } from '@/components/ui/ArchiveTabNav'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Badge } from '@/components/ui/badge'
+import { StatusBadge } from '@/components/ui/StatusBadge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { DataTableActions } from '@/components/ui/DataTableActions'
 import {
@@ -133,13 +132,7 @@ export function EmployeeList() {
         return (
           <>
             {emp.userId ? (
-              <Badge
-                variant="outline"
-                className="bg-status-success text-status-success-foreground border-status-success-foreground/20 text-xs font-medium gap-1"
-              >
-                <ShieldCheck className="size-3" />
-                Linked (ID #{emp.userId})
-              </Badge>
+              <StatusBadge label={`Linked (ID #${emp.userId})`} tone="success" />
             ) : (
               <span className="text-xs text-muted-foreground">Unlinked</span>
             )}

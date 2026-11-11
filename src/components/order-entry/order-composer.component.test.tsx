@@ -913,7 +913,7 @@ it.each(['sales', 'purchase'] as const)('binds nested %s validation issues to su
   expect(bananaQuantity.getAttribute('aria-describedby')?.split(' ')).toContain(quantityMessage.id)
   const partner = screen.getByRole('button', { name: kind === 'sales' ? 'Search and choose a customer' : 'Search and choose a supplier' })
   expect(partner.getAttribute('aria-invalid')).toBe('true')
-  expect(partner.getAttribute('aria-describedby')).toBe(screen.getByText('Choose an available partner.').id)
+  expect(partner.getAttribute('aria-describedby')?.split(' ')).toContain(screen.getByText('Choose an available partner.').id)
   fireEvent.change(bananaQuantity, { target: { value: '2' } })
   expect(screen.queryByText('Quantity rejected by the server.')).toBeNull()
   expect(bananaQuantity.getAttribute('aria-invalid')).toBe('false')

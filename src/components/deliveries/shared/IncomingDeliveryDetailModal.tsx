@@ -21,7 +21,6 @@ export function IncomingDeliveryStatusBadge({
   return (
     <StatusBadge
       label={DELIVERY_STATUS_LABELS[status]}
-      appearance="emphasis"
       tone={
         status === 'COMPLETED'
           ? 'success'

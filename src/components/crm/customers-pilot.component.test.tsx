@@ -95,8 +95,9 @@ it('places invalid phone feedback next to the field and associates it with the i
   await user.type(phone, '0917')
   await user.click(dialog.getByRole('button', { name: 'Save Changes' }))
   expect(phone.getAttribute('aria-invalid')).toBe('true')
-  const feedback = document.getElementById(phone.getAttribute('aria-describedby')!)
-  expect(feedback?.textContent).toContain('must be exactly 11 digits')
+  const feedback = phone.getAttribute('aria-describedby')?.split(' ')
+    .map((id) => document.getElementById(id)).find((node) => node?.getAttribute('role') === 'alert')
+  expect(feedback?.textContent).toContain('10 mobile digits')
 })
 
 it('keeps archive confirmation open with recoverable error feedback when the request fails', async () => {

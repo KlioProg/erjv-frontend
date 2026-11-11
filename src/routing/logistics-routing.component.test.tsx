@@ -252,14 +252,14 @@ it('retains staff permissions on the warehouse list', async () => {
   expect(within(table).queryByRole('button', { name: 'Edit' })).toBeNull()
 })
 
-it('uses the application breadcrumb for client-side section navigation', async () => {
+it('keeps Logistics as a section label and navigates through the relevant sidebar destination', async () => {
   mount('/vehicles')
   const sidebar = screen.getByRole('navigation', { name: 'Main navigation' })
   const breadcrumb = screen.getByRole('navigation', { name: 'Application breadcrumb' })
-  const link = within(breadcrumb).getByRole('link', { name: 'Logistics' })
-  expect(link.getAttribute('href')).toBe('/inventory')
-  await userEvent.setup().click(link)
-  await screen.findByRole('heading', { name: 'Inventory' })
+  expect(within(breadcrumb).getByText('Logistics').tagName).toBe('SPAN')
+  expect(within(breadcrumb).queryByRole('link', { name: 'Logistics' })).toBeNull()
+  await userEvent.setup().click(within(sidebar).getByRole('link', { name: 'Delivery Trips' }))
+  await screen.findByRole('heading', { name: 'Delivery Trips' })
   expect(screen.getByRole('navigation', { name: 'Main navigation' })).toBe(sidebar)
   expect(breadcrumb.isConnected).toBe(true)
 })

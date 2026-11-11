@@ -50,6 +50,8 @@ export function validatePhilippinePhone(
     return null // Field is optional unless required by caller
   }
 
+  if (!/^\+?[\d\s().-]+$/.test(phone.trim())) return 'Enter a valid Philippine mobile phone number.'
+
   const digits = sanitizePhilippinePhone(phone)
 
   if (digits.length !== 11) {
@@ -61,4 +63,9 @@ export function validatePhilippinePhone(
   }
 
   return null
+}
+
+/** Display the national part without truncating digits or hiding invalid characters. */
+export function mobileNationalNumber(value: string): string {
+  return value.trim().replace(/[\s().-]/g, '').replace(/^(?:\+?63|0)/, '')
 }

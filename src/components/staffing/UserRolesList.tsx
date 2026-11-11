@@ -13,7 +13,6 @@ import {
   Shield,
   Sparkles,
   RotateCcw,
-  Archive,
   ChevronDown,
   Check,
   UserPlus,
@@ -21,6 +20,7 @@ import {
 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
+import { DirectoryStatusBadge } from '@/components/ui/DirectoryRowControls'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import {
   DropdownMenu,
@@ -288,25 +288,7 @@ export function UserRolesList() {
         )
       case 'status':
         return (
-          <>
-            {isArchived ? (
-              <Badge
-                variant="outline"
-                className="select-none bg-status-warning text-status-warning-foreground border-status-warning-foreground/20 text-xs font-medium gap-1 px-3 py-1 cursor-default"
-              >
-                <Archive className="size-3 pointer-events-none" />
-                <span className="select-none pointer-events-none">Archived</span>
-              </Badge>
-            ) : (
-              <Badge
-                variant="outline"
-                className="select-none bg-status-success text-status-success-foreground border-status-success-foreground/20 text-xs font-medium gap-1 px-3 py-1 cursor-default"
-              >
-                <CheckCircle2 className="size-3 pointer-events-none" />
-                <span className="select-none pointer-events-none">Active</span>
-              </Badge>
-            )}
-          </>
+          <DirectoryStatusBadge isActive={!isArchived} inactiveLabel="Archived" />
         )
       case 'registered':
         return (

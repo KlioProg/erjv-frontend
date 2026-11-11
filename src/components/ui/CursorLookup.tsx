@@ -22,6 +22,7 @@ export function CursorLookup<T extends { id: number }>({
   searchPlaceholder,
   className,
   error,
+  required,
   emptyMessage,
 }: {
   id: string
@@ -39,6 +40,7 @@ export function CursorLookup<T extends { id: number }>({
   searchPlaceholder?: string
   className?: string
   error?: string
+  required?: boolean
   emptyMessage?: string
 }) {
   const [q, setQ] = useState('')
@@ -75,6 +77,7 @@ export function CursorLookup<T extends { id: number }>({
   const selectedRecord = local ?? selected.data
   return (
     <SearchableDropdown
+      required={required}
       id={id}
       options={accept ? query.items.filter(accept) : query.items}
       value={value}

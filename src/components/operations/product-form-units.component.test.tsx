@@ -85,9 +85,9 @@ it.each([
 
 it('shows custom input only when selected and submits its exact value', async () => {
   const { user, close } = mount()
-  expect(screen.queryByLabelText('Custom Unit')).toBeNull()
+  expect(screen.queryByRole('textbox', { name: 'Custom Unit' })).toBeNull()
   await unit(user, 'Other / Custom Unit')
-  await user.type(screen.getByLabelText('Custom Unit'), 'Crate/12')
+  await user.type(screen.getByRole('textbox', { name: 'Custom Unit' }), 'Crate/12')
   fields()
   await user.click(screen.getByRole('button', { name: 'Register Product' }))
   await waitFor(() => expect(close).toHaveBeenCalledOnce())
@@ -110,7 +110,7 @@ it.each(['pcs', 'Kg', 'Crate/12'])(
       updatedAt: '',
     })
     expect(screen.getByRole('combobox', { name: /^Unit/ }).hasAttribute('disabled')).toBe(true)
-    expect((screen.getByLabelText('Custom Unit') as HTMLInputElement).value).toBe(value)
+    expect((screen.getByRole('textbox', { name: 'Custom Unit' }) as HTMLInputElement).value).toBe(value)
     expect(
       (screen.getByRole('textbox', { name: /Wholesale Unit Price/ }) as HTMLInputElement).value,
     ).toBe('1234567890.50')
@@ -149,7 +149,7 @@ it('keeps price updates separate from product details without changing the store
     updatedAt: '',
   })
   expect(screen.getByRole('combobox', { name: /^Unit/ }).textContent).toContain('Kilogram (kg)')
-  expect(screen.queryByLabelText('Custom Unit')).toBeNull()
+  expect(screen.queryByRole('textbox', { name: 'Custom Unit' })).toBeNull()
   fireEvent.change(screen.getByLabelText(/Wholesale Unit Price/), { target: { value: '123.40' } })
   await user.click(screen.getByRole('button', { name: 'Save Product Changes' }))
   await waitFor(() => expect(close).toHaveBeenCalledOnce())
@@ -163,7 +163,7 @@ it.each([false, true])('requires an explicit nonblank unit (custom: %s)', async 
   const { user } = mount()
   if (custom) {
     await unit(user, 'Other / Custom Unit')
-    fireEvent.change(screen.getByLabelText('Custom Unit'), { target: { value: '   ' } })
+    fireEvent.change(screen.getByRole('textbox', { name: 'Custom Unit' }), { target: { value: '   ' } })
   }
   fields()
   fireEvent.submit(screen.getByRole('button', { name: 'Register Product' }).closest('form')!)
