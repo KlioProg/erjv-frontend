@@ -1,6 +1,131 @@
 import type { SalesOrderRecord } from './sales-orders.types'
 import type { OutgoingDeliveryRecord } from '../logistics/outgoing-deliveries.types'
 import { parseStockCents } from '../logistics/stock-display.ts'
+import type { LifecycleMilestone } from '../../components/ui/LifecycleProgress'
+import type { StatusBadgeTone } from '../../components/ui/StatusBadge'
+
+/** Saved order state takes precedence over the state of any single shipment. */
+export function getSalesOrderProgressDisplay(
+  order: Pick<SalesOrderRecord, 'id' | 'status'>,
+  deliveries: OutgoingDeliveryRecord[],
+  complete = true,
+): { label: string; tone: StatusBadgeTone; explanation: string; milestones: LifecycleMilestone[] } {
+  const linked = deliveries.filter(
+    (record) => record.salesOrderId === order.id && record.status !== 'CANCELLED',
+  )
+  let label = 'Confirmed'
+  let tone: StatusBadgeTone = 'info'
+  let explanation = complete
+    ? 'Delivery preparation has not started.'
+    : 'Delivery progress is unavailable. Refresh the related deliveries before continuing.'
+  let stage = 1
+  if (order.status === 'CANCELLED')
+    return {
+      label: 'Cancelled',
+      tone: 'neutral',
+      explanation: 'This order was cancelled. Its saved items remain available for review.',
+      milestones: [{ id: 'cancelled', label: 'Cancelled', state: 'cancelled' }],
+    }
+  if (order.status === 'PARTIALLY_DELIVERED')
+    return {
+      label: 'Partially Delivered',
+      tone: 'progress',
+      explanation:
+        'Some goods have been delivered. Review each shipment and the remaining quantities before arranging more.',
+      milestones: [],
+    }
+  if (order.status === 'DRAFT') {
+    label = 'Draft'
+    tone = 'neutral'
+    stage = 0
+    explanation = 'Review the customer and ordered items before confirming.'
+  } else if (order.status === 'DELIVERED') {
+    label = 'Completed'
+    tone = 'success'
+    stage = 3
+    explanation = 'Fulfillment is complete. Review the recorded delivery results below.'
+  } else if (complete && linked.some((record) => record.status === 'DISPATCHED')) {
+    label = 'In Transit'
+    stage = 2
+    explanation =
+      'Goods have departed. Return when the delivery outcomes are known to record results.'
+  } else if (
+    complete &&
+    linked.some((record) => record.status === 'DRAFT' || record.status === 'READY')
+  ) {
+    label = 'Preparing'
+    stage = 2
+    explanation =
+      'Delivery preparation is saved. Ready goods have not necessarily departed; review the linked shipments.'
+  } else if (complete && linked.length)
+    explanation =
+      'Delivery results are recorded. Review the remaining quantities; the order is not marked complete.'
+  const labels = [
+    'Draft',
+    'Confirmed',
+    label === 'In Transit' ? 'In Transit' : 'Delivery',
+    'Completed',
+  ]
+  return {
+    label,
+    tone,
+    explanation,
+    milestones:
+      !complete && stage === 1
+        ? []
+        : labels.map((name, index) => ({
+            id: String(index),
+            label: name,
+            state:
+              stage === 3 || index < stage ? 'complete' : index === stage ? 'current' : 'upcoming',
+          })),
+  }
+}
+
+/** Detail milestones describe departure and fulfillment, not delivery preparation. */
+export function getSalesOrderDetailProgress(
+  order: Pick<SalesOrderRecord, 'id' | 'status'>,
+  deliveries: OutgoingDeliveryRecord[],
+  complete = true,
+): ReturnType<typeof getSalesOrderProgressDisplay> {
+  const saved = getSalesOrderProgressDisplay(order, deliveries, complete)
+  if (order.status === 'CANCELLED') return saved
+  if (order.status === 'PARTIALLY_DELIVERED')
+    return {
+      ...saved,
+      explanation:
+        'Some goods have been delivered. Review outstanding quantities and linked deliveries.',
+    }
+  const stage =
+    order.status === 'DRAFT'
+      ? 0
+      : order.status === 'DELIVERED'
+        ? 3
+        : saved.label === 'In Transit'
+          ? 2
+          : 1
+  const labels =
+    !complete && stage === 1
+      ? ['Draft', 'Confirmed']
+      : ['Draft', 'Confirmed', 'In Transit', 'Delivered']
+  return {
+    ...saved,
+    label: order.status === 'DELIVERED' ? 'Delivered' : saved.label,
+    explanation:
+      order.status === 'DELIVERED'
+        ? 'All ordered goods have been delivered.'
+        : saved.label === 'Preparing'
+          ? 'Delivery preparation is saved.'
+          : saved.label === 'In Transit'
+            ? 'A delivery is in transit. Record results when the outcome is known.'
+            : saved.explanation,
+    milestones: labels.map((label, index) => ({
+      id: String(index),
+      label,
+      state: stage === 3 || index < stage ? 'complete' : index === stage ? 'current' : 'upcoming',
+    })),
+  }
+}
 
 /** Return-confirmed delivered goods only; never infer delivery from the loaded quantity. */
 export function salesDeliveryProgress(
@@ -33,7 +158,8 @@ export function salesDeliveryProgress(
       item,
       ordered,
       delivered,
-      remaining: ordered !== null && delivered !== null && delivered <= ordered ? ordered - delivered : null,
+      remaining:
+        ordered !== null && delivered !== null && delivered <= ordered ? ordered - delivered : null,
     }
   })
 }

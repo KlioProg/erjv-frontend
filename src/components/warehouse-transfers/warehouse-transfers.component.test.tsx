@@ -67,7 +67,7 @@ beforeEach(() => {
       data = { id: Number(config.url.split('/').at(-1)), name: config.url.endsWith('/10') ? 'Test Item' : 'Other Item', unit: config.url.endsWith('/10') ? 'kg' : 'boxes', isActive: true }
     if (config.url === '/warehouse-transfers' && config.method === 'get')
       data = {
-        items: [record],
+        items: [record].filter(item => !config.params?.statuses || config.params.statuses.includes(item.status)),
         nextCursor: config.params?.cursor ? null : 'page-2',
       }
     if (config.url === '/warehouse-transfers' && config.method === 'post') {
@@ -119,13 +119,13 @@ beforeEach(() => {
 afterEach(() => {
   apiClient.defaults.adapter = original
 })
-function mount() {
+function mount(view: 'active' | 'history' = 'active') {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: 3 } },
   })
   render(
     <QueryClientProvider client={client}>
-      <MemoryRouter><WarehouseTransfersPage /></MemoryRouter>
+      <MemoryRouter><WarehouseTransfersPage view={view} /></MemoryRouter>
     </QueryClientProvider>,
   )
   return client
@@ -155,7 +155,7 @@ it.each([
   const reconciledAt = status === 'COMPLETED' ? '2026-11-04T03:00:00Z' : null
   Object.assign(record, { status, dispatchedAt, reconciledAt })
   if (status === 'COMPLETED') record.items = record.items.map((item) => ({ ...item, receivedQuantity: '10.00', damagedQuantity: '0.00', returnedSellableQuantity: '0.00', returnedDamagedQuantity: '0.00', missingQuantity: '0.00' }))
-  const client = mount()
+  const client = mount(status === 'COMPLETED' ? 'history' : 'active')
   await screen.findByText('WT-000007')
   const transferRow = screen.getByText('WT-000007').closest('tr')!
   const departure = transferRow.querySelectorAll('td')[3]

@@ -1,7 +1,11 @@
 import { CursorLookup } from '@/components/ui/CursorLookup'
 import { Label } from '@/components/ui/label'
 import { manilaScheduleToIso } from '@/lib/manila-schedule'
-import { DataTableFilters, DataTableFilterChips, type DataTableFilter } from '@/components/ui/data-table-filters'
+import {
+  DataTableFilters,
+  DataTableFilterChips,
+  type DataTableFilter,
+} from '@/components/ui/data-table-filters'
 import type { Client } from '@/features/crm/clients.types'
 import type { InventoryItemResponse } from '@/features/products/products.types'
 import type { Warehouse } from '@/features/logistics/warehouses.types'
@@ -13,14 +17,11 @@ import { fetchOutgoingDeliveriesApi } from '@/features/logistics/outgoing-delive
 import { fetchClientByIdApi } from '@/features/crm/clients.api'
 import { DataTableFooter, DataTableFrame } from '@/components/ui/DataTableFooter'
 import { PageHeader, PageToolbar } from '@/components/ui/ManagementPage'
-import { SalesOrderCancelModal } from './SalesOrderCancelModal'
 import { useState, useMemo } from 'react'
-import { CheckCircle2, Eye, MoreHorizontal, Plus, ReceiptText, Search, XCircle } from 'lucide-react'
-import { Card } from '@/components/ui/card'
+import { CheckCircle2, Plus, Search, XCircle } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Badge } from '@/components/ui/badge'
 import {
   Dialog,
   DialogContent,
@@ -32,16 +33,13 @@ import { StatusTabNav } from '@/components/ui/StatusTabNav'
 import { OrderModal, type OrderFormValues } from './OrderModal'
 import { buildSalesOrderPayload } from '@/features/crm/sales-order-entry.utils'
 import { OrderDetailDrawer } from './OrderDetailDrawer'
-import { QuickDispatchModal } from './QuickDispatchModal'
 import { DeliveryDetailModal } from '@/components/deliveries/shared/DeliveryDetailModal'
 import { useStockItems } from '@/features/logistics/stock-items.hooks'
-import { CompleteDeliveryModal } from '@/components/deliveries/shared/CompleteDeliveryModal'
 import {
   useSalesOrdersPage,
   SALES_ORDERS_QUERY_KEY,
   useCreateSalesOrder,
   useConfirmSalesOrder,
-  useCancelSalesOrder,
   useSalesOrderById,
   useUpdateSalesOrderDraft,
 } from '@/features/crm/sales-orders.hooks'
@@ -50,20 +48,12 @@ import { useQueries, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '@/features/auth/AuthContext'
 import type { SalesOrderRecord } from '@/features/crm/sales-orders.types'
 import { fetchSalesOrderByIdApi } from '@/features/crm/sales-orders.api'
-import { getSalesOrderDeliveryDisplay } from '@/features/crm/sales-orders.presentation'
+import { getSalesOrderProgressDisplay } from '@/features/crm/sales-orders.presentation'
 import { getErrorMessage } from '@/lib/api-client'
-import { cn } from '@/lib/utils'
 import { DataTable, type ColumnDef } from '@/components/ui/data-table'
 import { OverflowValue } from '@/components/ui/OverflowValue'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import type { OutgoingDeliveryRecord } from '@/features/logistics/outgoing-deliveries.types'
+import { StatusBadge } from '@/components/ui/StatusBadge'
+import { formatStockCents, parseStockCents } from '@/features/logistics/stock-display'
 
 export type OrderTabFilter = 'Active' | 'Completed' | 'Cancelled'
 
@@ -75,26 +65,6 @@ export type OrdersViewProps = {
     arrange?: boolean,
   ) => void
   onNavigateToInventory?: () => void
-}
-
-type SalesOrderPrimaryAction =
-  | 'confirm'
-  | 'prepare-delivery'
-  | 'continue-delivery'
-  | 'view-delivery'
-  | 'confirm-arrival'
-  | 'view-order'
-
-function getSalesOrderPrimaryAction(
-  order: SalesOrderRecord,
-  delivery?: OutgoingDeliveryRecord,
-): SalesOrderPrimaryAction {
-  if (order.status === 'DELIVERED' || order.status === 'CANCELLED') return 'view-order'
-  if (order.status === 'DRAFT') return 'confirm'
-  if (delivery?.status === 'DISPATCHED') return 'confirm-arrival'
-  if (delivery && delivery.status !== 'RECONCILED') return 'view-delivery'
-  if (order.status === 'PARTIALLY_DELIVERED') return 'continue-delivery'
-  return 'prepare-delivery'
 }
 
 export function OrdersView({
@@ -111,10 +81,7 @@ export function OrdersView({
   const [editingOrderId, setEditingOrderId] = useState<number>()
   const [selectedOrderRecord, setSelectedOrderRecord] = useState<SalesOrderRecord | null>(null)
   const [isDetailDrawerOpen, setIsDetailDrawerOpen] = useState(false)
-  const [dispatchOrder, setDispatchOrder] = useState<SalesOrderRecord | null>(null)
-  const [deliveryToComplete, setDeliveryToComplete] = useState<number | null>(null)
   const [deliveryToView, setDeliveryToView] = useState<number | null>(null)
-  const [orderToCancel, setOrderToCancel] = useState<SalesOrderRecord | null>(null)
 
   // Real backend queries
   const [orderStatus, setOrderStatus] = useState('ALL')
@@ -122,8 +89,15 @@ export function OrdersView({
   const [orderedFrom, setOrderedFrom] = useState('')
   const [orderedThrough, setOrderedThrough] = useState('')
   const dateError = !!orderedFrom && !!orderedThrough && orderedFrom > orderedThrough
-  const groupStatuses: SalesOrderRecord['status'][] = activeStatus === 'Active' ? ['DRAFT', 'CONFIRMED', 'PARTIALLY_DELIVERED'] : activeStatus === 'Completed' ? ['DELIVERED'] : ['CANCELLED']
-  const specificStatus = groupStatuses.includes(orderStatus as SalesOrderRecord['status']) ? orderStatus : 'ALL'
+  const groupStatuses: SalesOrderRecord['status'][] =
+    activeStatus === 'Active'
+      ? ['DRAFT', 'CONFIRMED', 'PARTIALLY_DELIVERED']
+      : activeStatus === 'Completed'
+        ? ['DELIVERED']
+        : ['CANCELLED']
+  const specificStatus = groupStatuses.includes(orderStatus as SalesOrderRecord['status'])
+    ? orderStatus
+    : 'ALL'
   const orderFilters: DataTableFilter[] = [
     {
       kind: 'select',
@@ -194,7 +168,9 @@ export function OrdersView({
           />
           <p className="text-xs text-muted-foreground">Order dates use Manila time.</p>
           {dateError && field.id === 'order-through' && (
-            <p className="text-xs text-destructive">Choose an end date on or after the start date.</p>
+            <p className="text-xs text-destructive">
+              Choose an end date on or after the start date.
+            </p>
           )}
         </>
       ),
@@ -222,24 +198,76 @@ export function OrdersView({
   const editingOrderQuery = useSalesOrderById(editingOrderId)
   const selectedDetail = useSalesOrderById(isDetailDrawerOpen ? selectedOrderRecord?.id : undefined)
   const baseClients = useMemo<Client[]>(() => [], [])
-  const productsQuery = useRecordsById<InventoryItemResponse>('/inventory-items', [...salesOrders, ...[selectedDetail.data, editingOrderQuery.data, selectedOrderRecord].filter((order): order is SalesOrderRecord => !!order)].flatMap(order => order.items.map(item => item.inventoryItemId)))
+  const productsQuery = useRecordsById<InventoryItemResponse>(
+    '/inventory-items',
+    [
+      ...salesOrders,
+      ...[selectedDetail.data, editingOrderQuery.data, selectedOrderRecord].filter(
+        (order): order is SalesOrderRecord => !!order,
+      ),
+    ].flatMap((order) => order.items.map((item) => item.inventoryItemId)),
+  )
   const { data: products = [] } = productsQuery
   const stockQuery = useStockItems()
   const { data: stockItems = [] } = stockQuery
-  const deliveryQueries = useQueries({ queries: [...new Set([...salesOrders.map(order => order.id), selectedOrderRecord?.id].filter((id): id is number => !!id))].map(id => ({ queryKey: ['outgoing-deliveries', 'for-order', id], queryFn: ({ signal }) => fetchOutgoingDeliveriesApi({ salesOrderId: id }, signal) })) })
-  const outgoingDeliveries = [...new Map(deliveryQueries.flatMap(query => query.data ?? []).map(delivery => [delivery.id, delivery])).values()]
-  const { data: runs } = useRecordsById<DeliveryRunRecord>('/delivery-runs', outgoingDeliveries.map(delivery => delivery.runId))
-  const { data: vehicles } = useRecordsById<DeliveryVehicle>('/delivery-vehicles', runs.map(run => run.deliveryVehicleId))
-  const { data: employees } = useRecordsById<Employee>('/employees', runs.map(run => run.driverEmployeeId))
-  const { data: warehouses } = useRecordsById<Warehouse>('/warehouses', outgoingDeliveries.flatMap(delivery => [delivery.warehouseId, ...delivery.items.map(item => item.stockItem?.warehouseId)]))
+  const deliveryOrderIds = [
+    ...new Set(
+      [...salesOrders.map((order) => order.id), selectedOrderRecord?.id].filter(
+        (id): id is number => !!id,
+      ),
+    ),
+  ]
+  const deliveryQueries = useQueries({
+    queries: deliveryOrderIds.map((id) => ({
+      queryKey: ['outgoing-deliveries', 'for-order', id],
+      queryFn: ({ signal }) => fetchOutgoingDeliveriesApi({ salesOrderId: id }, signal),
+    })),
+  })
+  const outgoingDeliveries = [
+    ...new Map(
+      deliveryQueries
+        .flatMap((query) => query.data ?? [])
+        .map((delivery) => [delivery.id, delivery]),
+    ).values(),
+  ]
+  const { data: runs } = useRecordsById<DeliveryRunRecord>(
+    '/delivery-runs',
+    outgoingDeliveries.map((delivery) => delivery.runId),
+  )
+  const { data: vehicles } = useRecordsById<DeliveryVehicle>(
+    '/delivery-vehicles',
+    runs.map((run) => run.deliveryVehicleId),
+  )
+  const { data: employees } = useRecordsById<Employee>(
+    '/employees',
+    runs.map((run) => run.driverEmployeeId),
+  )
+  const { data: warehouses } = useRecordsById<Warehouse>(
+    '/warehouses',
+    outgoingDeliveries.flatMap((delivery) => [
+      delivery.warehouseId,
+      ...delivery.items.map((item) => item.stockItem?.warehouseId),
+    ]),
+  )
 
-  const pageClients = useQueries({ queries: [...new Set([...salesOrders.map((order) => order.clientId), ...(selectedOrderRecord ? [selectedOrderRecord.clientId] : [])])].filter((id) => !baseClients.some((client) => client.id === id)).map((id) => ({ queryKey: ['clients', 'id', id], queryFn: () => fetchClientByIdApi(id) })) })
-  const clients = useMemo(() => [...baseClients, ...pageClients.flatMap((query) => query.data ? [query.data] : [])], [baseClients, pageClients])
+  const pageClients = useQueries({
+    queries: [
+      ...new Set([
+        ...salesOrders.map((order) => order.clientId),
+        ...(selectedOrderRecord ? [selectedOrderRecord.clientId] : []),
+      ]),
+    ]
+      .filter((id) => !baseClients.some((client) => client.id === id))
+      .map((id) => ({ queryKey: ['clients', 'id', id], queryFn: () => fetchClientByIdApi(id) })),
+  })
+  const clients = useMemo(
+    () => [...baseClients, ...pageClients.flatMap((query) => (query.data ? [query.data] : []))],
+    [baseClients, pageClients],
+  )
 
   // Mutations
   const createOrderMutation = useCreateSalesOrder({ notifySuccess: false })
   const confirmOrderMutation = useConfirmSalesOrder()
-  const cancelOrderMutation = useCancelSalesOrder()
   const updateDraftMutation = useUpdateSalesOrderDraft()
 
   const { user, isAdmin, isManager } = useAuth()
@@ -248,8 +276,6 @@ export function OrdersView({
 
   // Lookups
   const clientMap = useMemo(() => new Map(clients.map((c) => [c.id, c])), [clients])
-  const productMap = useMemo(() => new Map(products.map((p) => [p.id, p])), [products])
-
 
   // Sync selectedOrderRecord if the list updates
   const activeSelectedOrder = useMemo(() => {
@@ -271,281 +297,109 @@ export function OrdersView({
     return order
   }
 
-  // Confirm order action
-  const handleConfirmOrder = async (order: SalesOrderRecord) => {
-    if (!canManage || confirmOrderMutation.isPending) return
-    try {
-      await confirmOrderMutation.mutateAsync({ id: order.id, expectedRevision: order.revision })
-    } catch (err) {
-      toast.error(getErrorMessage(err))
-    }
-  }
-
-  // Cancellation is reviewed in the application dialog before the API request.
-  const handleCancelOrder = (order: SalesOrderRecord) => {
-    if (canManage && !cancelOrderMutation.isPending) setOrderToCancel(order)
-  }
-
-  const orderRows = filteredOrders.map((order) => {
-    const items = order.items || []
-    const itemSummary = items
-      .map((item) => {
-        const product = productMap.get(item.inventoryItemId)
-        return `${product?.name || `Product #${item.inventoryItemId}`} ×${item.quantity}`
-      })
-      .join(', ')
-    const itemLabel = items.length === 1 ? itemSummary : `${items.length} items`
-    const orderTotal = items.reduce((sum, item) => sum + Number(item.totalAmount), 0)
-    const tiedDeliveries = outgoingDeliveries.filter(
-      (delivery) => delivery.salesOrderId === order.id && delivery.status !== 'CANCELLED',
-    )
-    const activeDelivery =
-      tiedDeliveries.find((delivery) => delivery.status === 'DISPATCHED') ||
-      tiedDeliveries.find((delivery) => ['DRAFT', 'READY'].includes(delivery.status)) ||
-      tiedDeliveries[0]
-    const hasDeliveries = tiedDeliveries.length > 0
-    const deliveryDisplay = getSalesOrderDeliveryDisplay(order, activeDelivery, outgoingDeliveries)
-
-    return {
-      order,
-      client: clientMap.get(order.clientId),
-      itemSummary,
-      itemLabel,
-      orderTotal,
-      activeDelivery,
-      hasDeliveries,
-      deliveryDisplay,
-    }
-  })
-
   const openOrderDetails = (order: SalesOrderRecord) => {
     setSelectedOrderRecord(order)
     setIsDetailDrawerOpen(true)
   }
-
   const editDraft = (order: SalesOrderRecord) => {
     if (!canManage || order.status !== 'DRAFT') return
     setIsDetailDrawerOpen(false)
     setEditingOrderId(order.id)
   }
-
-  const handlePrimaryAction = (
-    action: SalesOrderPrimaryAction,
-    order: SalesOrderRecord,
-    delivery?: OutgoingDeliveryRecord,
-  ) => {
-    switch (action) {
-      case 'confirm':
-        void handleConfirmOrder(order)
-        break
-      case 'prepare-delivery':
-      case 'continue-delivery':
-        if (onNavigateToDeliveries) onNavigateToDeliveries('outgoing', order.id, true)
-        else setDispatchOrder(order)
-        break
-      case 'view-delivery':
-        if (delivery) setDeliveryToView(delivery.id)
-        break
-      case 'confirm-arrival':
-        if (!delivery) break
-        if (onNavigateToDeliveries) onNavigateToDeliveries('outgoing', order.id)
-        else setDeliveryToComplete(delivery.id)
-        break
-      case 'view-order':
-        openOrderDetails(order)
-        break
+  const selectedDeliveries =
+    deliveryQueries[deliveryOrderIds.indexOf(selectedOrderRecord?.id ?? -1)]
+  const orderRows = filteredOrders.map((order) => {
+    const query = deliveryQueries[deliveryOrderIds.indexOf(order.id)]
+    return {
+      order,
+      client: clientMap.get(order.clientId),
+      orderTotal: (order.items || []).reduce((sum, item) => sum + Number(item.totalAmount), 0),
+      progress: getSalesOrderProgressDisplay(
+        order,
+        query?.data ?? [],
+        !!query?.data && !query.isError,
+      ),
     }
-  }
-
+  })
   const salesOrderColumns: ColumnDef<(typeof orderRows)[number]>[] = [
     {
       id: 'order',
       header: 'Order',
-      width: 145,
-      className: 'min-w-[145px]',
-      cell: ({ row: { order } }) => (
-        <div className="flex items-center gap-2 whitespace-nowrap">
-          <span className="whitespace-nowrap text-sm font-medium text-foreground">
-            {order.orderNumber}
-          </span>
-          {['DRAFT', 'CONFIRMED'].includes(order.status) && (
-            <span className="text-xs text-muted-foreground">
-              {order.status === 'DRAFT' ? 'Draft' : 'Confirmed'}
-            </span>
-          )}
-        </div>
+      width: '18%',
+      cell: ({ row }) => (
+        <OverflowValue
+          value={row.order.orderNumber}
+          onActivate={() => openOrderDetails(row.order)}
+        />
       ),
     },
     {
       id: 'customer',
       header: 'Customer',
-      width: 210,
-      className: 'min-w-[180px] max-w-[250px]',
-      cell: ({ row: { order, client } }) => (
-        <OverflowValue value={client?.name || `Customer #${order.clientId}`} fullValue={`${client?.name || `Customer #${order.clientId}`} ? ${order.deliveryAddress || 'No address specified'}`} showFullValueOnHover />
+      width: '24%',
+      cell: ({ row }) => (
+        <OverflowValue
+          value={row.client?.name || 'Customer #' + row.order.clientId}
+          fullValue={
+            row.order.externalReference
+              ? (row.client?.name || 'Customer') + ' | Ref: ' + row.order.externalReference
+              : undefined
+          }
+          showFullValueOnHover
+        />
       ),
     },
     {
       id: 'items',
       header: 'Items',
-      width: 165,
-      className: 'hidden max-w-[220px] lg:table-cell',
-      headerClassName: 'hidden lg:table-cell',
-      cell: ({ row: { order, itemLabel, itemSummary } }) => {
-        const item = order.items?.length === 1 ? order.items[0] : undefined
-        const itemName = item
-          ? productMap.get(item.inventoryItemId)?.name || `Product #${item.inventoryItemId}`
-          : itemLabel || 'No items'
-        if ((order.items?.length ?? 0) > 1) {
-          return (
-            <OverflowValue
-              value={itemName}
-              fullValue={itemSummary}
-              showFullValueOnHover
-              className="text-foreground"
-            />
-          )
-        }
+      width: '20%',
+      cell: ({ row }) => {
+        const items = row.order.items || []
+        const item = items[0]
+        const name = item
+          ? products.find((product) => product.id === item.inventoryItemId)?.name ||
+            `Product #${item.inventoryItemId}`
+          : ''
         return (
-          <span className="block truncate text-foreground" title={itemSummary}>
-            {itemName}
-            {item && <span className="font-normal text-muted-foreground"> ×{item.quantity}</span>}
-          </span>
+          <OverflowValue
+            value={
+              items.length === 1
+                ? `${name} (${formatStockCents(parseStockCents(item.quantity))})`
+                : items.length > 1
+                  ? `${items.length} items`
+                  : 'No items listed'
+            }
+          />
         )
       },
     },
     {
       id: 'total',
       header: 'Total',
-      width: 110,
       align: 'right',
-      className: 'whitespace-nowrap tabular-nums text-foreground',
-      cell: ({ row: { orderTotal } }) =>
-        `₱${orderTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      width: '16%',
+      className: 'whitespace-nowrap tabular-nums',
+      cell: ({ row }) =>
+        '₱' +
+        row.orderTotal.toLocaleString('en-US', {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        }),
     },
     {
-      id: 'delivery',
-      header: 'Delivery',
-      width: 155,
-      className: 'whitespace-nowrap',
-      cell: ({ row: { deliveryDisplay } }) => (
-        <Badge
-          variant="outline"
-          className={cn('whitespace-nowrap px-2', deliveryDisplay.badgeClassName)}
-        >
-          {deliveryDisplay.label}
-        </Badge>
+      id: 'progress',
+      header: 'Progress',
+      align: 'right',
+      width: '22%',
+      cell: ({ row }) => (
+        <StatusBadge
+          label={row.progress.label}
+          tone={row.progress.tone}
+          className="whitespace-nowrap"
+        />
       ),
     },
-    {
-      id: 'action',
-      header: 'Action',
-      width: 185,
-      align: 'right',
-      className: 'whitespace-nowrap',
-      cell: ({ row: { order, activeDelivery, hasDeliveries } }) => {
-        const primaryAction = canManage
-          ? getSalesOrderPrimaryAction(order, activeDelivery)
-          : 'view-order'
-        const primaryLabel: Record<SalesOrderPrimaryAction, string> = {
-          confirm: 'Confirm',
-          'prepare-delivery': 'Plan Delivery',
-          'continue-delivery': 'Plan Delivery',
-          'view-delivery': 'View Delivery',
-          'confirm-arrival': 'Confirm Arrival',
-          'view-order': 'View',
-        }
-        const primaryVariant = {
-          confirm: 'default',
-          'prepare-delivery': 'default',
-          'continue-delivery': 'default',
-          'view-delivery': 'ghost',
-          'confirm-arrival': 'secondary',
-          'view-order': 'ghost',
-        } as const
-        const showViewOrder = primaryAction !== 'view-order'
-        const isViewOrder = primaryAction === 'view-order'
-        const showViewDelivery = Boolean(activeDelivery) && primaryAction !== 'view-delivery'
-        const canCancelOrder =
-          canManage && (order.status === 'DRAFT' || order.status === 'CONFIRMED')
-
-        return (
-          <div
-            className="flex items-center justify-end gap-1"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <Button
-              size={isViewOrder ? 'icon' : 'sm'}
-              variant={primaryVariant[primaryAction]}
-              className={isViewOrder ? 'size-8 pointer-coarse:size-11' : undefined}
-              aria-label={isViewOrder ? `View sales order ${order.orderNumber}` : undefined}
-              title={isViewOrder ? 'View order' : undefined}
-              disabled={primaryAction === 'confirm' && confirmOrderMutation.isPending}
-              onClick={() => handlePrimaryAction(primaryAction, order, activeDelivery)}
-            >
-              {isViewOrder ? <Eye aria-hidden="true" /> : primaryLabel[primaryAction]}
-            </Button>
-
-            {(showViewOrder || showViewDelivery || canCancelOrder) && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="size-8 text-muted-foreground"
-                    aria-label={`More actions for ${order.orderNumber}`}
-                    title="More actions"
-                  >
-                    <MoreHorizontal />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-44">
-                  <DropdownMenuGroup>
-                    {canManage && order.status === 'DRAFT' && (
-                      <DropdownMenuItem onSelect={() => editDraft(order)}>
-                        Edit Draft
-                      </DropdownMenuItem>
-                    )}
-                    {showViewOrder && (
-                      <DropdownMenuItem onSelect={() => openOrderDetails(order)}>
-                        <Eye className="mr-2 size-3.5" />
-                        View Order
-                      </DropdownMenuItem>
-                    )}
-                    {showViewDelivery && activeDelivery && (
-                      <DropdownMenuItem onSelect={() => setDeliveryToView(activeDelivery.id)}>
-                        View Delivery
-                      </DropdownMenuItem>
-                    )}
-                    {hasDeliveries && onNavigateToDeliveries && (
-                      <DropdownMenuItem
-                        onSelect={() => onNavigateToDeliveries('outgoing', order.id)}
-                      >
-                        View Deliveries
-                      </DropdownMenuItem>
-                    )}
-                    {canCancelOrder && (
-                      <>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          disabled={cancelOrderMutation.isPending}
-                          onSelect={() => void handleCancelOrder(order)}
-                          className="text-destructive focus:text-destructive"
-                        >
-                          Cancel Order
-                        </DropdownMenuItem>
-                      </>
-                    )}
-                  </DropdownMenuGroup>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
-          </div>
-        )
-      },
-    },
   ]
-
   return (
     <div className="flex min-w-0 flex-col gap-4">
       <PageHeader description="Create and track customer orders and deliveries.">
@@ -606,76 +460,46 @@ export function OrdersView({
 
       {/* Orders Table */}
       <DataTableFrame>
-      {dateError ? <p role="alert" className="p-4 text-sm text-destructive">Choose an end date on or after the start date.</p> : ordersQuery.isError ? (
-        <Alert variant="destructive">
-          <AlertDescription>
-            Sales orders could not be loaded. {getErrorMessage(ordersQuery.error)}
-            <Button
-              variant="outline"
-              size="sm"
-              className="ml-2"
-              onClick={() => void ordersQuery.reload()}
-              disabled={ordersQuery.isFetching}
-            >
-              {ordersQuery.isFetching ? 'Retrying...' : 'Retry'}
-            </Button>
-          </AlertDescription>
-        </Alert>
-      ) : isLoadingOrders ? (
-        <DataTable
-          appearance="management"
-          data={orderRows}
-          columns={salesOrderColumns}
-          getRowKey={({ order }) => order.id}
-          isLoading
-          loadingMessage="Loading sales orders..."
-          pagination={false}
-          tableClassName="table-fixed min-w-[760px] lg:min-w-[960px]"
-        />
-      ) : filteredOrders.length === 0 ? (
-        <Card className="flex min-h-[360px] items-center justify-center border-border bg-card shadow-none">
-          <div className="flex flex-col items-center justify-center text-center">
-            <ReceiptText className="size-8 text-muted-foreground" />
-            <span className="text-sm font-semibold text-foreground mt-2">
-              {searchTerm.trim()
+        {dateError ? (
+          <p role="alert" className="p-4 text-sm text-destructive">
+            Choose an end date on or after the start date.
+          </p>
+        ) : ordersQuery.isError ? (
+          <Alert variant="destructive">
+            <AlertDescription>
+              Sales orders could not be loaded. {getErrorMessage(ordersQuery.error)}
+              <Button
+                variant="outline"
+                size="sm"
+                className="ml-2"
+                onClick={() => void ordersQuery.reload()}
+                disabled={ordersQuery.isFetching}
+              >
+                {ordersQuery.isFetching ? 'Retrying...' : 'Retry'}
+              </Button>
+            </AlertDescription>
+          </Alert>
+        ) : (
+          <DataTable
+            appearance="management"
+            retainHeaders
+            data={orderRows}
+            columns={salesOrderColumns}
+            getRowKey={({ order }) => order.id}
+            pagination={false}
+            isLoading={isLoadingOrders}
+            loadingMessage="Loading sales orders..."
+            onRowClick={({ order }) => openOrderDetails(order)}
+            tableClassName="table-fixed min-w-[760px]"
+            emptyContent={
+              searchTerm.trim()
                 ? `No ${activeStatus.toLowerCase()} orders match "${searchTerm.trim()}"`
-                : `No ${activeStatus.toLowerCase()} orders found`}
-            </span>
-            <p className="text-xs text-muted-foreground mt-1 max-w-xs">
-              {searchTerm.trim()
-                ? 'Try searching with a different order number, customer name, or external reference.'
-                : activeStatus === 'Active'
-                  ? 'Click "Create Sales Order" to record your first customer purchase!'
-                  : 'Orders moved into this status will appear here.'}
-            </p>
-          </div>
-        </Card>
-      ) : (
-        <DataTable
-          appearance="management"
-          data={orderRows}
-          columns={salesOrderColumns}
-          getRowKey={({ order }) => order.id}
-          pagination={false}
-
-          onRowClick={({ order }) => openOrderDetails(order)}
-          tableClassName="table-fixed min-w-[760px] lg:min-w-[960px]"
-        />
-      )}
-
-      <DataTableFooter {...ordersQuery} rowCount={ordersQuery.items.length} />
+                : `No ${activeStatus.toLowerCase()} orders found`
+            }
+          />
+        )}
+        <DataTableFooter {...ordersQuery} rowCount={ordersQuery.items.length} />
       </DataTableFrame>
-
-      {orderToCancel && (
-        <SalesOrderCancelModal
-          order={orderToCancel}
-          onClose={() => setOrderToCancel(null)}
-          onConfirm={(id, expectedRevision) => {
-            if (!canManage) throw new Error('You do not have permission to cancel orders.')
-            return cancelOrderMutation.mutateAsync({ id, expectedRevision })
-          }}
-        />
-      )}
 
       {/* Order Creation Modal */}
       {isOrderModalOpen && canManage && (
@@ -684,7 +508,9 @@ export function OrdersView({
           open
           onClose={() => setIsOrderModalOpen(false)}
           onSubmit={handleSaveOrder}
-          onConfirm={(id, expectedRevision) => confirmOrderMutation.mutateAsync({ id, expectedRevision })}
+          onConfirm={(id, expectedRevision) =>
+            confirmOrderMutation.mutateAsync({ id, expectedRevision })
+          }
           clients={clients}
           products={products}
           catalogState={{
@@ -725,7 +551,9 @@ export function OrdersView({
                 staleTime: 0,
               })
             }
-            onConfirm={(id, expectedRevision) => confirmOrderMutation.mutateAsync({ id, expectedRevision })}
+            onConfirm={(id, expectedRevision) =>
+              confirmOrderMutation.mutateAsync({ id, expectedRevision })
+            }
             clients={clients}
             products={products}
             stockItems={stockItems}
@@ -766,7 +594,6 @@ export function OrdersView({
           </Dialog>
         ))}
 
-      {deliveryToComplete !== null && outgoingDeliveries.find((delivery) => delivery.id === deliveryToComplete)?.runId && <CompleteDeliveryModal runId={outgoingDeliveries.find((delivery) => delivery.id === deliveryToComplete)!.runId!} key={deliveryToComplete} deliveryId={deliveryToComplete} onClose={() => setDeliveryToComplete(null)} />}
       {/* Guided Order Detail Drawer */}
       <OrderDetailDrawer
         open={isDetailDrawerOpen}
@@ -783,6 +610,17 @@ export function OrdersView({
         stockItems={stockItems}
         outgoingDeliveries={outgoingDeliveries}
         onConfirmed={() => setIsDetailDrawerOpen(false)}
+        onCancelled={() => setIsDetailDrawerOpen(false)}
+        deliveriesLoading={selectedDeliveries?.isPending ?? true}
+        deliveriesUnavailable={selectedDeliveries?.isError ?? false}
+        onRetryDeliveries={() => void selectedDeliveries?.refetch()}
+        recordBusy={selectedDetail.isFetching}
+        recordUnavailable={
+          selectedDetail.isError || (selectedDetail.isSuccess && !selectedDetail.data)
+        }
+        onViewDeliveries={
+          onNavigateToDeliveries ? (id) => onNavigateToDeliveries('outgoing', id) : undefined
+        }
         onEdit={editDraft}
         onArrangeDelivery={
           onNavigateToDeliveries
@@ -800,22 +638,6 @@ export function OrdersView({
           open
           deliveryId={deliveryToView}
           onClose={() => setDeliveryToView(null)}
-        />
-      )}
-
-      {/* Quick Dispatch Modal for row actions */}
-      {dispatchOrder && (
-        <QuickDispatchModal
-          open={Boolean(dispatchOrder)}
-          onClose={() => setDispatchOrder(null)}
-          order={dispatchOrder}
-          vehicles={vehicles}
-          employees={employees}
-          warehouses={warehouses}
-          stockItems={stockItems}
-          onSuccess={() => {
-            setDispatchOrder(null)
-          }}
         />
       )}
     </div>

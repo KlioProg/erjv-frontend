@@ -51,7 +51,7 @@ beforeEach(() => {
           ? { ...warehouse, isActive: !archived }
           : url === '/warehouses'
             ? { items: [{ ...warehouse, isActive: !archived }], nextCursor: null }
-            : /^\/(sales-orders|purchase-orders|incoming-deliveries|outgoing-deliveries|stock-items|employees|suppliers)$/.test(
+            : /^\/(sales-orders|purchase-orders|incoming-deliveries|outgoing-deliveries|warehouse-transfers|stock-items|employees|suppliers)$/.test(
                   url,
                 ) || url.startsWith('/stock-items/warehouses/')
               ? { items: [], nextCursor: null }
@@ -61,6 +61,21 @@ beforeEach(() => {
 })
 afterEach(() => {
   apiClient.defaults.adapter = originalAdapter
+})
+
+it('routes transfer History separately and preserves browser back to active transfers', async () => {
+  mount('/warehouse-transfers')
+  await screen.findByRole('heading', { name: 'Warehouse Transfers' })
+  await userEvent.click(screen.getByRole('link', { name: 'History' }))
+  await screen.findByRole('heading', { name: 'Warehouse Transfer History' })
+  expect(screen.getByTestId('path').textContent).toBe('/warehouse-transfers/history')
+  expect(screen.getByRole('link', { name: 'Active Transfers' }).getAttribute('href')).toBe(
+    '/warehouse-transfers',
+  )
+  expect(screen.queryByRole('button', { name: 'Create Transfer' })).toBeNull()
+  await userEvent.click(screen.getByRole('button', { name: 'Browser back' }))
+  await screen.findByRole('heading', { name: 'Warehouse Transfers' })
+  expect(screen.getByTestId('path').textContent).toBe('/warehouse-transfers')
 })
 
 function mount(path: string) {

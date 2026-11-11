@@ -402,7 +402,8 @@ describe('sales draft integration', () => {
         <OrdersView />
       </QueryClientProvider>,
     )
-    await user.click(await screen.findByRole('button', { name: 'More actions for SO-42' }))
+    await user.click(await screen.findByRole('button', { name: 'SO-42' }))
+    await user.click(screen.getByRole('button', {name:'More Actions'}))
     await user.click(screen.getByRole('menuitem', { name: 'Edit Draft' }))
     const editor = await screen.findByRole('dialog', { name: 'Edit Draft SO-42' })
     expect(within(editor).getByRole('textbox', { name: 'Quantity for Product 1' })).toBeTruthy()
@@ -441,9 +442,9 @@ describe('sales draft integration', () => {
         <OrdersView />
       </QueryClientProvider>,
     )
-    await user.click(await screen.findByRole('button', { name: 'View sales order SO-42' }))
+    await user.click(await screen.findByRole('button', { name: 'SO-42' }))
     await screen.findByRole('dialog', { name: /SO-42/ })
-    await screen.findByText('Product 1')
+    await screen.findAllByText('Product 1')
     expect(screen.queryByRole('button', { name: 'Edit Draft' })).toBeNull()
     expect(screen.queryByRole('menuitem', { name: 'Edit Draft' })).toBeNull()
     queryClient.clear()

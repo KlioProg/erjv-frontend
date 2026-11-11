@@ -3,7 +3,31 @@ import userEvent from '@testing-library/user-event'
 import { expect, it } from 'vitest'
 import { LifecycleProgress } from './LifecycleProgress'
 
-it('lets keyboard users focus the horizontal list to scroll without step-navigation controls', async () => {
+it('renders one separate horizontal segment above each stage label', () => {
+  const milestones = [
+    { id: 'draft', label: 'Draft', state: 'complete' as const },
+    { id: 'confirm', label: 'Confirmed', state: 'current' as const },
+    { id: 'receive', label: 'Receiving', state: 'upcoming' as const },
+    { id: 'received', label: 'Received', state: 'upcoming' as const },
+  ]
+  const view = render(<LifecycleProgress label="Purchase lifecycle" milestones={milestones} />)
+  const items = screen.getAllByRole('listitem')
+  const list = screen.getByRole('list', { name: 'Purchase lifecycle' })
+  expect(list.classList.contains('grid')).toBe(true)
+  expect(list.style.gridTemplateColumns).toBe('repeat(4, minmax(0, 1fr))')
+  expect(list.classList.contains('w-full')).toBe(true)
+  expect(view.container.querySelectorAll('[data-slot="lifecycle-segment"]')).toHaveLength(4)
+  items.forEach((item, index) => {
+    const segment = item.querySelector('[data-slot="lifecycle-segment"]')!
+    expect(item.firstElementChild).toBe(segment)
+    expect(segment.getAttribute('data-state')).toBe(milestones[index].state)
+    expect(segment.getAttribute('aria-hidden')).toBe('true')
+    expect(item.textContent).toContain(milestones[index].label)
+  })
+  expect(view.container.querySelector('svg, circle')).toBeNull()
+})
+
+it('keeps the stage description keyboard-focusable without step-navigation controls', async () => {
   const user = userEvent.setup()
   render(
     <LifecycleProgress
@@ -71,8 +95,20 @@ it('shows cancellation explicitly without implying a successful terminal milesto
   )
   const items = screen.getAllByRole('listitem')
   expect(items[1].textContent).toBe('Cancelled')
+  expect(screen.getByRole('list').style.gridTemplateColumns).toBe('repeat(3, minmax(0, 1fr))')
   expect(items[2].textContent).toBe('Delivered — Upcoming')
   expect(view.container.querySelector('[aria-current]')).toBeNull()
   view.rerender(<LifecycleProgress label="Order lifecycle" milestones={[]} />)
   expect(screen.queryByRole('list')).toBeNull()
+})
+
+it('lets a single terminal segment use the full available width', () => {
+  render(
+    <LifecycleProgress
+      label="Cancelled purchase"
+      milestones={[{ id: 'cancelled', label: 'Cancelled', state: 'cancelled' }]}
+    />,
+  )
+  expect(screen.getByRole('list').style.gridTemplateColumns).toBe('repeat(1, minmax(0, 1fr))')
+  expect(screen.getByRole('listitem').className).not.toMatch(/min-w-24|max-w-32/)
 })

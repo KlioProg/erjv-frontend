@@ -159,7 +159,7 @@ export function AppRoutes() {
           path="warehouse-transfers"
           element={
             <RouteBoundary>
-              <WarehouseTransfersPage />
+              <WarehouseTransfersPage key="active" />
             </RouteBoundary>
           }
         />
@@ -185,6 +185,14 @@ export function AppRoutes() {
           element={
             <RouteBoundary>
               <DeliveriesRoute view="outgoing" />
+            </RouteBoundary>
+          }
+        />
+        <Route
+          path="warehouse-transfers/history"
+          element={
+            <RouteBoundary>
+              <WarehouseTransfersPage key="history" view="history" />
             </RouteBoundary>
           }
         />

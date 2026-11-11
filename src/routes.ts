@@ -45,6 +45,7 @@ export const ROUTES = {
   deliveryHistory: '/deliveries/history',
   deliveryRuns: '/deliveries/runs',
   warehouseTransfers: '/warehouse-transfers',
+  warehouseTransferHistory: '/warehouse-transfers/history',
 } as const
 
 const SCREEN_ROUTES: Record<Exclude<NavItemKey, 'deliveries'>, string> = {
@@ -83,6 +84,7 @@ export function screenFromPath(pathname: string): NavItemKey | undefined {
     (key) => SCREEN_ROUTES[key] === path,
   )
   if (screen) return screen
+  if (path === ROUTES.warehouseTransferHistory) return 'warehouse-transfers'
   if (/^\/warehouses\/[^/]+$/.test(path)) return 'warehouses'
 
   return undefined

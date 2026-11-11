@@ -1,27 +1,13 @@
+import {
+  OrderDetailFooter,
+  type OrderDetailAction,
+} from '@/components/orders/shared/OrderDetailFooter'
+import { useRef, useState } from 'react'
+import { useAuth } from '@/features/auth/AuthContext'
+import { useConfirmSalesOrder, useCancelSalesOrder } from '@/features/crm/sales-orders.hooks'
+import { getSalesOrderDetailProgress } from '@/features/crm/sales-orders.presentation'
+import { getErrorMessage } from '@/lib/api-client'
 import { formatProductUnit } from '@/lib/product-unit'
-import { SalesOrderCancelModal } from './SalesOrderCancelModal'
-import { useState, useMemo } from 'react'
-import {
-  CheckCircle2,
-  Clock,
-  Truck,
-  Building2,
-  MapPin,
-  AlertCircle,
-  ShieldCheck,
-  Check,
-  X,
-} from 'lucide-react'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import type { SalesOrderRecord } from '@/features/crm/sales-orders.types'
 import type { Client } from '@/features/crm/clients.types'
 import type { InventoryItemResponse } from '@/features/products/products.types'
@@ -30,14 +16,21 @@ import type { DeliveryVehicle } from '@/features/logistics/delivery-vehicles.typ
 import type { Employee } from '@/features/staffing/staffing.types'
 import type { StockItem } from '@/features/logistics/stock-items.types'
 import type { OutgoingDeliveryRecord } from '@/features/logistics/outgoing-deliveries.types'
+import { Dialog, DialogContent } from '@/components/ui/dialog'
 import {
-  useConfirmSalesOrder,
-  useCancelSalesOrder,
-} from '@/features/crm/sales-orders.hooks'
-import { CompleteDeliveryModal } from '@/components/deliveries/shared/CompleteDeliveryModal'
+  MovementDetailHeader,
+  MovementDetailFields,
+} from '@/components/deliveries/shared/MovementDetailLayout'
+import { DataTable, type ColumnDef } from '@/components/ui/data-table'
+import { OverflowValue } from '@/components/ui/OverflowValue'
+import { StatusBadge } from '@/components/ui/StatusBadge'
+import { LifecycleProgress } from '@/components/ui/LifecycleProgress'
+import { Button } from '@/components/ui/button'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { SalesOrderCancelModal } from './SalesOrderCancelModal'
+import { SalesOrderProgress } from './SalesOrderProgress'
 import { QuickDispatchModal } from './QuickDispatchModal'
-import { useAuth } from '@/features/auth/AuthContext'
-import { getErrorMessage } from '@/lib/api-client'
+import { CompleteDeliveryModal } from '@/components/deliveries/shared/CompleteDeliveryModal'
 
 interface OrderDetailDrawerProps {
   open: boolean
@@ -52,9 +45,16 @@ interface OrderDetailDrawerProps {
   stockItems: StockItem[]
   outgoingDeliveries: OutgoingDeliveryRecord[]
   onViewDelivery?: (id: number) => void
+  onViewDeliveries?: (orderId: number) => void
   onConfirmed?: (order: SalesOrderRecord) => void
+  onCancelled?: () => void
   onEdit?: (order: SalesOrderRecord) => void
   onArrangeDelivery?: (orderId: number) => void
+  deliveriesLoading?: boolean
+  deliveriesUnavailable?: boolean
+  onRetryDeliveries?: () => void
+  recordBusy?: boolean
+  recordUnavailable?: boolean
 }
 
 export function OrderDetailDrawer({
@@ -70,541 +70,294 @@ export function OrderDetailDrawer({
   stockItems,
   outgoingDeliveries,
   onViewDelivery,
+  onViewDeliveries,
   onConfirmed,
+  onCancelled,
   onEdit,
   onArrangeDelivery,
+  deliveriesLoading = false,
+  deliveriesUnavailable = false,
+  onRetryDeliveries,
+  recordBusy = false,
+  recordUnavailable = false,
 }: OrderDetailDrawerProps) {
   const { isAdmin, isManager } = useAuth()
   const canManage = !readOnly && (isAdmin || isManager)
-  const [isDispatchModalOpen, setIsDispatchModalOpen] = useState(false)
-  const [completingDeliveryId, setCompletingDeliveryId] = useState<number | null>(null)
-  const [errorMessage, setErrorMessage] = useState('')
-  const [orderToCancel, setOrderToCancel] = useState<SalesOrderRecord | null>(null)
-
   const confirmMutation = useConfirmSalesOrder()
   const cancelMutation = useCancelSalesOrder()
-
-  const client = useMemo(
-    () => (order?.clientId ? clients.find((c) => c.id === order.clientId) : null),
-    [order, clients],
-  )
-
-  const productMap = useMemo(() => new Map((products || []).map((p) => [p.id, p])), [products])
-
-  // Find active outgoing deliveries tied to this order
-  const tiedDeliveries = useMemo(() => {
-    if (!order?.id) return []
-    return (outgoingDeliveries || []).filter(
-      (d) => d.salesOrderId === order.id && d.status !== 'CANCELLED',
-    )
-  }, [order, outgoingDeliveries])
-
-  const activeDelivery =
-    tiedDeliveries.find((delivery) => delivery.status === 'DISPATCHED') ||
-    tiedDeliveries.find((delivery) => ['DRAFT', 'READY'].includes(delivery.status)) ||
-    tiedDeliveries[0] ||
-    null
-
-  // Step calculations for lifecycle stepper (1: Draft, 2: Confirmed, 3: In Transit, 4: Delivered, -1: Cancelled)
-  const currentStep = useMemo(() => {
-    if (!order) return 1
-    if (order.status === 'CANCELLED') return -1
-    if (order.status === 'DELIVERED') return 4
-    if (
-      order.status === 'PARTIALLY_DELIVERED' ||
-      activeDelivery?.status === 'DISPATCHED' ||
-      activeDelivery?.status === 'READY'
-    )
-      return 3
-    if (order.status === 'CONFIRMED') return 2
-    return 1 // DRAFT
-  }, [order, activeDelivery?.status])
-
+  const confirming = useRef(false)
+  const [error, setError] = useState('')
+  const [orderToCancel, setOrderToCancel] = useState<SalesOrderRecord | null>(null)
+  const [dispatching, setDispatching] = useState(false)
+  const [completingId, setCompletingId] = useState<number | null>(null)
   if (!order) return null
-
-  const items = order.items || []
-  const grossTotal = items.reduce((sum, item) => sum + parseFloat(item?.totalAmount || '0'), 0)
-
-  const isCancelled = order.status === 'CANCELLED'
-
-  // Handle confirmation
-  const handleConfirmOrder = async () => {
+  const busy = confirmMutation.isPending || cancelMutation.isPending
+  const blocked = busy || recordBusy || recordUnavailable
+  const linked = outgoingDeliveries.filter((delivery) => delivery.salesOrderId === order.id)
+  const active = linked.filter(
+    (delivery) => delivery.status !== 'CANCELLED' && delivery.status !== 'RECONCILED',
+  )
+  const dispatched = active.find((delivery) => delivery.status === 'DISPATCHED')
+  const progress = getSalesOrderDetailProgress(
+    order,
+    outgoingDeliveries,
+    !deliveriesLoading && !deliveriesUnavailable,
+  )
+  const customer = clients.find((item) => item.id === order.clientId)
+  const money = (value: string | number) =>
+    '₱' +
+    Number(value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  const columns: ColumnDef<SalesOrderRecord['items'][number]>[] = [
+    {
+      header: 'Product',
+      cell: ({ row }) => {
+        const product = products.find((product) => product.id === row.inventoryItemId)
+        return (
+          <OverflowValue
+            value={
+              product
+                ? product.name + (product.variety ? ' (' + product.variety + ')' : '')
+                : 'Product #' + row.inventoryItemId
+            }
+          />
+        )
+      },
+    },
+    {
+      header: 'Quantity',
+      align: 'right',
+      cell: ({ row }) =>
+        row.quantity +
+        ' ' +
+        formatProductUnit(products.find((product) => product.id === row.inventoryItemId)?.unit),
+    },
+    { header: 'Unit Price', align: 'right', cell: ({ row }) => money(row.unitPrice) },
+    { header: 'Amount', align: 'right', cell: ({ row }) => money(row.totalAmount) },
+  ]
+  const canArrange =
+    canManage &&
+    (order.status === 'PARTIALLY_DELIVERED' ||
+      (order.status === 'CONFIRMED' && active.length === 0))
+  const canCancel = canManage && ['DRAFT', 'CONFIRMED'].includes(order.status)
+  const secondaryActions: OrderDetailAction[] = []
+  if (canManage && order.status === 'DRAFT' && onEdit)
+    secondaryActions.push({ label: 'Edit Draft', disabled: blocked, onSelect: () => onEdit(order) })
+  if (linked.length > 0 && onViewDeliveries)
+    secondaryActions.push({ label: 'View Deliveries', onSelect: () => onViewDeliveries(order.id) })
+  if (linked[0] && onViewDelivery)
+    secondaryActions.push({
+      label: 'View Delivery',
+      onSelect: () => onViewDelivery((active[0] ?? linked[0]).id),
+    })
+  if (canArrange && dispatched)
+    secondaryActions.push({
+      label: 'Arrange Remaining Delivery',
+      disabled: blocked || deliveriesLoading || deliveriesUnavailable,
+      onSelect: () => (onArrangeDelivery ? onArrangeDelivery(order.id) : setDispatching(true)),
+    })
+  if (canCancel)
+    secondaryActions.push({
+      label: 'Cancel Order',
+      disabled: blocked,
+      destructive: true,
+      onSelect: () => setOrderToCancel(order),
+    })
+  const primaryAction: OrderDetailAction | undefined =
+    canManage && order.status === 'DRAFT'
+      ? {
+          label: busy ? 'Confirming...' : 'Confirm Order',
+          disabled: blocked,
+          onSelect: () => void confirm(),
+        }
+      : canManage && !['DELIVERED', 'CANCELLED'].includes(order.status) && dispatched
+        ? {
+            label: 'Record Results',
+            disabled:
+              blocked ||
+              deliveriesLoading ||
+              deliveriesUnavailable ||
+              (!onViewDeliveries && !dispatched.runId),
+            onSelect: () =>
+              onViewDeliveries ? onViewDeliveries(order.id) : setCompletingId(dispatched.id),
+          }
+        : canArrange && !dispatched
+          ? {
+              label:
+                order.status === 'PARTIALLY_DELIVERED'
+                  ? 'Arrange Remaining Delivery'
+                  : 'Arrange Delivery',
+              disabled: blocked || deliveriesLoading || deliveriesUnavailable,
+              onSelect: () =>
+                onArrangeDelivery ? onArrangeDelivery(order.id) : setDispatching(true),
+            }
+          : undefined
+  async function confirm() {
+    if (blocked || confirming.current || !canManage || !order || order.status !== 'DRAFT') return
+    confirming.current = true
+    setError('')
     try {
-      if (!canManage || confirmMutation.isPending) return
-      setErrorMessage('')
-      const confirmed = await confirmMutation.mutateAsync({ id: order.id, expectedRevision: order.revision })
-      onConfirmed?.(confirmed)
+      const saved = await confirmMutation.mutateAsync({
+        id: order.id,
+        expectedRevision: order.revision,
+      })
+      onConfirmed?.(saved)
     } catch (err) {
-      setErrorMessage(getErrorMessage(err))
+      setError(getErrorMessage(err))
+    } finally {
+      confirming.current = false
     }
   }
-
-  // Keep the selected identity stable while cancellation is reviewed.
-  const handleCancelOrder = () => {
-    if (canManage && !cancelMutation.isPending) setOrderToCancel(order)
-  }
-
   return (
     <>
-      <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-        <DialogContent className="w-[94vw] max-w-3xl sm:max-w-4xl max-h-[92vh] flex flex-col p-4 sm:p-5 gap-3 overflow-hidden">
-          <DialogHeader className="pb-0 shrink-0">
-            <DialogTitle className="text-xl font-semibold tracking-tight flex flex-wrap items-center gap-2 pr-6">
-              {order.orderNumber}
-              {order.status === 'DRAFT' && (
-                <Badge
-                  variant="outline"
-                  className="bg-status-warning text-status-warning-foreground border-status-warning-foreground/20 text-xs"
-                >
-                  Draft
-                </Badge>
-              )}
-              {order.status === 'CONFIRMED' && (
-                <Badge
-                  variant="outline"
-                  className="bg-status-info text-status-info-foreground border-status-info-foreground/20 text-xs"
-                >
-                  Confirmed
-                </Badge>
-              )}
-              {order.status === 'PARTIALLY_DELIVERED' && (
-                <Badge
-                  variant="outline"
-                  className="bg-status-info text-status-info-foreground border-status-info-foreground/20 text-xs"
-                >
-                  In Transit
-                </Badge>
-              )}
-              {order.status === 'DELIVERED' && (
-                <Badge
-                  variant="outline"
-                  className="bg-status-success text-status-success-foreground border-status-success-foreground/20 text-xs"
-                >
-                  Delivered & Closed
-                </Badge>
-              )}
-              {order.status === 'CANCELLED' && (
-                <Badge
-                  variant="outline"
-                  className="bg-destructive/5 text-destructive border-destructive/20 text-xs"
-                >
-                  Cancelled
-                </Badge>
-              )}
-            </DialogTitle>
-            <DialogDescription className="text-xs">
-              Placed on {new Date(order.orderedAt || order.createdAt).toLocaleDateString()}
-            </DialogDescription>
-          </DialogHeader>
-
-          {errorMessage && (
-            <Alert variant="destructive" className="shrink-0">
-              <AlertCircle className="size-4" />
-              <AlertDescription>{errorMessage}</AlertDescription>
-            </Alert>
-          )}
-
-          <div className="flex flex-col gap-3.5 min-h-0 flex-1 overflow-y-auto pr-1">
-            {/* Lifecycle Stepper */}
-            <div className="rounded-lg bg-secondary p-4">
-              <div className="grid grid-cols-4 gap-2 text-center text-xs">
-                {/* Step 1: Draft */}
-                <div className="flex flex-col items-center">
-                  <div
-                    className={`size-7 rounded-md flex items-center justify-center text-xs font-medium transition-colors ${
-                      isCancelled
-                        ? 'bg-muted text-muted-foreground'
-                        : currentStep >= 1
-                          ? 'bg-primary-contrast text-primary-contrast-foreground'
-                          : 'bg-muted text-muted-foreground'
-                    }`}
-                  >
-                    {currentStep > 1 && !isCancelled ? <Check className="size-3.5" /> : '1'}
-                  </div>
-                  <span className="font-medium text-foreground mt-1.5 text-xs">Draft</span>
-                  <span className="text-xs text-muted-foreground">Order Planned</span>
-                </div>
-
-                {/* Step 2: Confirmed */}
-                <div className="flex flex-col items-center">
-                  <div
-                    className={`size-7 rounded-md flex items-center justify-center text-xs font-medium transition-colors ${
-                      isCancelled
-                        ? 'bg-muted text-muted-foreground'
-                        : currentStep >= 2
-                          ? 'bg-status-info-foreground text-background'
-                          : 'bg-muted text-muted-foreground'
-                    }`}
-                  >
-                    {currentStep > 2 && !isCancelled ? <Check className="size-3.5" /> : '2'}
-                  </div>
-                  <span className="font-medium text-foreground mt-1.5 text-xs">Confirmed</span>
-                  <span className="text-xs text-muted-foreground">Ready for Logistics</span>
-                </div>
-
-                {/* Step 3: In Transit */}
-                <div className="flex flex-col items-center">
-                  <div
-                    className={`size-7 rounded-md flex items-center justify-center text-xs font-medium transition-colors ${
-                      isCancelled
-                        ? 'bg-muted text-muted-foreground'
-                        : currentStep >= 3
-                          ? 'bg-status-info-foreground text-background'
-                          : 'bg-muted text-muted-foreground'
-                    }`}
-                  >
-                    {currentStep > 3 && !isCancelled ? <Check className="size-3.5" /> : '3'}
-                  </div>
-                  <span className="font-medium text-foreground mt-1.5 text-xs">In Transit</span>
-                  <span className="text-xs text-muted-foreground">Fleet Dispatched</span>
-                </div>
-
-                {/* Step 4: Delivered */}
-                <div className="flex flex-col items-center">
-                  <div
-                    className={`size-7 rounded-md flex items-center justify-center text-xs font-medium transition-colors ${
-                      isCancelled
-                        ? 'bg-destructive/10 text-destructive'
-                        : currentStep === 4
-                          ? 'bg-status-success-foreground text-background'
-                          : 'bg-muted text-muted-foreground'
-                    }`}
-                  >
-                    {currentStep === 4 ? (
-                      <Check className="size-3.5" />
-                    ) : isCancelled ? (
-                      <X className="size-3.5" />
-                    ) : (
-                      '4'
-                    )}
-                  </div>
-                  <span className="font-medium text-foreground mt-1.5 text-xs">Delivered</span>
-                  <span className="text-xs text-muted-foreground">Customer Received</span>
-                </div>
-              </div>
-            </div>
-
-            {/* THE 3 CORE QUESTIONS GUIDANCE BANNER */}
-            {order.status === 'DRAFT' && (
-              <div className="rounded-lg bg-secondary p-4 flex flex-col gap-3">
-                <div className="flex items-start gap-3">
-                  <Clock className="size-4 shrink-0 text-status-warning-foreground mt-0.5" />
-                  <div className="flex-1 text-sm">
-                    <p className="font-medium text-foreground">What just happened?</p>
-                    <p className="text-muted-foreground">
-                      Order <span className="font-medium text-foreground">{order.orderNumber}</span>{' '}
-                      was recorded as a Draft.
-                    </p>
-                    <p className="font-medium text-foreground mt-2">What is its current state?</p>
-                    <p className="text-muted-foreground">
-                      <span className="font-medium text-status-warning-foreground">
-                        Draft (Unconfirmed)
-                      </span>{' '}
-                      — The order is saved and can be edited before confirmation.
-                    </p>
-                    <p className="font-medium text-foreground mt-2">What should you do next?</p>
-                    <p className="text-muted-foreground">
-                      Review the customer and line items, then confirm the order for Logistics.
-                    </p>
-                  </div>
-                </div>
-
-                {!readOnly && (
-                  <div className="flex items-center justify-end gap-2 border-t border-border pt-3">
-                    {canManage && onEdit && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={confirmMutation.isPending || cancelMutation.isPending}
-                        onClick={() => onEdit(order)}
-                      >
-                        Edit Draft
-                      </Button>
-                    )}
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleCancelOrder}
-                      disabled={!canManage || cancelMutation.isPending}
-                      className="text-ui text-destructive hover:bg-destructive/5 border-destructive/30"
-                    >
-                      <X className="size-3 mr-1" />
-                      Cancel Order
-                    </Button>
-                    <Button
-                      size="sm"
-                      onClick={handleConfirmOrder}
-                      disabled={!canManage || confirmMutation.isPending}
-                      className="font-medium text-ui"
-                    >
-                      {confirmMutation.isPending ? (
-                        'Confirming...'
-                      ) : (
-                        <span className="flex items-center gap-1.5">
-                          <ShieldCheck className="size-3.5" />
-                          Confirm Order
-                        </span>
-                      )}
-                    </Button>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {order.status === 'PARTIALLY_DELIVERED' && canManage && onArrangeDelivery && (
-              <Button variant="outline" size="sm" onClick={() => onArrangeDelivery(order.id)}>
-                Arrange Remaining Delivery
-              </Button>
-            )}
-            {order.status === 'CONFIRMED' && (
-              <div className="flex flex-col gap-3 rounded-lg bg-secondary p-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex min-w-0 items-center gap-2.5">
-                  <ShieldCheck className="size-4 shrink-0 text-status-info-foreground" />
-                  <div className="min-w-0 text-sm">
-                    <p className="font-medium text-foreground">Order confirmed</p>
-                    <p className="text-muted-foreground">
-                      Ready for Logistics to prepare delivery.
-                    </p>
-                  </div>
-                </div>
-
-                {!readOnly && (
-                  <div className="flex items-center justify-end gap-2 border-t border-border pt-3 sm:shrink-0 sm:border-0 sm:pt-0">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleCancelOrder}
-                      disabled={!canManage || cancelMutation.isPending}
-                      className="text-ui text-destructive hover:bg-destructive/5 border-destructive/30"
-                    >
-                      <X className="size-3 mr-1" />
-                      Cancel Order
-                    </Button>
-                    {(!activeDelivery || activeDelivery.status === 'RECONCILED') && (
-                      <Button
-                        size="sm"
-                        disabled={!canManage}
-                        onClick={() =>
-                          onArrangeDelivery
-                            ? onArrangeDelivery(order.id)
-                            : setIsDispatchModalOpen(true)
-                        }
-                        className="font-medium text-ui"
-                      >
-                        <span className="flex items-center gap-1.5">
-                          <Truck className="size-3.5" />
-                          Arrange Delivery
-                        </span>
-                      </Button>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {activeDelivery?.status === 'DISPATCHED' && (
-              <div className="rounded-lg bg-secondary p-4 flex flex-col gap-3">
-                <div className="flex items-start gap-3">
-                  <Truck className="size-4 shrink-0 text-status-info-foreground mt-0.5" />
-                  <div className="flex-1 text-sm">
-                    <p className="font-medium text-foreground">What just happened?</p>
-                    <p className="text-muted-foreground">
-                      The delivery truck has been dispatched from the warehouse and is currently in
-                      transit.
-                    </p>
-                    <p className="font-medium text-foreground mt-2">What is its current state?</p>
-                    <p className="text-muted-foreground">
-                      <span className="font-medium text-status-info-foreground">In Transit</span> —
-                      Delivery{' '}
-                      <span className="font-medium text-foreground">
-                        {activeDelivery?.deliveryNumber || 'Active Trip'}
-                      </span>{' '}
-                      is en route to {order.deliveryAddress}.
-                    </p>
-                    <p className="font-medium text-foreground mt-2">What should you do next?</p>
-                    <p className="text-muted-foreground">
-                      Record delivered goods, sellable returns, damaged returns, and missing goods.
-                      Reconciliation updates the order's actual fulfillment progress.
-                    </p>
-                  </div>
-                </div>
-
-                {!readOnly && (
-                  <div className="flex items-center justify-end gap-2 border-t border-border pt-3">
-                    <Button
-                      size="sm"
-                      onClick={() => activeDelivery && setCompletingDeliveryId(activeDelivery.id)}
-                      disabled={!canManage}
-                      className="font-medium text-ui"
-                    >
-                      <span className="flex items-center gap-1.5">
-                        <CheckCircle2 className="size-3.5" />
-                        Confirm Customer Delivery / Complete
-                      </span>
-                    </Button>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {order.status === 'DELIVERED' && (
-              <div className="rounded-lg bg-status-success p-4 flex items-center gap-3">
-                <CheckCircle2 className="size-5 shrink-0 text-status-success-foreground" />
-                <div className="text-sm">
-                  <p className="font-semibold text-status-success-foreground">
-                    Order Successfully Completed
-                  </p>
-                  <p className="text-muted-foreground mt-0.5">
-                    Goods have been delivered to customer and inventory stock was deducted. No
-                    further action required.
-                  </p>
-                </div>
-              </div>
-            )}
-
-            <div className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2 sm:gap-6">
-              <div className="min-w-0 space-y-1.5">
-                <div className="flex items-center gap-1.5 text-ui font-medium text-muted-foreground">
-                  <Building2 className="size-3.5" aria-hidden="true" />
-                  Customer
-                </div>
-                <div className="text-sm font-medium text-foreground">
-                  {client?.name || `Customer #${order.clientId}`}
-                </div>
-                <div className="text-xs text-muted-foreground">
-                  {client?.phone || 'No phone recorded'}
-                </div>
-                <div className="text-xs text-muted-foreground">{client?.email || ''}</div>
-              </div>
-
-              <div className="min-w-0 space-y-1.5">
-                <div className="flex items-center gap-1.5 text-ui font-medium text-muted-foreground">
-                  <MapPin className="size-3.5" aria-hidden="true" />
-                  Destination Address
-                </div>
-                <div className="font-medium text-foreground">
-                  {order.deliveryAddress || 'Store Counter / Direct Pick-up'}
-                </div>
-                {order.notes && (
-                  <div className="pt-1 text-xs text-muted-foreground">Note: {order.notes}</div>
-                )}
-              </div>
-            </div>
-
-            {/* Active Fleet / Delivery Trip Tracker */}
-            {activeDelivery && (
-              <div className="border-y border-border py-4 text-sm flex flex-col gap-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-base font-semibold text-foreground">
-                    <Truck className="size-4 text-muted-foreground" />
-                    Shipment Trip: {activeDelivery.deliveryNumber}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {onViewDelivery && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => onViewDelivery(activeDelivery.id)}
-                      >
-                        View Delivery
-                      </Button>
-                    )}
-                    <Badge
-                      variant="outline"
-                      className={`text-xs ${
-                        activeDelivery.status === 'RECONCILED'
-                          ? 'bg-status-success text-status-success-foreground'
-                          : 'bg-status-info text-status-info-foreground'
-                      }`}
-                    >
-                      {activeDelivery.status}
-                    </Badge>
-                  </div>
-                </div>
-
-                <p className="border-t pt-2 text-sm">Delivery Trip: {activeDelivery.runId ? `#${activeDelivery.runId}` : 'Not assigned'}. Driver and vehicle assignments are managed on the trip.</p>
-              </div>
-            )}
-
-            {/* Items Breakdown Table */}
-            <div className="overflow-hidden">
-              <div className="pb-3 text-base font-semibold text-foreground border-b border-border flex flex-wrap items-center justify-between gap-2">
-                <span>Order Cargo Items ({(order.items || []).length})</span>
-                <span className="text-sm tabular-nums">
-                  Total: ₱{grossTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                </span>
-              </div>
-              <div className="divide-y divide-border text-sm">
-                {(order.items || []).length === 0 ? (
-                  <div className="p-4 text-center text-muted-foreground text-sm">
-                    No line items recorded for this order.
-                  </div>
-                ) : (
-                  (order.items || []).map((item, idx) => {
-                    const product = item?.inventoryItemId
-                      ? productMap.get(item.inventoryItemId)
-                      : null
-                    return (
-                      <div
-                        key={item.id ?? item.lineNumber ?? idx}
-                        className="py-4 flex flex-wrap items-center justify-between gap-3"
-                      >
-                        <div>
-                          <div className="font-medium text-foreground">
-                            {product ? product.name : `Product #${item.inventoryItemId}`}
-                            {product?.variety && (
-                              <span className="ml-1 text-muted-foreground font-normal">
-                                ({product.variety})
-                              </span>
-                            )}
-                          </div>
-                          <div className="text-xs text-muted-foreground flex flex-wrap items-center gap-1.5 mt-1">
-                            <span>
-                              Qty:{' '}
-                              <span className="font-medium text-foreground">
-                                {item.quantity} {formatProductUnit(product?.unit)}
-                              </span>{' '}
-                              @ ₱{parseFloat(item.unitPrice || '0').toFixed(2)}
-                            </span>
-                            <span className="text-muted-foreground">
-                              • Warehouse is selected during delivery preparation
-                            </span>
-                          </div>
-                        </div>
-                        <div className="text-foreground text-sm tabular-nums">
-                          ₱
-                          {parseFloat(item.totalAmount || '0').toLocaleString('en-US', {
-                            minimumFractionDigits: 2,
-                          })}
-                        </div>
-                      </div>
-                    )
-                  })
-                )}
-              </div>
-            </div>
+      <Dialog
+        open={open && !orderToCancel && !dispatching && completingId === null}
+        onOpenChange={(next) => !next && !busy && onClose()}
+      >
+        <DialogContent
+          closeDisabled={busy}
+          className="flex h-auto min-h-0 max-h-[calc(100dvh-2rem)] flex-col gap-3 overflow-hidden p-4 sm:max-w-4xl sm:p-5"
+        >
+          <div className="flex w-full min-w-0 shrink-0 flex-col gap-2">
+            <MovementDetailHeader
+              title={order.orderNumber}
+              description={
+                'Sales order · ' +
+                new Date(order.orderedAt || order.createdAt).toLocaleDateString('en-PH', {
+                  timeZone: 'Asia/Manila',
+                })
+              }
+              status={<StatusBadge label={progress.label} tone={progress.tone} />}
+            />
+            <LifecycleProgress label="Sales order lifecycle" milestones={progress.milestones} />
+            <p className="text-sm text-muted-foreground">{progress.explanation}</p>
           </div>
+          <div
+            role="region"
+            aria-label="Sales order content"
+            tabIndex={0}
+            className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-2 overflow-y-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+          >
+            {recordUnavailable && (
+              <Alert variant="destructive">
+                <AlertDescription>
+                  The latest order could not be loaded. Reopen this record before making changes.
+                </AlertDescription>
+              </Alert>
+            )}
+            {error && (
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+            {deliveriesUnavailable && (
+              <Alert variant="destructive">
+                <AlertDescription>
+                  Related deliveries could not be loaded.{' '}
+                  <Button variant="link" onClick={onRetryDeliveries}>
+                    Retry deliveries
+                  </Button>
+                </AlertDescription>
+              </Alert>
+            )}
+            <MovementDetailFields
+              fields={[
+                {
+                  label: 'Customer',
+                  value: customer?.name ?? 'Customer #' + order.clientId,
+                  secondary: [customer?.phone, customer?.email].filter(Boolean).join(' · '),
+                },
+                {
+                  label: 'Destination',
+                  value: order.deliveryAddress || 'Store Counter / Direct Pick-up',
+                },
+                ...(order.externalReference
+                  ? [{ label: 'Reference', value: order.externalReference }]
+                  : []),
+              ]}
+            />
+            <section aria-label="Ordered items" className="flex flex-col gap-3">
+              <h2 className="text-sm font-semibold">Ordered items</h2>
+              <DataTable
+                data={order.items || []}
+                columns={columns}
+                pagination={false}
+                getRowKey={(item) => item.id}
+                tableClassName="min-w-[560px] tabular-nums"
+              />
+              <p className="text-right text-sm font-semibold">
+                Total:{' '}
+                {money(
+                  (order.items || []).reduce((sum, item) => sum + Number(item.totalAmount), 0),
+                )}
+              </p>
+            </section>
+            {(linked.length > 0 ||
+              deliveriesLoading ||
+              deliveriesUnavailable ||
+              ['PARTIALLY_DELIVERED', 'DELIVERED'].includes(order.status)) && (
+              <details
+                className="border-t pt-3"
+                open={
+                  deliveriesLoading ||
+                  deliveriesUnavailable ||
+                  ['PARTIALLY_DELIVERED', 'DELIVERED'].includes(order.status) ||
+                  linked.some((delivery) => delivery.status === 'RECONCILED')
+                }
+              >
+                <summary className="cursor-pointer rounded-sm text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                  Fulfillment details
+                </summary>
+                <div className="mt-3">
+                  <SalesOrderProgress
+                    order={order}
+                    products={products}
+                    deliveries={outgoingDeliveries}
+                    isLoading={deliveriesLoading}
+                    unavailable={deliveriesUnavailable}
+                    onViewDelivery={onViewDelivery}
+                  />
+                </div>
+              </details>
+            )}
+            {order.notes && (
+              <section>
+                <h2 className="text-sm font-semibold">Notes</h2>
+                <p className="whitespace-pre-wrap text-sm">{order.notes}</p>
+              </section>
+            )}
+          </div>
+          <OrderDetailFooter
+            label="Sales order actions"
+            secondaryActions={secondaryActions}
+            primaryAction={primaryAction}
+            onClose={onClose}
+            busy={busy}
+          />
         </DialogContent>
       </Dialog>
-
       {orderToCancel && (
         <SalesOrderCancelModal
           order={orderToCancel}
           onClose={() => setOrderToCancel(null)}
-          onConfirm={(id, expectedRevision) => {
-            if (!canManage) throw new Error('You do not have permission to cancel orders.')
-            return cancelMutation.mutateAsync({ id, expectedRevision })
+          onConfirm={async (id, expectedRevision) => {
+            if (!canManage) throw Error('You do not have permission to cancel orders.')
+            await cancelMutation.mutateAsync({ id, expectedRevision })
+            onCancelled?.()
           }}
         />
       )}
-
-      {completingDeliveryId !== null && tiedDeliveries.find((delivery) => delivery.id === completingDeliveryId)?.runId && <CompleteDeliveryModal runId={tiedDeliveries.find((delivery) => delivery.id === completingDeliveryId)!.runId!} key={completingDeliveryId} deliveryId={completingDeliveryId} onClose={() => setCompletingDeliveryId(null)} />}
-      {/* Quick Dispatch Modal */}
-      {isDispatchModalOpen && order && (
+      {completingId !== null && dispatched?.runId && (
+        <CompleteDeliveryModal
+          runId={dispatched.runId}
+          deliveryId={completingId}
+          onClose={() => setCompletingId(null)}
+        />
+      )}
+      {dispatching && (
         <QuickDispatchModal
-          open={isDispatchModalOpen}
-          onClose={() => setIsDispatchModalOpen(false)}
+          open
           order={order}
+          onClose={() => setDispatching(false)}
           vehicles={vehicles}
           employees={employees}
           warehouses={warehouses}

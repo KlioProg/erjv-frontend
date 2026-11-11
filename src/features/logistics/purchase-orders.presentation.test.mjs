@@ -1,6 +1,40 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { purchaseOrderActions, purchaseReceivingProgress } from './purchase-orders.presentation.ts'
+import {
+  getPurchaseOrderProgressDisplay,
+  getPurchaseOrderDetailProgress,
+  purchaseOrderActions,
+  purchaseReceivingProgress,
+} from './purchase-orders.presentation.ts'
+
+test('purchase lifecycle distinguishes a scheduled arrival from physical receipt', () => {
+  const saved = { id: 1, status: 'CONFIRMED' }
+  assert.equal(
+    getPurchaseOrderProgressDisplay(saved, [{ purchaseOrderId: 1, status: 'SCHEDULED' }]).label,
+    'Arrival Scheduled',
+  )
+  assert.equal(
+    getPurchaseOrderProgressDisplay(saved, [{ purchaseOrderId: 1, status: 'COMPLETED' }]).label,
+    'Confirmed',
+  )
+  assert.equal(
+    getPurchaseOrderProgressDisplay(saved, [{ purchaseOrderId: 2, status: 'SCHEDULED' }]).label,
+    'Confirmed',
+  )
+  assert.equal(getPurchaseOrderProgressDisplay(saved, [], false).label, 'Confirmed')
+  assert.equal(
+    getPurchaseOrderProgressDisplay({ ...saved, status: 'PARTIALLY_RECEIVED' }, []).label,
+    'Partially Received',
+  )
+  assert.equal(
+    getPurchaseOrderProgressDisplay({ ...saved, status: 'RECEIVED' }, []).label,
+    'Received',
+  )
+  assert.equal(
+    getPurchaseOrderProgressDisplay({ ...saved, status: 'CANCELLED' }, []).milestones[0].state,
+    'cancelled',
+  )
+})
 
 const order = {
   id: 1,
@@ -13,7 +47,14 @@ const delivery = (id, status, lineId, quantity, purchaseOrderId = 1) => ({
   id,
   status,
   purchaseOrderId,
-  items: [{ id: id * 100, purchaseOrderItemId: lineId, receivedQuantity: quantity, acceptedQuantity: quantity }],
+  items: [
+    {
+      id: id * 100,
+      purchaseOrderItemId: lineId,
+      receivedQuantity: quantity,
+      acceptedQuantity: quantity,
+    },
+  ],
 })
 
 test('only physically completed receipts contribute to receiving progress', () => {
@@ -86,4 +127,54 @@ test('workflow actions match the existing status lifecycle and management permis
     assert.deepEqual(purchaseOrderActions(status, true, 1), { confirm: false, cancel: false })
   for (const status of ['DRAFT', 'CONFIRMED', 'PARTIALLY_RECEIVED', 'RECEIVED', 'CANCELLED'])
     assert.deepEqual(purchaseOrderActions(status, false, 1), { confirm: false, cancel: false })
+})
+
+test('detail lifecycle keeps scheduled arrivals out of the Receiving milestone', () => {
+  const order = { id: 1, status: 'CONFIRMED' }
+  const scheduled = { purchaseOrderId: 1, status: 'SCHEDULED', items: [{ receivedQuantity: '5' }] }
+  const result = getPurchaseOrderDetailProgress(order, [scheduled])
+  assert.equal(result.label, 'Confirmed')
+  assert.deepEqual(
+    result.milestones.map((step) => step.state),
+    ['complete', 'current', 'upcoming', 'upcoming'],
+  )
+  assert.match(result.explanation, /arrival is scheduled/)
+})
+test('detail lifecycle reviews actual receipt activity across multiple arrivals', () => {
+  const order = { id: 1, status: 'CONFIRMED' }
+  const receipt = { purchaseOrderId: 1, status: 'COMPLETED', items: [{ receivedQuantity: '2' }] }
+  assert.equal(getPurchaseOrderDetailProgress(order, [receipt]).milestones[2].state, 'current')
+  for (const ignored of [
+    { ...receipt, status: 'CANCELLED' },
+    { ...receipt, purchaseOrderId: 2 },
+    { ...receipt, items: [{ receivedQuantity: '0' }] },
+    { ...receipt, items: null },
+  ]) {
+    assert.equal(getPurchaseOrderDetailProgress(order, [ignored]).milestones[2].state, 'upcoming')
+  }
+  const partial = getPurchaseOrderDetailProgress({ ...order, status: 'PARTIALLY_RECEIVED' }, [
+    receipt,
+    { ...receipt, status: 'SCHEDULED' },
+  ])
+  assert.equal(partial.milestones[2].state, 'current')
+  assert.equal(partial.milestones[3].state, 'upcoming')
+  assert.match(partial.explanation, /arrival is scheduled/)
+})
+test('details use saved completion and cancellation and keep unavailable receipt activity unknown', () => {
+  const order = { id: 1, status: 'CONFIRMED' }
+  assert.ok(
+    getPurchaseOrderDetailProgress({ ...order, status: 'RECEIVED' }, []).milestones.every(
+      (step) => step.state === 'complete',
+    ),
+  )
+  assert.equal(
+    getPurchaseOrderDetailProgress({ ...order, status: 'CANCELLED' }, []).milestones[0].state,
+    'cancelled',
+  )
+  const unavailable = getPurchaseOrderDetailProgress(order, [], false)
+  assert.deepEqual(
+    unavailable.milestones.map((step) => step.label),
+    ['Draft', 'Confirmed'],
+  )
+  assert.match(unavailable.explanation, /unavailable/)
 })

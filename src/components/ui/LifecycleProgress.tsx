@@ -1,4 +1,3 @@
-import { Check, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export type LifecycleMilestoneState = 'complete' | 'current' | 'upcoming' | 'cancelled'
@@ -31,37 +30,30 @@ export function LifecycleProgress({
       aria-label={label}
       role="list"
       tabIndex={0}
-      className="flex min-w-0 gap-2 overflow-x-auto p-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+      className="grid w-full min-w-0 gap-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+      style={{ gridTemplateColumns: `repeat(${milestones.length}, minmax(0, 1fr))` }}
     >
-      {milestones.map((milestone, index) => (
+      {milestones.map((milestone) => (
         <li
           key={milestone.id}
           aria-current={milestone.state === 'current' ? 'step' : undefined}
-          className="flex min-w-24 flex-1 flex-col gap-2"
+          className="flex min-w-0 flex-col gap-1"
         >
-          <div aria-hidden="true" className="flex h-4 items-center gap-2">
-            <span
-              className={cn(
-                'flex size-4 shrink-0 items-center justify-center rounded-full border bg-background',
-                milestone.state === 'complete' &&
-                  'border-primary-contrast bg-primary-contrast text-primary-contrast-foreground',
-                milestone.state === 'current' &&
-                  'border-primary-contrast ring-2 ring-primary-contrast/30',
-                milestone.state === 'upcoming' && 'border-input',
-                milestone.state === 'cancelled' && 'border-destructive text-destructive',
-              )}
-            >
-              {milestone.state === 'complete' && <Check className="size-3" />}
-              {milestone.state === 'current' && (
-                <span className="size-2 rounded-full bg-primary-contrast" />
-              )}
-              {milestone.state === 'cancelled' && <X className="size-3" />}
-            </span>
-            {index < milestones.length - 1 && <span className="h-px flex-1 bg-border" />}
-          </div>
+          <span
+            aria-hidden="true"
+            data-slot="lifecycle-segment"
+            data-state={milestone.state}
+            className={cn(
+              'h-1.5 w-full shrink-0 rounded-sm border',
+              milestone.state === 'complete' && 'border-primary-contrast bg-primary-contrast',
+              milestone.state === 'current' && 'border-primary-contrast bg-primary-contrast/20',
+              milestone.state === 'upcoming' && 'border-input bg-background',
+              milestone.state === 'cancelled' && 'border-destructive bg-destructive/15',
+            )}
+          />
           <span
             className={cn(
-              'max-w-32 text-xs leading-4 [overflow-wrap:anywhere]',
+              'min-w-0 text-xs leading-4 [overflow-wrap:anywhere]',
               milestone.state === 'current'
                 ? 'font-semibold text-foreground'
                 : 'text-muted-foreground',

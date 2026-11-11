@@ -17,6 +17,7 @@ export function SalesOrderProgress({
   isLoading,
   unavailable,
   onNavigateToDeliveries,
+  onViewDelivery,
 }: {
   order: SalesOrderRecord
   deliveries: OutgoingDeliveryRecord[]
@@ -24,6 +25,7 @@ export function SalesOrderProgress({
   isLoading: boolean
   unavailable: boolean
   onNavigateToDeliveries?: () => void
+  onViewDelivery?: (id: number) => void
 }) {
   const wide = useMediaQuery('(min-width: 40rem)')
   const progress = salesDeliveryProgress(order, deliveries)
@@ -69,15 +71,7 @@ export function SalesOrderProgress({
     })),
   ]
   return (
-    <section
-      className="flex flex-col gap-3 border-t border-border pt-4"
-      aria-label="Fulfillment Progress"
-    >
-      <h2 className="text-sm font-semibold">Fulfillment Progress</h2>
-      <p className="text-xs text-muted-foreground">
-        Delivered quantities include completed outgoing deliveries only. Scheduling and dispatch are
-        managed in Deliveries.
-      </p>
+    <section className="flex flex-col gap-3" aria-label="Fulfillment Progress">
       {unavailable ? (
         <Alert variant="destructive">
           <AlertDescription>
@@ -116,7 +110,10 @@ export function SalesOrderProgress({
         <ul className="flex flex-col gap-2 text-sm" aria-label="Linked Outgoing Deliveries">
           {linked.map((delivery) => (
             <li key={delivery.id} className="flex flex-wrap items-center gap-2">
-              <span>{delivery.deliveryNumber}</span>
+              <OverflowValue
+                value={delivery.deliveryNumber}
+                onActivate={onViewDelivery ? () => onViewDelivery(delivery.id) : undefined}
+              />
               <DeliveryStatusBadge status={delivery.status} showDot={false} />
             </li>
           ))}

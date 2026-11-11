@@ -1,17 +1,25 @@
-import { DataTableFilters, DataTableFilterChips, type DataTableFilter } from '@/components/ui/data-table-filters'
+import {
+  DataTableFilters,
+  DataTableFilterChips,
+  type DataTableFilter,
+} from '@/components/ui/data-table-filters'
 import { useState } from 'react'
-import { useNavigate } from 'react-router'
-import { Search } from 'lucide-react'
+import { Link, useNavigate } from 'react-router'
+import { Plus } from 'lucide-react'
 import { useAuth } from '@/features/auth/AuthContext'
 import { useResourcePage } from '@/lib/use-cursor-page'
 import { useRecordsById } from '@/lib/use-records-by-id'
 import { getErrorMessage } from '@/lib/api-client'
-import { PageHeader, PageToolbar } from '@/components/ui/ManagementPage'
-import { StatusTabNav } from '@/components/ui/StatusTabNav'
+import { PageHeader } from '@/components/ui/ManagementPage'
+import { ROUTES } from '@/routes'
+import {
+  DeliveryTableToolbar,
+  DeliveryPageFooter,
+} from '@/components/deliveries/DeliveryTableToolbar'
 import { DataTable, type ColumnDef } from '@/components/ui/data-table'
 import { DataTableActions } from '@/components/ui/DataTableActions'
 import { OverflowValue } from '@/components/ui/OverflowValue'
-import { DataTableFooter, DataTableFrame } from '@/components/ui/DataTableFooter'
+import { DataTableFrame } from '@/components/ui/DataTableFooter'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -34,7 +42,10 @@ import {
 } from '@/features/warehouse-transfers/warehouse-transfers.types'
 import { useTransfer } from '@/features/warehouse-transfers/warehouse-transfers.hooks'
 import { TransferActionForm, TransferDraftForm } from './TransferForms'
-import { MovementDetailFields, MovementDetailHeader } from '@/components/deliveries/shared/MovementDetailLayout'
+import {
+  MovementDetailFields,
+  MovementDetailHeader,
+} from '@/components/deliveries/shared/MovementDetailLayout'
 
 type Warehouse = { id: number; name: string; isActive: boolean }
 const statusLabel = (status: TransferStatus) =>
@@ -44,23 +55,37 @@ function TransferStatusBadge({ status }: { status: TransferStatus }) {
     <StatusBadge
       label={statusLabel(status)}
       appearance="emphasis"
-      tone={status === 'COMPLETED' ? 'success' : status === 'DISPATCHED' ? 'warning' : status === 'CANCELLED' ? 'destructive' : 'neutral'}
+      tone={
+        status === 'COMPLETED'
+          ? 'success'
+          : status === 'DISPATCHED'
+            ? 'warning'
+            : status === 'CANCELLED'
+              ? 'destructive'
+              : 'neutral'
+      }
     />
   )
 }
 const transferTime = (value: string | null) =>
   value ? new Date(value).toLocaleString('en-PH', { timeZone: 'Asia/Manila' }) : 'Not scheduled'
 const compactTransferTime = (value: string | null) =>
-  value ? new Date(value).toLocaleString('en-PH', {
-    timeZone: 'Asia/Manila',
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  }) : 'Not scheduled'
+  value
+    ? new Date(value).toLocaleString('en-PH', {
+        timeZone: 'Asia/Manila',
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+      })
+    : 'Not scheduled'
 
-export function WarehouseTransfersPage() {
+export function WarehouseTransfersPage({ view = 'active' }: { view?: 'active' | 'history' } = {}) {
+  const history = view === 'history'
+  const allowedStatuses: TransferStatus[] = history
+    ? ['COMPLETED', 'CANCELLED']
+    : ['DRAFT', 'DISPATCHED']
   const navigate = useNavigate()
   const { isAdmin, isManager, isStaff } = useAuth()
   const [status, setStatus] = useState('ALL')
@@ -75,7 +100,7 @@ export function WarehouseTransfersPage() {
   const query = useResourcePage<WarehouseTransfer>(
     '/warehouse-transfers',
     {
-      ...(status !== 'ALL' ? { statuses: [status] } : {}),
+      statuses: allowedStatuses.includes(status as TransferStatus) ? [status] : allowedStatuses,
       ...(search.trim() ? { q: search.trim() } : {}),
       ...(source ? { sourceWarehouseId: Number(source) } : {}),
       ...(destination ? { destinationWarehouseId: Number(destination) } : {}),
@@ -89,29 +114,68 @@ export function WarehouseTransfersPage() {
     query.items.flatMap((item) => [item.sourceWarehouseId, item.destinationWarehouseId]),
   )
   const name = (id: number) => warehouses.find((item) => item.id === id)?.name ?? `Warehouse #${id}`
+  const visibleTransfers = query.items.filter((item) => allowedStatuses.includes(item.status))
+  const openDetails = (transfer: WarehouseTransfer) => {
+    setEntryAction(undefined)
+    setOpened(transfer.id)
+  }
   const columns: ColumnDef<WarehouseTransfer>[] = [
     {
-      header: 'Transfer Number',
+      header: 'Transfer #',
       accessorKey: 'transferNumber',
-      cell: ({ row }) => <Button variant="link" aria-label={`View transfer ${row.transferNumber}`} onClick={() => {
-        setEntryAction(undefined)
-        setOpened(row.id)
-      }}>{row.transferNumber}</Button>,
+      width: '17%',
+      cell: ({ row }) => (
+        <OverflowValue asChild value={row.transferNumber}>
+          <Button
+            variant="link"
+            size="sm"
+            className="max-w-full px-0"
+            aria-label={'View transfer ' + row.transferNumber}
+            onClick={() => openDetails(row)}
+          >
+            {row.transferNumber}
+          </Button>
+        </OverflowValue>
+      ),
     },
-    { header: 'Source Warehouse', cell: ({ row }) => name(row.sourceWarehouseId) },
-    { header: 'Destination Warehouse', cell: ({ row }) => name(row.destinationWarehouseId) },
+    {
+      header: 'Source / Destination',
+      width: '25%',
+      cell: ({ row }) => (
+        <OverflowValue
+          value={name(row.sourceWarehouseId) + ' → ' + name(row.destinationWarehouseId)}
+        />
+      ),
+    },
+    {
+      header: 'Trip',
+      width: '12%',
+      cell: ({ row }) =>
+        row.runId != null ? (
+          <Button asChild variant="link" size="sm" className="px-0">
+            <Link to={ROUTES.deliveryRuns + '?run=' + row.runId}>Trip #{row.runId}</Link>
+          </Button>
+        ) : (
+          <span className="text-muted-foreground">Not assigned</span>
+        ),
+    },
     {
       header: 'Departure',
       width: 224,
       cell: ({ row }) => {
-        const showActual = !!row.dispatchedAt || row.status === 'DISPATCHED' || row.status === 'COMPLETED'
+        const showActual =
+          !!row.dispatchedAt || row.status === 'DISPATCHED' || row.status === 'COMPLETED'
         const departure = showActual ? row.dispatchedAt : row.scheduledDepartureAt
         const text = departure ? compactTransferTime(departure) : showActual ? 'Not recorded' : '—'
         return (
           <OverflowValue
             asChild
             value={text}
-            fullValue={departure ? `${showActual ? 'Actual' : 'Planned'} departure: ${transferTime(departure)} (Manila time)` : text}
+            fullValue={
+              departure
+                ? `${showActual ? 'Actual' : 'Planned'} departure: ${transferTime(departure)} (Manila time)`
+                : text
+            }
             showFullValueOnHover
           >
             <span tabIndex={departure ? 0 : undefined} className="block w-48 max-w-full truncate">
@@ -121,32 +185,65 @@ export function WarehouseTransfersPage() {
         )
       },
     },
+    { header: 'Status', cell: ({ row }) => <TransferStatusBadge status={row.status} /> },
     {
-      header: 'Status',
-      cell: ({ row }) => <TransferStatusBadge status={row.status} />,
-    },
-    {
-      header: 'Next Action',
+      header: history ? 'Details' : 'Next Action',
       align: 'right',
       cell: ({ row }) => (
         <DataTableActions>
-          <Button variant="outline" size="sm" onClick={() => {
-            if (row.status === 'DRAFT' && (row.runId != null || isAdmin || isManager)) {
-              navigate(`/deliveries/runs?${row.runId != null ? `run=${row.runId}` : `transfer=${row.id}`}`)
-              return
-            }
-            setEntryAction((isAdmin || isManager || isStaff) && row.status === 'DISPATCHED' ? 'reconcile' : undefined)
-            setOpened(row.id)
-          }}>
-            {row.status === 'DRAFT' && (isAdmin || isManager || isStaff)
-              ? row.runId != null ? 'View Trip' : isAdmin || isManager ? 'Add to Trip' : 'View Details'
-              : row.status === 'DISPATCHED' && (isAdmin || isManager || isStaff) ? 'Receive Goods' : 'View Details'}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              if (history) {
+                openDetails(row)
+                return
+              }
+              if (row.status === 'DRAFT' && (row.runId != null || isAdmin || isManager)) {
+                navigate(
+                  ROUTES.deliveryRuns +
+                    '?' +
+                    (row.runId != null ? 'run=' + row.runId : 'transfer=' + row.id),
+                )
+                return
+              }
+              setEntryAction(
+                (isAdmin || isManager || isStaff) && row.status === 'DISPATCHED'
+                  ? 'reconcile'
+                  : undefined,
+              )
+              setOpened(row.id)
+            }}
+          >
+            {history
+              ? 'View Details'
+              : row.status === 'DRAFT'
+                ? row.runId != null
+                  ? 'View Trip'
+                  : isAdmin || isManager
+                    ? 'Add to Trip'
+                    : 'View Details'
+                : 'Receive Goods'}
           </Button>
         </DataTableActions>
       ),
     },
   ]
   const tableFilters: DataTableFilter[] = [
+    {
+      kind: 'select',
+      id: 'transfer-status',
+      label: 'Transfer status',
+      value: allowedStatuses.includes(status as TransferStatus) ? status : 'ALL',
+      emptyValue: 'ALL',
+      options: [
+        { value: 'ALL', label: history ? 'All finished states' : 'All active states' },
+        ...transferStatuses.filter((item) =>
+          allowedStatuses.includes(item.value as TransferStatus),
+        ),
+      ],
+      onChange: setStatus,
+    },
     ...[
       { id: 'source', label: 'From Warehouse', value: source, set: setSource },
       { id: 'destination', label: 'To Warehouse', value: destination, set: setDestination },
@@ -173,8 +270,8 @@ export function WarehouseTransfersPage() {
       ),
     })),
     ...[
-      { id: 'from', label: 'Departure from (Manila)', value: from, set: setFrom },
-      { id: 'before', label: 'Departure before (Manila)', value: before, set: setBefore },
+      { id: 'from', label: 'Scheduled departure from (Manila)', value: from, set: setFrom },
+      { id: 'before', label: 'Scheduled departure before (Manila)', value: before, set: setBefore },
     ].map((field): DataTableFilter => ({
       kind: 'custom',
       id: field.id,
@@ -197,31 +294,38 @@ export function WarehouseTransfersPage() {
   ]
   return (
     <div className="flex min-w-0 flex-col gap-4">
-      <PageHeader description="Move goods between warehouses and record what arrives.">
-        Warehouse Transfers
+      <PageHeader
+        description={
+          history
+            ? 'Review completed and cancelled warehouse transfers.'
+            : 'Plan warehouse movements, add drafts to trips, and receive goods after arrival.'
+        }
+      >
+        {history ? 'Warehouse Transfer History' : 'Warehouse Transfers'}
       </PageHeader>
-      <StatusTabNav tabs={transferStatuses} activeTab={status} onTabChange={setStatus} />
-      <PageToolbar>
-        <div className="relative w-full sm:w-80">
-          <Search
-            aria-hidden="true"
-            className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-          />
-          <Input
-            aria-label="Search warehouse transfers"
-            placeholder="Search transfer number..."
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            className="pl-9"
-          />
-        </div>
-        <DataTableFilters filters={tableFilters} />
-        <div className="flex flex-wrap gap-2">
-          {(isAdmin || isManager) && (
-            <Button onClick={() => { setEntryAction(undefined); setOpened('create') }}>Create Transfer</Button>
-          )}
-        </div>
-      </PageToolbar>
+      <DeliveryTableToolbar
+        search={search}
+        onSearch={setSearch}
+        searchLabel="Search warehouse transfers"
+        placeholder="Search transfer number..."
+        filters={<DataTableFilters filters={tableFilters} />}
+      >
+        <Button asChild variant="outline">
+          <Link to={history ? ROUTES.warehouseTransfers : ROUTES.warehouseTransferHistory}>
+            {history ? 'Active Transfers' : 'History'}
+          </Link>
+        </Button>
+        {!history && (isAdmin || isManager) && (
+          <Button
+            onClick={() => {
+              setEntryAction(undefined)
+              setOpened('create')
+            }}
+          >
+            <Plus className="size-4" aria-hidden="true" /> Create Transfer
+          </Button>
+        )}
+      </DeliveryTableToolbar>
       <DataTableFilterChips filters={tableFilters} />
       {dateError && (
         <p role="alert" className="text-sm text-destructive">
@@ -242,20 +346,39 @@ export function WarehouseTransfersPage() {
           <DataTable
             appearance="management"
             retainHeaders
-            data={dateError ? [] : query.items}
+            data={dateError ? [] : visibleTransfers}
             columns={columns}
             getRowKey={(row) => row.id}
+            onRowClick={openDetails}
             pagination={false}
             manualSorting
             isLoading={query.isFetching}
-            emptyContent="No warehouse transfers match these filters."
-            tableClassName="min-w-[1000px]"
+            emptyContent={
+              <div className="py-2 text-center">
+                <p className="text-sm font-semibold">
+                  {search.trim() || status !== 'ALL' || source || destination || from || before
+                    ? 'No warehouse transfers match these filters.'
+                    : history
+                      ? 'No transfer history yet.'
+                      : 'No active warehouse transfers.'}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {history
+                    ? 'Completed and cancelled transfers appear here.'
+                    : isAdmin || isManager
+                      ? 'Adjust the filters or create a transfer to plan a warehouse movement.'
+                      : 'Adjust the filters to review current warehouse movements.'}
+                </p>
+              </div>
+            }
+            tableClassName="w-full min-w-[960px]"
           />
         )}
-        <DataTableFooter
-          {...query}
-          isError={query.isError || dateError}
+        <DeliveryPageFooter
+          query={{ ...query, isError: query.isError || dateError }}
+          count={dateError ? 0 : visibleTransfers.length}
           label="Warehouse transfer"
+          unit="transfer"
         />
       </DataTableFrame>
       {opened !== null && (
@@ -265,9 +388,16 @@ export function WarehouseTransfersPage() {
           onOpen={setOpened}
           initialAction={entryAction}
           onClose={() => setOpened(null)}
-          canEdit={isAdmin || isManager}
-          canOperate={isAdmin || isManager || isStaff}
-          onOpenTrip={(transfer) => navigate(`/deliveries/runs?${transfer.runId != null ? `run=${transfer.runId}` : `transfer=${transfer.id}`}`)}
+          canEdit={!history && (isAdmin || isManager)}
+          canOperate={!history && (isAdmin || isManager || isStaff)}
+          onOpenTrip={
+            history
+              ? undefined
+              : (transfer) =>
+                  navigate(
+                    `/deliveries/runs?${transfer.runId != null ? `run=${transfer.runId}` : `transfer=${transfer.id}`}`,
+                  )
+          }
         />
       )}
     </div>

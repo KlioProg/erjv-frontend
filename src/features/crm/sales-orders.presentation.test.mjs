@@ -1,12 +1,51 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { getSalesOrderDeliveryDisplay, salesDeliveryProgress } from './sales-orders.presentation.ts'
+import {
+  getSalesOrderProgressDisplay,
+  getSalesOrderDetailProgress,
+  getSalesOrderDeliveryDisplay,
+  salesDeliveryProgress,
+} from './sales-orders.presentation.ts'
+
+test('record progress reviews all deliveries and keeps partial fulfillment authoritative', () => {
+  const saved = { id: 1, status: 'CONFIRMED' }
+  const records = [
+    { salesOrderId: 1, status: 'READY' },
+    { salesOrderId: 1, status: 'DISPATCHED' },
+  ]
+  assert.equal(getSalesOrderProgressDisplay(saved, records).label, 'In Transit')
+  assert.equal(getSalesOrderProgressDisplay(saved, records.slice(0, 1)).label, 'Preparing')
+  const partial = getSalesOrderProgressDisplay({ ...saved, status: 'PARTIALLY_DELIVERED' }, records)
+  assert.equal(partial.label, 'Partially Delivered')
+  assert.deepEqual(partial.milestones, [])
+  assert.equal(getSalesOrderProgressDisplay(saved, [], false).label, 'Confirmed')
+  assert.doesNotMatch(getSalesOrderProgressDisplay(saved, [], false).explanation, /not started/i)
+})
+
+test('record progress never infers order completion from a reconciled shipment', () => {
+  const saved = { id: 1, status: 'CONFIRMED' }
+  assert.equal(
+    getSalesOrderProgressDisplay(saved, [{ salesOrderId: 1, status: 'RECONCILED' }]).label,
+    'Confirmed',
+  )
+  assert.equal(
+    getSalesOrderProgressDisplay({ ...saved, status: 'DELIVERED' }, []).label,
+    'Completed',
+  )
+  assert.equal(
+    getSalesOrderProgressDisplay({ ...saved, status: 'CANCELLED' }, []).milestones[0].state,
+    'cancelled',
+  )
+})
 
 test('sales progress uses confirmed delivered quantities, excluding returned and merely loaded goods', () => {
   const order = { id: 1, items: [{ id: 11, quantity: '10' }] }
-  const delivered = { id: 1, salesOrderId: 1, status: 'RECONCILED', items: [
-    { id: 101, salesOrderItemId: 11, quantity: '10', deliveredQuantity: '7.25' },
-  ] }
+  const delivered = {
+    id: 1,
+    salesOrderId: 1,
+    status: 'RECONCILED',
+    items: [{ id: 101, salesOrderItemId: 11, quantity: '10', deliveredQuantity: '7.25' }],
+  }
   const [row] = salesDeliveryProgress(order, [delivered, { ...delivered, status: 'DISPATCHED' }])
   assert.equal(row.delivered, 725n)
   assert.equal(row.remaining, 275n)
@@ -106,5 +145,37 @@ test('completed and cancelled orders take precedence over active delivery record
   assert.equal(
     getSalesOrderDeliveryDisplay(cancelled, delivery, []).supportingText,
     'Cancelled Oct 2, 2026',
+  )
+})
+
+test('detail milestones keep READY before departure and use authoritative completion', () => {
+  const order = { id: 1, status: 'CONFIRMED' }
+  const ready = { salesOrderId: 1, status: 'READY' }
+  const pending = getSalesOrderDetailProgress(order, [ready])
+  assert.equal(pending.label, 'Preparing')
+  assert.equal(pending.milestones[1].state, 'current')
+  assert.deepEqual(
+    pending.milestones.map((step) => step.label),
+    ['Draft', 'Confirmed', 'In Transit', 'Delivered'],
+  )
+  assert.equal(pending.milestones[2].state, 'upcoming')
+  const departed = getSalesOrderDetailProgress(order, [
+    ready,
+    { salesOrderId: 1, status: 'DISPATCHED' },
+  ])
+  assert.equal(departed.milestones[2].state, 'current')
+  assert.equal(departed.milestones[3].state, 'upcoming')
+  assert.deepEqual(
+    getSalesOrderDetailProgress({ ...order, status: 'PARTIALLY_DELIVERED' }, [ready]).milestones,
+    [],
+  )
+  assert.ok(
+    getSalesOrderDetailProgress({ ...order, status: 'DELIVERED' }, []).milestones.every(
+      (step) => step.state === 'complete',
+    ),
+  )
+  assert.equal(
+    getSalesOrderDetailProgress({ ...order, status: 'CANCELLED' }, []).milestones[0].state,
+    'cancelled',
   )
 })

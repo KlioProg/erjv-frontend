@@ -252,7 +252,12 @@ it.each(['PO', 'SO'] as const)(
     await screen.findByText(`${kind}-1`)
     await userEvent.click(next())
     await screen.findByText(`${kind}-2`)
-    await userEvent.click(screen.getByRole('button', { name: 'Confirm' }))
+    await userEvent.click(screen.getByRole('button', { name: `${kind}-2` }))
+    await userEvent.click(
+      screen.getByRole('button', {
+        name: kind === 'SO' ? 'Confirm Order' : 'Confirm Purchase Order',
+      }),
+    )
     await waitFor(() => expect(writes).toHaveLength(1))
     expect(writes[0]).toEqual({ url: `${path}/2/confirm`, body: { expectedRevision: 4 } })
     await waitFor(() =>
@@ -266,7 +271,8 @@ it.each(['PO', 'SO'] as const)(
       expect(reads.filter((read) => read.url === path && read.params.cursor)).toHaveLength(2),
     )
     await screen.findByText(`${kind}-2`)
-    await userEvent.click(screen.getByRole('button', { name: `More actions for ${kind}-2` }))
+    await userEvent.click(screen.getByRole('button', { name: `${kind}-2` }))
+    await userEvent.click(screen.getByRole('button', { name: 'More Actions' }))
     await userEvent.click(screen.getByRole('menuitem', { name: 'Cancel Order' }))
     await userEvent.click(screen.getByRole('button', { name: 'Cancel Order' }))
     await waitFor(() => expect(writes).toHaveLength(2))
@@ -424,8 +430,7 @@ it.each(['PO', 'SO'] as const)(
     expect(
       setup.reads.some((read) => read.url === (kind === 'PO' ? '/suppliers/2' : '/clients/2')),
     ).toBe(true)
-    await userEvent.click(screen.getByRole('button', { name: `More actions for ${kind}-2` }))
-    await userEvent.click(screen.getByRole('menuitem', { name: 'View Order' }))
+    await userEvent.click(screen.getByRole('button', { name: `${kind}-2` }))
     const dialog = await screen.findByRole('dialog')
     expect(dialog.textContent).toContain(`${kind}-2`)
     await waitFor(() =>
@@ -459,7 +464,9 @@ it.each(['PO', 'SO'] as const)(
     await screen.findByText(`${kind}-2`)
     expect(screen.queryByLabelText('Ordered from (inclusive)')).toBeNull()
     expect(screen.queryByLabelText('Ordered before (exclusive)')).toBeNull()
-    await userEvent.click(screen.getByRole('button', { name: kind === 'PO' ? 'Received Orders' : 'Completed Orders' }))
+    await userEvent.click(
+      screen.getByRole('button', { name: kind === 'PO' ? 'Received Orders' : 'Completed Orders' }),
+    )
     await waitFor(() => expect(previous().hasAttribute('disabled')).toBe(true))
     await userEvent.click(screen.getByRole('button', { name: 'Active Orders' }))
     await screen.findByText(`${kind}-1`)
@@ -467,9 +474,16 @@ it.each(['PO', 'SO'] as const)(
     expect(
       setup.reads
         .filter((read) => read.url === setup.path)
-        .every((read) => read.params.orderedFrom === undefined && read.params.orderedBefore === undefined),
+        .every(
+          (read) =>
+            read.params.orderedFrom === undefined && read.params.orderedBefore === undefined,
+        ),
     ).toBe(true)
-    await userEvent.click(screen.getByRole('button', { name: kind === 'PO' ? 'Create Purchase Order' : 'Create Sales Order' }))
+    await userEvent.click(
+      screen.getByRole('button', {
+        name: kind === 'PO' ? 'Create Purchase Order' : 'Create Sales Order',
+      }),
+    )
     expect(await screen.findByRole('dialog')).toBeTruthy()
   },
 )
