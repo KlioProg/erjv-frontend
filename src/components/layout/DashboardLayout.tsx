@@ -1,4 +1,4 @@
-import React, { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Link, NavLink } from 'react-router'
 import {
@@ -35,6 +35,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { DeliveryNavigation } from './DeliveryNavigation'
 import { InventoryNavigation } from './InventoryNavigation'
+import { SidebarActiveIndicator } from './SidebarActiveIndicator'
 import { ErjvPosLogo } from '@/components/ui/ErjvPosLogo'
 import { useAuth } from '@/features/auth/AuthContext'
 import { USER_ROLES, ROLE_DETAILS } from '@/features/auth/roles'
@@ -108,89 +109,6 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
 ]
-
-function SidebarNavigationItems({
-  active,
-  routeKey,
-  children,
-}: {
-  active: boolean
-  routeKey?: NavItemKey
-  children: React.ReactNode
-}) {
-  const itemsRef = useRef<HTMLDivElement>(null)
-  const wasActiveRef = useRef(false)
-  const [indicator, setIndicator] = useState<{
-    left: number
-    top: number
-    width: number
-    height: number
-    animate: boolean
-  } | null>(null)
-
-  useLayoutEffect(() => {
-    const items = itemsRef.current
-    const activeLink = items?.querySelector<HTMLElement>('[aria-current="page"]')
-    const animate = active && wasActiveRef.current
-    wasActiveRef.current = active
-    if (!active || !items || !activeLink) {
-      setIndicator(null)
-      return
-    }
-
-    const updateIndicator = () => {
-      const itemsRect = items.getBoundingClientRect()
-      const linkRect = activeLink.getBoundingClientRect()
-      if (linkRect.width === 0 || linkRect.height === 0) {
-        setIndicator(null)
-        return
-      }
-
-      const next = {
-        left: linkRect.left - itemsRect.left,
-        top: linkRect.top - itemsRect.top,
-        width: linkRect.width,
-        height: linkRect.height,
-        animate,
-      }
-      setIndicator((current) =>
-        current &&
-        current.left === next.left &&
-        current.top === next.top &&
-        current.width === next.width &&
-        current.height === next.height &&
-        current.animate === next.animate
-          ? current
-          : next,
-      )
-    }
-
-    updateIndicator()
-    if (typeof ResizeObserver === 'undefined') return
-
-    const observer = new ResizeObserver(updateIndicator)
-    observer.observe(items)
-    observer.observe(activeLink)
-    return () => observer.disconnect()
-  }, [active, routeKey])
-
-  return (
-    <div ref={itemsRef} className="relative flex flex-col gap-1">
-      {active && indicator && (
-        <span
-          aria-hidden="true"
-          className={`pointer-events-none absolute left-0 top-0 z-0 rounded-md bg-primary-subtle ring-1 ring-inset ring-primary-contrast/30 ${indicator.animate ? 'transition-[transform,width,height] duration-200 ease-out motion-reduce:transition-none' : 'transition-none'}`}
-          style={{
-            width: indicator.width,
-            height: indicator.height,
-            transform: `translate(${indicator.left}px, ${indicator.top}px)`,
-          }}
-        />
-      )}
-      {children}
-    </div>
-  )
-}
 
 export function DashboardLayout({
   currentScreen,
@@ -297,9 +215,10 @@ export function DashboardLayout({
           {visibleGroups.map((group) => (
             <div key={group.title} className="flex flex-col gap-2">
               <div className="px-3 text-xs font-medium text-muted-foreground">{group.title}</div>
-              <SidebarNavigationItems
+              <SidebarActiveIndicator
                 active={group.title === currentGroup?.title}
                 routeKey={currentScreen}
+                className="gap-1"
               >
                 {group.items.map((item) => {
                   if (item.key === 'inventory') return <InventoryNavigation key={item.key}
@@ -327,7 +246,7 @@ export function DashboardLayout({
                         setIsMobileOpen(false)
                       }}
                       className={({ isActive }) =>
-                        `group relative z-10 flex h-9 w-full items-center justify-between rounded-md px-3 py-2 text-ui font-medium transition-colors duration-150 cursor-pointer select-none pointer-coarse:min-h-11 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                        `group relative z-10 flex h-9 w-full items-center justify-between rounded-md px-3 py-2 text-ui font-medium transition-colors duration-150 cursor-pointer select-none pointer-coarse:min-h-11 hover:font-semibold focus-visible:font-semibold focus-visible:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                           isActive
                             ? 'text-foreground font-semibold'
                             : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
@@ -342,13 +261,15 @@ export function DashboardLayout({
                               : 'text-muted-foreground group-hover:text-foreground'
                           }`}
                         />
-                        <span>{item.label}</span>
+                        <span className="transition-[font-weight] duration-100 ease-out motion-reduce:transition-none">
+                          {item.label}
+                        </span>
                       </div>
 
                     </NavLink>
                   )
                 })}
-              </SidebarNavigationItems>
+              </SidebarActiveIndicator>
             </div>
           ))}
         </nav>

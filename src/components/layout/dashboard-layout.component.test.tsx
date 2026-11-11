@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router'
 import { afterEach, expect, it, vi } from 'vitest'
 import { DashboardLayout } from './DashboardLayout'
+import { SidebarActiveIndicator } from './SidebarActiveIndicator'
 
 const auth = vi.hoisted(() => ({ user: { role: 'ADMIN', fullName: 'Admin' }, isAdmin: true, isManager: false, logout: vi.fn() }))
 vi.mock('@/features/auth/AuthContext', () => ({ useAuth: () => auth }))
@@ -17,6 +18,60 @@ function mountHeader(currentScreen: 'dashboard' | 'clients' | 'inventory' | 'fin
     </DashboardLayout>
   </MemoryRouter></QueryClientProvider>)
 }
+
+it('slides the active indicator only between direct siblings in one navigation scope', () => {
+  vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+    const left = this.textContent === 'Two' ? 100 : 0
+    const width = this.tagName === 'A' ? 80 : 200
+    return {
+      x: left,
+      y: 0,
+      left,
+      top: 0,
+      right: left + width,
+      bottom: 36,
+      width,
+      height: 36,
+      toJSON: () => ({}),
+    } as DOMRect
+  })
+
+  const renderScope = (active: boolean, selected: 'one' | 'two') => (
+    <SidebarActiveIndicator active={active} routeKey={selected} className="gap-1">
+      {(['one', 'two'] as const).map((value) => (
+        <a key={value} href={`/${value}`} aria-current={selected === value ? 'page' : undefined}>
+          {value === 'one' ? 'One' : 'Two'}
+        </a>
+      ))}
+    </SidebarActiveIndicator>
+  )
+
+  const { container, rerender } = render(renderScope(true, 'one'))
+  expect(container.querySelector('[aria-hidden="true"]')?.className).toContain('transition-none')
+
+  rerender(renderScope(true, 'two'))
+  expect(container.querySelector('[aria-hidden="true"]')?.className).toContain(
+    'transition-[transform,width,height]',
+  )
+
+  rerender(renderScope(false, 'one'))
+  rerender(renderScope(true, 'one'))
+  expect(container.querySelector('[aria-hidden="true"]')?.className).toContain('transition-none')
+})
+
+it('ignores active links nested below the current navigation scope', () => {
+  const { container } = render(
+    <SidebarActiveIndicator active routeKey="inventory" className="gap-1">
+      <div>
+        <a href="/inventory" aria-current="page">
+          Products &amp; Stock
+        </a>
+      </div>
+    </SidebarActiveIndicator>,
+  )
+
+  expect(container.querySelector('[aria-hidden="true"]')).toBeNull()
+})
 
 it('keeps Delivery Trips active at the top level while Deliveries stays collapsed', () => {
   mountHeader('delivery-runs')
