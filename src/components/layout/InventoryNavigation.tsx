@@ -26,8 +26,8 @@ export function InventoryNavigation({
         aria-controls={id}
         onClick={() => setExpanded(!expanded)}
         className={cn(
-          'ui-text flex h-9 w-full items-center justify-between rounded-md px-3 py-2 font-medium hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-          view ? 'text-foreground' : 'text-muted-foreground',
+          'ui-text flex h-9 w-full items-center justify-between rounded-md px-3 py-2 font-medium transition-[color,font-weight,background-color] duration-150 motion-reduce:transition-none hover:bg-muted/60 hover:font-semibold focus-visible:font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+          view ? 'text-foreground font-semibold' : 'text-muted-foreground',
         )}
       >
         <span className="flex items-center gap-3">
@@ -48,9 +48,9 @@ export function InventoryNavigation({
             onClick={onSelect}
             className={({ isActive }) =>
               cn(
-                'ui-text flex h-9 items-center rounded-md px-3 py-2 font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                'ui-text relative z-10 flex h-9 items-center rounded-md px-3 py-2 font-medium transition-[color,font-weight,background-color] duration-150 motion-reduce:transition-none hover:font-semibold focus-visible:font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                 isActive
-                  ? 'bg-primary-subtle text-foreground font-semibold ring-1 ring-inset ring-primary-contrast/30'
+                  ? 'text-foreground font-semibold'
                   : 'text-muted-foreground hover:bg-muted/60',
               )
             }

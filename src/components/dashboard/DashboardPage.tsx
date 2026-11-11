@@ -129,7 +129,7 @@ export function DashboardPage() {
             {(['LOW', 'OUT'] as const).map((severity) => (
               <button
                 key={severity}
-                className="flex min-h-11 min-w-0 items-center justify-between gap-3 rounded py-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring hover:bg-muted/40 sm:block sm:px-3 sm:py-1 sm:first:pl-0"
+                className="flex min-h-11 min-w-0 flex-col items-start gap-1 rounded-lg px-3 py-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring hover:bg-muted/40 sm:block sm:py-1"
                 onClick={() => onOpenInventory({ warningFilter: severity })}
               >
                 <h3 className="text-sm font-medium">
@@ -150,7 +150,7 @@ export function DashboardPage() {
             ))}
             <Link
               to={ROUTES.warehouses}
-              className="flex min-h-11 min-w-0 items-center justify-between gap-3 rounded py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring hover:bg-muted/40 sm:block sm:py-1 sm:pl-3"
+              className="flex min-h-11 min-w-0 flex-col items-start gap-1 rounded-lg px-3 py-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring hover:bg-muted/40 sm:block sm:py-1"
             >
               <h3 className="text-sm font-medium">Active Warehouses</h3>
               <p className="break-words text-xl font-semibold tabular-nums sm:mt-1">
@@ -222,7 +222,7 @@ export function DashboardPage() {
                 </>
               )
               const className =
-                'block w-full min-h-11 min-w-0 rounded py-2 text-left break-words focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring hover:bg-muted/40'
+                'block w-full min-h-11 min-w-0 rounded-lg px-3 py-2 text-left break-words focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring hover:bg-muted/40'
               return (
                 <li key={item.id} className="min-w-0">
                   {item.target ? (
@@ -263,8 +263,8 @@ export function DashboardPage() {
           )}
         </section>
       </div>
-      <section aria-labelledby="delivery-status" className="min-w-0 rounded-lg border px-4 pb-3">
-        <div className="flex flex-wrap items-center justify-between gap-x-6">
+      <section aria-labelledby="delivery-status" className="min-w-0 space-y-3">
+        <div className="space-y-1">
           <h2 id="delivery-status" className="text-base font-semibold">
             Delivery Status
           </h2>
@@ -283,21 +283,25 @@ export function DashboardPage() {
             }))}
           />
         </div>
-        <ul className="mt-1 grid gap-x-6 gap-y-2 sm:grid-cols-2 xl:grid-cols-4">
+        <ul className="grid sm:grid-cols-2 sm:gap-x-3 xl:grid-cols-4 xl:gap-0">
           {previews.map(({ label, description, href, query }) => (
-            <li key={label} className="min-w-0">
+            <li
+              key={label}
+              className="relative min-w-0 after:absolute after:inset-x-3 after:bottom-0 after:h-px after:rounded-full after:bg-border after:content-[''] last:after:hidden xl:after:inset-x-auto xl:after:inset-y-3 xl:after:right-0 xl:after:h-auto xl:after:w-px"
+            >
               <Link
                 to={href}
-                className="flex min-h-14 items-center justify-between gap-3 rounded py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring hover:bg-muted/40"
+                className="block min-h-28 min-w-0 rounded-lg p-5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring hover:bg-muted/40"
               >
-                <span className="min-w-0">
-                  <span className="block text-sm font-medium">{label}</span>
-                  <span className="block text-xs text-muted-foreground">
-                    {description}
-                    {query.hasNext ? ' · Partial count' : ''}
-                  </span>
+                <span className="block text-sm font-medium text-muted-foreground">{label}</span>
+                <span className="mt-1 block text-xs text-muted-foreground">
+                  {description}
+                  {query.hasNext ? ' · Partial count' : ''}
                 </span>
-                <span className="shrink-0 text-sm font-semibold tabular-nums" aria-live="polite">
+                <span
+                  className="mt-3 block break-words text-3xl font-semibold tabular-nums"
+                  aria-live="polite"
+                >
                   {query.isError
                     ? 'Unavailable'
                     : query.isPending
