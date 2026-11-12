@@ -42,6 +42,8 @@ type SearchableDropdownProps<T> = {
   onSearchChange?: (query: string) => void
   selectedLabel?: string
   footer?: ReactNode
+  closeOnSelect?: boolean
+  getOptionDisabled?: (option: T) => boolean
 }
 
 export function SearchableDropdown<T>({
@@ -73,6 +75,8 @@ export function SearchableDropdown<T>({
   onOpenChange,
   selectedLabel: fallbackLabel,
   footer,
+  closeOnSelect = true,
+  getOptionDisabled,
 }: SearchableDropdownProps<T>) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
@@ -243,7 +247,11 @@ export function SearchableDropdown<T>({
                 return (
                   <DropdownMenuItem
                     key={optionValue}
-                    onSelect={() => selectOption(option)}
+                    disabled={getOptionDisabled?.(option)}
+                    onSelect={(event) => {
+                      if (!closeOnSelect) event.preventDefault()
+                      selectOption(option)
+                    }}
                     className="flex min-h-11 items-center justify-between gap-3"
                   >
                     <span className="min-w-0 flex-1 whitespace-normal [overflow-wrap:anywhere]">

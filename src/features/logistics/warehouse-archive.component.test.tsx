@@ -1,7 +1,7 @@
 import { act, renderHook } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, expect, it, vi } from 'vitest'
-import { toast } from 'sonner'
+import { toast } from '@/lib/notifications'
 import { apiClient } from '@/lib/api-client'
 import { useDeactivateWarehouse, WAREHOUSES_QUERY_KEY } from './warehouses.hooks'
 

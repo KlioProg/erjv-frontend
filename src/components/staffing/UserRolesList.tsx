@@ -42,7 +42,7 @@ import {
 } from '@/features/staffing/staffing.hooks'
 import { useAuth, normalizeUserRole } from '@/features/auth/AuthContext'
 import { USER_ROLES, ROLE_DETAILS, type UserRole } from '@/features/auth/roles'
-import { toast } from 'sonner'
+import { toast } from '@/lib/notifications'
 import { Button } from '../ui/button'
 import { ArchiveTabNav } from '@/components/ui/ArchiveTabNav'
 import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal'

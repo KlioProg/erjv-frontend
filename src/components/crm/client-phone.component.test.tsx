@@ -62,10 +62,10 @@ function mount(phone: string | null = null) {
 }
 
 it.each([
-  ['09171234567', '09171234567'],
-  ['+639171234567', '09171234567'],
-  ['+63 917 123 4567', '09171234567'],
-  ['639171234567', '09171234567'],
+  ['09171234567', '+639171234567'],
+  ['+639171234567', '+639171234567'],
+  ['+63 917 123 4567', '+639171234567'],
+  ['639171234567', '+639171234567'],
   ['+63 (82) 555-1234', '+63 (82) 555-1234'],
   ['(02) 8123-4567', '(02) 8123-4567'],
   ['+1 202 555 0123', '+1 202 555 0123'],
@@ -80,9 +80,9 @@ it.each([
 })
 
 it.each([
-  ['+63 917 123 4567', '09171234567', '9171234567'],
-  ['09171234567', '09171234567', '9171234567'],
-  ['+639171234567', '09171234567', '9171234567'],
+  ['+63 917 123 4567', '+639171234567', '9171234567'],
+  ['09171234567', '+639171234567', '9171234567'],
+  ['+639171234567', '+639171234567', '9171234567'],
   ['+63 (82) 555-1234', '+63 (82) 555-1234', '+63 (82) 555-1234'],
   ['(02) 8123-4567', '(02) 8123-4567', '(02) 8123-4567'],
   ['+1 202 555 0123', '+1 202 555 0123', '+1 202 555 0123'],
@@ -99,16 +99,16 @@ it.each([
 it('rejects an overlong mobile without silently truncating or saving it', async () => {
   const { writes } = mount()
   await userEvent.type(screen.getByLabelText('Phone Number'), '091712345678')
-  expect((screen.getByLabelText('Phone Number') as HTMLInputElement).value).toBe('91712345678')
+  expect((screen.getByLabelText('Phone Number') as HTMLInputElement).value).toBe('9171234567')
   await userEvent.click(screen.getByRole('button', { name: 'Register Customer Profile' }))
   await screen.findByRole('alert')
   expect(writes).toHaveLength(0)
 })
 
 it('keeps overlong mobile digits visible to shared validation', () => {
-  expect(sanitizePhilippinePhone('+63 917 123 45678')).toBe('091712345678')
+  expect(sanitizePhilippinePhone('+63 917 123 45678')).toBe('+63 917 123 45678')
   expect(validatePhilippinePhone('091712345678')).not.toBeNull()
   expect(validatePhilippinePhone('+63 917 123 4567')).toBeNull()
-  expect(validatePhilippinePhone('08171234567')).not.toBeNull()
+  expect(validatePhilippinePhone('09131234567')).not.toBeNull()
   expect(validatePhilippinePhone('0917123456')).not.toBeNull()
 })

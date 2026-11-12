@@ -1,8 +1,9 @@
+import { startDeliveryAction } from '@/test/delivery-record'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { toast } from 'sonner'
+import { toast } from '@/lib/notifications'
 import { apiClient } from '@/lib/api-client'
 import {
   createIncomingDeliveryApi,
@@ -505,7 +506,7 @@ it('keeps existing staff permissions read-only', async () => {
 it('opens the actual receiving form from Incoming Deliveries and moves the confirmed delivery into history', async () => {
   const user = userEvent.setup()
   mount(<DeliveriesHub initialTab="incoming" />)
-  await user.click(await screen.findByRole('button', { name: 'Receive Goods IN-90' }))
+  await startDeliveryAction('IN-90', 'Receive Goods')
   expect(await screen.findByText('Banana')).toBeTruthy()
   await choosePartial()
   fireEvent.change(received(), { target: { value: '1.25' } })
@@ -716,11 +717,13 @@ it('keeps a completed receipt available from the incoming workspace when it leav
   }
   mount(<DeliveriesHub initialTab="incoming" />)
   const user = userEvent.setup()
-  await user.click(await screen.findByRole('button', { name: 'Receive Goods IN-90' }))
+  await startDeliveryAction('IN-90', 'Receive Goods')
   await choosePartial()
   fireEvent.change(received(), { target: { value: '1.25' } })
   await saveReceipt(user)
-  await screen.findByText('Receipt recorded for IN-90.')
+  await screen.findByRole('button', { name: 'View Receipt' })
+  expect(screen.queryByText('Receipt recorded for IN-90.')).toBeNull()
+  expect(toast.success).toHaveBeenCalledTimes(1)
   await user.click(screen.getByRole('button', { name: 'View Receipt' }))
   const receipt = within(await screen.findByRole('dialog', { name: 'IN-90' }))
   expect(receipt.getByRole('columnheader', { name: 'Received' })).toBeTruthy()

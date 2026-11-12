@@ -2,7 +2,7 @@ import { fetchPurchaseOrderByIdApi } from './purchase-orders.api'
 import { fetchWarehouseByIdApi } from './warehouses.api'
 import { incomingOrderSchedulingIssue, incomingSchedulingIssue } from './incoming-scheduling'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { toast } from 'sonner'
+import { toast } from '@/lib/notifications'
 import {
   cancelIncomingDeliveryApi,
   completeIncomingDeliveryApi,
@@ -52,7 +52,7 @@ export function useIncomingDeliveryByNumber(deliveryNumber?: string) {
   })
 }
 
-export function useCreateIncomingDelivery() {
+export function useCreateIncomingDelivery(feedback: { success?: boolean } = {}) {
   const queryClient = useQueryClient()
   return useMutation({
     retry: false,
@@ -66,7 +66,7 @@ export function useCreateIncomingDelivery() {
     onSuccess: (delivery) => {
       void queryClient.invalidateQueries({ queryKey: INCOMING_DELIVERIES_QUERY_KEY })
       void queryClient.invalidateQueries({ queryKey: PURCHASE_ORDERS_QUERY_KEY })
-      toast.success(`Incoming Delivery "${delivery.deliveryNumber}" created`)
+      if (feedback.success !== false) toast.success(`Incoming Delivery "${delivery.deliveryNumber}" created`)
     },
     onError: (err) => {
       void queryClient.invalidateQueries({ queryKey: ['incoming-deliveries'] })
@@ -108,7 +108,7 @@ export function useIncomingSchedulingEligibility(id: number) {
   })
 }
 
-export function useScheduleIncomingDelivery() {
+export function useScheduleIncomingDelivery(feedback: { success?: boolean; error?: boolean } = {}) {
   const queryClient = useQueryClient()
   return useMutation({
     retry: false,
@@ -139,7 +139,7 @@ export function useScheduleIncomingDelivery() {
     },
     onSuccess: (delivery) => {
       void queryClient.invalidateQueries({ queryKey: INCOMING_DELIVERIES_QUERY_KEY })
-      toast.success(`Incoming Delivery "${delivery.deliveryNumber}" scheduled`)
+      if (feedback.success !== false) toast.success(`Incoming Delivery "${delivery.deliveryNumber}" scheduled`)
     },
     onError: (err) => {
       void queryClient.invalidateQueries({ queryKey: ['incoming-deliveries'] })
@@ -148,7 +148,7 @@ export function useScheduleIncomingDelivery() {
       void queryClient.invalidateQueries({ queryKey: ['products'] })
       void queryClient.invalidateQueries({ queryKey: ['warehouses'] })
       void queryClient.invalidateQueries({ queryKey: ['quarantine-lots'] })
-      toast.error(getErrorMessage(err))
+      if (feedback.error !== false) toast.error(getErrorMessage(err))
     },
   })
 }

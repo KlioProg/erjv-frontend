@@ -1,3 +1,4 @@
+import { normalizeContactPhone } from '@/lib/phone-utils'
 import { requireJobName } from './job-validation'
 import { requirePassword } from '@/features/auth/session'
 import { fetchCursorList } from '@/lib/cursor-pagination'
@@ -65,7 +66,7 @@ export async function createEmployeeApi(payload: CreateEmployeePayload): Promise
     hireDate: payload.hireDate
       ? new Date(payload.hireDate).toISOString()
       : new Date().toISOString(),
-    ...(payload.phone?.trim() ? { phone: payload.phone.trim() } : {}),
+    ...(payload.phone?.trim() ? { phone: normalizeContactPhone(payload.phone) } : {}),
     ...(payload.email?.trim() ? { email: payload.email.trim() } : {}),
     ...(payload.address?.trim() ? { address: payload.address.trim() } : {}),
     ...(payload.userId ? { userId: Number(payload.userId) } : {}),
@@ -82,7 +83,7 @@ export async function updateEmployeeProfileApi(
   const cleanPayload = {
     ...(payload.firstName ? { firstName: payload.firstName.trim() } : {}),
     ...(payload.lastName ? { lastName: payload.lastName.trim() } : {}),
-    ...(payload.phone !== undefined ? { phone: payload.phone?.trim() || null } : {}),
+    ...(payload.phone !== undefined ? { phone: normalizeContactPhone(payload.phone ?? '') || null } : {}),
     ...(payload.email !== undefined ? { email: payload.email?.trim() || null } : {}),
     ...(payload.address !== undefined ? { address: payload.address?.trim() || null } : {}),
     ...(payload.hireDate ? { hireDate: payload.hireDate } : {}),

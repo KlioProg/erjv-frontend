@@ -43,7 +43,7 @@ import {
   useSalesOrderById,
   useUpdateSalesOrderDraft,
 } from '@/features/crm/sales-orders.hooks'
-import { toast } from 'sonner'
+import { toast } from '@/lib/notifications'
 import { useQueries, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '@/features/auth/AuthContext'
 import type { SalesOrderRecord } from '@/features/crm/sales-orders.types'

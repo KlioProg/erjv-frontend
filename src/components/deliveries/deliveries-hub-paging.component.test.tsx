@@ -307,7 +307,7 @@ it('hides stale actions when a later page fails and restarts pagination on retry
   fireEvent.click(within(screen.getByRole('navigation', { name: 'Incoming delivery pages' })).getByRole('button', { name: 'Next page' }))
   await screen.findByRole('alert')
   expect(screen.queryByText('IN-1')).toBeNull()
-  expect(screen.getByText('Delivery records are unavailable until the request succeeds.')).toBeTruthy()
+  expect(screen.getByText('Delivery records could not be loaded.')).toBeTruthy()
   fail = false
   fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
   await waitFor(() => expect(screen.queryByRole('alert')).toBeNull())
@@ -409,7 +409,7 @@ it('keeps healthy History records in the combined table when the other source fa
   mount('history')
   await screen.findByText('OUT-1')
   expect(screen.getAllByRole('table')).toHaveLength(1)
-  expect(screen.getByText('Some deliveries could not be loaded.')).toBeTruthy()
+  expect(screen.queryByText('Some deliveries could not be loaded.')).toBeNull()
   expect(within(screen.getByRole('navigation', { name: 'Delivery history pages' })).getByText(/Incoming history unavailable/)).toBeTruthy()
   expect(screen.queryByText('No delivery history found')).toBeNull()
   fail = false
@@ -527,7 +527,7 @@ it('keeps direction and search through empty results, failures and retry', async
   expect(screen.getByRole('navigation', { name: 'Outgoing delivery pages' })).toBeTruthy()
   expect(outgoing.getAttribute('aria-pressed')).toBe('true')
   fireEvent.change(search, { target: { value: 'error' } })
-  await screen.findByText('Delivery records are unavailable until the request succeeds.')
+  await screen.findByText('Delivery records could not be loaded.')
   expect(outgoing.getAttribute('aria-pressed')).toBe('true')
   expect((search as HTMLInputElement).value).toBe('error')
   expect(screen.queryByText('No delivery history found')).toBeNull()

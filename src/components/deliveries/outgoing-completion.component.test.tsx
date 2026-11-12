@@ -1,3 +1,5 @@
+import { DeliveriesHub } from './DeliveriesHub'
+import { openDeliveryRecord } from '@/test/delivery-record'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -7,7 +9,7 @@ import { getAdapter } from 'axios'
 import { CompleteDeliveryModal } from './shared/CompleteDeliveryModal'
 import { DeliveryRunsHub } from './DeliveryRunsHub'
 import { MemoryRouter } from 'react-router'
-import { toast } from 'sonner'
+import { toast } from '@/lib/notifications'
 import type { OutgoingDeliveryRecord } from '@/features/logistics/outgoing-deliveries.types'
 import type { DeliveryRunRecord } from '@/features/logistics/delivery-runs.types'
 
@@ -688,4 +690,37 @@ it.each([true, false])('records trip members independently and uses backend comp
   expect(within(afterBoth.getByRole('heading', { name: 'Delivery Trip RUN-40' }).parentElement!).queryByText('Completed') !== null).toBe(completes)
   expect(writes.map((entry) => entry.url)).toEqual(['/delivery-runs/40/deliveries/90/reconcile', '/delivery-runs/40/deliveries/91/reconcile'])
   client.clear()
+})
+
+it('records results from delivery details after a refresh removes its list row', async () => {
+  const base = getAdapter(apiClient.defaults.adapter)
+  let hideRow = false
+  apiClient.defaults.adapter = async (config) => {
+    const url = config.url
+    if (config.method === 'get') {
+      let data: unknown
+      if (url === '/outgoing-deliveries') data = { items: hideRow ? [] : [delivery], nextCursor: null }
+      else if (url === '/stock-items') data = { items: [], nextCursor: null }
+      else if (url === '/delivery-vehicles/8') data = { id: 8, plateNumber: 'TEST-8' }
+      else if (url === '/employees/9') data = { id: 9, firstName: 'Driver', lastName: 'Test' }
+      if (data !== undefined) return { config, data: structuredClone(data), status: 200, statusText: 'OK', headers: {} }
+    }
+    return base(config)
+  }
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
+  render(<QueryClientProvider client={client}><MemoryRouter><DeliveriesHub initialTab="outgoing" /></MemoryRouter></QueryClientProvider>)
+  const details = await openDeliveryRecord('OD-90')
+  hideRow = true
+  await act(async () => { await client.invalidateQueries({ queryKey: ['outgoing-deliveries'] }) })
+  const recordResults = await details.findByRole('button', { name: 'Record Results OD-90' })
+  await waitFor(() => expect(recordResults.hasAttribute('disabled')).toBe(false))
+  await userEvent.click(recordResults)
+  await screen.findByRole('radio', { name: 'All items delivered' })
+  expect(writes).toHaveLength(0)
+  await fill()
+  submit()
+  await waitFor(() => expect(delivery.status).toBe('RECONCILED'))
+  expect(writes).toHaveLength(1)
+  expect(writes[0].url).toBe('/delivery-runs/40/deliveries/90/reconcile')
+  expect(writes[0].body.expectedRevision).toBe(4)
 })

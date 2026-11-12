@@ -1,71 +1,70 @@
-/**
- * Philippine mobiles use 11 digits starting with 09; business contacts may use other formats.
- */
+// Verified against Google's maintained PH metadata on 2026-11-12 (format, not reachability).
+// https://github.com/google/libphonenumber/blob/master/resources/PhoneNumberMetadata.xml#L24045
+const PH_MOBILE =
+  /^(?:8(?:1[37]|9[5-8])|9(?:0[5-9]|1[0-24-9]|[235-7]\d|4[2-9]|8[135-9]|9[1-9]))\d{7}$/
+export const MOBILE_FORMAT_ERROR = 'Enter a valid Philippine mobile number.'
+export const MOBILE_LENGTH_ERROR = 'Enter 10 digits after +63.'
 
-/**
- * Cleans mobile input without discarding excess digits needed for validation.
- * Handles pasted values with country code (+63 or 63) by converting them to leading '0'.
- */
-export function sanitizePhilippinePhone(input: string): string {
-  if (!input) return ''
-
-  let cleaned = input.trim()
-
-  // Convert international prefix +63 or 63 to local 0
-  if (cleaned.startsWith('+63')) {
-    cleaned = '0' + cleaned.slice(3)
-  } else if (cleaned.startsWith('63') && cleaned.replace(/\D/g, '').length === 12) {
-    cleaned = '0' + cleaned.slice(2)
-  }
-
-  return cleaned.replace(/\D/g, '')
+function compactPhone(value: string): string | null {
+  const trimmed = value.trim()
+  if (!trimmed) return ''
+  if (!/^\+?[\d(][\d\s().-]*$/.test(trimmed)) return null
+  return trimmed.replace(/[\s().-]/g, '')
 }
 
-/** Normalize equivalent Philippine mobiles; preserve other business contact formats. */
-export function normalizeContactPhone(input: string): string {
-  const compact = input.trim().replace(/[\s().-]/g, '')
-  return /^(?:0|\+?63)9\d{9}$/.test(compact)
-    ? sanitizePhilippinePhone(compact)
-    : input.trim()
-}
-
-export function validateContactPhone(input: string): string | null {
-  if (!input.trim()) return null
-  const compact = input.trim().replace(/[\s().-]/g, '')
-  if (/^(?:0|\+?63)9\d*$/.test(compact)) return validatePhilippinePhone(compact)
-  if (!/^\+?\d{7,15}$/.test(compact))
-    return 'Enter a valid phone number, including the area or country code.'
-  return null
-}
-
-/**
- * Validates a Philippine phone number.
- * Returns null if valid (or empty/optional), or an error string if invalid.
- */
-export function validatePhilippinePhone(
-  phone: string | null | undefined,
-  fieldName: string = 'Phone number',
-): string | null {
-  if (!phone || !phone.trim()) {
-    return null // Field is optional unless required by caller
-  }
-
-  if (!/^\+?[\d\s().-]+$/.test(phone.trim())) return 'Enter a valid Philippine mobile phone number.'
-
-  const digits = sanitizePhilippinePhone(phone)
-
-  if (digits.length !== 11) {
-    return `${fieldName} must be exactly 11 digits (e.g., 09171234567). Currently ${digits.length} digit${digits.length === 1 ? '' : 's'}.`
-  }
-
-  if (!digits.startsWith('09')) {
-    return `${fieldName} must start with standard Philippine prefix "09" (e.g., 09171234567).`
-  }
-
-  return null
-}
-
-/** Display the national part without truncating digits or hiding invalid characters. */
+/** Removes only recognized prefixes/formatting, never arbitrary leading or excess digits. */
 export function mobileNationalNumber(value: string): string {
-  return value.trim().replace(/[\s().-]/g, '').replace(/^(?:\+?63|0)/, '')
+  const compact = compactPhone(value)
+  if (compact === null) return value.trim()
+  if (compact.startsWith('+63')) return compact.slice(3)
+  if (compact.startsWith('63') && compact.length >= 12) return compact.slice(2)
+  if (compact.startsWith('0')) return compact.slice(1)
+  return compact
+}
+
+export function normalizePhilippineMobile(value: string): string | null {
+  if (compactPhone(value) === null) return null
+  const national = mobileNationalNumber(value)
+  return PH_MOBILE.test(national) ? `+63${national}` : null
+}
+
+/** General contact fields retain genuine landlines/international numbers and invalid legacy text. */
+export function normalizeContactPhone(value: string): string {
+  return normalizePhilippineMobile(value) ?? value.trim()
+}
+
+/** Backward-compatible utility name; invalid text is preserved rather than repaired by guessing. */
+export function sanitizePhilippinePhone(value: string): string {
+  return normalizeContactPhone(value)
+}
+
+export function validatePhilippinePhone(value?: string | null): string | null {
+  if (!value?.trim()) return null
+  const compact = compactPhone(value)
+  if (compact === null || !/^\d*$/.test(mobileNationalNumber(value))) return MOBILE_FORMAT_ERROR
+  const national = mobileNationalNumber(value)
+  if (national.length !== 10) return MOBILE_LENGTH_ERROR
+  return PH_MOBILE.test(national) ? null : MOBILE_FORMAT_ERROR
+}
+
+/** Distinguishes mobile-looking contacts from real PH landlines (e.g. 02, 082, 084). */
+export function isMobileContact(value: string): boolean {
+  const compact = value.trim().replace(/[\s().-]/g, '')
+  return /^(?:0|\+?63)?(?:9|8[19])/.test(compact)
+}
+
+export function validateContactPhone(value: string): string | null {
+  if (!value.trim()) return null
+  if (isMobileContact(value)) return validatePhilippinePhone(value)
+  const compact = compactPhone(value)
+  return compact !== null && /^\+?\d{7,15}$/.test(compact)
+    ? null
+    : 'Enter a valid phone number, including the area or country code.'
+}
+
+/** Formatting has no side effects and never changes non-mobile contacts. */
+export function formatContactPhone(value?: string | null): string {
+  if (!value) return ''
+  const mobile = normalizePhilippineMobile(value)
+  return mobile ? `+63 ${mobile.slice(3, 6)} ${mobile.slice(6, 9)} ${mobile.slice(9)}` : value
 }

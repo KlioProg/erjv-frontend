@@ -1,3 +1,4 @@
+import { openDeliveryRecord, startDeliveryAction } from '@/test/delivery-record'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -16,7 +17,7 @@ import type { PurchaseOrderRecord } from '@/features/logistics/purchase-orders.t
 import type { IncomingDeliveryRecord } from '@/features/logistics/incoming-deliveries.types'
 import type { OutgoingDeliveryRecord } from '@/features/logistics/outgoing-deliveries.types'
 import { useState, type ReactNode } from 'react'
-import { toast } from 'sonner'
+import { toast } from '@/lib/notifications'
 import { exportPurchaseReceiptPdf } from '@/lib/purchase-receipt'
 
 vi.mock('@/lib/purchase-receipt', () => ({ exportPurchaseReceiptPdf: vi.fn(() => true) }))
@@ -117,7 +118,7 @@ const outgoingFixture = (
   salesOrderId: 1,
   warehouseId: 1,
   revision: 1,
-  plannedItems: [],
+  plannedItems: status === 'READY' ? [{ id: id * 100, outgoingDeliveryId: id, salesOrderItemId: 10, plannedQuantity: '0.50', ...stamps }] : [],
   status,
   runId: null,
   reconciledAt: null,
@@ -743,10 +744,11 @@ describe('order to delivery workflow', () => {
       },
     ]
     const user = userEvent.setup()
-    mount(<DeliveriesHub initialTab="outgoing" />)
-    const schedule = await screen.findByRole('button', { name: 'Edit Delivery OUT-5' })
-    expect(schedule.closest('tr')?.textContent).toContain('Test Warehouse')
-    await user.click(schedule)
+    function ReadyRoute() { const location = useLocation(); return <output data-testid="ready-route">{location.search}</output> }
+    mount(<><DeliveriesHub initialTab="outgoing" /><ReadyRoute /></>)
+    const reference = await screen.findByRole('button', { name: 'View delivery OUT-5' })
+    expect(reference.closest('tr')?.textContent).toContain('Test Warehouse')
+    await startDeliveryAction('OUT-5', 'Edit Delivery')
     const quantity = await screen.findByRole('textbox', {
       name: 'Quantity to ship for Test Mango',
     })
@@ -754,7 +756,8 @@ describe('order to delivery workflow', () => {
     expect((quantity as HTMLInputElement).value).toBe('0.25')
     expect(mutations()).toHaveLength(0)
     await user.click(screen.getByRole('button', { name: 'Mark Ready' }))
-    expect(await screen.findByText('Delivery ready')).toBeTruthy()
+    await user.click(await screen.findByRole('button', { name: 'Add to Trip' }))
+    await waitFor(() => expect(screen.getByTestId('ready-route').textContent).toBe('?assign=5'))
     expect(
       requests.find((request) => request.url === '/outgoing-deliveries/5/draft')?.body
         .expectedRevision,
@@ -963,6 +966,7 @@ describe('order to delivery workflow', () => {
   })
 
   it('routes sidebar children to active direction tables and terminal history without page tabs', async () => {
+    sales[0].status = 'CONFIRMED'
     const user = userEvent.setup()
     mountDashboard()
     const nav = within(screen.getByRole('navigation', { name: 'Main navigation' }))
@@ -973,7 +977,10 @@ describe('order to delivery workflow', () => {
     expect(screen.queryByRole('columnheader', { name: 'Type' })).toBeNull()
     expect(screen.queryByRole('tablist')).toBeNull()
     await user.click(nav.getByRole('link', { name: 'Outgoing' }))
-    expect(await screen.findByRole('button', { name: 'Add to Trip OUT-6' })).toBeTruthy()
+    const details = await openDeliveryRecord('OUT-6')
+    expect(await screen.findByRole('button', { name: 'Add to Trip OUT-6', hidden: true })).toBeTruthy()
+    expect(details.queryByRole('button', { name: /Add to Trip/ })).toBeNull()
+    await user.keyboard('{Escape}')
     expect(screen.queryByRole('button', { name: 'View delivery OUT-7' })).toBeNull()
     await user.click(nav.getByRole('link', { name: 'History' }))
     expect(await screen.findByRole('button', { name: 'View delivery IN-23' })).toBeTruthy()
@@ -1336,7 +1343,7 @@ describe('order to delivery workflow', () => {
     failReceipt = true
     purchases[0].status = 'CONFIRMED'
     mount(<DeliveriesHub initialTab="incoming" />)
-    await user.click(await screen.findByRole('button', { name: 'Receive Goods IN-22' }))
+    await startDeliveryAction('IN-22', 'Receive Goods')
     const partial = await screen.findByRole('radio', { name: 'Some goods received or damaged' })
     await waitFor(() => expect(partial.matches(':disabled')).toBe(false))
     await user.click(partial)
@@ -1374,8 +1381,7 @@ describe('order to delivery workflow', () => {
     sales[0].status = 'DELIVERED'
     const user = userEvent.setup()
     mount(<DeliveriesHub initialTab="history" />)
-    await user.click(await screen.findByRole('button', { name: 'More actions for OUT-7' }))
-    await user.click(screen.getByRole('menuitem', { name: 'View order SO-TEST' }))
+    await user.click((await screen.findAllByRole('button', { name: 'View sales order SO-TEST' }))[0])
     const dialog = await screen.findByRole('dialog')
     expect(within(dialog).getByText('Test Customer')).toBeTruthy()
     expect(within(dialog).getAllByText(/Test Mango/).length).toBeGreaterThan(0)
@@ -1388,8 +1394,7 @@ describe('order to delivery workflow', () => {
     purchases[0].status = 'RECEIVED'
     const user = userEvent.setup()
     mount(<DeliveriesHub initialTab="history" />)
-    await user.click(await screen.findByRole('button', { name: 'More actions for IN-23' }))
-    await user.click(screen.getByRole('menuitem', { name: 'View Purchase Order PO-TEST' }))
+    await user.click((await screen.findAllByRole('button', { name: 'View purchase order PO-TEST' }))[0])
     const dialog = await screen.findByRole('dialog')
     expect(within(dialog).getByText('Test Supplier')).toBeTruthy()
     expect(within(dialog).getAllByText(/Test Mango/).length).toBeGreaterThan(0)
@@ -1403,16 +1408,15 @@ describe('order to delivery workflow', () => {
     const user = userEvent.setup()
     mount(<DeliveriesHub initialTab="incoming" />)
 
-    expect(await screen.findByText('Some deliveries could not be loaded.')).toBeTruthy()
     expect(
-      screen.getByText('Delivery records are unavailable until the request succeeds.'),
+      await screen.findByText('Delivery records could not be loaded.'),
     ).toBeTruthy()
     expect(screen.queryByText('No incoming deliveries found')).toBeNull()
 
     await user.click(screen.getByRole('button', { name: 'Retry' }))
     expect(await screen.findByText('No incoming deliveries found')).toBeTruthy()
     expect(
-      screen.queryByText('Delivery records are unavailable until the request succeeds.'),
+      screen.queryByText('Delivery records could not be loaded.'),
     ).toBeNull()
   })
 
@@ -1463,6 +1467,7 @@ it('keeps history filters keyboard accessible without pretending to filter compl
 it.each([false, true])(
   'preserves delivery context when opening run assignment (assigned: %s)',
   async (assigned) => {
+    sales[0].status = 'CONFIRMED'
     outgoing = outgoing.map((delivery) =>
       delivery.id === 6 ? { ...delivery, runId: assigned ? 12 : null } : delivery,
     )
@@ -1481,8 +1486,7 @@ it.each([false, true])(
         <Location />
       </>,
     )
-    const action = assigned ? 'View Trip OUT-6' : 'Add to Trip OUT-6'
-    await userEvent.setup().click(await screen.findByRole('button', { name: action }))
+    await startDeliveryAction('OUT-6', assigned ? 'View Trip' : 'Add to Trip')
     expect(screen.getByTestId('handoff-location').textContent).toBe(
       assigned ? '/deliveries/runs?run=12' : '/deliveries/runs?assign=6',
     )
@@ -1499,16 +1503,25 @@ it('preserves a created incoming draft when scheduling fails and prevents duplic
   await user.click(await screen.findByRole('button', { name: /Receiving Warehouse/ }))
   await user.click(screen.getByRole('menuitem', { name: 'Test Warehouse' }))
   await user.click(screen.getByRole('button', { name: 'Schedule Arrival' }))
+  await screen.findByRole('button', { name: 'View Details' })
+  expect(screen.queryByText(/IN-91 was created, but scheduling was not confirmed/)).toBeNull()
+  expect(screen.queryByRole('dialog')).toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: 'View Details' }))
   const failure = await screen.findByText(/IN-91 was created, but scheduling was not confirmed/)
   expect(failure.textContent).toContain('Do not create a duplicate shipment')
-  expect(screen.queryByRole('dialog')).toBeNull()
+  const close = within(screen.getByRole('group', { name: 'Delivery actions' })).getByRole('button', { name: 'Close' })
+  await waitFor(() => expect(close.hasAttribute('disabled')).toBe(false))
+  fireEvent.click(close)
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
   expect(
     requests.filter(
       (request) => request.method === 'post' && request.url === '/incoming-deliveries',
     ),
   ).toHaveLength(1)
   expect(incoming.find((delivery) => delivery.id === 91)?.status).toBe('DRAFT')
-  expect(await screen.findByRole('button', { name: 'Schedule Arrival IN-91' })).toBeTruthy()
+  const details = await openDeliveryRecord('IN-91')
+  expect(details.queryByRole('button', { name: /^Schedule Arrival/ })).toBeNull()
+  expect(await screen.findByRole('button', { name: 'Schedule Arrival IN-91', hidden: true })).toBeTruthy()
   expect(
     requests.filter((request) => request.url === '/incoming-deliveries/91/schedule'),
   ).toHaveLength(1)
@@ -1591,7 +1604,7 @@ it.each(['create', 'schedule'])(
       await screen.findByText(/Arrival creation was not confirmed/)
       expect(schedule.hasAttribute('disabled')).toBe(true)
       fireEvent.click(schedule)
-    } else await screen.findByText(/IN-91 was created, but scheduling was not confirmed/)
+    } else await screen.findByRole('button', { name: 'View Details' })
     expect(
       requests.filter(
         (request) => request.method === 'post' && request.url === '/incoming-deliveries',
@@ -1606,3 +1619,129 @@ it.each(['create', 'schedule'])(
     )
   },
 )
+
+async function reviewDeliveryIssue(reference: string) {
+  const button = await screen.findByRole('button', { name: 'View delivery ' + reference })
+  fireEvent.click(button)
+  return within(await screen.findByRole('dialog', { name: reference }))
+}
+it('confirms the linked purchase order from its delivery and restores scheduling eligibility', async () => {
+  mount(<DeliveriesHub initialTab="incoming" />)
+  const details = await reviewDeliveryIssue('IN-21')
+  fireEvent.click(details.getByRole('button', { name: 'Review Purchase Order' }))
+  const parent = within(await screen.findByRole('dialog', { name: /PO-TEST/ }))
+  const confirm = await parent.findByRole('button', { name: /Confirm (Purchase )?Order/ })
+  await waitFor(() => expect(confirm.hasAttribute('disabled')).toBe(false))
+  fireEvent.click(confirm)
+  const restored = within(await screen.findByRole('dialog', { name: 'IN-21' }))
+  expect(restored.queryByRole('button', { name: /^Schedule Arrival/ })).toBeNull()
+  expect(await screen.findByRole('button', { name: 'Schedule Arrival IN-21', hidden: true })).toBeTruthy()
+  const writes = requests.filter((request) => request.method !== 'get')
+  expect(writes.map((request) => request.url)).toEqual(['/purchase-orders/2/confirm'])
+  expect(writes[0].body.expectedRevision).toBe(1)
+})
+it('confirms the linked sales order from an outgoing issue and returns to preparation', async () => {
+  mount(<DeliveriesHub initialTab="outgoing" />)
+  const details = await reviewDeliveryIssue('OUT-5')
+  fireEvent.click(details.getByRole('button', { name: 'Review Sales Order' }))
+  const parent = within(await screen.findByRole('dialog', { name: /SO-TEST/ }))
+  const confirm = await parent.findByRole('button', { name: /Confirm (Purchase )?Order/ })
+  await waitFor(() => expect(confirm.hasAttribute('disabled')).toBe(false))
+  fireEvent.click(confirm)
+  const restored = within(await screen.findByRole('dialog', { name: 'OUT-5' }))
+  expect(await restored.findByText('Preparation Incomplete')).toBeTruthy()
+  expect(restored.getByRole('button', { name: /^Edit Delivery/ })).toBeTruthy()
+  expect(
+    requests.filter((request) => request.method !== 'get').map((request) => request.url),
+  ).toEqual(['/sales-orders/1/confirm'])
+})
+it('keeps an unsuccessful parent correction in its authorized workflow', async () => {
+  failConfirmation = true
+  mount(<DeliveriesHub initialTab="incoming" />)
+  const details = await reviewDeliveryIssue('IN-21')
+  fireEvent.click(details.getByRole('button', { name: 'Review Purchase Order' }))
+  const parent = within(await screen.findByRole('dialog', { name: /PO-TEST/ }))
+  const confirm = await parent.findByRole('button', { name: /Confirm (Purchase )?Order/ })
+  await waitFor(() => expect(confirm.hasAttribute('disabled')).toBe(false))
+  fireEvent.click(confirm)
+  expect(await parent.findByRole('alert')).toBeTruthy()
+  fireEvent.click(parent.getAllByRole('button', { name: 'Close' })[0])
+  const restored = within(await screen.findByRole('dialog', { name: 'IN-21' }))
+  expect(restored.getByText('Purchase Order Not Confirmed')).toBeTruthy()
+  expect(purchases[0].status).toBe('DRAFT')
+})
+it('keeps a locked sales order read only when opened from an outgoing issue', async () => {
+  sales[0].status = 'CANCELLED'
+  mount(<DeliveriesHub initialTab="outgoing" />)
+  const details = await reviewDeliveryIssue('OUT-5')
+  expect(details.getByText(/sales order is cancelled/)).toBeTruthy()
+  fireEvent.click(details.getByRole('button', { name: 'Review Sales Order' }))
+  const parent = within(await screen.findByRole('dialog', { name: /SO-TEST/ }))
+  expect(parent.queryByRole('button', { name: /Confirm (Purchase )?Order/ })).toBeNull()
+  expect(parent.queryByRole('button', { name: 'More Actions' })).toBeNull()
+  fireEvent.click(parent.getAllByRole('button', { name: 'Close' })[0])
+  expect(await screen.findByRole('dialog', { name: 'OUT-5' })).toBeTruthy()
+  expect(requests.filter((request) => request.method !== 'get')).toHaveLength(0)
+})
+
+it('saves outgoing preparation through the existing editor and restores delivery details without moving stock', async () => {
+  sales[0].status = 'CONFIRMED'
+  mount(<DeliveriesHub initialTab="outgoing" />)
+  const details = await reviewDeliveryIssue('OUT-5')
+  fireEvent.click(await details.findByRole('button', { name: /^Edit Delivery/ }))
+  const quantity = await screen.findByLabelText('Quantity to ship for Test Mango')
+  fireEvent.change(quantity, { target: { value: '0.50' } })
+  const save = await screen.findByRole('button', { name: 'Save Draft' })
+  await waitFor(() => expect(save.hasAttribute('disabled')).toBe(false))
+  fireEvent.click(save)
+  const restored = within(await screen.findByRole('dialog', { name: 'OUT-5' }))
+  await waitFor(() => expect(restored.queryByText('Preparation Incomplete')).toBeNull())
+  expect(outgoing.find((delivery) => delivery.id === 5)?.status).toBe('DRAFT')
+  expect(requests.filter((request) => request.method !== 'get').map((request) => request.url)).toEqual(['/outgoing-deliveries/5/draft'])
+})
+
+it.each(['cancel', 'reopen'] as const)('keeps outgoing %s revision checked in details without changing the sales order', async (action) => {
+  sales[0].status = 'CONFIRMED'
+  outgoing[0] = { ...outgoing[0], status: action === 'reopen' ? 'READY' : 'DRAFT', runId: null, items: [] }
+  const commands: unknown[] = []
+  const base = getAdapter(apiClient.defaults.adapter)
+  apiClient.defaults.adapter = async (config) => {
+    if (config.url === '/outgoing-deliveries/5/' + action) {
+      commands.push(JSON.parse(config.data))
+      outgoing[0] = { ...outgoing[0], status: action === 'reopen' ? 'DRAFT' : 'CANCELLED', revision: outgoing[0].revision + 1 }
+      return { config, data: outgoing[0], status: 200, statusText: 'OK', headers: {} }
+    }
+    return base(config)
+  }
+  mount(<DeliveriesHub initialTab="outgoing" />)
+  const details = await openDeliveryRecord('OUT-5')
+  const user = userEvent.setup()
+  const command = await details.findByRole('button', { name: action === 'cancel' ? 'Cancel Delivery' : 'Reopen Draft' })
+  await waitFor(() => expect(command.hasAttribute('disabled')).toBe(false))
+  await user.click(command)
+  const confirmation = within(await screen.findByRole('dialog', { name: action === 'cancel' ? 'Cancel Delivery' : 'Reopen Delivery' }))
+  const confirm = confirmation.getByRole('button', { name: action === 'cancel' ? 'Cancel Delivery' : 'Reopen Delivery' })
+  expect(commands).toHaveLength(0)
+  fireEvent.click(confirm)
+  fireEvent.click(confirm)
+  await waitFor(() => expect(commands).toHaveLength(1))
+  expect(commands).toEqual([{ expectedRevision: 1 }])
+  expect(sales[0].status).toBe('CONFIRMED')
+  expect(outgoing[0].status).toBe(action === 'reopen' ? 'DRAFT' : 'CANCELLED')
+})
+it('keeps a delivery editable when a refresh removes its row from the current list', async () => {
+  sales[0].status = 'CONFIRMED'
+  const { queryClient } = mount(<DeliveriesHub initialTab="outgoing" />)
+  const details = await openDeliveryRecord('OUT-5')
+  const base = getAdapter(apiClient.defaults.adapter)
+  apiClient.defaults.adapter = async (config) => {
+    if (config.url === '/outgoing-deliveries') return { config, data: { items: [], nextCursor: null }, status: 200, statusText: 'OK', headers: {} }
+    return base(config)
+  }
+  await act(async () => { await queryClient.invalidateQueries({ queryKey: ['outgoing-deliveries'] }) })
+  const edit = await details.findByRole('button', { name: 'Edit Delivery OUT-5' })
+  await waitFor(() => expect(edit.hasAttribute('disabled')).toBe(false))
+  await userEvent.click(edit)
+  expect(await screen.findByRole('button', { name: 'Save Draft' })).toBeTruthy()
+  expect(requests.filter((request) => request.method !== 'get')).toHaveLength(0)
+})

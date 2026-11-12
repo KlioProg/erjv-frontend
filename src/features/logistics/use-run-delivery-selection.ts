@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { hasValidOutgoingPlan } from './outgoing-issues'
 import { useQueries } from '@tanstack/react-query'
 import { fetchOutgoingDeliveryByIdApi } from './outgoing-deliveries.api'
 import type { OutgoingDeliveryRecord } from './outgoing-deliveries.types'
@@ -40,6 +41,8 @@ export function useRunDeliverySelection(warehouseId?: number, existingIds: numbe
     if (latest.runId !== null) return 'This delivery belongs to another trip.'
     if (latest.status !== 'READY' || latest.warehouseId !== warehouseId)
       return 'This delivery is no longer eligible for this warehouse.'
+    if (!hasValidOutgoingPlan(latest))
+      return 'This delivery needs a valid saved plan before it can join a trip. Review the outgoing delivery.'
     if (
       !Number.isSafeInteger(delivery.revision) ||
       delivery.revision < 1 ||

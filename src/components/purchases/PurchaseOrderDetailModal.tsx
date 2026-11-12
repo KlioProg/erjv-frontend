@@ -2,7 +2,7 @@ import {
   OrderDetailFooter,
   type OrderDetailAction,
 } from '@/components/orders/shared/OrderDetailFooter'
-import { formatProductUnit } from '@/lib/product-unit'
+import { ProductTableLabel, ProductTableQuantity } from '@/components/common/ProductTableCells'
 import { useRef, useState, type ReactNode } from 'react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { getErrorMessage } from '@/lib/api-client'
@@ -12,7 +12,6 @@ import {
   storedPurchaseTotal,
 } from '@/features/logistics/purchase-pricing'
 import { PurchaseReceivingProgress } from './PurchaseReceivingProgress'
-import { OverflowValue } from '@/components/ui/OverflowValue'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { DataTable, type ColumnDef } from '@/components/ui/data-table'
 import { LifecycleProgress } from '@/components/ui/LifecycleProgress'
@@ -120,25 +119,13 @@ export function PurchaseOrderDetailModal({
     {
       accessorKey: 'inventoryItemId',
       header: 'Product / Material',
-      cell: ({ row }) => (
-        <OverflowValue
-          value={
-            products.find((product) => product.id === row.inventoryItemId)?.name ||
-            `Item #${row.inventoryItemId}`
-          }
-        />
-      ),
+      cell: ({ row }) => <ProductTableLabel product={products.find((product) => product.id === row.inventoryItemId)} fallback={`Item #${row.inventoryItemId}`} />,
     },
     {
       accessorKey: 'quantity',
       header: 'Quantity',
       align: 'right',
-      cell: ({ row }) => (
-        <span>
-          {row.quantity}{' '}
-          {formatProductUnit(products.find((product) => product.id === row.inventoryItemId)?.unit)}
-        </span>
-      ),
+      cell: ({ row }) => <ProductTableQuantity value={row.quantity} unit={products.find((product) => product.id === row.inventoryItemId)?.unit} />,
     },
     {
       accessorKey: 'unitPrice',
@@ -294,6 +281,7 @@ export function PurchaseOrderDetailModal({
             </summary>
             <div className="mt-3">
               <DataTable
+                density="compact"
                 data={order.items || []}
                 columns={columns}
                 pagination={false}

@@ -3,7 +3,7 @@ import type { Job } from '@/features/staffing/staffing.types'
 import { Input } from '@/components/ui/input'
 import { useState } from 'react'
 import { Briefcase, ChevronDown, RotateCcw } from 'lucide-react'
-import { toast } from 'sonner'
+import { toast } from '@/lib/notifications'
 import { Button } from '@/components/ui/button'
 import { OverflowValue } from '@/components/ui/OverflowValue'
 import {

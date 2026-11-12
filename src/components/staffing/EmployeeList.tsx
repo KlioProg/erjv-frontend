@@ -1,3 +1,4 @@
+import { formatContactPhone } from '@/lib/phone-utils'
 import { OverflowValue } from '@/components/ui/OverflowValue'
 import { useAuth } from '@/features/auth/AuthContext'
 import { PageHeader, PageToolbar } from '@/components/ui/ManagementPage'
@@ -110,7 +111,7 @@ export function EmployeeList() {
           </>
         )
       case 'contact':
-        return <OverflowValue value={[emp.email, emp.phone].filter(Boolean).join(' | ')} className="max-w-72 text-muted-foreground" />
+        return <OverflowValue value={[emp.email, formatContactPhone(emp.phone)].filter(Boolean).join(' | ')} className="max-w-72 text-muted-foreground" />
       case 'positions':
         return (
           <EmployeePositionSelector
@@ -326,7 +327,7 @@ export function EmployeeList() {
         }
         itemDetails={
           employeeToDeactivate
-            ? `Email: ${employeeToDeactivate.email || 'N/A'} • Phone: ${employeeToDeactivate.phone || 'N/A'}`
+            ? `Email: ${employeeToDeactivate.email || 'N/A'} • Phone: ${formatContactPhone(employeeToDeactivate.phone) || 'N/A'}`
             : undefined
         }
         confirmText="Archive Employee"

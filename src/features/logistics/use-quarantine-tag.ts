@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { isAxiosError } from 'axios'
-import { toast } from 'sonner'
+import { toast } from '@/lib/notifications'
 import { useAuth } from '@/features/auth/AuthContext'
 import { useWarehouseStock } from './stock-items.hooks'
 import { useStockMetadata } from './use-stock-metadata'

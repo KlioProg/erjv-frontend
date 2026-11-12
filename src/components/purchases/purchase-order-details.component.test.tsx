@@ -173,11 +173,11 @@ it('keeps multiple partial receipts and damage truthful in a labeled breakdown',
     within(table)
       .getAllByRole('cell')
       .map((node) => node.textContent),
-  ).toEqual(['Mangokg', '10', '7', '5'])
+  ).toEqual(['Mango', '10 kg', '7 kg', '5 kg'])
   await userEvent.click(screen.getByText('Accepted and damaged quantities'))
   const breakdown = within(section).getAllByRole('table')[1]
-  expect(within(breakdown).getByRole('cell', { name: '5' })).toBeTruthy()
-  expect(within(breakdown).getByRole('cell', { name: '2' })).toBeTruthy()
+  expect(within(breakdown).getByRole('cell', { name: '5 kg' })).toBeTruthy()
+  expect(within(breakdown).getByRole('cell', { name: '2 kg' })).toBeTruthy()
   expect(screen.queryByText(/backend-accepted|quarantine/)).toBeNull()
 })
 it('keeps secondary operations in a menu and scheduling in the footer', async () => {

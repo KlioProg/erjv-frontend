@@ -13,6 +13,7 @@ import { cn } from '@/lib/utils'
 
 export type OrderDetailAction = {
   label: string
+  ariaLabel?: string
   onSelect: () => void
   disabled?: boolean
   destructive?: boolean
@@ -78,6 +79,7 @@ export function OrderDetailFooter({
           <Button
             type="button"
             disabled={busy || primaryAction.disabled}
+            aria-label={primaryAction.ariaLabel}
             onClick={primaryAction.onSelect}
           >
             {primaryAction.label}

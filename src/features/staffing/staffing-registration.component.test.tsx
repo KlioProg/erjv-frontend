@@ -2,7 +2,7 @@ import { act, renderHook } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, expect, it, vi } from 'vitest'
 import { AxiosError } from 'axios'
-import { toast } from 'sonner'
+import { toast } from '@/lib/notifications'
 import { apiClient } from '@/lib/api-client'
 import { staffingKeys, useRegisterUser } from './staffing.hooks'
 

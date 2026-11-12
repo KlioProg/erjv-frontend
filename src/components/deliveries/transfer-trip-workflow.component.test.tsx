@@ -322,7 +322,7 @@ it('sends a transfer-only trip once, pauses at the list, and lets another author
   )
   await userEvent.click(trip.getByRole('button', { name: 'View Transfer' }))
   const detail = within(await screen.findByRole('dialog', { name: 'WT-000007' }))
-  await userEvent.click(detail.getByRole('button', { name: 'Receive Goods' }))
+  await userEvent.click(detail.getByRole('button', { name: /^Receive Goods/ }))
   const receipt = within(await screen.findByRole('dialog', { name: 'Record Goods Received' }))
   expect(writes).toHaveLength(1)
   await userEvent.click(

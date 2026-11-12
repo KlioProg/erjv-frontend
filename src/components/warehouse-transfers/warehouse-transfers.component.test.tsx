@@ -141,6 +141,28 @@ async function open() {
   await waitFor(() => expect(screen.queryByText('Loading transfer…')).toBeNull())
 }
 const writes = () => requests.filter((item) => item.method === 'post' || item.method === 'patch')
+
+it.each([
+  ['DRAFT', 'Draft'], ['DISPATCHED', 'In Transit'], ['COMPLETED', 'Completed'], ['CANCELLED', 'Cancelled'],
+] as const)('keeps the %s status pill intact beside the existing action column', async (status, label) => {
+  record.status = status
+  mount(status === 'COMPLETED' || status === 'CANCELLED' ? 'history' : 'active')
+  const reference = await screen.findByRole('button', { name: 'View transfer WT-000007' })
+  const row = reference.closest('tr')!
+  const text = within(row).getByText(label)
+  const badge = text.closest('[data-slot="badge"]')!
+  expect(badge.classList.contains('whitespace-nowrap')).toBe(true)
+  expect(badge.classList.contains('min-w-max')).toBe(true)
+  expect(badge.classList.contains('w-fit')).toBe(true)
+  expect(badge.classList.contains('bg-muted')).toBe(true)
+  expect(badge.querySelector('[data-slot="status-dot"]')).toBeTruthy()
+  expect(text.closest('td')?.classList.contains('min-w-32')).toBe(true)
+  expect(screen.getByRole('columnheader', { name: 'Status' }).classList.contains('min-w-32')).toBe(true)
+  expect(screen.getByRole('columnheader', { name: status === 'COMPLETED' || status === 'CANCELLED' ? 'Details' : 'Next Action' })).toBeTruthy()
+  expect(screen.getByRole('columnheader', { name: 'Source / Destination' })).toBeTruthy()
+  expect(within(row).getByText(/ → /)).toBeTruthy()
+  expect(writes()).toHaveLength(0)
+})
 async function discardChanges() {
   const dialog = await screen.findByRole('dialog', { name: 'Discard Changes?' })
   await userEvent.click(within(dialog).getByRole('button', { name: 'Discard Changes' }))
@@ -178,8 +200,8 @@ it.each([
   expect(within(dialog).getByText('To warehouse')).toBeTruthy()
   const itemsTable = within(dialog).getByRole('table')
   await within(itemsTable).findByText('Test Item')
-  expect(within(itemsTable).getByText('kg')).toBeTruthy()
-  expect(within(itemsTable).getAllByText('10.00')).toHaveLength(status === 'COMPLETED' ? 2 : 1)
+  expect(within(itemsTable).getAllByText(/ kg$/).length).toBeGreaterThan(0)
+  expect(within(itemsTable).getAllByText('10 kg')).toHaveLength(status === 'COMPLETED' ? 2 : 1)
   expect(within(itemsTable).getAllByRole('columnheader').map((header) => header.textContent)).toEqual(
     status === 'COMPLETED'
       ? [

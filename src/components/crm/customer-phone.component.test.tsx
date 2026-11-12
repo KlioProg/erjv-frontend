@@ -78,7 +78,7 @@ it.each([false, true])(
       await user.clear(input)
       await user.paste(phone)
       await user.click(save)
-      await waitFor(() => expect(writes.at(-1)?.body.phone).toBe('09171234567'))
+      await waitFor(() => expect(writes.at(-1)?.body.phone).toBe('+639171234567'))
       expect((input as HTMLInputElement).value).toBe('9171234567')
       writes = []
     }
@@ -91,7 +91,7 @@ it.each(['(02) 8123 4567', '+63 2 8123 4567', '+1 202 555 0123'])(
     const save = await mount(true, phone)
     await userEvent.click(save)
     await waitFor(() => expect(writes).toHaveLength(1))
-    expect(writes[0].body.phone).toBe(phone.replace(/[\s().-]/g, ''))
+    expect(writes[0].body.phone).toBe(phone)
   },
 )
 

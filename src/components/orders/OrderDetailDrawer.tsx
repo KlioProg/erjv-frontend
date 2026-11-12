@@ -1,3 +1,4 @@
+import { formatContactPhone } from '@/lib/phone-utils'
 import {
   OrderDetailFooter,
   type OrderDetailAction,
@@ -7,7 +8,7 @@ import { useAuth } from '@/features/auth/AuthContext'
 import { useConfirmSalesOrder, useCancelSalesOrder } from '@/features/crm/sales-orders.hooks'
 import { getSalesOrderDetailProgress } from '@/features/crm/sales-orders.presentation'
 import { getErrorMessage } from '@/lib/api-client'
-import { formatProductUnit } from '@/lib/product-unit'
+import { ProductTableLabel, ProductTableQuantity } from '@/components/common/ProductTableCells'
 import type { SalesOrderRecord } from '@/features/crm/sales-orders.types'
 import type { Client } from '@/features/crm/clients.types'
 import type { InventoryItemResponse } from '@/features/products/products.types'
@@ -22,7 +23,6 @@ import {
   MovementDetailFields,
 } from '@/components/deliveries/shared/MovementDetailLayout'
 import { DataTable, type ColumnDef } from '@/components/ui/data-table'
-import { OverflowValue } from '@/components/ui/OverflowValue'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { LifecycleProgress } from '@/components/ui/LifecycleProgress'
 import { Button } from '@/components/ui/button'
@@ -113,24 +113,13 @@ export function OrderDetailDrawer({
       header: 'Product',
       cell: ({ row }) => {
         const product = products.find((product) => product.id === row.inventoryItemId)
-        return (
-          <OverflowValue
-            value={
-              product
-                ? product.name + (product.variety ? ' (' + product.variety + ')' : '')
-                : 'Product #' + row.inventoryItemId
-            }
-          />
-        )
+        return <ProductTableLabel product={product} fallback={'Product #' + row.inventoryItemId} />
       },
     },
     {
       header: 'Quantity',
       align: 'right',
-      cell: ({ row }) =>
-        row.quantity +
-        ' ' +
-        formatProductUnit(products.find((product) => product.id === row.inventoryItemId)?.unit),
+      cell: ({ row }) => <ProductTableQuantity value={row.quantity} unit={products.find((product) => product.id === row.inventoryItemId)?.unit} />,
     },
     { header: 'Unit Price', align: 'right', cell: ({ row }) => money(row.unitPrice) },
     { header: 'Amount', align: 'right', cell: ({ row }) => money(row.totalAmount) },
@@ -280,7 +269,7 @@ export function OrderDetailDrawer({
                 {
                   label: 'Customer',
                   value: customer?.name ?? 'Customer #' + order.clientId,
-                  secondary: [customer?.phone, customer?.email].filter(Boolean).join(' · '),
+                  secondary: [formatContactPhone(customer?.phone), customer?.email].filter(Boolean).join(' · '),
                 },
                 {
                   label: 'Destination',
@@ -294,6 +283,7 @@ export function OrderDetailDrawer({
             <section aria-label="Ordered items" className="flex flex-col gap-3">
               <h2 className="text-sm font-semibold">Ordered items</h2>
               <DataTable
+                density="compact"
                 data={order.items || []}
                 columns={columns}
                 pagination={false}

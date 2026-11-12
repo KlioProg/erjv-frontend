@@ -1,3 +1,4 @@
+import { ProductTableQuantity } from '@/components/common/ProductTableCells'
 import { useRef, useState, type FormEvent } from 'react'
 import { Package, PlusCircle, MinusCircle, SlidersHorizontal } from 'lucide-react'
 import { formatProductUnit } from '@/lib/product-unit'
@@ -26,12 +27,12 @@ export type StockAdjustModalProps = {
   open: boolean
   onClose: () => void
 }
-const historyColumns: ColumnDef<StockAdjustment>[] = [
+const historyColumns = (unit: string): ColumnDef<StockAdjustment>[] => [
   { accessorKey: 'createdAt', header: 'Recorded' },
   { accessorKey: 'kind', header: 'Action' },
-  { accessorKey: 'submittedQuantity', header: 'Quantity' },
-  { accessorKey: 'beforeOnHandQuantity', header: 'Before on hand' },
-  { accessorKey: 'afterOnHandQuantity', header: 'After on hand' },
+  { accessorKey: 'submittedQuantity', header: 'Quantity', align: 'right', cell: ({ row }) => <ProductTableQuantity value={row.submittedQuantity} unit={unit} /> },
+  { accessorKey: 'beforeOnHandQuantity', header: 'Before on hand', align: 'right', cell: ({ row }) => <ProductTableQuantity value={row.beforeOnHandQuantity} unit={unit} /> },
+  { accessorKey: 'afterOnHandQuantity', header: 'After on hand', align: 'right', cell: ({ row }) => <ProductTableQuantity value={row.afterOnHandQuantity} unit={unit} /> },
   { accessorKey: 'reason', header: 'Reason' },
 ]
 function StockAdjustContent({ stockItem, inventoryItem, warehouseId, initialMode = 'increase', onClose }: Omit<StockAdjustModalProps, 'open'>) {
@@ -124,7 +125,7 @@ function StockAdjustContent({ stockItem, inventoryItem, warehouseId, initialMode
     </form>
     {current && <section className="space-y-2 border-t pt-3" aria-label="Adjustment history"><h3 className="text-sm font-medium">Adjustment history</h3>
       {history.isError && <Alert variant="destructive"><AlertDescription>{getErrorMessage(history.error)} <Button type="button" variant="outline" size="sm" onClick={() => void history.reload()}>Reload history</Button></AlertDescription></Alert>}
-      <DataTable data={history.items} columns={historyColumns} isLoading={history.isPending} pagination={false} emptyContent={<p>No adjustments recorded.</p>} />
+      <DataTable density="compact" data={history.items} columns={historyColumns(unit)} isLoading={history.isPending} pagination={false} emptyContent={<p>No adjustments recorded.</p>} />
       {history.hasNextPage && <Button type="button" variant="outline" size="sm" disabled={history.isFetching} onClick={() => void history.fetchNextPage()}>Load more adjustments</Button>}
     </section>}
   </>

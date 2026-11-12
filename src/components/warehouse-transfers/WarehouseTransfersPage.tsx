@@ -1,3 +1,4 @@
+import { ProductTableLabel, ProductTableQuantity } from '@/components/common/ProductTableCells'
 import {
   DataTableFilters,
   DataTableFilterChips,
@@ -198,7 +199,12 @@ export function WarehouseTransfersPage({ view = 'active' }: { view?: 'active' | 
         )
       },
     },
-    { header: 'Status', cell: ({ row }) => <TransferStatusBadge status={row.status} /> },
+    {
+      header: 'Status',
+      className: 'min-w-32 whitespace-nowrap',
+      headerClassName: 'min-w-32 whitespace-nowrap',
+      cell: ({ row }) => <TransferStatusBadge status={row.status} />,
+    },
     {
       header: history ? 'Details' : 'Next Action',
       align: 'right',
@@ -438,7 +444,6 @@ export function TransferDialog({
   const [dismissal, setDismissal] = useState<'close' | 'back' | null>(null)
   const [session, setSession] = useState<{ action: Action; record: WarehouseTransfer } | null>(null)
   const [reviewing, setReviewing] = useState(false)
-  const [feedback, setFeedback] = useState('')
   const record = query.data
   const [entered, setEntered] = useState(false)
   if (!entered && initialAction && record && !query.isFetching && !query.isError) {
@@ -476,7 +481,6 @@ export function TransferDialog({
     onSaved: (saved: WarehouseTransfer) => {
       setDirty(false)
       if (session?.action === 'cancel') return onClose()
-      setFeedback(`${saved.transferNumber}: ${saved.status === 'DRAFT' ? 'draft saved. Review before sending.' : saved.status === 'DISPATCHED' ? 'departure recorded. Goods are In Transit.' : 'receipt saved.'}`)
       setSession(null)
       if (id === 'create') onOpen(saved.id)
     },
@@ -523,7 +527,6 @@ export function TransferDialog({
             />
             <div className="min-h-0 min-w-0 flex-1 overflow-y-auto px-5 pb-5 sm:px-6">
               <div className="flex flex-col gap-5">
-                {feedback && <p role="status" className="text-sm">{feedback}</p>}
                 <p className="text-sm text-muted-foreground">
                   {record.status === 'DRAFT'
                     ? record.runId != null ? 'Assigned to a delivery trip. Departure is confirmed in the trip.' : 'Draft saved. Add this transfer to a delivery trip before sending.'
@@ -570,6 +573,7 @@ export function TransferDialog({
                     </p>
                   )}
                   <DataTable
+                    density="compact"
                     data={record.items}
                     columns={[
                       {
@@ -577,17 +581,12 @@ export function TransferDialog({
                         header: 'Item',
                         cell: ({ row }) => {
                           const product = products.find((item) => item.id === row.inventoryItemId)
-                          return (
-                            <div className="flex min-w-0 flex-col gap-0.5 [overflow-wrap:anywhere]">
-                              <p className="text-sm font-medium">{product?.name ?? `Item #${row.inventoryItemId}`}</p>
-                              <p className="text-xs text-muted-foreground">{product?.unit || 'Unit unavailable'}</p>
-                            </div>
-                          )
+                          return <ProductTableLabel product={product} fallback={`Item #${row.inventoryItemId}`} />
                         },
                       },
                       {
                         header: 'Sent',
-                        cell: ({ row }) => <span className="tabular-nums">{row.quantity}</span>,
+                        cell: ({ row }) => <ProductTableQuantity value={row.quantity} unit={products.find((product) => product.id === row.inventoryItemId)?.unit} />,
                         align: 'right',
                       },
                       ...(record.status === 'COMPLETED'
@@ -602,7 +601,7 @@ export function TransferDialog({
                             }[field],
                             align: 'right' as const,
                             cell: ({ row }: { row: WarehouseTransfer['items'][number] }) => (
-                              <span className="tabular-nums">{row[field] ?? '—'}</span>
+                              <ProductTableQuantity value={row[field]} unit={products.find((product) => product.id === row.inventoryItemId)?.unit} />
                             ),
                           }))
                         : []),
@@ -716,7 +715,6 @@ export function TransferDialog({
                               : 'Review the completed transfer results.'}
               </DialogDescription>
             </DialogHeader>
-            {feedback && !session && <p role="status" className="text-sm">{feedback}</p>}
             {id === 'create' ? (
               canEdit && <TransferDraftForm {...formProps} />
             ) : session ? (

@@ -24,7 +24,7 @@ it('explains a blank business name inline while keeping optional contacts blank'
 })
 
 it.each([
-  ['+63 917 123 4567', '09171234567'],
+  ['+63 917 123 4567', '+639171234567'],
   ['02 8123 4567', '02 8123 4567'],
   ['+1 (415) 555-2671', '+1 (415) 555-2671'],
   ['+1 415 555 267100', '+1 415 555 267100'],
@@ -48,7 +48,7 @@ it('accepts an 11-digit Philippine mobile number entered by typing', async () =>
   await userEvent.click(screen.getByRole('button', { name: 'Add Supplier' }))
 
   await waitFor(() => expect(submit).toHaveBeenCalledOnce())
-  expect(submit.mock.calls[0][0].phone).toBe('09171234567')
+  expect(submit.mock.calls[0][0].phone).toBe('+639171234567')
 })
 
 it.each(['09123', 'letters only'])('rejects incomplete or nonnumeric supplier phone %s and retains the form', async (phone) => {
@@ -59,7 +59,7 @@ it.each(['09123', 'letters only'])('rejects incomplete or nonnumeric supplier ph
   await userEvent.click(screen.getByRole('button', { name: 'Add Supplier' }))
   expect(submit).not.toHaveBeenCalled()
   expect(screen.getByLabelText('Phone Number').getAttribute('aria-invalid')).toBe('true')
-  expect(screen.getByRole('alert').textContent).toContain('10 mobile digits')
+  expect(screen.getByRole('alert').textContent).toMatch(/Enter (10 digits after \+63\.|a valid Philippine mobile number\.)/)
 })
 
 it('retains and rejects an overlong Philippine mobile number pasted into the supplier form', async () => {
@@ -70,12 +70,12 @@ it('retains and rejects an overlong Philippine mobile number pasted into the sup
   await userEvent.click(phone)
   await userEvent.paste('09 17abc123456789')
 
-  expect(phone.value).toBe('917abc123456789')
+  expect(phone.value).toBe('')
   await userEvent.click(screen.getByRole('button', { name: 'Add Supplier' }))
 
   expect(submit).not.toHaveBeenCalled()
   expect(phone.getAttribute('aria-invalid')).toBe('true')
-  expect(screen.getByRole('alert').textContent).toContain('10 mobile digits')
+  expect(screen.getByRole('alert').textContent).toMatch(/Enter (10 digits after \+63\.|a valid Philippine mobile number\.)/)
 })
 it('includes the required supplier address field even when its string is empty', async () => {
   let sent: unknown

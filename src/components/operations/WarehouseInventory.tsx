@@ -1,3 +1,4 @@
+import { formatContactPhone } from '@/lib/phone-utils'
 import { DataTableFooter } from '@/components/ui/DataTableFooter'
 import { useResourcePage } from '@/lib/use-cursor-page'
 import { formatProductUnit } from '@/lib/product-unit'
@@ -239,7 +240,7 @@ export function WarehouseInventory({
               {warehouse.contactNumber && (
                 <span className="flex min-w-0 max-w-full items-center gap-1.5">
                   <Phone className="size-3.5 shrink-0" />
-                  <OverflowValue value={warehouse.contactNumber} />
+                  <OverflowValue value={formatContactPhone(warehouse.contactNumber)} />
                 </span>
               )}
             </div>

@@ -1,3 +1,4 @@
+import { TableLoadError } from '@/components/ui/TableLoadError'
 import { useResourcePage } from '@/lib/use-cursor-page'
 import { DataTableFooter, DataTableFrame } from '@/components/ui/DataTableFooter'
 import { StockPagingControls } from '@/components/inventory/StockPagingControls'
@@ -263,27 +264,6 @@ export function WarehouseList({ onOpenWarehouse }: { onOpenWarehouse: (id: numbe
     })
   }
 
-  if (warehousesQuery.isError || stockQuery.isError)
-    return (
-      <div
-        role="alert"
-        className="rounded-lg border border-destructive/30 p-3 text-xs text-destructive"
-      >
-        Warehouses and stock could not be loaded:{' '}
-        {getErrorMessage(warehousesQuery.error ?? stockQuery.error)}
-        <Button
-          variant="link"
-          size="sm"
-          onClick={() => {
-            if (warehousesQuery.isError) void warehousesQuery.reload()
-            if (stockQuery.isError) void stockQuery.reload()
-          }}
-        >
-          Retry
-        </Button>
-      </div>
-    )
-
   return (
     <div className="flex flex-col gap-4">
       <PageHeader description="Manage warehouse locations and review the stock held at each site.">
@@ -329,7 +309,14 @@ export function WarehouseList({ onOpenWarehouse }: { onOpenWarehouse: (id: numbe
       </PageToolbar>
       <StockPagingControls {...stockQuery} />
       <DataTableFrame>
-      <DataTable
+      {warehousesQuery.isError || stockQuery.isError ? (
+        <TableLoadError message="Warehouses and stock could not be loaded." description={getErrorMessage(warehousesQuery.error ?? stockQuery.error)}
+          retrying={warehousesQuery.isFetching || stockQuery.isFetching} onRetry={() => {
+            if (warehousesQuery.isError) void warehousesQuery.reload()
+            if (stockQuery.isError) void stockQuery.reload()
+          }} />
+      ) : (
+        <DataTable
             pagination={false}
             manualSorting
         appearance="management"
@@ -352,7 +339,8 @@ export function WarehouseList({ onOpenWarehouse }: { onOpenWarehouse: (id: numbe
         }
         pageSizeOptions={[10, 25, 50, 100]}
         tableClassName="table-fixed w-full"
-      />
+        />
+      )}
       <DataTableFooter {...warehousesQuery} rowCount={warehousesQuery.items.length} label="Warehouse" />
       </DataTableFrame>
       <WarehouseModal

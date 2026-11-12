@@ -70,18 +70,20 @@ it('keeps Ready distinct from dispatched status and preserves completed outcomes
     ).toBe(true)
 })
 
-it('keeps short and long statuses content-sized inside a column layout', () => {
+it('keeps short and long statuses content-sized and unbroken inside a constrained column', () => {
   render(
-    <div className="flex flex-col">
+    <div className="flex w-8 flex-col">
       <DeliveryStatusBadge status="READY" />
-      <StatusBadge label="A long status that can wrap within the available space" />
+      <StatusBadge label="Awaiting Receipt" />
     </div>,
   )
-  for (const label of ['Ready', 'A long status that can wrap within the available space']) {
+  for (const label of ['Ready', 'Awaiting Receipt']) {
     const badge = screen.getByText(label).closest('[data-slot="badge"]')!
     expect(badge.classList.contains('w-fit')).toBe(true)
-    expect(badge.classList.contains('max-w-full')).toBe(true)
-    expect(badge.classList.contains('whitespace-normal')).toBe(true)
+    expect(badge.classList.contains('min-w-max')).toBe(true)
+    expect(badge.classList.contains('shrink-0')).toBe(true)
+    expect(badge.classList.contains('whitespace-nowrap')).toBe(true)
+    expect(screen.getByText(label).classList.contains('[overflow-wrap:anywhere]')).toBe(false)
     expect(badge.querySelector('[data-slot="status-dot"]')?.getAttribute('aria-hidden')).toBe(
       'true',
     )
