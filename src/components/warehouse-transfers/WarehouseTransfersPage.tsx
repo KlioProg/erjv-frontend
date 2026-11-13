@@ -22,6 +22,7 @@ import { DataTableActions } from '@/components/ui/DataTableActions'
 import { OverflowValue } from '@/components/ui/OverflowValue'
 import { DataTableFrame } from '@/components/ui/DataTableFooter'
 import { StatusBadge } from '@/components/ui/StatusBadge'
+import { TableLoadError } from '@/components/ui/TableLoadError'
 import { Button } from '@/components/ui/button'
 import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal'
 import { DateTimeField } from '@/components/common/DateTimeField'
@@ -154,7 +155,7 @@ export function WarehouseTransfersPage({ view = 'active' }: { view?: 'active' | 
     },
     {
       header: 'Source / Destination',
-      width: '25%',
+      className: 'max-w-0',
       cell: ({ row }) => (
         <OverflowValue
           value={name(row.sourceWarehouseId) + ' → ' + name(row.destinationWarehouseId)}
@@ -350,14 +351,12 @@ export function WarehouseTransfersPage({ view = 'active' }: { view?: 'active' | 
       )}
       <DataTableFrame>
         {query.isError ? (
-          <Alert variant="destructive">
-            <AlertDescription>
-              {getErrorMessage(query.error)}{' '}
-              <Button variant="link" onClick={() => void query.reload()}>
-                Reload transfers
-              </Button>
-            </AlertDescription>
-          </Alert>
+          <TableLoadError
+            message="Warehouse transfers could not be loaded."
+            description={getErrorMessage(query.error)}
+            onRetry={() => void query.reload()}
+            retrying={query.isFetching}
+          />
         ) : (
           <DataTable
             appearance="management"

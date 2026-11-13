@@ -44,6 +44,7 @@ import {
   useUpdateSalesOrderDraft,
 } from '@/features/crm/sales-orders.hooks'
 import { toast } from '@/lib/notifications'
+import { TableLoadError } from '@/components/ui/TableLoadError'
 import { useQueries, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '@/features/auth/AuthContext'
 import type { SalesOrderRecord } from '@/features/crm/sales-orders.types'
@@ -466,20 +467,12 @@ export function OrdersView({
             Choose an end date on or after the start date.
           </p>
         ) : ordersQuery.isError ? (
-          <Alert variant="destructive">
-            <AlertDescription>
-              Sales orders could not be loaded. {getErrorMessage(ordersQuery.error)}
-              <Button
-                variant="outline"
-                size="sm"
-                className="ml-2"
-                onClick={() => void ordersQuery.reload()}
-                disabled={ordersQuery.isFetching}
-              >
-                {ordersQuery.isFetching ? 'Retrying...' : 'Retry'}
-              </Button>
-            </AlertDescription>
-          </Alert>
+          <TableLoadError
+            message="Sales orders could not be loaded."
+            description={getErrorMessage(ordersQuery.error)}
+            onRetry={() => void ordersQuery.reload()}
+            retrying={ordersQuery.isFetching}
+          />
         ) : (
           <DataTable
             appearance="management"

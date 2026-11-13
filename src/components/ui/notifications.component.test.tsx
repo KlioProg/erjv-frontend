@@ -23,6 +23,22 @@ it('preserves operation-specific ids and recovery actions', () => {
   toast.success('Arrival scheduled.', { id: 'arrival-66', action })
   expect(success.mock.calls[0][1]).toMatchObject({ id: 'arrival-66', action, duration: 5000 })
 })
+it.each(['error', 'warning', 'loading'] as const)('keeps %s feedback persistent despite legacy duration overrides', (kind) => {
+  const notify = vi.spyOn(sonner, kind).mockReturnValue('feedback')
+  toast[kind]('Review this operation.', { duration: 6000, closeButton: false })
+  expect(notify.mock.calls[0][1]).toMatchObject({
+    duration: Infinity,
+    closeButton: kind !== 'loading',
+  })
+})
+it('deduplicates technical failures by the message employees actually see', () => {
+  const error = vi.spyOn(sonner, 'error').mockReturnValue('error')
+  vi.spyOn(console, 'error').mockImplementation(() => {})
+  toast.error('PrismaClientKnownRequestError: SQLSTATE 23505')
+  toast.error('PrismaClientUnknownRequestError: SQLSTATE 23503')
+  expect(error.mock.calls[0][0]).toBe(error.mock.calls[1][0])
+  expect(error.mock.calls[0][1]?.id).toBe(error.mock.calls[1][1]?.id)
+})
 it('keeps technical exception details out of employee notifications', () => {
   const error = vi.spyOn(sonner, 'error').mockReturnValue('error')
   const diagnostic = vi.spyOn(console, 'error').mockImplementation(() => {})

@@ -16,7 +16,6 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Spinner } from '@/components/ui/spinner'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   useAllJobs,
   useCreateJob,
@@ -24,7 +23,6 @@ import {
   useReactivateJob,
 } from '@/features/staffing/staffing.hooks'
 import type { Job } from '@/features/staffing/staffing.types'
-import { getErrorMessage } from '@/lib/api-client'
 
 type JobModalProps = {
   job: Job | null
@@ -43,14 +41,12 @@ function JobFormContent({ job, onClose }: { job: Job | null; onClose: () => void
   const [name, setName] = useState(job?.name || '')
   const [description, setDescription] = useState(job?.description || '')
   const [nameError, setNameError] = useState('')
-  const [errorMsg, setErrorMsg] = useState('')
   const [deactivatedJobMatch, setDeactivatedJobMatch] = useState<Job | null>(null)
   const submitting = useRef(false)
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     if (!isAdmin || isPending || submitting.current) return
-    setErrorMsg('')
     setNameError('')
     setDeactivatedJobMatch(null)
 
@@ -91,7 +87,6 @@ function JobFormContent({ job, onClose }: { job: Job | null; onClose: () => void
       onClose()
     } catch (err) {
       setNameError(getApiFieldErrors(err).name ?? (getApiError(err)?.code === 'JOB_NAME_RESERVED' ? 'This name is reserved for account roles.' : ''))
-      setErrorMsg(getErrorMessage(err))
     } finally {
       submitting.current = false
     }
@@ -104,8 +99,8 @@ function JobFormContent({ job, onClose }: { job: Job | null; onClose: () => void
         await reactivateMutation.mutateAsync(deactivatedJobMatch.id)
         onClose()
       }
-    } catch (error) {
-      setErrorMsg(getErrorMessage(error))
+    } catch {
+      // The mutation owns operation feedback; retain the existing reactivation path.
     }
   }
 
@@ -122,12 +117,6 @@ function JobFormContent({ job, onClose }: { job: Job | null; onClose: () => void
             : 'Add a new staffing position/role for the ERJVPOS team.'}
         </DialogDescription>
       </DialogHeader>
-
-      {errorMsg && (!deactivatedJobMatch || reactivateMutation.isError) && (
-        <Alert variant="destructive" className="my-1">
-          <AlertDescription>{errorMsg}</AlertDescription>
-        </Alert>
-      )}
 
       {deactivatedJobMatch && (
         <div className="my-1 flex items-start gap-3 rounded-lg border border-status-warning-foreground/20 bg-status-warning p-4 text-status-warning-foreground">
@@ -155,7 +144,6 @@ function JobFormContent({ job, onClose }: { job: Job | null; onClose: () => void
             onChange={(e) => {
               const val = e.target.value
               setName(val)
-              if (errorMsg) setErrorMsg('')
               if (!isEditing && val.trim()) {
                 const match = allJobs.find(
                   (j) => j.name.toLowerCase() === val.trim().toLowerCase() && j.isActive === false,
@@ -167,7 +155,7 @@ function JobFormContent({ job, onClose }: { job: Job | null; onClose: () => void
             }}
             required
           />
-          {nameError && <p id="job-name-error" className="text-xs text-destructive">{nameError}</p>}
+          {nameError && <p id="job-name-error" role="alert" className="text-xs text-destructive">{nameError}</p>}
         </div>
 
         <div className="flex flex-col gap-1.5">

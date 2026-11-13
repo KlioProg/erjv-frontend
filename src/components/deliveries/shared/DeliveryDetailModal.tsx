@@ -1,5 +1,5 @@
 import { formatContactPhone } from '@/lib/phone-utils'
-import { useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { outgoingPreparationIssue } from '@/features/logistics/outgoing-issues'
 import { DeliveryDetailFooter } from './DeliveryDetailFooter'
@@ -52,6 +52,8 @@ export function DeliveryDetailModal({
 }: DeliveryDetailModalProps) {
   const deliveryQuery = useOutgoingDeliveryById(deliveryId || undefined)
   const issueRef = useRef<HTMLDivElement>(null)
+  const focusedIssueId = useRef<number | null>(null)
+  const [reviewedDeliveryId, setReviewedDeliveryId] = useState<number>()
   const delivery = deliveryQuery.data
   const runQuery = useDeliveryRunById(delivery?.runId ?? undefined)
   const run = runQuery.data
@@ -95,6 +97,16 @@ export function DeliveryDetailModal({
       )
     : null
   const issueIsBlocking = issue?.target === 'order' || issue?.target === 'refresh'
+  const issueTitle = issue?.title
+  useEffect(() => {
+    if (!open) {
+      focusedIssueId.current = null
+    } else if (issueTitle && delivery?.id === deliveryId && focusedIssueId.current !== deliveryId) {
+      focusedIssueId.current = deliveryId
+      issueRef.current?.focus()
+      issueRef.current?.scrollIntoView?.({ block: 'nearest' })
+    }
+  }, [open, deliveryId, delivery?.id, issueTitle])
   const actionBlocked =
     deliveryQuery.isFetching ||
     deliveryQuery.isError ||
@@ -327,9 +339,9 @@ export function DeliveryDetailModal({
               {delivery.status === 'READY' && canManage && onNextAction && delivery.runId == null && !issue && (
                 <p className="text-xs text-muted-foreground">To change this saved plan, <Button variant="link" size="sm" className="h-auto p-0" disabled={actionBlocked} onClick={() => onNextAction(delivery.id, 'reopen')}>Reopen Draft</Button>.</p>
               )}
-              {operationalFallback && canManage && onNextAction && !issue && (
+              {(operationalFallback || reviewedDeliveryId === delivery.id) && canManage && onNextAction && !issue && (
                 <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                  <span>This record is outside the current table. Continue here.</span>
+                  <span>{operationalFallback ? 'This record is outside the current table. Continue here.' : 'Continue with this delivery.'}</span>
                   {getDeliveryActions({ type: 'Outgoing', status: delivery.status, record: delivery }).filter((action) => ['ready', 'run', 'reconcile'].includes(action)).map((action) => (
                     <Button key={action} aria-label={`${action === 'ready' ? 'Edit Delivery' : action === 'reconcile' ? 'Record Results' : delivery.runId != null ? 'View Trip' : 'Add to Trip'} ${delivery.deliveryNumber}`} variant="outline" size="sm" disabled={actionBlocked} onClick={() => onNextAction(delivery.id, action)}>
                       {action === 'ready' ? 'Edit Delivery' : action === 'reconcile' ? 'Record Results' : delivery.runId != null ? 'View Trip' : 'Add to Trip'}
@@ -349,14 +361,20 @@ export function DeliveryDetailModal({
                       </p>
                     )}
                     {canManage && onNextAction && !actionBlocked && issue.target === 'delivery' && (
-                      delivery.status === 'DRAFT' ? <Button size="sm" variant="outline" onClick={() => onNextAction(delivery.id, 'ready')} aria-label={`Edit Delivery ${delivery.deliveryNumber}`}>Edit Delivery</Button>
+                      delivery.status === 'DRAFT' ? <Button size="sm" variant="outline" onClick={() => {
+                        setReviewedDeliveryId(delivery.id)
+                        onNextAction(delivery.id, 'ready')
+                      }} aria-label={`Edit Delivery ${delivery.deliveryNumber}`}>Edit Delivery</Button>
                       : available.includes('reopen') ? <Button size="sm" variant="outline" onClick={() => onNextAction(delivery.id, 'reopen')}>Reopen Draft</Button> : null
                     )}
                     {issueIsBlocking && onViewOrder && (
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => onViewOrder?.(delivery.salesOrderId)}
+                        onClick={() => {
+                          setReviewedDeliveryId(delivery.id)
+                          onViewOrder?.(delivery.salesOrderId)
+                        }}
                       >
                         Review Sales Order
                       </Button>
@@ -366,6 +384,7 @@ export function DeliveryDetailModal({
                       variant="link"
                       disabled={deliveryQuery.isFetching}
                       onClick={() => {
+                        setReviewedDeliveryId(delivery.id)
                         void deliveryQuery.refetch()
                         void ordersQuery.refetch()
                         void warehousesQuery.refetch()

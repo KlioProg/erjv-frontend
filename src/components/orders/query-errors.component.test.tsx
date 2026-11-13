@@ -138,7 +138,7 @@ it.each([
     }
     const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } })
     render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>)
-    expect(await screen.findByRole('alert')).toBeTruthy()
+    expect((await screen.findByRole('alert')).getAttribute('aria-busy')).toBe('false')
     await user.click(screen.getByRole('button', { name: 'Retry' }))
     expect(attempts).toBe(2)
     expect(await screen.findByText(/No active .* found/)).toBeTruthy()

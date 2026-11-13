@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { ClientList } from './ClientList'
 import { apiClient } from '@/lib/api-client'
+import { toast } from '@/lib/notifications'
 
 vi.mock('@/features/auth/AuthContext', () => ({
   useAuth: () => ({ isAdmin: true, isManager: false }),
@@ -58,6 +59,7 @@ beforeEach(() => {
 
 afterEach(() => {
   apiClient.defaults.adapter = originalAdapter
+  vi.restoreAllMocks()
 })
 
 function mount() {
@@ -78,10 +80,10 @@ it('offers recovery for a failed directory request instead of reporting an empty
   failRead = true
   const user = userEvent.setup()
   mount()
-  expect(await screen.findByText('Could not load customers')).toBeTruthy()
+  expect(await screen.findByText('Customers could not be loaded.')).toBeTruthy()
   expect(screen.queryByText('No active customers found')).toBeNull()
   failRead = false
-  await user.click(screen.getByRole('button', { name: 'Try again' }))
+  await user.click(screen.getByRole('button', { name: 'Retry' }))
   expect(await screen.findByText('Davao Trading')).toBeTruthy()
 })
 
@@ -97,7 +99,7 @@ it('places invalid phone feedback next to the field and associates it with the i
   expect(phone.getAttribute('aria-invalid')).toBe('true')
   const feedback = phone.getAttribute('aria-describedby')?.split(' ')
     .map((id) => document.getElementById(id)).find((node) => node?.getAttribute('role') === 'alert')
-  expect(feedback?.textContent).toContain('10 mobile digits')
+  expect(feedback?.textContent).toBe('Enter 10 digits after +63.')
 })
 
 it('keeps archive confirmation open with recoverable error feedback when the request fails', async () => {
@@ -127,6 +129,7 @@ it('clears a search from the no-results state without changing the selected arch
 })
 
 it('keeps an archived duplicate available when reactivation fails', async () => {
+  const error = vi.spyOn(toast, 'error').mockReturnValue('error')
   archivedMatch = true
   const user = userEvent.setup()
   mount()
@@ -143,7 +146,9 @@ it('keeps an archived duplicate available when reactivation fails', async () => 
   )
   await user.click(dialog.getByRole('button', { name: 'Register Customer Profile' }))
   await user.click(await dialog.findByRole('button', { name: 'Reactivate Customer Profile' }))
-  await waitFor(() => expect(dialog.getByRole('alert').textContent).toContain('Unable to connect'))
+  await waitFor(() => expect(error).toHaveBeenCalledOnce())
+  expect(error.mock.calls[0][0]).toContain('Unable to connect')
+  expect(dialog.getByRole('alert').textContent).toContain('Reactivate')
   expect(
     dialog.getByRole('textbox', { name: /Business \/ Customer Name/ }).getAttribute('value'),
   ).toBe('Archived Buyer')

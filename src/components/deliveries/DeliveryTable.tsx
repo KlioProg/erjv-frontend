@@ -241,14 +241,14 @@ export function DeliveryTable({
                       : null))
                   : null
               return issue ? (
-                <StatusBadge
-                  label={
-                    row.purchaseOrderStatus === 'RECEIVED' ? 'PO already received' : 'Needs review'
-                  }
-                  title={issue.message}
-                  tone="warning"
-                  className="whitespace-nowrap"
-                />
+                <OverflowValue asChild value={issue.title} fullValue={`${issue.title}. ${issue.message}`} showFullValueOnHover>
+                  <StatusBadge
+                    label={row.purchaseOrderStatus === 'RECEIVED' ? 'PO already received' : 'Needs review'}
+                    tabIndex={0}
+                    tone="warning"
+                    className="whitespace-nowrap"
+                  />
+                </OverflowValue>
               ) : (
                 <span className="text-muted-foreground">—</span>
               )
@@ -261,7 +261,7 @@ export function DeliveryTable({
       cell: ({ row }: { row: DeliveryRow }) => {
         const issue = row.schedulingIssue ?? (row.type === 'Incoming' && row.status === 'DRAFT'
           ? incomingOrderSchedulingIssue(row.purchaseOrderStatus) : null)
-        if (issue && !(row.type === 'Outgoing' && row.status === 'DRAFT' && issue.target === 'delivery')) return <Button variant="outline" size="sm" onClick={() => onView(row)}>Review Issue</Button>
+        if (issue) return <Button variant="outline" size="sm" onClick={() => onView(row)}>Review Issue</Button>
         const actions = getDeliveryActions(row)
         const action = actions.find((candidate) => ['schedule', 'receive', 'ready', 'run', 'reconcile'].includes(candidate))
         if (!action || (!canManage && !(action === 'run' && row.type === 'Outgoing' && row.record.runId != null))) return <span className="text-muted-foreground">—</span>

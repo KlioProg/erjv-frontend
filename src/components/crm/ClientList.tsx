@@ -18,7 +18,7 @@ import type { Client } from '@/features/crm/clients.types'
 import { ClientModal } from './ClientModal'
 import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal'
 import { OverflowValue } from '@/components/ui/OverflowValue'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { TableLoadError } from '@/components/ui/TableLoadError'
 import { getErrorMessage } from '@/lib/api-client'
 import './customers-pilot.css'
 
@@ -155,19 +155,12 @@ export function ClientList() {
       )}
       <DataTableFrame>
       {isError ? (
-        <Alert variant="destructive">
-          <AlertTitle>Could not load customers</AlertTitle>
-          <AlertDescription>{getErrorMessage(error)}</AlertDescription>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="mt-3"
-            onClick={() => void clientsQuery.reload()}
-          >
-            Try again
-          </Button>
-        </Alert>
+        <TableLoadError
+          message="Customers could not be loaded."
+          description={getErrorMessage(error)}
+          onRetry={() => void clientsQuery.reload()}
+          retrying={clientsQuery.isFetching}
+        />
       ) : (
         <DataTable
           appearance="management"

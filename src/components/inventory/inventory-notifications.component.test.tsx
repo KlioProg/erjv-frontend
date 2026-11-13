@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { getAdapter } from 'axios'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, useLocation, useNavigate } from 'react-router'
 import { beforeEach, afterEach, describe, it, expect, vi } from 'vitest'
@@ -471,7 +472,9 @@ describe('inventory and global stock warnings', () => {
     await user.type(input, '92.75')
     failPrice = true
     await user.click(screen.getByRole('button', { name: 'Save wholesale price for Alpha Empty' }))
-    await screen.findByText('Price update rejected.')
+    await waitFor(() => expect(toast.error).toHaveBeenCalledExactlyOnceWith('Price update rejected.'))
+    expect(input.getAttribute('aria-invalid')).toBe('false')
+    expect(screen.queryByText('Price update rejected.')).toBeNull()
     expect((input as HTMLInputElement).value).toBe('92.75')
     failPrice = false
     let finish!: () => void
@@ -506,6 +509,28 @@ describe('inventory and global stock warnings', () => {
         screen.getByRole('button', { name: 'Edit wholesale price for Alpha Empty' }).textContent,
       ).toContain('₱92.75'),
     )
+  })
+
+  it('keeps server price validation beside the input without duplicating it in a toast', async () => {
+    const adapter = getAdapter(apiClient.defaults.adapter)
+    apiClient.defaults.adapter = async (config) => {
+      if (config.url === '/inventory-items/1/unit-price')
+        throw {
+          isAxiosError: true,
+          response: { status: 422, data: { issues: [{ path: 'unitPrice', message: 'Review this price.' }] } },
+        }
+      return adapter(config)
+    }
+    const user = userEvent.setup()
+    mount(<InventoryHub />)
+    await user.click(await screen.findByRole('button', { name: 'Edit wholesale price for Alpha Empty' }))
+    const input = screen.getByRole('textbox', { name: 'Wholesale price for Alpha Empty' })
+    fireEvent.change(input, { target: { value: '92.75' } })
+    await user.click(screen.getByRole('button', { name: 'Save wholesale price for Alpha Empty' }))
+    expect(await screen.findByText('Review this price.')).toBeTruthy()
+    expect(input.getAttribute('aria-invalid')).toBe('true')
+    expect((input as HTMLInputElement).value).toBe('92.75')
+    expect(toast.error).not.toHaveBeenCalled()
   })
 
   it('cancels price edits with Escape and keeps archived or staff prices read-only', async () => {

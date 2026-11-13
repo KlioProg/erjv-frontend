@@ -256,7 +256,7 @@ export function DeliveriesHub({
     incomingDetail.data?.purchaseOrderId,
     viewOrder?.type === 'Incoming' ? viewOrder.id : undefined,
   ])
-  const { data: salesOrders } = useRecordsById<SalesOrderRecord>('/sales-orders', [
+  const { data: salesOrders, failedIds: unavailableSalesOrderIds } = useRecordsById<SalesOrderRecord>('/sales-orders', [
     ...outgoing.map((delivery) => delivery.salesOrderId),
     viewOrder?.type === 'Outgoing' ? viewOrder.id : undefined,
   ])
@@ -268,7 +268,7 @@ export function DeliveriesHub({
     '/clients',
     salesOrders.map((order) => order.clientId),
   )
-  const { data: warehouses = [] } = useAllWarehouses()
+  const { data: warehouses = [], isError: warehousesUnavailable } = useAllWarehouses()
   const { data: runs } = useRecordsById<DeliveryRunRecord>(
     '/delivery-runs',
     outgoing.map((delivery) => delivery.runId),
@@ -305,6 +305,8 @@ export function DeliveriesHub({
     outgoing,
     purchaseOrders,
     unavailablePurchaseOrderIds,
+    unavailableSalesOrderIds,
+    warehousesUnavailable,
     salesOrders,
     suppliers,
     clients,
@@ -371,10 +373,10 @@ export function DeliveriesHub({
   const listedViewRow = rows.find((row) => row.type === 'Incoming' && row.record.id === viewIncomingId)
   const fallbackViewRow = lastSavedIncoming?.id === viewIncomingId &&
     (!listedViewRow || lastSavedIncoming.revision >= listedViewRow.record.revision) ? buildDeliveryRows({
-      incoming: [lastSavedIncoming], outgoing: [], purchaseOrders, salesOrders, suppliers, clients, warehouses, vehicles, employees,
+      incoming: [lastSavedIncoming], outgoing: [], purchaseOrders, unavailablePurchaseOrderIds, unavailableSalesOrderIds, warehousesUnavailable, salesOrders, suppliers, clients, warehouses, vehicles, employees,
     })[0] : listedViewRow
   const viewRow = incomingDetail.data?.id === viewIncomingId ? buildDeliveryRows({
-    incoming: [incomingDetail.data], outgoing: [], purchaseOrders, unavailablePurchaseOrderIds, salesOrders, suppliers, clients, warehouses, vehicles, employees,
+    incoming: [incomingDetail.data], outgoing: [], purchaseOrders, unavailablePurchaseOrderIds, unavailableSalesOrderIds, warehousesUnavailable, salesOrders, suppliers, clients, warehouses, vehicles, employees,
   })[0] : fallbackViewRow
   const selectedPurchase = usePurchaseOrderById(
     viewOrder?.type === 'Incoming' ? viewOrder.id : undefined,
@@ -883,7 +885,7 @@ export function DeliveriesHub({
           const record = queryClient.getQueryData<OutgoingDeliveryRecord>(['outgoing-deliveries', 'id', id])
           if (!record || record.id !== id) return
           const row = buildDeliveryRows({
-            incoming: [], outgoing: [record], purchaseOrders, salesOrders, suppliers, clients, warehouses, vehicles, employees,
+            incoming: [], outgoing: [record], purchaseOrders, unavailableSalesOrderIds, warehousesUnavailable, salesOrders, suppliers, clients, warehouses, vehicles, employees,
           })[0]
           if (row?.type !== 'Outgoing') return
           setViewOutgoingId(null)

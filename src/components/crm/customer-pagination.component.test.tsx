@@ -154,13 +154,13 @@ it.each(['first', 'cursor'])(
       state.setFailure('cursor')
       await userEvent.click(next())
     }
-    await screen.findByText('Could not load customers')
+    await screen.findByText('Customers could not be loaded.')
     expect(next().hasAttribute('disabled')).toBe(true)
     expect(
       state.reads.filter((params) => (failure === 'first' ? params.limit === 50 : params.cursor)),
     ).toHaveLength(1)
     state.setFailure('')
-    await userEvent.click(screen.getByRole('button', { name: 'Try again' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }))
     await screen.findByText('Alpha Buyer')
     expect(previous().hasAttribute('disabled')).toBe(true)
   },

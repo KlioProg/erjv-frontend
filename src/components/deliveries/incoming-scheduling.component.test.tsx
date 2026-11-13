@@ -20,6 +20,7 @@ let requests: { url: string; method: string }[]
 let orderFails: boolean
 let rejection: boolean
 let activeWarehouse: boolean
+let warehouseFails: boolean
 let correctionRejected: boolean
 let orderGate: Promise<void> | undefined
 beforeEach(() => {
@@ -31,6 +32,7 @@ beforeEach(() => {
   orderFails = false
   rejection = false
   activeWarehouse = true
+  warehouseFails = false
   orderGate = undefined
   order = {
     id: 2,
@@ -76,6 +78,7 @@ beforeEach(() => {
       if (orderFails) throw Error('offline')
       data = structuredClone(order)
     }
+    if (url === '/warehouses' && warehouseFails) throw Error('offline')
     if (url === '/warehouses')
       data = {
         items: [
@@ -427,8 +430,43 @@ it('corrects an arrival date in details and offers scheduling after authoritativ
   fireEvent.click(details.getByRole('button', { name: 'Save Correction' }))
   expect(await screen.findByRole('button', { name: 'Schedule Arrival ID-000066', hidden: true })).toBeTruthy()
   expect(details.queryByText('Arrival Date Required')).toBeNull()
+  expect(await details.findByRole('button', { name: 'Schedule Arrival' })).toBeTruthy()
   expect(writes()).toEqual([{ url: '/incoming-deliveries/66/draft', method: 'patch' }])
   expect(draft.status).toBe('DRAFT')
+})
+it('rechecks an unverified warehouse without guessing that it needs correction', async () => {
+  const client = mount()
+  await screen.findByRole('button', { name: 'Schedule Arrival ID-000066' })
+  warehouseFails = true
+  await client.invalidateQueries({ queryKey: ['warehouses'] })
+  fireEvent.click(await screen.findByRole('button', { name: 'Review Issue' }))
+  const details = within(await screen.findByRole('dialog', { name: 'ID-000066' }))
+  expect(await details.findByText('Receiving Warehouse Unavailable')).toBeTruthy()
+  expect(details.queryByRole('button', { name: 'Correct Warehouse' })).toBeNull()
+  expect(details.queryByRole('button', { name: 'Schedule Arrival' })).toBeNull()
+  warehouseFails = false
+  fireEvent.click(details.getByRole('button', { name: 'Recheck Issue' }))
+  expect(await details.findByRole('button', { name: 'Schedule Arrival' })).toBeTruthy()
+  expect(writes()).toHaveLength(0)
+})
+it('retains a refresh issue when a correction saves but its parent cannot be revalidated', async () => {
+  draft.scheduledAt = null
+  const base = apiClient.defaults.adapter as AxiosAdapter
+  apiClient.defaults.adapter = async (config) => {
+    const response = await base(config)
+    if (config.url === '/incoming-deliveries/66/draft') orderFails = true
+    return response
+  }
+  mount()
+  const details = await review()
+  fireEvent.click(await details.findByRole('button', { name: 'Correct Arrival Date' }))
+  await enterArrival()
+  fireEvent.click(details.getByRole('button', { name: 'Save Correction' }))
+  expect(await details.findByText('Purchase Order Eligibility Unavailable')).toBeTruthy()
+  expect(details.queryByRole('button', { name: 'Schedule Arrival' })).toBeNull()
+  expect(draft.scheduledAt).toBe('2026-12-02T01:00:00.000Z')
+  expect(draft.status).toBe('DRAFT')
+  expect(writes()).toEqual([{ url: '/incoming-deliveries/66/draft', method: 'patch' }])
 })
 it('keeps the issue after a rejected correction and prevents blind retry', async () => {
   draft.scheduledAt = null

@@ -63,6 +63,8 @@ export function buildDeliveryRows({
   outgoing,
   purchaseOrders,
   unavailablePurchaseOrderIds = [],
+  unavailableSalesOrderIds = [],
+  warehousesUnavailable = false,
   salesOrders,
   suppliers,
   clients,
@@ -71,6 +73,8 @@ export function buildDeliveryRows({
   incoming: IncomingDeliveryRecord[]
   outgoing: OutgoingDeliveryRecord[]
   unavailablePurchaseOrderIds?: number[]
+  unavailableSalesOrderIds?: number[]
+  warehousesUnavailable?: boolean
   purchaseOrders: PurchaseOrderRecord[]
   salesOrders: SalesOrderRecord[]
   suppliers: Supplier[]
@@ -82,7 +86,7 @@ export function buildDeliveryRows({
   return [
     ...incoming.map((record) => {
       const order = purchaseOrders.find((order) => order.id === record.purchaseOrderId)
-      const warehouse = warehouses.find((warehouse) => warehouse.id === record.warehouseId)
+      const warehouse = warehousesUnavailable ? undefined : warehouses.find((warehouse) => warehouse.id === record.warehouseId)
       const purchaseOrderStatus = unavailablePurchaseOrderIds.includes(record.purchaseOrderId)
         ? undefined : order?.status
       const orderIssue = incomingOrderSchedulingIssue(purchaseOrderStatus)
@@ -104,10 +108,10 @@ export function buildDeliveryRows({
               (warehouse && order
                 ? incomingSchedulingIssue({ delivery: record, order, warehouse })
                 : {
-                    target: 'warehouse' as const,
+                    target: 'refresh' as const,
                     title: 'Receiving Warehouse Unavailable',
                     message:
-                      'The receiving warehouse could not be verified. Review the delivery before scheduling.',
+                      'The receiving warehouse could not be verified. Recheck the delivery before scheduling or changing its warehouse.',
                   })),
         method: 'To Be Confirmed' as const,
         warehouse:
@@ -128,8 +132,8 @@ export function buildDeliveryRows({
         record,
         schedulingIssue: outgoingPreparationIssue(
           record,
-          order?.status,
-          warehouses.find((warehouse) => warehouse.id === record.warehouseId)?.isActive,
+          unavailableSalesOrderIds.includes(record.salesOrderId) ? undefined : order?.status,
+          warehousesUnavailable ? undefined : warehouses.find((warehouse) => warehouse.id === record.warehouseId)?.isActive,
         ),
         party:
           clients.find((client) => client.id === order?.clientId)?.name ||

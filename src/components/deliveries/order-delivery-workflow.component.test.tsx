@@ -1634,7 +1634,7 @@ it('confirms the linked purchase order from its delivery and restores scheduling
   await waitFor(() => expect(confirm.hasAttribute('disabled')).toBe(false))
   fireEvent.click(confirm)
   const restored = within(await screen.findByRole('dialog', { name: 'IN-21' }))
-  expect(restored.queryByRole('button', { name: /^Schedule Arrival/ })).toBeNull()
+  expect(await restored.findByRole('button', { name: 'Schedule Arrival' })).toBeTruthy()
   expect(await screen.findByRole('button', { name: 'Schedule Arrival IN-21', hidden: true })).toBeTruthy()
   const writes = requests.filter((request) => request.method !== 'get')
   expect(writes.map((request) => request.url)).toEqual(['/purchase-orders/2/confirm'])

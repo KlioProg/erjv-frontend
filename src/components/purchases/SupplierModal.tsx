@@ -11,9 +11,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { PhoneInput } from '@/components/common/PhoneInput'
 import { Label } from '@/components/ui/label'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import type { CreateSupplierPayload, Supplier } from '@/features/logistics/suppliers.types'
-import { getErrorMessage } from '@/lib/api-client'
+import { getApiFieldErrors } from '@/lib/api-client'
 import { normalizeContactPhone, validateContactPhone } from '@/lib/phone-utils'
 
 type SupplierModalProps = {
@@ -38,6 +37,7 @@ export function SupplierModal({
   const [email, setEmail] = useState(supplier?.email || '')
   const [address, setAddress] = useState(supplier?.address || '')
   const [errorMessage, setErrorMessage] = useState('')
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [phoneError, setPhoneError] = useState('')
   const submitting = useRef(false)
   const [saving, setSaving] = useState(false)
@@ -58,6 +58,7 @@ export function SupplierModal({
     setSaving(true)
     try {
       setErrorMessage('')
+      setFieldErrors({})
       await onSubmit({
         code: code.trim() || `SUP-${Date.now().toString(36).toUpperCase()}`,
         name: name.trim(),
@@ -68,7 +69,10 @@ export function SupplierModal({
       })
       onClose()
     } catch (err: unknown) {
-      setErrorMessage(getErrorMessage(err))
+      const fields = getApiFieldErrors(err)
+      setFieldErrors(fields)
+      setErrorMessage(fields.name ?? '')
+      setPhoneError(fields.phone ?? '')
     } finally {
       submitting.current = false
       setSaving(false)
@@ -85,12 +89,6 @@ export function SupplierModal({
           </DialogDescription>
         </DialogHeader>
 
-        {errorMessage && (
-          <Alert variant="destructive">
-            <AlertDescription>{errorMessage}</AlertDescription>
-          </Alert>
-        )}
-
         <form onSubmit={handleSubmit} className="flex flex-col gap-3">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="flex flex-col gap-1.5">
@@ -99,6 +97,7 @@ export function SupplierModal({
               </Label>
               <Input
                 id="supplier-code"
+                error={fieldErrors.code}
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
                 placeholder="e.g. SUP-001"
@@ -112,6 +111,7 @@ export function SupplierModal({
               </Label>
               <Input
                 id="supplier-name" pattern=".*\S.*" title="Supplier company name is required."
+                error={errorMessage || undefined}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="e.g. Holcim Philippines"
@@ -128,6 +128,7 @@ export function SupplierModal({
               </Label>
               <Input
                 id="supplier-contact"
+                error={fieldErrors.contactPerson}
                 value={contactPerson}
                 onChange={(e) => setContactPerson(e.target.value)}
                 placeholder="e.g. John Doe"
@@ -160,6 +161,7 @@ export function SupplierModal({
             </Label>
             <Input
               id="supplier-email"
+              error={fieldErrors.email}
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -174,6 +176,7 @@ export function SupplierModal({
             </Label>
             <Input
               id="supplier-address"
+              error={fieldErrors.address}
               value={address}
               onChange={(e) => setAddress(e.target.value)}
               placeholder="e.g. Km 12 Sasa, Davao City"

@@ -18,9 +18,9 @@ import { fetchSupplierByIdApi } from '@/features/logistics/suppliers.api'
 import { DataTableFooter, DataTableFrame } from '@/components/ui/DataTableFooter'
 import { PageHeader, PageToolbar } from '@/components/ui/ManagementPage'
 import { toast } from '@/lib/notifications'
+import { TableLoadError } from '@/components/ui/TableLoadError'
 import { useState, useMemo, useRef } from 'react'
 import { Archive, Building2, CheckCircle2, Clock, Plus, Search, XCircle } from 'lucide-react'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ArchiveTabNav } from '@/components/ui/ArchiveTabNav'
@@ -608,20 +608,12 @@ export function PurchasesView({
                 Choose an end date on or after the start date.
               </p>
             ) : ordersQuery.isError ? (
-              <Alert variant="destructive">
-                <AlertDescription>
-                  Purchase orders could not be loaded. {getErrorMessage(ordersQuery.error)}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="ml-2"
-                    onClick={() => void ordersQuery.reload()}
-                    disabled={ordersQuery.isFetching}
-                  >
-                    {ordersQuery.isFetching ? 'Retrying...' : 'Retry'}
-                  </Button>
-                </AlertDescription>
-              </Alert>
+              <TableLoadError
+                message="Purchase orders could not be loaded."
+                description={getErrorMessage(ordersQuery.error)}
+                onRetry={() => void ordersQuery.reload()}
+                retrying={ordersQuery.isFetching}
+              />
             ) : (
               <DataTable
                 appearance="management"
@@ -685,20 +677,12 @@ export function PurchasesView({
 
           <DataTableFrame>
           {suppliersQuery.isError ? (
-            <Alert variant="destructive">
-              <AlertDescription>
-                Suppliers could not be loaded. {getErrorMessage(suppliersQuery.error)}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="ml-2"
-                  onClick={() => void suppliersQuery.reload()}
-                  disabled={suppliersQuery.isFetching}
-                >
-                  {suppliersQuery.isFetching ? 'Retrying...' : 'Retry'}
-                </Button>
-              </AlertDescription>
-            </Alert>
+            <TableLoadError
+              message="Suppliers could not be loaded."
+              description={getErrorMessage(suppliersQuery.error)}
+              onRetry={() => void suppliersQuery.reload()}
+              retrying={suppliersQuery.isFetching}
+            />
           ) : (
             <DataTable
               appearance="management"

@@ -76,6 +76,7 @@ export function IncomingDeliveryDetailModal({
   } | null>(null)
   const editing = !!editContext
   const [correctionPending, setCorrectionPending] = useState(false)
+  const [reviewedDeliveryId, setReviewedDeliveryId] = useState<number>()
   const [reviewError, setReviewError] = useState('')
   async function recheck() {
     setReviewError('')
@@ -219,9 +220,9 @@ export function IncomingDeliveryDetailModal({
                 { id: 'receipt', label: 'Outcome recorded', state: delivery.status === 'COMPLETED' ? 'complete' : 'upcoming', detail: delivery.completedAt ? DeliveryUtils.formatDateTime(delivery.completedAt) : undefined },
               ]} />}
               {workflowError && <Alert variant="destructive"><AlertDescription>{workflowError}</AlertDescription></Alert>}
-              {operationalFallback && canManage && row && onAction && !schedulingIssue && (
+              {(operationalFallback || reviewedDeliveryId === delivery.id) && canManage && row && onAction && !schedulingIssue && (
                 <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                  <span>This record is outside the current table. Continue here.</span>
+                  <span>{operationalFallback ? 'This record is outside the current table. Continue here.' : 'Continue with this delivery.'}</span>
                   {getDeliveryActions(row).filter((action) => action === 'schedule' || action === 'receive').map((action) => (
                     <Button key={action} variant="outline" size="sm" disabled={refreshing || !!refreshError || editing} onClick={() => onAction(row, action)}>{action === 'schedule' ? 'Schedule Arrival' : 'Receive Goods'}</Button>
                   ))}
@@ -269,11 +270,10 @@ export function IncomingDeliveryDetailModal({
                         size="sm"
                         variant="outline"
                         disabled={refreshing || !!refreshError}
-                        onClick={() =>
-                          delivery &&
-                          editable &&
+                        onClick={() => {
+                          setReviewedDeliveryId(delivery.id)
                           setEditContext({ delivery, target: correctionTarget })
-                        }
+                        }}
                       >
                         Correct {correctionTarget === 'warehouse' ? 'Warehouse' : 'Arrival Date'}
                       </Button>
@@ -281,7 +281,10 @@ export function IncomingDeliveryDetailModal({
                     {(correctionTarget === 'order' || correctionTarget === 'refresh') &&
                       onViewOrder &&
                       row && (
-                        <Button size="sm" variant="outline" onClick={() => onViewOrder(row)}>
+                        <Button size="sm" variant="outline" onClick={() => {
+                          setReviewedDeliveryId(delivery.id)
+                          onViewOrder(row)
+                        }}>
                           Review Purchase Order
                         </Button>
                       )}
@@ -290,6 +293,7 @@ export function IncomingDeliveryDetailModal({
                       variant="link"
                       disabled={refreshing || editing}
                       onClick={() => {
+                        setReviewedDeliveryId(delivery.id)
                         void recheck()
                       }}
                     >

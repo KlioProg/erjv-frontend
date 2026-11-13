@@ -61,7 +61,7 @@ describe('record-first delivery tables', () => {
     expect(onView).not.toHaveBeenCalled()
     expect(screen.getAllByRole('columnheader')).toHaveLength(6)
   })
-  it('keeps a meaningful record issue separate from its neutral lifecycle badge', () => {
+  it('keeps a meaningful record issue separate from its neutral lifecycle badge', async () => {
     const record = {
       ...row('Incoming'),
       schedulingIssue: {
@@ -72,9 +72,11 @@ describe('record-first delivery tables', () => {
     } as DeliveryRow
     const { onViewOrder } = mount(record)
     expect(screen.getByRole('columnheader', { name: 'Issue' })).toBeTruthy()
-    const badge = screen.getByText('Needs review').closest('[data-slot="badge"]')!
+    const badge = screen.getByText('Needs review').closest<HTMLElement>('[data-slot="badge"]')!
     expect(badge.className).toContain('bg-muted')
     expect(badge.querySelector('[data-slot="status-dot"]')).toBeTruthy()
+    badge.focus()
+    expect((await screen.findByRole('tooltip')).textContent).toContain('Choose an arrival date.')
     expect(screen.getByText('Draft').closest('[data-slot="badge"]')?.className).toContain(
       'bg-muted',
     )
@@ -82,6 +84,14 @@ describe('record-first delivery tables', () => {
     expect(onViewOrder).toHaveBeenCalledOnce()
     expect(within(screen.getAllByRole('row')[1]).getAllByRole('cell')).toHaveLength(7)
   })
+})
+it('prioritizes reviewing an outgoing preparation issue without starting a mutation', async () => {
+  const record = { ...row('Outgoing'), schedulingIssue: { target: 'delivery', title: 'Preparation Incomplete', message: 'Add planned quantities in Edit Delivery before marking this draft ready.' } } as DeliveryRow
+  const { onView, onAction } = mount(record)
+  await userEvent.click(screen.getByRole('button', { name: 'Review Issue' }))
+  expect(onView).toHaveBeenCalledWith(record)
+  expect(onAction).not.toHaveBeenCalled()
+  expect(screen.queryByRole('button', { name: 'Edit Delivery DEL-1' })).toBeNull()
 })
 it.each([
   ['Incoming', 'DRAFT', null, 'Schedule Arrival', 'schedule'],

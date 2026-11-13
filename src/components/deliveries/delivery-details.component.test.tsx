@@ -129,6 +129,17 @@ function mount(
   }
 }
 
+it('reveals and focuses an issue that arrives after outgoing details open', async () => {
+  delivery.status = 'DRAFT'
+  let release!: () => void
+  deliveryGate = new Promise<void>((resolve) => { release = resolve })
+  mount()
+  await screen.findByRole('dialog')
+  await act(async () => { release() })
+  const issue = await screen.findByLabelText('Delivery issue')
+  await waitFor(() => expect(document.activeElement).toBe(issue))
+})
+
 beforeEach(() => {
   delivery = structuredClone(deliveryFixture)
   failedUrl = undefined

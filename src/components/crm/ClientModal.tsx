@@ -23,7 +23,7 @@ import {
   searchClientsByNameApi,
 } from '@/features/crm/clients.hooks'
 import type { Client } from '@/features/crm/clients.types'
-import { getErrorMessage } from '@/lib/api-client'
+import { getApiFieldErrors, getErrorMessage } from '@/lib/api-client'
 import { normalizeContactPhone, validateContactPhone } from '@/lib/phone-utils'
 
 type ClientModalProps = {
@@ -45,7 +45,7 @@ function ClientFormContent({ client, onClose }: { client: Client | null; onClose
   const [email, setEmail] = useState(client?.email || '')
   const [address, setAddress] = useState(client?.address || '')
   const [errorMsg, setErrorMsg] = useState('')
-  const [errorField, setErrorField] = useState<'name' | 'address' | 'email' | 'phone' | null>(null)
+  const [errorField, setErrorField] = useState<'name' | 'address' | 'email' | 'phone' | 'contactPerson' | null>(null)
   const [deactivatedClientMatch, setDeactivatedClientMatch] = useState<Client | null>(null)
   const submitting = useRef(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -153,7 +153,10 @@ function ClientFormContent({ client, onClose }: { client: Client | null; onClose
         }
         onClose()
       } catch (err) {
-        setErrorMsg(getErrorMessage(err))
+        const fields = getApiFieldErrors(err)
+        const field = (['name', 'address', 'email', 'phone', 'contactPerson'] as const).find((key) => fields[key])
+        setErrorField(field ?? null)
+        setErrorMsg(field ? fields[field] : '')
       }
     } finally {
       submitting.current = false
@@ -166,8 +169,8 @@ function ClientFormContent({ client, onClose }: { client: Client | null; onClose
       try {
         await reactivateMutation.mutateAsync(deactivatedClientMatch.id)
         onClose()
-      } catch (err) {
-        setErrorMsg(getErrorMessage(err))
+      } catch {
+        // The mutation owns operation feedback; retain the existing reactivation path.
       }
     }
   }
@@ -273,6 +276,7 @@ function ClientFormContent({ client, onClose }: { client: Client | null; onClose
             <Label htmlFor="client-contact">Contact Person</Label>
             <Input
               id="client-contact"
+              error={errorField === 'contactPerson' ? errorMsg : undefined}
               placeholder="e.g. Juan dela Cruz"
               value={contactPerson}
               onChange={(e) => setContactPerson(e.target.value)}

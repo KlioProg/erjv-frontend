@@ -19,6 +19,20 @@ test('friendly labels preserve backend states regardless of trip assignment', ()
   assert.equal(DELIVERY_STATUS_LABELS.COMPLETED, 'Received')
 })
 
+test('unverified references remain refresh issues instead of editable warehouse problems', () => {
+  const context = {
+    incoming: [{ id: 1, deliveryNumber: 'IN-1', status: 'DRAFT', purchaseOrderId: 2, warehouseId: 3, scheduledAt: '2026-11-14T01:00:00Z' }],
+    outgoing: [], purchaseOrders: [{ id: 2, status: 'CONFIRMED' }], salesOrders: [], suppliers: [], clients: [],
+    warehouses: [{ id: 3, name: 'Main', isActive: true }], vehicles: [], employees: [],
+  }
+  assert.equal(buildDeliveryRows(context)[0].schedulingIssue, null)
+  assert.equal(buildDeliveryRows({ ...context, warehouses: [] })[0].schedulingIssue.target, 'refresh')
+  assert.equal(buildDeliveryRows({ ...context, warehousesUnavailable: true })[0].schedulingIssue.target, 'refresh')
+  const outgoing = { ...context, incoming: [], outgoing: [{ id: 2, deliveryNumber: 'OUT-2', status: 'DRAFT', salesOrderId: 4, warehouseId: 3, plannedItems: [{ plannedQuantity: '1' }], items: [] }], salesOrders: [{ id: 4, status: 'CONFIRMED' }] }
+  assert.equal(buildDeliveryRows(outgoing)[0].schedulingIssue, null)
+  assert.equal(buildDeliveryRows({ ...outgoing, unavailableSalesOrderIds: [4] })[0].schedulingIssue.target, 'refresh')
+})
+
 test('history uses only recorded terminal events and dates follow the Manila business day', () => {
   assert.equal(deliveryHistoryDate({ type: 'Incoming', status: 'COMPLETED', record: { completedAt: null, scheduledAt: '2026-10-11' } }), null)
   assert.equal(deliveryHistoryDate({ type: 'Outgoing', status: 'RECONCILED', record: { reconciledAt: '2026-10-12T02:00:00Z', cancelledAt: null } }), '2026-10-12T02:00:00Z')

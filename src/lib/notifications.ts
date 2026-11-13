@@ -28,15 +28,15 @@ function notify(kind: Kind, message: Message, options?: ExternalToast) {
   const description = employeeMessage(options?.description)
   return sonner[kind](title, {
     // One repeated notification is updated in place; explicit operation IDs take precedence.
-    ...(typeof message === 'string'
-      ? { id: notificationId(kind, message, options?.description) }
+    ...(typeof title === 'string'
+      ? { id: notificationId(kind, title, description) }
       : {}),
+    ...options,
     duration:
       kind === 'error' || kind === 'warning' || kind === 'loading'
         ? Infinity
-        : Math.max(5000, (typeof title === 'string' ? title.length : 0) * 50),
+        : (options?.duration ?? Math.max(5000, (typeof title === 'string' ? title.length : 0) * 50)),
     closeButton: kind !== 'loading',
-    ...options,
     ...(options?.description !== undefined ? { description } : {}),
   })
 }

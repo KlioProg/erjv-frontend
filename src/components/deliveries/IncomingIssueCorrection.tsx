@@ -74,7 +74,7 @@ export function IncomingIssueCorrection({
         )
       await client.invalidateQueries({ queryKey: ['incoming-deliveries'] })
       await onSaved()
-      toast.success('Delivery correction saved. Current eligibility has been refreshed.')
+      toast.success('Delivery correction saved.')
     } catch (error) {
       setError(getErrorMessage(error))
       setRequiresRefresh(true)

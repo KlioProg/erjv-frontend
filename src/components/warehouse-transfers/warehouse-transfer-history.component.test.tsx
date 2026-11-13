@@ -168,6 +168,9 @@ it('shows only operational transfers with compact outgoing-style controls and ve
   expect(screen.getByRole('button', { name: 'Add to Trip' })).toBeTruthy()
   expect(screen.getByRole('button', { name: 'View Trip' })).toBeTruthy()
   expect(screen.getByRole('button', { name: 'Receive Goods' })).toBeTruthy()
+  const route = screen.getAllByText('Main Warehouse → Branch Warehouse')[0]
+  expect(route.closest('td')?.classList.contains('max-w-0')).toBe(true)
+  expect(screen.getByRole('columnheader', { name: 'Source / Destination' }).style.width).toBe('')
   expect(screen.getByText('3 transfers on this page')).toBeTruthy()
   expect(writes).toHaveLength(0)
 })
@@ -260,7 +263,7 @@ it('keeps history recovery separate from an empty history and preserves controls
   expect(await screen.findByRole('alert')).toBeTruthy()
   expect(screen.queryByText('No transfer history yet.')).toBeNull()
   expect(screen.getByRole('textbox', { name: 'Search warehouse transfers' })).toBeTruthy()
-  await userEvent.click(screen.getByRole('button', { name: 'Reload transfers' }))
+  await userEvent.click(screen.getByRole('button', { name: 'Retry' }))
   await screen.findByText('WT-10')
   expect(screen.getByText('2 transfers on this page')).toBeTruthy()
 })

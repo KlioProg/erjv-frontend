@@ -7,7 +7,8 @@ import { OverflowValue } from '@/components/ui/OverflowValue'
 import { useUpdateProductPrice } from '@/features/products/products.hooks'
 import type { InventoryItemResponse } from '@/features/products/products.types'
 import { parseStockCents } from '@/features/logistics/stock-display'
-import { getErrorMessage } from '@/lib/api-client'
+import { getApiFieldErrors, getErrorMessage } from '@/lib/api-client'
+import { toast } from '@/lib/notifications'
 
 export function InventoryWholesalePrice({
   product,
@@ -54,7 +55,9 @@ export function InventoryWholesalePrice({
       await updatePrice.mutateAsync({ id: product.id, unitPrice: price.trim() })
       finishEditing()
     } catch (err) {
-      setError(getErrorMessage(err))
+      const fieldError = getApiFieldErrors(err).unitPrice
+      setError(fieldError ?? '')
+      if (!fieldError) toast.error(getErrorMessage(err))
     } finally {
       pending.current = false
     }
