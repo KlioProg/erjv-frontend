@@ -146,10 +146,10 @@ function JobFormContent({ job, onClose }: { job: Job | null; onClose: () => void
       <form onSubmit={handleSubmit} className="flex flex-col gap-4 py-1">
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="job-name" className="text-ui font-medium">
-            Position Title <span className="text-primary">*</span>
+            Position Title <span aria-hidden="true" className="text-primary">*</span>
           </Label>
           <Input
-            id="job-name" aria-invalid={Boolean(nameError)} aria-describedby={nameError ? "job-name-error" : undefined} maxLength={100}
+            id="job-name" pattern=".*\S.*" title="Job name is required." aria-invalid={Boolean(nameError)} aria-describedby={nameError ? "job-name-error" : undefined} maxLength={100}
             placeholder="e.g. Warehouse Supervisor, Delivery Driver, POS Cashier"
             value={name}
             onChange={(e) => {

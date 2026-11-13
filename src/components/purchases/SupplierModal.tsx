@@ -9,13 +9,12 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { PhoneInput } from '@/components/common/PhoneInput'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import type { CreateSupplierPayload, Supplier } from '@/features/logistics/suppliers.types'
 import { getErrorMessage } from '@/lib/api-client'
-import { sanitizePhilippinePhone, validatePhilippinePhone } from '@/lib/phone-utils'
-
-const contactDigits = (value: string) => value.replace(/\D/g, '').replace(/^63(?=9)/, '0')
+import { normalizeContactPhone, validateContactPhone } from '@/lib/phone-utils'
 
 type SupplierModalProps = {
   open: boolean
@@ -51,15 +50,7 @@ export function SupplierModal({
       return
     }
 
-    const digits = contactDigits(phone)
-    const mobile = digits.startsWith('09')
-    const invalidPhone = mobile
-      ? digits.length > 11
-        ? 'Philippine mobile numbers may not exceed 11 digits.'
-        : validatePhilippinePhone(digits)
-      : phone.trim() && !digits
-        ? 'Enter a phone number.'
-        : null
+    const invalidPhone = validateContactPhone(phone)
     setPhoneError(invalidPhone || '')
     if (invalidPhone) return
 
@@ -71,7 +62,7 @@ export function SupplierModal({
         code: code.trim() || `SUP-${Date.now().toString(36).toUpperCase()}`,
         name: name.trim(),
         contactPerson: contactPerson.trim() || null,
-        phone: mobile ? sanitizePhilippinePhone(digits) : phone.trim() || null,
+        phone: normalizeContactPhone(phone) || null,
         email: email.trim() || null,
         address: address.trim(),
       })
@@ -117,10 +108,10 @@ export function SupplierModal({
 
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="supplier-name" className="text-ui font-medium">
-                Company Name <span className="text-primary">*</span>
+                Company Name <span aria-hidden="true" className="text-primary">*</span>
               </Label>
               <Input
-                id="supplier-name"
+                id="supplier-name" pattern=".*\S.*" title="Supplier company name is required."
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="e.g. Holcim Philippines"
@@ -148,23 +139,17 @@ export function SupplierModal({
               <Label htmlFor="supplier-phone" className="text-ui font-medium">
                 Phone Number
               </Label>
-              <Input
+              <PhoneInput
                 id="supplier-phone"
-                type="tel"
-                autoComplete="tel"
                 value={phone}
-                onChange={(e) => {
-                  setPhone(e.target.value)
+                onValueChange={(value) => {
+                  setPhone(value)
                   setPhoneError('')
                 }}
                 aria-invalid={!!phoneError || undefined}
-                aria-describedby={`supplier-phone-help${phoneError ? ' supplier-phone-error' : ''}`}
-                placeholder="e.g. 09171234567"
+                aria-describedby={phoneError ? 'supplier-phone-error' : undefined}
                 className="h-9 text-sm"
               />
-              <p id="supplier-phone-help" className="text-xs text-muted-foreground [overflow-wrap:anywhere]">
-                Philippine mobile: 11 digits starting 09. Landlines and other international formats are accepted.
-              </p>
               {phoneError && <p id="supplier-phone-error" role="alert" className="text-xs text-destructive">{phoneError}</p>}
             </div>
           </div>

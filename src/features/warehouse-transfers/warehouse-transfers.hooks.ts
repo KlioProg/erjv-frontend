@@ -1,3 +1,5 @@
+import { toast } from '@/lib/notifications'
+import { getErrorMessage } from '@/lib/api-client'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '@/features/auth/AuthContext'
 import { fetchTransfer, writeTransfer } from './warehouse-transfers.api'
@@ -40,7 +42,9 @@ export function useTransferWrite() {
     },
     onSuccess: (record) => {
       client.setQueryData(['warehouse-transfers', 'detail', record.id], record)
+      toast.success(record.status === 'DRAFT' ? 'Transfer saved.' : record.status === 'DISPATCHED' ? 'Transfer departure recorded.' : record.status === 'COMPLETED' ? 'Transfer receipt saved.' : 'Transfer cancelled.')
     },
+    onError: (error) => toast.error(getErrorMessage(error)),
     onSettled: () =>
       Promise.all(
         [

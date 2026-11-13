@@ -1,3 +1,4 @@
+import { formatContactPhone } from '@/lib/phone-utils'
 import { DataTableFooter } from '@/components/ui/DataTableFooter'
 import { useResourcePage } from '@/lib/use-cursor-page'
 import { formatProductUnit } from '@/lib/product-unit'
@@ -16,6 +17,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
+import { DirectoryStatusBadge } from '@/components/ui/DirectoryRowControls'
 import { DataTable, type ColumnDef } from '@/components/ui/data-table'
 import { OverflowValue } from '@/components/ui/OverflowValue'
 import { formatStockCents, parseStockCents, stockSortKey } from '@/features/logistics/stock-display'
@@ -228,16 +230,7 @@ export function WarehouseInventory({
                 <WarehouseIcon className="size-5 shrink-0 text-muted-foreground" />
                 <OverflowValue value={warehouse.name} className="font-semibold" />
               </h1>
-              <Badge
-                variant="outline"
-                className={
-                  warehouse.isActive === false
-                    ? 'border-status-warning-foreground/30 text-status-warning-foreground'
-                    : 'border-status-success-foreground/30 text-status-success-foreground'
-                }
-              >
-                {warehouse.isActive === false ? 'Archived · View only' : 'Active'}
-              </Badge>
+              <DirectoryStatusBadge isActive={warehouse.isActive !== false} inactiveLabel="Archived · View only" />
             </div>
             <div className="mt-1.5 flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-muted-foreground">
               <span className="flex min-w-0 max-w-full items-center gap-1.5">
@@ -247,7 +240,7 @@ export function WarehouseInventory({
               {warehouse.contactNumber && (
                 <span className="flex min-w-0 max-w-full items-center gap-1.5">
                   <Phone className="size-3.5 shrink-0" />
-                  <OverflowValue value={warehouse.contactNumber} />
+                  <OverflowValue value={formatContactPhone(warehouse.contactNumber)} />
                 </span>
               )}
             </div>

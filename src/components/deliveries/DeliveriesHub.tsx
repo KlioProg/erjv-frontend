@@ -1,3 +1,6 @@
+import { toast } from '@/lib/notifications'
+import { TableLoadError } from '@/components/ui/TableLoadError'
+import { DeliveryOrderReview } from './DeliveryOrderReview'
 import { ScheduleIncomingDraftModal } from './ScheduleIncomingDraftModal'
 import type { DeliveryRunRecord } from '@/features/logistics/delivery-runs.types'
 import type { DeliveryVehicle } from '@/features/logistics/delivery-vehicles.types'
@@ -23,13 +26,13 @@ import {
   type DeliveryRow,
 } from '@/features/logistics/delivery-workflow'
 import { useEffect, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useSearchParams } from 'react-router'
 import { ArrowDownToLine, Plus } from 'lucide-react'
 import { DeliveryTable } from './DeliveryTable'
 import { OrderDetailDrawer } from '@/components/orders/OrderDetailDrawer'
 import { PurchaseOrderDetailModal } from '@/components/purchases/PurchaseOrderDetailModal'
-import { Badge } from '@/components/ui/badge'
+import { PurchaseOrderStatusBadge } from '@/components/purchases/PurchaseOrderStatusBadge'
 import { useAuth } from '@/features/auth/AuthContext'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -60,7 +63,6 @@ import { fetchIncomingDeliveriesApi } from '@/features/logistics/incoming-delive
 import { fetchOutgoingDeliveriesApi } from '@/features/logistics/outgoing-deliveries.api'
 import { useAllWarehouses } from '@/features/logistics/warehouses.hooks'
 import { useStockItems } from '@/features/logistics/stock-items.hooks'
-import type { PurchaseOrderStatus } from '@/features/logistics/purchase-orders.types'
 import type { CreateIncomingDeliveryPayload } from '@/features/logistics/incoming-deliveries.types'
 import { ScheduleIncomingDeliveryModal } from './ScheduleIncomingDeliveryModal'
 import { ScheduleDeliveryModal } from './ScheduleDeliveryModal'
@@ -130,6 +132,7 @@ export function DeliveriesHub({
 }: DeliveriesHubProps = {}) {
   const { isAdmin, isManager } = useAuth()
   const canManage = isAdmin || isManager
+  const queryClient = useQueryClient()
   const navigate = useNavigate()
   const [params] = useSearchParams()
   const view: DeliveryView =
@@ -157,12 +160,16 @@ export function DeliveriesHub({
   const [lastSavedIncoming, setLastSavedIncoming] = useState<IncomingDeliveryRecord | null>(null)
   const [viewIncomingId, setViewIncomingId] = useState<number | null>(null)
   const incomingDetail = useIncomingDeliveryById(viewIncomingId ?? undefined)
+  const [parentContext, setParentContext] = useState<{
+    type: 'Incoming' | 'Outgoing'; orderId: number; reference: string
+  } | null>(null)
+  const [returnOutgoingId, setReturnOutgoingId] = useState<number | null>(null)
   const [viewOutgoingId, setViewOutgoingId] = useState<number | null>(null)
   const [viewOrder, setViewOrder] = useState<{ type: 'Incoming' | 'Outgoing'; id: number } | null>(
     null,
   )
   const [receiveId, setReceiveId] = useState<number | null>(null)
-  const [completeId, setCompleteId] = useState<number | null>(null)
+  const [completion, setCompletion] = useState<{ id: number; runId: number } | null>(null)
   const [confirmation, setConfirmation] = useState<{
     row: DeliveryRow
     action: 'schedule' | 'cancel' | 'reopen'
@@ -279,8 +286,8 @@ export function DeliveriesHub({
     ...salesOrders.flatMap((order) => order.items.map((item) => item.inventoryItemId)),
   ])
   const { data: stockItems = [] } = useStockItems()
-  const createIncoming = useCreateIncomingDelivery()
-  const scheduleIncoming = useScheduleIncomingDelivery()
+  const createIncoming = useCreateIncomingDelivery({ success: false })
+  const scheduleIncoming = useScheduleIncomingDelivery({ success: false, error: false })
   const cancelIncoming = useCancelIncomingDelivery()
   const cancelOutgoing = useCancelOutgoingDelivery()
   const reopenOutgoing = useReopenOutgoingDelivery()
@@ -367,7 +374,7 @@ export function DeliveriesHub({
       incoming: [lastSavedIncoming], outgoing: [], purchaseOrders, salesOrders, suppliers, clients, warehouses, vehicles, employees,
     })[0] : listedViewRow
   const viewRow = incomingDetail.data?.id === viewIncomingId ? buildDeliveryRows({
-    incoming: [incomingDetail.data], outgoing: [], purchaseOrders, salesOrders, suppliers, clients, warehouses, vehicles, employees,
+    incoming: [incomingDetail.data], outgoing: [], purchaseOrders, unavailablePurchaseOrderIds, salesOrders, suppliers, clients, warehouses, vehicles, employees,
   })[0] : fallbackViewRow
   const selectedPurchase = usePurchaseOrderById(
     viewOrder?.type === 'Incoming' ? viewOrder.id : undefined,
@@ -403,7 +410,7 @@ export function DeliveriesHub({
     }
     if (!canManage || pending || !getDeliveryActions(row).includes(action)) return
     if (action === 'receive') setReceiveId(row.record.id)
-    else if (action === 'reconcile') setCompleteId(row.record.id)
+    else if (action === 'reconcile' && row.type === 'Outgoing' && row.record.runId != null) setCompletion({ id: row.record.id, runId: row.record.runId })
     else if (row.type === 'Outgoing' && action === 'run')
       navigate(`/deliveries/runs?assign=${row.record.id}`)
     else if (row.type === 'Outgoing' && action === 'ready') {
@@ -419,10 +426,14 @@ export function DeliveriesHub({
     try {
       const scheduled = await scheduleIncoming.mutateAsync({ id: created.id, expectedRevision: created.revision })
       setLastSavedIncoming(scheduled)
+      toast.success('Arrival scheduled.', { id: `incoming-arrival-${scheduled.id}`, action: { label: 'View delivery', onClick: () => setViewIncomingId(scheduled.id) } })
     } catch (error) {
-      setIncomingScheduleFailure(
-        `${created.deliveryNumber || `Incoming delivery #${created.id}`} was created, but scheduling was not confirmed. ${getErrorMessage(error)} Refresh the delivery list and review this draft before scheduling it again. Do not create a duplicate shipment.`,
-      )
+      const message = `${created.deliveryNumber || `Incoming delivery #${created.id}`} was created, but scheduling was not confirmed. ${getErrorMessage(error)} Refresh the delivery list and review this draft before scheduling it again. Do not create a duplicate shipment.`
+      setIncomingScheduleFailure(message)
+      toast.warning('Draft saved. Arrival could not be scheduled.', {
+        id: `incoming-schedule-${created.id}`, description: message,
+        action: { label: 'Review delivery', onClick: () => setViewIncomingId(created.id) },
+      })
     }
     setCreateType(null)
   }
@@ -607,15 +618,16 @@ export function DeliveriesHub({
       view={view}
       isLoading={loading}
       hasFilters={hasFilters}
-      canManage={canManage}
-      pending={pending}
       onView={(row) =>
         row.type === 'Incoming'
           ? setViewIncomingId(row.record.id)
           : setViewOutgoingId(row.record.id)
       }
       onViewOrder={(row) => setViewOrder({ type: row.type, id: row.orderId })}
+      onViewTrip={(id) => navigate(`/deliveries/runs?run=${id}`)}
       onAction={handleAction}
+      canManage={canManage}
+      busy={pending}
     />
   )
   return (
@@ -667,26 +679,6 @@ export function DeliveriesHub({
         </div>}
       </div>
       {tripsHistory ? <DeliveryRunsHub history /> : <>
-      {view === 'incoming' && lastSavedIncoming && (
-        <Alert>
-          <AlertDescription>
-            {lastSavedIncoming.status === 'COMPLETED'
-              ? `Receipt recorded for ${lastSavedIncoming.deliveryNumber}.`
-              : lastSavedIncoming.status === 'SCHEDULED'
-                ? `Arrival scheduled for ${lastSavedIncoming.deliveryNumber}.`
-                : `Draft created for ${lastSavedIncoming.deliveryNumber}.`}{' '}
-            {lastSavedIncoming.status === 'SCHEDULED' && 'Return to this record when the supplier arrives. '}
-            <Button variant="link" size="sm" onClick={() => setViewIncomingId(lastSavedIncoming.id)}>
-              {lastSavedIncoming.status === 'COMPLETED' ? 'View Receipt' : 'View Details'}
-            </Button>
-          </AlertDescription>
-        </Alert>
-      )}
-      {incomingScheduleFailure && (
-        <Alert variant="destructive">
-          <AlertDescription>{incomingScheduleFailure}</AlertDescription>
-        </Alert>
-      )}
       {orderScope !== null && (
         <p className="text-xs text-muted-foreground">
           {view === 'incoming' ? 'Incoming' : 'Outgoing'} deliveries for{' '}
@@ -699,71 +691,16 @@ export function DeliveriesHub({
           </Button>
         </p>
       )}
-      {hasDeliveryError && (
-        <Alert variant="destructive">
-          <AlertDescription>
-            Some deliveries could not be loaded.{' '}
-            {!allHistory && (
-              <Button
-                variant="link"
-                size="sm"
-                onClick={() => {
-                  if (incomingEnabled) void incomingQuery.reload()
-                  if (outgoingEnabled) void outgoingQuery.reload()
-                }}
-                disabled={isFetchingDeliveries}
-              >
-                {isFetchingDeliveries ? 'Retrying...' : 'Retry'}
-              </Button>
-            )}
-          </AlertDescription>
-        </Alert>
-      )}
-      {view === 'outgoing' &&
-        lastSavedOutgoing &&
-        (outgoingQuery.isError ||
-          !filtered.some(
-            (row) =>
-              row.record.id === lastSavedOutgoing.id && row.status === lastSavedOutgoing.status,
-          )) && (
-          <Alert>
-            <AlertDescription>
-              {lastSavedOutgoing.deliveryNumber}{' '}
-              {lastSavedOutgoing.status === 'READY' ? 'was marked ready' : 'was saved'}.{' '}
-              {outgoingQuery.isFetching
-                ? 'Refreshing outgoing deliveries...'
-                : outgoingQuery.isError
-                  ? 'The list could not be refreshed. Do not schedule it again.'
-                  : hasFilters
-                    ? 'Current filters hide this delivery.'
-                    : 'It is not currently visible in the list.'}
-              <Button
-                variant="link"
-                size="sm"
-                onClick={() => setViewOutgoingId(lastSavedOutgoing.id)}
-              >
-                View New Delivery
-              </Button>
-              {hasFilters && (
-                <Button
-                  variant="link"
-                  size="sm"
-                  onClick={() => {
-                    clearFilters()
-                    setSearch(lastSavedOutgoing.deliveryNumber)
-                  }}
-                >
-                  Show in List
-                </Button>
-              )}
-            </AlertDescription>
-          </Alert>
-        )}
       <div data-delivery-table className="min-w-0 overflow-hidden rounded-lg border bg-card">
         {hasDeliveryError && filtered.length === 0 && !isLoadingDeliveries ? (
-          <p role="status" className="px-4 py-6 text-center text-sm text-muted-foreground">
-            Delivery records are unavailable until the request succeeds.
-          </p>
+          <TableLoadError message="Delivery records could not be loaded." retrying={isFetchingDeliveries}
+            onRetry={() => {
+              if (allHistory) historyPagination.retry()
+              else {
+                if (incomingEnabled) void incomingQuery.reload()
+                if (outgoingEnabled) void outgoingQuery.reload()
+              }
+            }} />
         ) : (
           renderTable(
             allHistory ? historyPagination.items : filtered,
@@ -824,6 +761,49 @@ export function DeliveriesHub({
             label="Outgoing delivery"
           />
         )}
+      {view === 'outgoing' &&
+        lastSavedOutgoing &&
+        (outgoingQuery.isError ||
+          !filtered.some(
+            (row) =>
+              row.record.id === lastSavedOutgoing.id && row.status === lastSavedOutgoing.status,
+          )) && (
+          <div className="border-t px-3 py-2 text-sm text-muted-foreground">
+              {lastSavedOutgoing.deliveryNumber}{' '}
+
+              {outgoingQuery.isFetching
+                ? 'Refreshing outgoing deliveries...'
+                : outgoingQuery.isError
+                  ? 'The list could not be refreshed. Do not schedule it again.'
+                  : hasFilters
+                    ? 'Current filters hide this delivery.'
+                    : 'It is not currently visible in the list.'}
+              <Button
+                variant="link"
+                size="sm"
+                onClick={() => setViewOutgoingId(lastSavedOutgoing.id)}
+              >
+                View New Delivery
+              </Button>
+              {hasFilters && (
+                <Button
+                  variant="link"
+                  size="sm"
+                  onClick={() => {
+                    clearFilters()
+                    setSearch(lastSavedOutgoing.deliveryNumber)
+                  }}
+                >
+                  Show in List
+                </Button>
+              )}
+          </div>
+        )}
+        {view === 'incoming' && lastSavedIncoming && <div className="border-t px-3 py-2">
+          <Button variant="link" size="sm" onClick={() => setViewIncomingId(lastSavedIncoming.id)}>
+            {lastSavedIncoming.status === 'COMPLETED' ? 'View Receipt' : 'View Details'}
+          </Button>
+        </div>}
       </div>
       {canManage && createType === 'Incoming' && (
         <ScheduleIncomingDeliveryModal
@@ -845,11 +825,21 @@ export function DeliveriesHub({
           onClose={() => {
             setCreateType(null)
             setOutgoingDraftId(undefined)
+            if (returnOutgoingId !== null) {
+              setViewOutgoingId(returnOutgoingId)
+              setReturnOutgoingId(null)
+            }
           }}
           preselectedOrderId={orderScope ?? undefined}
           draftId={outgoingDraftId}
           onSaved={(delivery) => {
             setLastSavedOutgoing(delivery)
+            if (returnOutgoingId !== null) {
+              setCreateType(null)
+              setOutgoingDraftId(undefined)
+              setViewOutgoingId(delivery.id)
+              setReturnOutgoingId(null)
+            }
             if (orderScope !== null && orderScope !== delivery.salesOrderId)
               setOrderScope(delivery.salesOrderId)
           }}
@@ -880,30 +870,31 @@ export function DeliveriesHub({
           onClose={() => setReceiveId(null)}
         />
       )}
-      {completeId !== null && outgoing.find((delivery) => delivery.id === completeId)?.runId && (
-        <CompleteDeliveryModal
-          key={completeId}
-          deliveryId={completeId}
-          runId={outgoing.find((delivery) => delivery.id === completeId)!.runId!}
-          onClose={() => setCompleteId(null)}
-        />
+      {completion && (
+        <CompleteDeliveryModal key={completion.id} deliveryId={completion.id} runId={completion.runId} onClose={() => setCompletion(null)} />
       )}
       <DeliveryDetailModal
         deliveryId={viewOutgoingId}
-        open={viewOutgoingId !== null}
+        open={viewOutgoingId !== null && !parentContext}
         onClose={() => setViewOutgoingId(null)}
         canManage={canManage}
+        operationalFallback={!rows.some((row) => row.type === 'Outgoing' && row.record.id === viewOutgoingId)}
         onNextAction={(id, action) => {
+          const record = queryClient.getQueryData<OutgoingDeliveryRecord>(['outgoing-deliveries', 'id', id])
+          if (!record || record.id !== id) return
+          const row = buildDeliveryRows({
+            incoming: [], outgoing: [record], purchaseOrders, salesOrders, suppliers, clients, warehouses, vehicles, employees,
+          })[0]
+          if (row?.type !== 'Outgoing') return
           setViewOutgoingId(null)
-          const row = rows.find(
-            (candidate) =>
-              candidate.type === 'Outgoing' && candidate.record.id === id,
-          )
-          if (row?.type === 'Outgoing') handleAction(row, action)
+          if (action === 'ready') setReturnOutgoingId(id)
+          handleAction(row, action)
         }}
         onViewOrder={(id) => {
-          setViewOutgoingId(null)
-          setViewOrder({ type: 'Outgoing', id })
+          setParentContext({
+            type: 'Outgoing', orderId: id,
+            reference: rows.find((row) => row.type === 'Outgoing' && row.record.id === viewOutgoingId)?.reference ?? 'Outgoing Delivery',
+          })
         }}
         onViewTrip={(id) => {
           setViewOutgoingId(null)
@@ -911,23 +902,39 @@ export function DeliveriesHub({
         }}
       />
       <IncomingDeliveryDetailModal
-        row={viewRow?.type === 'Incoming' ? viewRow : undefined}
+        key={viewIncomingId ?? 'closed'}
+        operationalFallback={!rows.some((row) => row.type === 'Incoming' && row.record.id === viewIncomingId)}
+        canConfirmPurchaseOrder={isAdmin}
+        row={!parentContext && viewRow?.type === 'Incoming' ? viewRow : undefined}
+        warehouses={warehouses}
+        workflowError={viewRow?.status === 'DRAFT' && lastSavedIncoming?.id === viewIncomingId ? incomingScheduleFailure : undefined}
         purchaseOrders={purchaseOrders}
         products={products}
         onClose={() => setViewIncomingId(null)}
-        canManage={canManage && incomingDetail.data?.id === viewIncomingId && !incomingDetail.isFetching && !incomingDetail.isError}
+        canManage={canManage}
         refreshing={incomingDetail.isFetching}
         refreshError={incomingDetail.isError ? getErrorMessage(incomingDetail.error) : !incomingDetail.isFetching && viewIncomingId !== null && incomingDetail.data?.id !== viewIncomingId ? 'The current incoming delivery could not be verified.' : undefined}
-        onRefresh={() => void incomingDetail.refetch()}
+        onRefresh={async () => {
+          const result = await incomingDetail.refetch()
+          await Promise.all([
+            incomingQuery.reload(),
+            queryClient.invalidateQueries({ queryKey: ['purchase-orders'] }),
+            queryClient.invalidateQueries({ queryKey: ['warehouses'] }),
+          ])
+          if (result.isError) throw Error('The current delivery could not be refreshed. Recheck it before continuing.')
+        }}
         onAction={(row, action) => {
           setViewIncomingId(null)
           handleAction(row, action)
         }}
         onViewOrder={(row) => {
-          setViewIncomingId(null)
-          setViewOrder({ type: 'Incoming', id: row.orderId })
+          setParentContext({ type: 'Incoming', orderId: row.orderId, reference: row.reference })
         }}
       />
+      {parentContext && (
+        <DeliveryOrderReview key={`${parentContext.type}-${parentContext.orderId}`}
+          {...parentContext} warehouses={warehouses} onClose={() => setParentContext(null)} />
+      )}
       {purchaseOrderToView && (
         <PurchaseOrderDetailModal
           order={purchaseOrderToView}
@@ -939,7 +946,7 @@ export function DeliveriesHub({
           receivingUnavailable={purchaseDeliveries.isError}
           onRetryReceiving={() => void purchaseDeliveries.refetch()}
           statusBadge={
-            <Badge variant="outline">{purchaseOrderStatusLabels[purchaseOrderToView.status]}</Badge>
+            <PurchaseOrderStatusBadge status={purchaseOrderToView.status} />
           }
           onClose={() => setViewOrder(null)}
         />
@@ -1006,12 +1013,4 @@ export function DeliveriesHub({
       </>}
     </div>
   )
-}
-
-const purchaseOrderStatusLabels: Record<PurchaseOrderStatus, string> = {
-  DRAFT: 'Draft',
-  CONFIRMED: 'Confirmed',
-  PARTIALLY_RECEIVED: 'Partially Received',
-  RECEIVED: 'Received',
-  CANCELLED: 'Cancelled',
 }

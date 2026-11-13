@@ -1,4 +1,4 @@
-import { Badge } from '@/components/ui/badge'
+import { StatusBadge } from '@/components/ui/StatusBadge'
 import { DeliveryUtils } from '@/features/logistics/delivery-utils'
 import type { VehicleStatus } from '@/features/logistics/delivery-vehicles.types'
 
@@ -16,13 +16,20 @@ export function VehicleStatusBadge({
   const config = DeliveryUtils.getVehicleStatusConfig(status)
 
   return (
-    <Badge
-      variant="outline"
-      className={`text-xs font-medium px-2 py-0.5 rounded-md inline-flex items-center gap-2 ${config.badgeClass} ${className}`}
+    <StatusBadge
+      label={config.label}
+      tone={
+        status === 'AVAILABLE'
+          ? 'success'
+          : status === 'OUT_OF_SERVICE'
+            ? 'destructive'
+            : status === 'IN_DELIVERY' || status === 'MAINTENANCE'
+              ? 'warning'
+              : 'neutral'
+      }
+      className={className}
+      showDot={showDot}
       title={config.description}
-    >
-      {showDot && <span className={`size-1.5 rounded-full shrink-0 ${config.dotClass}`} />}
-      <span>{config.label}</span>
-    </Badge>
+    />
   )
 }

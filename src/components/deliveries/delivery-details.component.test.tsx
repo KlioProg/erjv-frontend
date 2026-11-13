@@ -239,10 +239,13 @@ describe('delivery progress', () => {
         deliveryFixture.reconciledAt,
       ]
       expect(steps).toHaveLength(4)
+      expect(screen.getByRole('list', { name: 'Delivery progress' }).classList.contains('w-full')).toBe(true)
       steps.forEach((step, index) => {
-        expect(step.getAttribute('aria-current')).toBe(index === current ? 'step' : null)
+        const state = index < current || status === 'RECONCILED' ? 'complete' : index === current ? 'current' : 'upcoming'
+        expect(step.getAttribute('aria-current')).toBe(state === 'current' ? 'step' : null)
+        expect(step.querySelector('[data-slot="lifecycle-segment"]')?.getAttribute('data-state')).toBe(state)
         expect(step.textContent).toContain(
-          index === current ? 'current step' : index < current ? 'completed' : 'upcoming',
+          state === 'current' ? 'Current' : state === 'complete' ? 'Completed' : 'Upcoming',
         )
         if (dates[index]) expect(step.textContent?.includes(DeliveryUtils.formatDateTime(dates[index]))).toBe(index <= current)
       })
@@ -273,7 +276,7 @@ describe('outgoing delivery details', () => {
     expect(within(dialog).getByText(orderFixture.deliveryAddress!)).toBeTruthy()
     expect(within(dialog).getByText('Archived Warehouse')).toBeTruthy()
     expect(within(dialog).getByText('Ana Cruz')).toBeTruthy()
-    expect(within(dialog).getByText('09123456789')).toBeTruthy()
+    expect(within(dialog).getByText('+63 912 345 6789')).toBeTruthy()
     expect(within(dialog).getByText('ABC-1234 (Truck)')).toBeTruthy()
     expect(within(dialog).getByText('Cargo Model / Capacity: 1500.00 kg')).toBeTruthy()
     expect(
@@ -285,7 +288,7 @@ describe('outgoing delivery details', () => {
         .getAllByRole('columnheader')
         .map((cell) => cell.textContent),
     ).toEqual(['Item', 'Loaded Quantity'])
-    for (const text of [productName, 'Carabao', '0.05', 'kg']) {
+    for (const text of [productName + ' · Carabao', '0.05 kg']) {
       expect(within(table).getByText(text)).toBeTruthy()
     }
     expect(within(dialog).getByText(/Keep the cargo dry/).textContent).toBe(delivery.notes)
@@ -320,11 +323,10 @@ describe('outgoing delivery details', () => {
       'Some linked details could not be loaded. Saved references remain visible.',
     )
     expect(screen.getByText('Product #2')).toBeTruthy()
-    expect(screen.getByText('0.05')).toBeTruthy()
-    expect(screen.getByText('Unit unavailable')).toBeTruthy()
+    expect(screen.getByText('0.05 Unit unavailable')).toBeTruthy()
     failedUrl = undefined
     await user.click(screen.getByRole('button', { name: 'Retry linked details' }))
-    await screen.findByText(productName)
+    await screen.findByText(productName + ' · Carabao')
     await waitFor(() => expect(screen.queryByRole('alert')).toBeNull())
     expect(requests.filter((request) => request.url === '/inventory-items/2')).toHaveLength(2)
     expect(requests.filter((request) => request.url === '/outgoing-deliveries/10')).toHaveLength(1)
@@ -362,44 +364,72 @@ describe('outgoing delivery details', () => {
     expect(onClose).toHaveBeenCalledOnce()
   })
 
-  it('shows a permission-aware next action and keeps the trip relationship navigable', async () => {
-    delivery.status = 'DISPATCHED'
-    const user = userEvent.setup()
+  it.each([
+    ['DRAFT', null, true, false],
+    ['READY', null, true, true],
+    ['READY', 12, false, false],
+    ['DISPATCHED', 12, false, false],
+    ['RECONCILED', 12, false, false],
+    ['CANCELLED', null, false, false],
+  ] as const)('keeps secondary operations valid for %s with trip %s', async (status, runId, cancellable, reopenable) => {
+    delivery.status = status
+    delivery.runId = runId
     const onNextAction = vi.fn()
-    const onViewOrder = vi.fn()
-    const onViewTrip = vi.fn()
-    mount(vi.fn(), { canManage: true, onNextAction, onViewOrder, onViewTrip })
-    const dialog = await screen.findByRole('dialog', { name: 'OD-000010' })
-    expect(within(dialog).getAllByText('Dispatched').length).toBeGreaterThan(1)
-    expect(within(dialog).getByRole('button', { name: 'Record Results OD-000010' })).toBeTruthy()
-    await user.click(within(dialog).getByRole('button', { name: 'View sales order SO-000011' }))
+    mount(vi.fn(), { canManage: true, onNextAction, onViewOrder: vi.fn(), onViewTrip: vi.fn() })
+    const dialog = within(await screen.findByRole('dialog', { name: 'OD-000010' }))
+    await waitFor(() => expect(dialog.getAllByRole('button', { name: 'Close' }).every((button) => !button.hasAttribute('disabled'))).toBe(true))
+    expect(!!dialog.queryByRole('button', { name: 'Cancel Delivery' })).toBe(cancellable)
+    expect(!!dialog.queryByRole('button', { name: 'Reopen Draft' })).toBe(reopenable)
+    expect(dialog.getByRole('button', { name: 'View sales order SO-000011' })).toBeTruthy()
+    expect(!!dialog.queryByRole('button', { name: 'View delivery trip RUN-000012' })).toBe(runId != null)
+    expect(dialog.queryByRole('button', { name: 'More Actions' })).toBeNull()
+    expect(onNextAction).not.toHaveBeenCalled()
+  })
+
+  it('navigates through the order identifier with the keyboard without a mutation', async () => {
+    const onNextAction = vi.fn(), onViewOrder = vi.fn()
+    mount(vi.fn(), { canManage: true, onNextAction, onViewOrder })
+    const details = within(await screen.findByRole('dialog', { name: 'OD-000010' }))
+    const link = await details.findByRole('button', { name: 'View sales order SO-000011' })
+    link.focus()
+    await userEvent.keyboard('{Enter}')
     expect(onViewOrder).toHaveBeenCalledWith(11)
-    await user.click(within(dialog).getByRole('button', { name: 'View delivery trip RUN-000012' }))
+    expect(onNextAction).not.toHaveBeenCalled()
+  })
+
+  it('keeps dispatched details informational and links the assigned order and trip', async () => {
+    const onNextAction = vi.fn(), onViewOrder = vi.fn(), onViewTrip = vi.fn()
+    mount(vi.fn(), { canManage: true, onNextAction, onViewOrder, onViewTrip })
+    const dialog = within(await screen.findByRole('dialog', { name: 'OD-000010' }))
+    expect(dialog.queryByRole('button', { name: /Record Results/ })).toBeNull()
+    await userEvent.click(await dialog.findByRole('button', { name: 'View sales order SO-000011' }))
+    await userEvent.click(await dialog.findByRole('button', { name: 'View delivery trip RUN-000012' }))
+    expect(onViewOrder).toHaveBeenCalledWith(11)
     expect(onViewTrip).toHaveBeenCalledWith(12)
-    await user.click(within(dialog).getByRole('button', { name: 'Record Results OD-000010' }))
-    expect(onNextAction).toHaveBeenCalledWith(10, 'reconcile')
+    expect(onNextAction).not.toHaveBeenCalled()
   })
 
-  it('does not expose outgoing mutations without management permission but still permits viewing an assigned trip', async () => {
-    delivery.status = 'READY'
-    const onNextAction = vi.fn()
-    mount(vi.fn(), { canManage: false, onNextAction })
-    const dialog = await screen.findByRole('dialog', { name: 'OD-000010' })
-    expect(within(dialog).getByRole('button', { name: 'View Trip OD-000010' })).toBeTruthy()
-    expect(within(dialog).queryByRole('button', { name: 'Record Results OD-000010' })).toBeNull()
+  it('keeps related trip navigation available to read-only employees', async () => {
+    const onViewTrip = vi.fn()
+    mount(vi.fn(), { canManage: false, onNextAction: vi.fn(), onViewTrip })
+    const dialog = within(await screen.findByRole('dialog', { name: 'OD-000010' }))
+    await userEvent.click(await dialog.findByRole('button', { name: 'View delivery trip RUN-000012' }))
+    expect(onViewTrip).toHaveBeenCalledWith(12)
+    expect(dialog.queryByRole('button', { name: 'Cancel Delivery' })).toBeNull()
   })
 
-  it('lets a manager add an unassigned ready delivery to a trip without changing its status', async () => {
+  it('shows saved Ready planning quantities before loaded cargo exists', async () => {
     delivery.status = 'READY'
+    delivery.items = []
     delivery.runId = null
-    const user = userEvent.setup()
-    const onNextAction = vi.fn()
-    mount(vi.fn(), { canManage: true, onNextAction })
-    const dialog = await screen.findByRole('dialog', { name: 'OD-000010' })
-    expect(within(dialog).getAllByText('Ready').length).toBeGreaterThan(1)
-    await user.click(within(dialog).getByRole('button', { name: 'Add to Trip OD-000010' }))
-    expect(onNextAction).toHaveBeenCalledWith(10, 'run')
-    expect(delivery.status).toBe('READY')
+    delivery.plannedItems = [{ id: 81, outgoingDeliveryId: 10, salesOrderItemId: 80, plannedQuantity: '1.25', ...stamps }]
+    mount(vi.fn(), { canManage: true, onNextAction: vi.fn() })
+    const dialog = within(await screen.findByRole('dialog', { name: 'OD-000010' }))
+    expect(await dialog.findByRole('heading', { name: 'Planned Items (1)' })).toBeTruthy()
+    expect(dialog.getByRole('columnheader', { name: 'Planned Quantity' })).toBeTruthy()
+    expect(dialog.getByText('1.25 kg')).toBeTruthy()
+    expect(dialog.queryByRole('button', { name: /Add to Trip/ })).toBeNull()
+    expect(delivery.items).toEqual([])
   })
 })
 
@@ -504,7 +534,7 @@ describe('incoming delivery details', () => {
       />,
     )
     const dialog = screen.getByRole('dialog', { name: 'ID-000020' })
-    expect(within(dialog).getByText('Draft')).toBeTruthy()
+    expect(within(dialog).getAllByText('Draft').length).toBeGreaterThan(0)
     expect(within(dialog).getByText('Supplier #9')).toBeTruthy()
     expect(within(dialog).getByText('Receiving Warehouse')).toBeTruthy()
     const table = within(dialog).getByRole('table')
@@ -512,12 +542,12 @@ describe('incoming delivery details', () => {
       'Product',
       'Expected',
     ])
-    expect(within(table).getByText('2.00')).toBeTruthy()
-    expect(within(table).getByText('kg')).toBeTruthy()
+    expect(within(table).getByText('2 kg')).toBeTruthy()
     await user.click(within(dialog).getByRole('button', { name: 'View purchase order PO-000021' }))
     expect(onViewOrder).toHaveBeenCalledWith(row)
-    await user.click(within(dialog).getByRole('button', { name: 'Continue Scheduling ID-000020' }))
-    expect(onAction).toHaveBeenCalledWith(row, 'schedule')
+    expect(within(dialog).queryByRole('button', { name: /Schedule Arrival/ })).toBeNull()
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel Delivery' }))
+    expect(onAction).toHaveBeenCalledWith(row, 'cancel')
   })
 
   it('distinguishes received, accepted, and damaged quantities after confirmed receipt', () => {
@@ -546,7 +576,7 @@ describe('incoming delivery details', () => {
       'Accepted',
       'Damaged',
     ])
-    for (const quantity of ['2.00', '1.25', '1.00', '0.25']) {
+    for (const quantity of ['2 kg', '1.25 kg', '1 kg', '0.25 kg']) {
       expect(within(table).getByText(quantity)).toBeTruthy()
     }
     expect(within(dialog).getByText(/Received with damage/)).toBeTruthy()
@@ -584,7 +614,7 @@ describe('incoming delivery details', () => {
     expect(within(dialog).getByText('Outcome recorded at')).toBeTruthy()
     expect(within(dialog).queryByText('Received at')).toBeNull()
     expect(within(dialog).queryByText('0.00')).toBeNull()
-    expect(within(dialog).queryByRole('button', { name: 'Continue Scheduling ID-000020' })).toBeNull()
+    expect(within(dialog).queryByRole('button', { name: 'Schedule Arrival ID-000020' })).toBeNull()
   })
 
   it('keeps new scheduling unavailable for an ineligible Purchase Order', () => {
@@ -602,6 +632,42 @@ describe('incoming delivery details', () => {
     )
     const dialog = screen.getByRole('dialog', { name: 'ID-000020' })
     expect(within(dialog).getByText('Purchase Order Already Received')).toBeTruthy()
-    expect(within(dialog).queryByRole('button', { name: 'Continue Scheduling ID-000020' })).toBeNull()
+    expect(within(dialog).queryByRole('button', { name: 'Schedule Arrival ID-000020' })).toBeNull()
   })
+})
+
+it.each([2, 15])('shows %s incoming receipt products with distinct quantities and units', (count) => {
+  const products = Array.from({ length: count }, (_, index) => ({ ...productFixture, id: 100 + index, name: 'Receipt product ' + index, variety: 'Carabao', unit: index % 2 ? 'L' : 'kg' }))
+  const order = { ...purchaseOrderFixture, items: products.map((product, index) => ({ ...purchaseOrderFixture.items[0], id: 300 + index, inventoryItemId: product.id, quantity: '7.00' })) }
+  const completed: IncomingDeliveryRecord = { ...incomingDeliveryFixture, status: 'COMPLETED', outcome: 'RECEIVED_WITH_DAMAGE', completedAt: '2026-10-05T04:15:00Z',
+    items: order.items.map((item, index) => ({ ...incomingDeliveryFixture.items[0], id: 400 + index, purchaseOrderItemId: item.id, receivedQuantity: '5.50', acceptedQuantity: '3.00', damagedQuantity: '2.50' })) }
+  const original = JSON.stringify(completed)
+  render(<IncomingDeliveryDetailModal row={incomingRow(completed)} purchaseOrders={[order]} products={products} onClose={vi.fn()} />)
+  const table = screen.getByRole('table')
+  expect(within(table).getAllByRole('row')).toHaveLength(count + 1)
+  const values = within(within(table).getAllByRole('row')[1]).getAllByRole('cell').map((cell) => cell.textContent)
+  expect(values).toEqual(['Receipt product 0 · Carabao', '7 kg', '5.5 kg', '3 kg', '2.5 kg'])
+  expect(within(table).getAllByText('7 L').length).toBeGreaterThan(0)
+  expect(JSON.stringify(completed)).toBe(original)
+})
+
+it('shows multiple planned products with their own units before cargo is loaded', async () => {
+  delivery.status = 'READY'; delivery.runId = null; delivery.items = []
+  delivery.plannedItems = [
+    { id: 81, outgoingDeliveryId: 10, salesOrderItemId: 80, plannedQuantity: '1.25', ...stamps },
+    { id: 82, outgoingDeliveryId: 10, salesOrderItemId: 81, plannedQuantity: '3.00', ...stamps },
+  ]
+  records['/sales-orders'] = [{ ...orderFixture, items: [...orderFixture.items, { ...orderFixture.items[0], id: 81, inventoryItemId: 3, quantity: '3.00' }] }]
+  const inventory = records['/inventory-items'] as InventoryItemResponse[]
+  records['/inventory-items'] = [...inventory, { ...inventory[0], id: 3, name: 'Other product', variety: 'Large', unit: 'pieces' }]
+  mount()
+  const dialog = within(await screen.findByRole('dialog', { name: 'OD-000010' }))
+  expect(await dialog.findByRole('heading', { name: 'Planned Items (2)' })).toBeTruthy()
+  expect(await dialog.findByText('3 piece(s)')).toBeTruthy()
+  const table = dialog.getByRole('table')
+  expect(within(table).getAllByRole('row')).toHaveLength(3)
+  expect(within(table).getByRole('columnheader', { name: 'Product' })).toBeTruthy()
+  expect(within(table).getByText('Other product · Large')).toBeTruthy()
+  expect(within(table).getByText('1.25 kg')).toBeTruthy()
+  expect(delivery.items).toEqual([])
 })

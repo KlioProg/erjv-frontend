@@ -1,3 +1,4 @@
+import { formatContactPhone } from '@/lib/phone-utils'
 import { CursorLookup } from '@/components/ui/CursorLookup'
 import { Label } from '@/components/ui/label'
 import { manilaScheduleToIso } from '@/lib/manila-schedule'
@@ -16,7 +17,7 @@ import { useQueries } from '@tanstack/react-query'
 import { fetchSupplierByIdApi } from '@/features/logistics/suppliers.api'
 import { DataTableFooter, DataTableFrame } from '@/components/ui/DataTableFooter'
 import { PageHeader, PageToolbar } from '@/components/ui/ManagementPage'
-import { toast } from 'sonner'
+import { toast } from '@/lib/notifications'
 import { useState, useMemo, useRef } from 'react'
 import { Archive, Building2, CheckCircle2, Clock, Plus, Search, XCircle } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -506,7 +507,7 @@ export function PurchasesView({
       className: 'text-sm text-foreground',
       cell: ({ row: supplier }) => (
         <OverflowValue
-          value={[supplier.phone, supplier.email].filter(Boolean).join(' | ')}
+          value={[formatContactPhone(supplier.phone), supplier.email].filter(Boolean).join(' | ')}
           className="max-w-64"
         />
       ),
@@ -748,6 +749,7 @@ export function PurchasesView({
           statusBadge={renderStatusBadge(selectedOrder.status)}
           onClose={() => setSelectedOrderId(null)}
           onNavigateToDeliveries={onNavigateToDeliveries}
+          canScheduleArrival={canManage}
           receivingLoading={selectedDeliveries?.isPending ?? true}
           receivingUnavailable={selectedDeliveries?.isError ?? false}
           onRetryReceiving={() => void selectedDeliveries?.refetch()}

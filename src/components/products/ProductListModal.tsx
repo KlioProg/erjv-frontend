@@ -12,7 +12,7 @@ import { DataTableActions } from '@/components/ui/DataTableActions'
 import { DataTable, type ColumnDef } from '@/components/ui/data-table'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
+import { DirectoryStatusBadge } from '@/components/ui/DirectoryRowControls'
 import { useResourcePage } from '@/lib/use-cursor-page'
 import { DataTableFooter } from '@/components/ui/DataTableFooter'
 import { InventoryItemModal } from '../operations/InventoryItemModal'
@@ -85,16 +85,7 @@ export function ProductListModal({ open, onClose }: ProductListModalProps) {
       header: 'Status',
       align: 'center',
       cell: ({ row }) => (
-        <Badge
-          variant="outline"
-          className={`text-xs font-medium ${
-            row.isActive
-              ? 'border-status-success-foreground/20 bg-status-success text-status-success-foreground'
-              : 'border-border bg-muted text-muted-foreground'
-          }`}
-        >
-          {row.isActive ? 'Active' : 'Archived'}
-        </Badge>
+        <DirectoryStatusBadge isActive={row.isActive} inactiveLabel="Archived" />
       ),
     },
     {

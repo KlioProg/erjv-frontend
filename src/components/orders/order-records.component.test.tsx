@@ -164,6 +164,19 @@ it('retains purchase draft editing and revision-checked cancellation in details'
   expect(JSON.parse(writes.mock.calls[0][0].data)).toEqual({ expectedRevision: 3 })
 })
 
+it('keeps purchase delivery navigation available to readers without offering arrival scheduling', async () => {
+  auth.isAdmin = false
+  const navigate = vi.fn()
+  mount(<PurchasesView onNavigateToDeliveries={navigate} />)
+  await userEvent.click(await screen.findByRole('button', { name: 'PO-1' }))
+  const dialog = await screen.findByRole('dialog', { name: /PO-1/ })
+  expect(within(dialog).queryByRole('button', { name: 'Schedule Arrival' })).toBeNull()
+  await userEvent.click(within(dialog).getByRole('button', { name: 'More Actions' }))
+  await userEvent.click(screen.getByRole('menuitem', { name: 'View Incoming Deliveries' }))
+  expect(navigate).toHaveBeenCalledWith(1)
+  expect(writes).not.toHaveBeenCalled()
+})
+
 it('shows purchase partial receipt and damaged quantities without claiming complete fulfillment', async () => {
   purchase.status = 'PARTIALLY_RECEIVED'
   incoming = [
@@ -223,6 +236,31 @@ it.each(['sales', 'purchase'])('opens %s details from a mouse row click', async 
   ).toBeTruthy()
   expect(writes).not.toHaveBeenCalled()
 })
+
+it.each(['sales', 'purchase'])(
+  'returns focus to the %s identifier and refreshes saved data when reopened',
+  async (kind) => {
+    const user = userEvent.setup()
+    const record = kind === 'sales' ? sales : purchase
+    mount(kind === 'sales' ? <OrdersView /> : <PurchasesView />)
+    const identifier = await screen.findByRole('button', { name: kind === 'sales' ? 'SO-1' : 'PO-1' })
+    identifier.focus()
+    await user.keyboard('{Enter}')
+    await screen.findByRole('dialog')
+    await user.keyboard('{Escape}')
+    await waitFor(() => expect(document.activeElement).toBe(identifier))
+    expect(writes).not.toHaveBeenCalled()
+
+    record.notes = 'Saved by another employee'
+    record.revision = 4
+    await user.keyboard('{Enter}')
+    const dialog = await screen.findByRole('dialog')
+    expect(await within(dialog).findByText('Saved by another employee')).toBeTruthy()
+    await user.click(within(screen.getByRole('group', { name: /order actions/ })).getByRole('button', { name: 'Close' }))
+    await waitFor(() => expect(document.activeElement).toBe(identifier))
+    expect(writes).not.toHaveBeenCalled()
+  },
+)
 
 it.each(['sales', 'purchase'])(
   'keeps %s draft mutation actions hidden for readers',

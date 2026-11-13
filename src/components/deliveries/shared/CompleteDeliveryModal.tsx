@@ -2,7 +2,7 @@ import { receivingQuantityWidth } from './receiving-quantity'
 import { deliveryFormStyles } from './delivery-form.styles'
 import { useEffect, useRef, useState } from 'react'
 import { decimalLimitError, QUANTITY_MAX } from '@/lib/decimal-limits'
-import { toast } from 'sonner'
+import { toast } from '@/lib/notifications'
 import {
   Dialog,
   DialogContent,

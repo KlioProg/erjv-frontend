@@ -1,7 +1,7 @@
 import { requireDecimalLimit } from '@/lib/decimal-limits'
 import { useRef, useState } from 'react'
 import axios from 'axios'
-import { toast } from 'sonner'
+import { toast } from '@/lib/notifications'
 import { useSalesOrderById } from '@/features/crm/sales-orders.hooks'
 import { useQueries } from '@tanstack/react-query'
 import { fetchProductByIdApi } from '@/features/products/products.api'

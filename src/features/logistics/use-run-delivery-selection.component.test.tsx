@@ -18,7 +18,7 @@ const delivery = (id: number): OutgoingDeliveryRecord => ({
   status: 'READY',
   runId: null,
   salesOrderId: 1,
-  plannedItems: [],
+  plannedItems: [{ id: 1, outgoingDeliveryId: id, salesOrderItemId: 1, plannedQuantity: '1.00', createdAt: '', updatedAt: '' }],
   items: [],
   notes: null,
   reconciledAt: null,
@@ -29,6 +29,19 @@ const delivery = (id: number): OutgoingDeliveryRecord => ({
   cancelledAt: null,
   createdAt: '',
   updatedAt: '',
+})
+
+it('rejects a Ready delivery whose saved plan is empty after selection and before saving', async () => {
+  const latest = { ...delivery(100), plannedItems: [] }
+  apiClient.defaults.adapter = async (config) => ({ config, status: 200, statusText: 'OK', headers: {}, data: latest })
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  const wrapper = ({ children }: PropsWithChildren) => <QueryClientProvider client={client}>{children}</QueryClientProvider>
+  const { result } = renderHook(() => useRunDeliverySelection(2), { wrapper })
+  act(() => result.current.toggle(delivery(100)))
+  await waitFor(() => expect(result.current.issues[0]).toMatch(/valid saved plan/))
+  expect(result.current.canSave).toBe(false)
+  expect(await result.current.verify()).toBe(false)
+  client.clear()
 })
 
 it('uses stable identities and respects the remaining member limit during rapid changes', async () => {

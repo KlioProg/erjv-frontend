@@ -1,3 +1,4 @@
+import { normalizeContactPhone } from '@/lib/phone-utils'
 import { fetchCursorList } from '@/lib/cursor-pagination'
 import { apiClient, type FetchParams } from '@/lib/api-client'
 import { fetchCursorPage, type CursorParams } from '@/lib/cursor-pagination'
@@ -28,7 +29,7 @@ export async function createClientApi(payload: CreateClientPayload): Promise<Cli
     name: payload.name.trim(),
     address: payload.address.trim(),
     ...(payload.contactPerson?.trim() ? { contactPerson: payload.contactPerson.trim() } : {}),
-    ...(payload.phone?.trim() ? { phone: payload.phone.trim() } : {}),
+    ...(payload.phone?.trim() ? { phone: normalizeContactPhone(payload.phone) } : {}),
     ...(payload.email?.trim() ? { email: payload.email.trim() } : {}),
     ...(payload.isActive !== undefined ? { isActive: payload.isActive } : {}),
   }
@@ -47,7 +48,7 @@ export async function updateClientDetailsApi(
     ...(payload.contactPerson !== undefined
       ? { contactPerson: payload.contactPerson?.trim() || null }
       : {}),
-    ...(payload.phone !== undefined ? { phone: payload.phone?.trim() || null } : {}),
+    ...(payload.phone !== undefined ? { phone: normalizeContactPhone(payload.phone ?? '') || null } : {}),
     ...(payload.email !== undefined ? { email: payload.email?.trim() || null } : {}),
   }
 

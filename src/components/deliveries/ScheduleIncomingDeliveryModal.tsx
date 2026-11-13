@@ -244,6 +244,7 @@ export function ScheduleIncomingDeliveryModal({
                   Purchase Order <span className="text-primary">*</span>
                 </Label>
                 <SearchableDropdown<PurchaseOrderRecord>
+                  required
                   id="incoming-purchase-order" ariaLabel="Purchase Order"
                   options={eligiblePOs} value={selectedPOId} onValueChange={handlePOChange}
                   getOptionValue={(order) => String(order.id)}
@@ -266,6 +267,7 @@ export function ScheduleIncomingDeliveryModal({
                   Receiving Warehouse <span className="text-primary">*</span>
                 </Label>
                 <CursorLookup<Warehouse>
+                  required
                   id="incoming-warehouse" path="/warehouses" filter={{ includeInactive: 'false' }}
                   label="warehouse" ariaLabel="Receiving Warehouse" value={selectedWarehouseId}
                   onChange={setSelectedWarehouseId} getLabel={(warehouse) => warehouse.name}

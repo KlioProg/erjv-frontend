@@ -1,4 +1,4 @@
-import { Badge } from '@/components/ui/badge'
+import { StatusBadge } from '@/components/ui/StatusBadge'
 
 export function DirectoryStatusBadge({
   isActive,
@@ -8,15 +8,9 @@ export function DirectoryStatusBadge({
   inactiveLabel?: string
 }) {
   return (
-    <Badge
-      variant="outline"
-      className={`px-2 py-0.5 text-xs font-medium ${
-        isActive
-          ? 'border-status-success-foreground/20 bg-status-success text-status-success-foreground'
-          : 'border-border bg-muted text-muted-foreground'
-      }`}
-    >
-      {isActive ? 'Active' : inactiveLabel}
-    </Badge>
+    <StatusBadge
+      label={isActive ? 'Active' : inactiveLabel}
+      tone={isActive ? 'success' : 'neutral'}
+    />
   )
 }

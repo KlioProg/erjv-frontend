@@ -1,3 +1,4 @@
+import { TableLoadError } from '@/components/ui/TableLoadError'
 import { StockPagingControls } from '@/components/inventory/StockPagingControls'
 import { formatStockCents, parseStockCents, stockSortKey } from '@/features/logistics/stock-display'
 import { buildCatalogStockMap } from '@/features/products/products.catalog.utils'
@@ -25,7 +26,6 @@ import {
 import { ArchiveTabNav } from '@/components/ui/ArchiveTabNav'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -468,13 +468,11 @@ export function InventoryStockList({
           if (row.status === 'UNKNOWN') return <span>Stock status unavailable</span>
           if (row.status === 'UNCONFIGURED') {
             return (
-              <Badge variant="outline" className="text-xs">
-                Threshold not set
-              </Badge>
+              <StatusBadge label="Threshold not set" />
             )
           }
           return (
-            <StatusBadge label="In Stock" tone="success" appearance="emphasis" />
+            <StatusBadge label="In Stock" tone="success" />
           )
         },
       },
@@ -641,25 +639,10 @@ export function InventoryStockList({
         </div>
       </div>
 
-      {hasQueryError && (
-        <Alert variant="destructive">
-          <AlertDescription>
-            Warehouse stock could not be loaded. {getErrorMessage(queryError)}
-            <Button
-              variant="outline"
-              size="sm"
-              className="ml-2"
-              onClick={retryFailedQueries}
-              disabled={isFetching}
-            >
-              {isFetching ? 'Retrying...' : 'Retry'}
-            </Button>
-          </AlertDescription>
-        </Alert>
-      )}
-
       {/* Main View: Table Mode or Card Mode */}
-      {viewMode === 'table' ? (
+      {hasQueryError ? (
+        <TableLoadError message="Warehouse stock could not be loaded." description={getErrorMessage(queryError)} onRetry={retryFailedQueries} retrying={isFetching} />
+      ) : viewMode === 'table' ? (
         <DataTable
           appearance="management"
           data={flatStockItems}
@@ -708,13 +691,6 @@ export function InventoryStockList({
               </div>
             </Card>
           ))}
-        </div>
-      ) : hasQueryError ? (
-        <div
-          role="alert"
-          className="flex min-h-[360px] items-center justify-center rounded-lg border border-border bg-card px-4 py-12 text-center text-sm text-destructive"
-        >
-          Warehouse inventory items are unavailable until the request succeeds.
         </div>
       ) : (
         /* Card Mode */
@@ -945,15 +921,9 @@ export function InventoryStockList({
                                     {whDisplayName}
                                   </span>
                                   {isOut ? (
-                                    <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-md bg-destructive/10 text-destructive border border-destructive/30">
-                                      <span className="size-1.5 rounded-full bg-destructive shrink-0" />
-                                      Out of Stock
-                                    </span>
+                                    <StatusBadge label="Out of Stock" tone="destructive" appearance="emphasis" />
                                   ) : isLow ? (
-                                    <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-md bg-status-warning text-status-warning-foreground border border-status-warning-foreground/30">
-                                      <span className="size-1.5 rounded-full bg-status-warning-foreground shrink-0" />
-                                      Low Stock
-                                    </span>
+                                    <StatusBadge label="Low Stock" tone="warning" appearance="emphasis" />
                                   ) : null}
                                 </div>
                                 <div className="flex items-baseline gap-1.5 mt-1.5">

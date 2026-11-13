@@ -3,6 +3,7 @@ import { Truck, ArrowUpRight, ChevronDown, Clock } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { StatusBadge } from '@/components/ui/StatusBadge'
 import { useDeliveryVehicles } from '@/features/logistics/delivery-vehicles.hooks'
 
 export interface Transaction {
@@ -157,16 +158,10 @@ export function ExecutiveDashboard() {
                     </div>
                   </div>
 
-                  <Badge
-                    variant="outline"
-                    className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full ${
-                      tx.status === 'Completed'
-                        ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20'
-                        : 'bg-amber-500/10 text-amber-600 border-amber-500/20'
-                    }`}
-                  >
-                    {tx.status}
-                  </Badge>
+                  <StatusBadge
+                    label={tx.status}
+                    tone={tx.status === 'Completed' ? 'success' : tx.status === 'Cancelled' ? 'destructive' : 'warning'}
+                  />
                 </div>
               ))
             )}

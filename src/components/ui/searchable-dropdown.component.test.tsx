@@ -6,6 +6,14 @@ import { useState } from 'react'
 
 afterEach(() => vi.restoreAllMocks())
 
+it('describes required selectors without changing their menu-button semantics', () => {
+  render(<SearchableDropdown required options={['Main']} value="" onValueChange={vi.fn()}
+    getOptionValue={(value) => value} getOptionLabel={(value) => value} placeholder="Choose"
+    searchPlaceholder="Search" emptyMessage="Empty" ariaLabel="Warehouse" />)
+  const trigger = screen.getByRole('button', { name: 'Warehouse' })
+  expect(document.getElementById(trigger.getAttribute('aria-describedby')!)?.textContent).toBe('Required.')
+})
+
 it('searches safely when labels are missing or contain multilingual markup-looking text', async () => {
   const user = userEvent.setup()
   const text = '倉庫 <b>safe</b>'

@@ -142,6 +142,32 @@ async function open() {
 }
 const writes = () => requests.filter((item) => item.method === 'post' || item.method === 'patch')
 
+it.each([
+  ['DRAFT', 'Draft'], ['DISPATCHED', 'In Transit'], ['COMPLETED', 'Completed'], ['CANCELLED', 'Cancelled'],
+] as const)('keeps the %s status pill intact beside the existing action column', async (status, label) => {
+  record.status = status
+  mount(status === 'COMPLETED' || status === 'CANCELLED' ? 'history' : 'active')
+  const reference = await screen.findByRole('button', { name: 'View transfer WT-000007' })
+  const row = reference.closest('tr')!
+  const text = within(row).getByText(label)
+  const badge = text.closest('[data-slot="badge"]')!
+  expect(badge.classList.contains('whitespace-nowrap')).toBe(true)
+  expect(badge.classList.contains('min-w-max')).toBe(true)
+  expect(badge.classList.contains('w-fit')).toBe(true)
+  expect(badge.classList.contains('bg-muted')).toBe(true)
+  expect(badge.querySelector('[data-slot="status-dot"]')).toBeTruthy()
+  expect(text.closest('td')?.classList.contains('min-w-32')).toBe(true)
+  expect(screen.getByRole('columnheader', { name: 'Status' }).classList.contains('min-w-32')).toBe(true)
+  expect(screen.getByRole('columnheader', { name: status === 'COMPLETED' || status === 'CANCELLED' ? 'Details' : 'Next Action' })).toBeTruthy()
+  expect(screen.getByRole('columnheader', { name: 'Source / Destination' })).toBeTruthy()
+  expect(within(row).getByText(/ → /)).toBeTruthy()
+  expect(writes()).toHaveLength(0)
+})
+async function discardChanges() {
+  const dialog = await screen.findByRole('dialog', { name: 'Discard Changes?' })
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Discard Changes' }))
+}
+
 it('rejects malformed actual transfer event timestamps instead of displaying an invalid date', () => {
   expect(() => validateTransfer(Object.assign(transferFixture(), { dispatchedAt: 'invalid' }))).toThrow(/incomplete transfer/)
 })
@@ -174,8 +200,8 @@ it.each([
   expect(within(dialog).getByText('To warehouse')).toBeTruthy()
   const itemsTable = within(dialog).getByRole('table')
   await within(itemsTable).findByText('Test Item')
-  expect(within(itemsTable).getByText('kg')).toBeTruthy()
-  expect(within(itemsTable).getAllByText('10.00')).toHaveLength(status === 'COMPLETED' ? 2 : 1)
+  expect(within(itemsTable).getAllByText(/ kg$/).length).toBeGreaterThan(0)
+  expect(within(itemsTable).getAllByText('10 kg')).toHaveLength(status === 'COMPLETED' ? 2 : 1)
   expect(within(itemsTable).getAllByRole('columnheader').map((header) => header.textContent)).toEqual(
     status === 'COMPLETED'
       ? [
@@ -279,6 +305,31 @@ it('edits notes without replacing saved lines and submits the saved revision', a
   expect(record.items).toHaveLength(1)
   expect(record.revision).toBe(2)
 })
+
+it.each(['draft', 'receipt'])('protects unsubmitted transfer %s entries when dismissed', async (mode) => {
+  if (mode === 'receipt') record = { ...record, status: 'DISPATCHED', revision: 2 }
+  mount()
+  await open()
+  await userEvent.click(screen.getByRole('button', { name: mode === 'draft' ? 'Edit Draft' : 'Receive Goods' }))
+  const editor = screen.getByRole('dialog')
+  if (mode === 'receipt')
+    await userEvent.click(within(editor).getByRole('radio', { name: 'Some items were damaged, missing, or returned' }))
+  const input = within(editor).getByLabelText(mode === 'draft' ? 'Notes (optional)' : 'Received for item 10 (Test Item)')
+  await userEvent.type(input, mode === 'draft' ? 'Keep this note' : '6')
+  await userEvent.keyboard('{Escape}')
+  const confirmation = await screen.findByRole('dialog', { name: 'Discard Changes?' })
+  await userEvent.click(within(confirmation).getByRole('button', { name: 'Keep Editing' }))
+  expect((input as HTMLInputElement).value).toBe(mode === 'draft' ? 'Keep this note' : '6')
+  await waitFor(() => expect(editor.contains(document.activeElement)).toBe(true))
+  expect(writes()).toHaveLength(0)
+  await userEvent.click(within(editor).getByRole('button', { name: mode === 'draft' ? 'Cancel' : 'Close' }))
+  const discard = await screen.findByRole('dialog', { name: 'Discard Changes?' })
+  await userEvent.click(within(discard).getByRole('button', { name: 'Discard Changes' }))
+  await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Discard Changes?' })).toBeNull())
+  if (mode === 'draft') expect(await screen.findByRole('dialog', { name: 'WT-000007' })).toBeTruthy()
+  else expect(screen.queryByRole('dialog')).toBeNull()
+  expect(writes()).toHaveLength(0)
+})
 it('does not change a saved draft until its source reset is explicitly saved', async () => {
   record = {
     ...record,
@@ -367,6 +418,7 @@ it.each([
   conflict = ''
   record = { ...record, revision: 2 }
   await userEvent.click(screen.getByRole('button', { name: 'Review saved transfers' }))
+  await discardChanges()
   await userEvent.click(await within(screen.getByRole('dialog')).findByRole('button', { name: 'Receive Goods' }))
   await userEvent.click(screen.getByRole('radio', { name: 'All items received in good condition' }))
   await userEvent.click(screen.getByRole('button', { name: 'Review Receipt' }))
@@ -428,6 +480,38 @@ it('resets filter-bound cursor pagination on search and preserves one compact fo
   await waitFor(() => expect(requests.some((item) => item.params?.q === 'WT-7')).toBe(true))
   expect(requests.find((item) => item.params?.q === 'WT-7')!.params?.cursor).toBeUndefined()
   expect(screen.getByText('Page 1')).toBeTruthy()
+})
+
+it('uses Manila date and 24-hour time filters without querying partial or reversed boundaries', async () => {
+  mount()
+  await screen.findByText('WT-000007')
+  await userEvent.click(screen.getByRole('button', { name: 'Next page' }))
+  await waitFor(() => expect(requests.some((item) => item.params?.cursor === 'page-2')).toBe(true))
+  await userEvent.click(screen.getByRole('button', { name: 'Filters' }))
+  const fromDate = screen.getByLabelText('Scheduled departure from (Manila) Date')
+  const fromTime = screen.getByLabelText('Scheduled departure from (Manila) Time')
+  const reads = () => requests.filter((item) => item.url === '/warehouse-transfers')
+  const count = reads().length
+  fireEvent.change(fromDate, { target: { value: '2026-11-05' } })
+  fireEvent.blur(fromTime)
+  expect(fromTime.getAttribute('aria-invalid')).toBe('true')
+  await userEvent.type(fromTime, '1017')
+  await waitFor(() => expect(reads().at(-1)?.params?.scheduledFrom).toBe('2026-11-05T02:17:00.000Z'))
+  expect(reads().length).toBe(count + 1)
+  expect(reads().at(-1)?.params?.cursor).toBeUndefined()
+
+  const beforeDate = screen.getByLabelText('Scheduled departure before (Manila) Date')
+  const beforeTime = screen.getByLabelText('Scheduled departure before (Manila) Time')
+  const filteredCount = reads().length
+  fireEvent.change(beforeDate, { target: { value: '2026-11-05' } })
+  await userEvent.type(beforeTime, '1017')
+  expect(screen.getByText('Departure before must be later than departure from.')).toBeTruthy()
+  expect(reads()).toHaveLength(filteredCount)
+  fireEvent.change(beforeTime, { target: { value: '23:59' } })
+  await waitFor(() => expect(reads().at(-1)?.params?.scheduledBefore).toBe('2026-11-05T15:59:00.000Z'))
+  await userEvent.click(within(screen.getByRole('dialog', { name: 'Filters' })).getByRole('button', { name: 'Clear scheduled departure from (manila)' }))
+  await waitFor(() => expect(reads().at(-1)?.params?.scheduledFrom).toBeUndefined())
+  expect(writes()).toHaveLength(0)
 })
 it('rejects Staff draft writes at the mutation boundary', async () => {
   auth.isAdmin = false
@@ -564,6 +648,7 @@ it('blocks a stale receipt before writing and opens the latest saved transfer fo
   expect((receipt.getByLabelText('Received for item 10 (Test Item)') as HTMLInputElement).value).toBe('9.00')
   expect(writes()).toHaveLength(0)
   await userEvent.click(receipt.getByRole('button', { name: 'Review saved transfers' }))
+  await discardChanges()
   await screen.findByRole('dialog', { name: 'WT-000007' })
   await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Receive Goods' }))
   expect(screen.getAllByRole('radio').every((radio) => !(radio as HTMLInputElement).checked)).toBe(true)
@@ -587,6 +672,7 @@ it('does not repeat an uncertain receipt when the saved transfer is already comp
   expect(writes()).toHaveLength(1)
   expect(screen.queryByText(/receipt saved\./)).toBeNull()
   await userEvent.click(receipt.getByRole('button', { name: 'Review saved transfers' }))
+  await discardChanges()
   const saved = within(await screen.findByRole('dialog', { name: 'WT-000007' }))
   expect(saved.getByText('Completed')).toBeTruthy()
   expect(saved.queryByRole('button', { name: 'Receive Goods' })).toBeNull()

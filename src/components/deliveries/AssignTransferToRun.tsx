@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { toast } from 'sonner'
+import { toast } from '@/lib/notifications'
 import { useTransfer } from '@/features/warehouse-transfers/warehouse-transfers.hooks'
 import type { WarehouseTransfer } from '@/features/warehouse-transfers/warehouse-transfers.types'
 import { useChangeRunTransfers, useDeliveryRunById } from '@/features/logistics/delivery-runs.hooks'

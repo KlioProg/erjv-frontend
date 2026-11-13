@@ -338,6 +338,7 @@ export function OrderModal({
             customerSelector={
               remoteSelectors ? (
                 <CursorLookup<Client>
+                  required
                   id="order-customer"
                   path="/clients"
                   filter={{ includeInactive: 'false' }}

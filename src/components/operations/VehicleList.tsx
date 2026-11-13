@@ -1,3 +1,4 @@
+import { TableLoadError } from '@/components/ui/TableLoadError'
 import { OverflowValue } from '@/components/ui/OverflowValue'
 import { DataTableFilters, DataTableFilterChips, type DataTableFilter } from '@/components/ui/data-table-filters'
 import { PageHeader, PageToolbar } from '@/components/ui/ManagementPage'
@@ -7,11 +8,11 @@ import {
   VEHICLE_AVAILABILITY_LABELS as STATUS_LABELS,
 } from '@/features/logistics/vehicle-assignment'
 import { useState } from 'react'
-import { Eye, MoreVertical, Plus, Search, Truck } from 'lucide-react'
+import { MoreVertical, Plus, Search, Truck } from 'lucide-react'
 import { DataTable, type ColumnDef } from '@/components/ui/data-table'
 import { ArchiveTabNav } from '@/components/ui/ArchiveTabNav'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
+import { StatusBadge } from '@/components/ui/StatusBadge'
 import { Input } from '@/components/ui/input'
 import {
   DropdownMenu,
@@ -22,7 +23,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   useDeactivateVehicle,
   useReactivateVehicle,
@@ -43,7 +43,7 @@ import {
 } from '@/features/logistics/vehicle-assignment'
 import { VehicleStatusBadge } from '@/components/deliveries/shared/VehicleStatusBadge'
 import { VehicleModal } from './VehicleModal'
-import { toast } from 'sonner'
+import { toast } from '@/lib/notifications'
 
 type VehicleRow = {
   vehicle: DeliveryVehicle
@@ -162,7 +162,17 @@ export function VehicleList() {
       header: 'Plate Number',
       accessorFn: (row) => row.vehicle.plateNumber,
       sortable: false,
-      cell: ({ row }) => <span className="min-w-0 font-medium whitespace-nowrap">{row.vehicle.plateNumber}</span>,
+      cell: ({ row }) => (
+        <Button
+          variant="link"
+          size="sm"
+          className="h-auto p-0 font-medium whitespace-nowrap"
+          aria-label={`View vehicle ${row.vehicle.plateNumber}`}
+          onClick={() => setViewVehicleId(row.vehicle.id)}
+        >
+          {row.vehicle.plateNumber}
+        </Button>
+      ),
     },
     {
       id: 'type',
@@ -178,7 +188,7 @@ export function VehicleList() {
       sortable: false,
       cell: ({ row }) =>
         row.status === 'ARCHIVED' ? (
-          <Badge variant="outline">Archived</Badge>
+          <StatusBadge label="Archived" />
         ) : (
           <VehicleStatusBadge status={row.status} />
         ),
@@ -209,18 +219,9 @@ export function VehicleList() {
       id: 'actions',
       header: 'Actions',
       align: 'right',
+      width: 80,
       cell: ({ row }) => (
         <div className="flex items-center justify-end gap-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label={`View vehicle ${row.vehicle.plateNumber}`}
-            onClick={() => {
-              setViewVehicleId(row.vehicle.id)
-            }}
-          >
-            <Eye data-icon="inline-start" />
-          </Button>
           {canManage && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -232,7 +233,7 @@ export function VehicleList() {
                   <MoreVertical data-icon="inline-start" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
+              <DropdownMenuContent align="end" onClick={(event) => event.stopPropagation()}>
                 <DropdownMenuGroup>
                   <DropdownMenuItem
                     onClick={() => {
@@ -381,30 +382,18 @@ export function VehicleList() {
       </PageToolbar>
       <DataTableFilterChips filters={tableFilters} />
       <DataTableFrame>
-      {(vehicleQuery.isError || deliveryQuery.isError) && (
-        <Alert variant="destructive">
-          <AlertDescription>
-            Vehicle availability could not be checked.{' '}
-            <Button
-              variant="link"
-              size="sm"
-              onClick={() => {
-                void vehicleQuery.reload()
-                void deliveryQuery.refetch()
-              }}
-            >
-              Retry
-            </Button>
-          </AlertDescription>
-        </Alert>
-      )}
-      <DataTable
+      {vehicleQuery.isError || deliveryQuery.isError ? (
+        <TableLoadError message="Vehicle availability could not be checked." retrying={vehicleQuery.isFetching || deliveryQuery.isLoading}
+          onRetry={() => { void vehicleQuery.reload(); void deliveryQuery.refetch() }} />
+      ) : (
+        <DataTable
             pagination={false}
             manualSorting
         appearance="management"
         data={filtered}
-        columns={columns}
+        columns={canManage ? columns : columns.filter((column) => column.id !== 'actions')}
         getRowKey={(row) => row.vehicle.id}
+        onRowClick={(row) => setViewVehicleId(row.vehicle.id)}
         isLoading={vehicleQuery.isLoading || deliveryQuery.isLoading}
         tableClassName="min-w-[900px]"
         emptyContent={
@@ -416,7 +405,8 @@ export function VehicleList() {
             <p className="text-xs text-muted-foreground">Adjust the search or status filter.</p>
           </div>
         }
-      />
+        />
+      )}
       <DataTableFooter {...vehicleQuery} rowCount={vehicleQuery.items.length} label="Vehicle" />
       </DataTableFrame>
       <VehicleModal

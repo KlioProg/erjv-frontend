@@ -2,7 +2,7 @@ import {
   OrderDetailFooter,
   type OrderDetailAction,
 } from '@/components/orders/shared/OrderDetailFooter'
-import { formatProductUnit } from '@/lib/product-unit'
+import { ProductTableLabel, ProductTableQuantity } from '@/components/common/ProductTableCells'
 import { useRef, useState, type ReactNode } from 'react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { getErrorMessage } from '@/lib/api-client'
@@ -12,7 +12,6 @@ import {
   storedPurchaseTotal,
 } from '@/features/logistics/purchase-pricing'
 import { PurchaseReceivingProgress } from './PurchaseReceivingProgress'
-import { OverflowValue } from '@/components/ui/OverflowValue'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { DataTable, type ColumnDef } from '@/components/ui/data-table'
 import { LifecycleProgress } from '@/components/ui/LifecycleProgress'
@@ -49,6 +48,7 @@ type Props = {
   onCancel?: () => void
   recordBusy?: boolean
   recordUnavailable?: boolean
+  canScheduleArrival?: boolean
   onNavigateToDeliveries?: (purchaseOrderId?: number, arrange?: boolean) => void
 }
 
@@ -72,10 +72,12 @@ export function PurchaseOrderDetailModal({
   onCancel,
   recordBusy = false,
   recordUnavailable = false,
+  canScheduleArrival = false,
 }: Props) {
   const [confirmationError, setConfirmationError] = useState('')
   const [pending, setPending] = useState(false)
   const confirmationLock = useRef(false)
+  const launcherRef = useRef<HTMLElement | null>(null)
   const busy = confirming || pending
   const blocked = busy || recordBusy || recordUnavailable
   const progress = getPurchaseOrderDetailProgress(
@@ -85,6 +87,10 @@ export function PurchaseOrderDetailModal({
   )
   async function confirm() {
     if (confirmationLock.current || blocked || !onConfirm) return
+    if (order.supplierId == null || !order.items.length) {
+      setConfirmationError('Confirmation requires a supplier and at least one item. Use More Actions to edit the draft.')
+      return
+    }
     confirmationLock.current = true
     setPending(true)
     setConfirmationError('')
@@ -113,25 +119,13 @@ export function PurchaseOrderDetailModal({
     {
       accessorKey: 'inventoryItemId',
       header: 'Product / Material',
-      cell: ({ row }) => (
-        <OverflowValue
-          value={
-            products.find((product) => product.id === row.inventoryItemId)?.name ||
-            `Item #${row.inventoryItemId}`
-          }
-        />
-      ),
+      cell: ({ row }) => <ProductTableLabel product={products.find((product) => product.id === row.inventoryItemId)} fallback={`Item #${row.inventoryItemId}`} />,
     },
     {
       accessorKey: 'quantity',
       header: 'Quantity',
       align: 'right',
-      cell: ({ row }) => (
-        <span>
-          {row.quantity}{' '}
-          {formatProductUnit(products.find((product) => product.id === row.inventoryItemId)?.unit)}
-        </span>
-      ),
+      cell: ({ row }) => <ProductTableQuantity value={row.quantity} unit={products.find((product) => product.id === row.inventoryItemId)?.unit} />,
     },
     {
       accessorKey: 'unitPrice',
@@ -187,7 +181,9 @@ export function PurchaseOrderDetailModal({
           disabled: blocked,
           onSelect: () => void confirm(),
         }
-      : onNavigateToDeliveries && ['CONFIRMED', 'PARTIALLY_RECEIVED'].includes(order.status)
+      : canScheduleArrival &&
+          onNavigateToDeliveries &&
+          ['CONFIRMED', 'PARTIALLY_RECEIVED'].includes(order.status)
         ? {
             label: 'Schedule Arrival',
             disabled: blocked,
@@ -198,12 +194,26 @@ export function PurchaseOrderDetailModal({
     <Dialog open onOpenChange={(open) => !open && !busy && onClose()}>
       <DialogContent
         closeDisabled={busy}
+        onOpenAutoFocus={() => {
+          const target = document.activeElement
+          if (target instanceof HTMLElement && !target.closest('[role="dialog"], [role="menu"]'))
+            launcherRef.current = target
+        }}
+        onCloseAutoFocus={(event) => {
+          if (launcherRef.current?.isConnected) {
+            event.preventDefault()
+            launcherRef.current.focus({ preventScroll: true })
+          }
+        }}
         className="flex h-auto min-h-0 max-h-[calc(100dvh-2rem)] flex-col gap-3 overflow-hidden p-4 sm:max-w-4xl sm:p-5"
       >
         <div className="flex w-full min-w-0 shrink-0 flex-col gap-2">
           <MovementDetailHeader
             title={order.orderNumber}
-            description={'Purchase order · ' + new Date(order.orderedAt).toLocaleDateString()}
+            description={
+              'Purchase order · ' +
+              new Date(order.orderedAt).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila' })
+            }
             status={<StatusBadge label={progress.label} tone={progress.tone} />}
           />
           <LifecycleProgress label="Purchase order lifecycle" milestones={progress.milestones} />
@@ -237,7 +247,9 @@ export function PurchaseOrderDetailModal({
                 ? [
                     {
                       label: 'Expected Date',
-                      value: new Date(order.expectedAt).toLocaleDateString(),
+                      value: new Date(order.expectedAt).toLocaleDateString('en-PH', {
+                        timeZone: 'Asia/Manila',
+                      }),
                     },
                   ]
                 : []),
@@ -269,6 +281,7 @@ export function PurchaseOrderDetailModal({
             </summary>
             <div className="mt-3">
               <DataTable
+                density="compact"
                 data={order.items || []}
                 columns={columns}
                 pagination={false}

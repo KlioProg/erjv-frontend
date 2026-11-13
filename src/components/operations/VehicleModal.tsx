@@ -236,12 +236,12 @@ function VehicleFormContent({
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="v-plate" className="text-[13px] font-medium">
-              Plate Number <span className="text-primary">*</span>
+              Plate Number <span aria-hidden="true" className="text-primary">*</span>
             </Label>
             <div className="relative">
               <Hash className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
               <Input
-                id="v-plate"
+                id="v-plate" pattern=".*\S.*" title="Vehicle plate number is required."
                 placeholder="e.g. ABC-1234"
                 value={plateNumber}
                 onChange={(e) => {
@@ -261,9 +261,10 @@ function VehicleFormContent({
 
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="v-type" className="text-[13px] font-medium">
-              Vehicle Type <span className="text-primary">*</span>
+              Vehicle Type <span aria-hidden="true" className="text-primary">*</span>
             </Label>
             <SearchableDropdown
+              required
               id="v-type"
               options={VEHICLE_TYPES}
               value={vehicleType}

@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
-import { toast } from 'sonner'
+import { hasValidOutgoingPlan } from '@/features/logistics/outgoing-issues'
+import { toast } from '@/lib/notifications'
 import { useRecordsById } from '@/lib/use-records-by-id'
 import { useOutgoingDeliveryById } from '@/features/logistics/outgoing-deliveries.hooks'
 import { useChangeRunMembers, useDeliveryRunById } from '@/features/logistics/delivery-runs.hooks'
@@ -51,6 +52,7 @@ export function AssignDeliveryToRun({
     !deliveryQuery.isError &&
     delivery?.id === deliveryId &&
     delivery.status === 'READY' &&
+    hasValidOutgoingPlan(delivery) &&
     delivery.runId === null &&
     Number.isSafeInteger(delivery.warehouseId) &&
     Number(delivery.warehouseId) > 0
@@ -106,6 +108,7 @@ export function AssignDeliveryToRun({
         latestDelivery.data.revision !== delivery.revision ||
         latestRun.data.revision !== run.revision ||
         latestDelivery.data.status !== 'READY' ||
+        !hasValidOutgoingPlan(latestDelivery.data) ||
         latestDelivery.data.runId !== null ||
         latestDelivery.data.warehouseId !== run.warehouseId ||
         latestRun.data.status !== 'DRAFT' ||
@@ -180,6 +183,8 @@ export function AssignDeliveryToRun({
           <p role="status" className="text-sm">
             {delivery.runId != null
               ? 'This delivery has already been added to a trip.'
+              : !hasValidOutgoingPlan(delivery)
+                ? 'This delivery needs a valid saved plan. Review it in Outgoing Deliveries before assigning it.'
               : 'This delivery is not available for assignment. Refresh to check its current status.'}
           </p>
         )}

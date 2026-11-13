@@ -36,6 +36,7 @@ export function SalesOrderCustomerInformation({
       <OrderField id="order-customer" label="Customer" required>
         {customerSelector ?? (
           <SearchableDropdown
+            required
             id="order-customer"
             error={form.fieldErrors.clientId}
             options={clients.filter((client) => client.isActive)}

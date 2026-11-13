@@ -1,3 +1,4 @@
+import { ProductTableLabel, ProductTableQuantity } from '@/components/common/ProductTableCells'
 import {
   DataTableFilters,
   DataTableFilterChips,
@@ -22,7 +23,9 @@ import { OverflowValue } from '@/components/ui/OverflowValue'
 import { DataTableFrame } from '@/components/ui/DataTableFooter'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal'
+import { DateTimeField } from '@/components/common/DateTimeField'
+import { manilaScheduleToIso } from '@/lib/manila-schedule'
 import { Label } from '@/components/ui/label'
 import { CursorLookup } from '@/components/ui/CursorLookup'
 import {
@@ -54,7 +57,6 @@ function TransferStatusBadge({ status }: { status: TransferStatus }) {
   return (
     <StatusBadge
       label={statusLabel(status)}
-      appearance="emphasis"
       tone={
         status === 'COMPLETED'
           ? 'success'
@@ -96,7 +98,19 @@ export function WarehouseTransfersPage({ view = 'active' }: { view?: 'active' | 
   const [before, setBefore] = useState('')
   const [opened, setOpened] = useState<number | 'create' | null>(null)
   const [entryAction, setEntryAction] = useState<'reconcile'>()
-  const dateError = Boolean(from && before && from >= before)
+  const [scheduledFrom, scheduledBefore] = [from, before].map((value) => {
+    try {
+      return manilaScheduleToIso(value)
+    } catch {
+      return undefined
+    }
+  })
+  const dateError =
+    scheduledFrom === undefined || scheduledBefore === undefined
+      ? 'Choose a complete, valid departure date and time.'
+      : scheduledFrom && scheduledBefore && scheduledFrom >= scheduledBefore
+        ? 'Departure before must be later than departure from.'
+        : ''
   const query = useResourcePage<WarehouseTransfer>(
     '/warehouse-transfers',
     {
@@ -104,8 +118,8 @@ export function WarehouseTransfersPage({ view = 'active' }: { view?: 'active' | 
       ...(search.trim() ? { q: search.trim() } : {}),
       ...(source ? { sourceWarehouseId: Number(source) } : {}),
       ...(destination ? { destinationWarehouseId: Number(destination) } : {}),
-      ...(from ? { scheduledFrom: `${from}:00+08:00` } : {}),
-      ...(before ? { scheduledBefore: `${before}:00+08:00` } : {}),
+      ...(scheduledFrom ? { scheduledFrom } : {}),
+      ...(scheduledBefore ? { scheduledBefore } : {}),
     },
     (isAdmin || isManager || isStaff) && !dateError,
   )
@@ -185,7 +199,12 @@ export function WarehouseTransfersPage({ view = 'active' }: { view?: 'active' | 
         )
       },
     },
-    { header: 'Status', cell: ({ row }) => <TransferStatusBadge status={row.status} /> },
+    {
+      header: 'Status',
+      className: 'min-w-32 whitespace-nowrap',
+      headerClassName: 'min-w-32 whitespace-nowrap',
+      cell: ({ row }) => <TransferStatusBadge status={row.status} />,
+    },
     {
       header: history ? 'Details' : 'Next Action',
       align: 'right',
@@ -280,15 +299,12 @@ export function WarehouseTransfersPage({ view = 'active' }: { view?: 'active' | 
       valueLabel: field.value,
       onClear: () => field.set(''),
       content: (
-        <>
-          <Label htmlFor={`transfer-${field.id}`}>{field.label}</Label>
-          <Input
-            id={`transfer-${field.id}`}
-            type="datetime-local"
-            value={field.value}
-            onChange={(event) => field.set(event.target.value)}
-          />
-        </>
+        <DateTimeField
+          id={`transfer-${field.id}`}
+          label={field.label}
+          value={field.value}
+          onChange={field.set}
+        />
       ),
     })),
   ]
@@ -310,11 +326,11 @@ export function WarehouseTransfersPage({ view = 'active' }: { view?: 'active' | 
         placeholder="Search transfer number..."
         filters={<DataTableFilters filters={tableFilters} />}
       >
-        <Button asChild variant="outline">
-          <Link to={history ? ROUTES.warehouseTransfers : ROUTES.warehouseTransferHistory}>
-            {history ? 'Active Transfers' : 'History'}
-          </Link>
-        </Button>
+        {history && (
+          <Button asChild variant="outline">
+            <Link to={ROUTES.warehouseTransfers}>Active Transfers</Link>
+          </Button>
+        )}
         {!history && (isAdmin || isManager) && (
           <Button
             onClick={() => {
@@ -329,7 +345,7 @@ export function WarehouseTransfersPage({ view = 'active' }: { view?: 'active' | 
       <DataTableFilterChips filters={tableFilters} />
       {dateError && (
         <p role="alert" className="text-sm text-destructive">
-          Departure before must be later than departure from.
+          {dateError}
         </p>
       )}
       <DataTableFrame>
@@ -375,7 +391,7 @@ export function WarehouseTransfersPage({ view = 'active' }: { view?: 'active' | 
           />
         )}
         <DeliveryPageFooter
-          query={{ ...query, isError: query.isError || dateError }}
+          query={{ ...query, isError: query.isError || !!dateError }}
           count={dateError ? 0 : visibleTransfers.length}
           label="Warehouse transfer"
           unit="transfer"
@@ -424,9 +440,10 @@ export function TransferDialog({
 }) {
   const query = useTransfer(typeof id === 'number' ? id : undefined)
   const [busy, setBusy] = useState(false)
+  const [dirty, setDirty] = useState(false)
+  const [dismissal, setDismissal] = useState<'close' | 'back' | null>(null)
   const [session, setSession] = useState<{ action: Action; record: WarehouseTransfer } | null>(null)
   const [reviewing, setReviewing] = useState(false)
-  const [feedback, setFeedback] = useState('')
   const record = query.data
   const [entered, setEntered] = useState(false)
   if (!entered && initialAction && record && !query.isFetching && !query.isError) {
@@ -448,25 +465,28 @@ export function TransferDialog({
     if (record && !busy && !query.isFetching && !query.isError) setSession({ action, record })
   }
   const review = async () => {
+    setDirty(false)
     setReviewing(true)
     setSession(null)
     await query.refetch()
     setReviewing(false)
   }
+  const requestDismiss = (target: 'close' | 'back') => {
+    if (busy) return
+    if (dirty) setDismissal(target)
+    else if (target === 'close') onClose()
+    else void review()
+  }
   const formProps = {
     onSaved: (saved: WarehouseTransfer) => {
+      setDirty(false)
       if (session?.action === 'cancel') return onClose()
-      setFeedback(`${saved.transferNumber}: ${saved.status === 'DRAFT' ? 'draft saved. Review before sending.' : saved.status === 'DISPATCHED' ? 'departure recorded. Goods are In Transit.' : 'receipt saved.'}`)
       setSession(null)
       if (id === 'create') onOpen(saved.id)
     },
-    onCancel:
-      id === 'create'
-        ? onClose
-        : () => {
-            void review()
-          },
+    onCancel: () => requestDismiss(id === 'create' ? 'close' : 'back'),
     onBusy: setBusy,
+    onDirtyChange: setDirty,
   }
   const title =
     id === 'create'
@@ -484,7 +504,7 @@ export function TransferDialog({
     <Dialog
       open
       onOpenChange={(open) => {
-        if (!open && !busy) onClose()
+        if (!open) requestDismiss('close')
       }}
     >
       <DialogContent
@@ -507,7 +527,6 @@ export function TransferDialog({
             />
             <div className="min-h-0 min-w-0 flex-1 overflow-y-auto px-5 pb-5 sm:px-6">
               <div className="flex flex-col gap-5">
-                {feedback && <p role="status" className="text-sm">{feedback}</p>}
                 <p className="text-sm text-muted-foreground">
                   {record.status === 'DRAFT'
                     ? record.runId != null ? 'Assigned to a delivery trip. Departure is confirmed in the trip.' : 'Draft saved. Add this transfer to a delivery trip before sending.'
@@ -554,6 +573,7 @@ export function TransferDialog({
                     </p>
                   )}
                   <DataTable
+                    density="compact"
                     data={record.items}
                     columns={[
                       {
@@ -561,17 +581,12 @@ export function TransferDialog({
                         header: 'Item',
                         cell: ({ row }) => {
                           const product = products.find((item) => item.id === row.inventoryItemId)
-                          return (
-                            <div className="flex min-w-0 flex-col gap-0.5 [overflow-wrap:anywhere]">
-                              <p className="text-sm font-medium">{product?.name ?? `Item #${row.inventoryItemId}`}</p>
-                              <p className="text-xs text-muted-foreground">{product?.unit || 'Unit unavailable'}</p>
-                            </div>
-                          )
+                          return <ProductTableLabel product={product} fallback={`Item #${row.inventoryItemId}`} />
                         },
                       },
                       {
                         header: 'Sent',
-                        cell: ({ row }) => <span className="tabular-nums">{row.quantity}</span>,
+                        cell: ({ row }) => <ProductTableQuantity value={row.quantity} unit={products.find((product) => product.id === row.inventoryItemId)?.unit} />,
                         align: 'right',
                       },
                       ...(record.status === 'COMPLETED'
@@ -586,7 +601,7 @@ export function TransferDialog({
                             }[field],
                             align: 'right' as const,
                             cell: ({ row }: { row: WarehouseTransfer['items'][number] }) => (
-                              <span className="tabular-nums">{row[field] ?? '—'}</span>
+                              <ProductTableQuantity value={row[field]} unit={products.find((product) => product.id === row.inventoryItemId)?.unit} />
                             ),
                           }))
                         : []),
@@ -700,7 +715,6 @@ export function TransferDialog({
                               : 'Review the completed transfer results.'}
               </DialogDescription>
             </DialogHeader>
-            {feedback && !session && <p role="status" className="text-sm">{feedback}</p>}
             {id === 'create' ? (
               canEdit && <TransferDraftForm {...formProps} />
             ) : session ? (
@@ -732,6 +746,21 @@ export function TransferDialog({
             ) : null}
           </>
         )}
+        <ConfirmDeleteModal
+          open={dismissal !== null}
+          title="Discard Changes?"
+          description="Your unsubmitted transfer entries will be lost. The saved transfer will stay unchanged."
+          confirmText="Discard Changes"
+          cancelText="Keep Editing"
+          onClose={() => setDismissal(null)}
+          onConfirm={() => {
+            const target = dismissal
+            setDismissal(null)
+            setDirty(false)
+            if (target === 'close') onClose()
+            else void review()
+          }}
+        />
       </DialogContent>
     </Dialog>
   )

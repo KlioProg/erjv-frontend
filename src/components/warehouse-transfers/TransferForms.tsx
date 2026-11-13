@@ -50,6 +50,7 @@ type FormProps = {
   onSaved: (saved: WarehouseTransfer) => void
   onCancel: () => void
   onBusy: (busy: boolean) => void
+  onDirtyChange?: (dirty: boolean) => void
 }
 
 function useSubmission({ onSaved, onBusy }: FormProps) {
@@ -129,7 +130,7 @@ function FieldError({ field, errors }: { field: string; errors: Record<string, s
 }
 
 export function TransferDraftForm(props: FormProps) {
-  const { record, onCancel } = props
+  const { record, onCancel, onDirtyChange } = props
   const state = useSubmission(props)
   const [source, setSource] = useState(String(record?.sourceWarehouseId ?? ''))
   const [destination, setDestination] = useState(String(record?.destinationWarehouseId ?? ''))
@@ -235,6 +236,11 @@ export function TransferDraftForm(props: FormProps) {
   const initialSchedule = toManilaSchedule(record?.scheduledDepartureAt)
   const [schedule, setSchedule] = useState(initialSchedule)
   const [notes, setNotes] = useState(record?.notes ?? '')
+  const signature = JSON.stringify([source, destination, items, schedule, notes])
+  const initialSignature = useRef(signature)
+  useEffect(() => {
+    onDirtyChange?.(signature !== initialSignature.current)
+  }, [signature, onDirtyChange])
   const submit = (event: FormEvent) => {
     event.preventDefault()
     if (!(event.currentTarget as HTMLFormElement).reportValidity()) return
@@ -305,8 +311,9 @@ export function TransferDraftForm(props: FormProps) {
                 ] as const
               ).map((field) => (
                 <div key={field.field} className="min-w-0 space-y-1">
-                  <Label htmlFor={`transfer-${field.field}`}>{field.label}</Label>
+                  <Label htmlFor={`transfer-${field.field}`}>{field.label} <span aria-hidden="true">*</span></Label>
                   <CursorLookup<Reference>
+                    required
                     id={`transfer-${field.field}`}
                     path="/warehouses"
                     label={field.label}
@@ -601,7 +608,7 @@ const outcomeLabels = {
 export function TransferActionForm(
   props: FormProps & { record: WarehouseTransfer; action: 'dispatch' | 'reconcile' | 'cancel' },
 ) {
-  const { record, action, onCancel } = props
+  const { record, action, onCancel, onDirtyChange } = props
   const state = useSubmission(props)
   const { data: products } = useRecordsById<Reference & { unit: string }>(
     '/inventory-items',
@@ -635,6 +642,11 @@ export function TransferActionForm(
   }))
   const activeItems = outcome === 'all' ? fullItems : items
   const signature = JSON.stringify([record.revision, outcome, activeItems])
+  const dirtySignature = JSON.stringify([reason, outcome, items])
+  const initialSignature = useRef(dirtySignature)
+  useEffect(() => {
+    onDirtyChange?.(dirtySignature !== initialSignature.current)
+  }, [dirtySignature, onDirtyChange])
   const reviewing = receiptReview === signature && !state.message
   const reviewHeading = useRef<HTMLHeadingElement>(null)
   useEffect(() => {

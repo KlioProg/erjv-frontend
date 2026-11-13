@@ -1,3 +1,5 @@
+import { toast } from '@/lib/notifications'
+import { getErrorMessage } from '@/lib/api-client'
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   cancelDeliveryRunApi, cancelRunMemberApi, changeRunMembersApi, createDeliveryRunApi,
@@ -44,6 +46,7 @@ function useRunMutation<T, R extends DeliveryRunRecord | RunMemberReconciliation
       if ('delivery' in result)
         queryClient.setQueryData(['outgoing-deliveries', 'id', result.delivery.id], result.delivery)
     },
+    onError: (error) => toast.error(getErrorMessage(error)),
     // A rejected or interrupted workflow can still leave these operational views stale.
     onSettled: () => Promise.all([
       DELIVERY_RUNS_QUERY_KEY, ['outgoing-deliveries'], ['sales-orders'], ['stock-items'],

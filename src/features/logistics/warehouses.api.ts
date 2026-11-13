@@ -1,3 +1,4 @@
+import { normalizeContactPhone } from '@/lib/phone-utils'
 import { fetchCursorList } from '@/lib/cursor-pagination'
 import { apiClient, type FetchParams } from '@/lib/api-client'
 import type {
@@ -26,7 +27,7 @@ export async function createWarehouseApi(payload: CreateWarehousePayload): Promi
   const cleanPayload = {
     name: payload.name.trim(),
     address: payload.address.trim(),
-    ...(payload.contactNumber?.trim() ? { contactNumber: payload.contactNumber.trim() } : {}),
+    ...(payload.contactNumber?.trim() ? { contactNumber: normalizeContactPhone(payload.contactNumber) } : {}),
     isActive: true,
   }
 
@@ -42,7 +43,7 @@ export async function updateWarehouseDetailsApi(
     ...(payload.name ? { name: payload.name.trim() } : {}),
     ...(payload.address ? { address: payload.address.trim() } : {}),
     ...(payload.contactNumber !== undefined
-      ? { contactNumber: payload.contactNumber?.trim() || null }
+      ? { contactNumber: normalizeContactPhone(payload.contactNumber ?? '') || null }
       : {}),
   }
 

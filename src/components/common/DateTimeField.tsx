@@ -2,6 +2,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { manilaScheduleToIso } from '@/lib/manila-schedule'
+import { useState } from 'react'
 
 const normalizeCompactTime = (time: string) =>
   /^(?:[01]\d|2[0-3])[0-5]\d$/.test(time) ? `${time.slice(0, 2)}:${time.slice(2)}` : time
@@ -36,6 +37,7 @@ export function DateTimeField({
   helperText?: string
   describedBy?: string
 }) {
+  const [touched, setTouched] = useState({ date: false, time: false, submit: false })
   const [date = '', time = ''] = value.split('T')
   const started = !!(date || time)
   let dateError = ''
@@ -56,11 +58,19 @@ export function DateTimeField({
       ? 'Enter a valid time in 24-hour HH:mm format.'
       : ''
   const description = [describedBy, `${id}-help`, error && `${id}-error`].filter(Boolean).join(' ')
+  const showDateError = !!dateError && (touched.date || touched.submit)
+  const showTimeError = !!timeError && (touched.time || touched.submit)
   const change = (nextDate: string, nextTime: string) =>
     onChange(nextDate || nextTime ? `${nextDate}T${nextTime}` : '')
 
   return (
     <fieldset
+      onInvalidCapture={(event) => {
+        event.preventDefault()
+        setTouched((current) => ({ ...current, submit: true }))
+        const input = event.target
+        if (input instanceof HTMLInputElement && (!input.form || input.form.querySelector('input:invalid, select:invalid, textarea:invalid') === input)) input.focus()
+      }}
       disabled={disabled}
       aria-labelledby={`${id}-label`}
       className="flex min-w-0 flex-col gap-1.5"
@@ -100,15 +110,16 @@ export function DateTimeField({
             readOnly={readOnly}
             disabled={disabled}
             onChange={(event) => change(event.target.value, time)}
-            aria-invalid={!!dateError || !!error}
-            aria-describedby={`${description}${dateError ? ` ${id}-date-error` : ''}`}
+            onBlur={() => setTouched((current) => ({ ...current, date: true }))}
+            aria-invalid={showDateError || !!error}
+            aria-describedby={`${description}${showDateError ? ` ${id}-date-error` : ''}`}
             ref={(node) => {
               node?.setCustomValidity(dateError || error || '')
             }}
             className="h-10 min-w-0 w-full"
           />
-          {dateError && (
-            <p id={`${id}-date-error`} className="text-xs text-destructive">
+          {showDateError && (
+            <p id={`${id}-date-error`} role="alert" className="text-xs text-destructive">
               {dateError}
             </p>
           )}
@@ -135,18 +146,19 @@ export function DateTimeField({
               )
             }}
             onBlur={(event) => {
+              setTouched((current) => ({ ...current, time: true }))
               const normalized = normalizeCompactTime(event.target.value)
               if (!readOnly && !disabled && normalized !== time) change(date, normalized)
             }}
-            aria-invalid={!!timeError || !!error}
-            aria-describedby={`${description}${timeError ? ` ${id}-time-error` : ''}`}
+            aria-invalid={showTimeError || !!error}
+            aria-describedby={`${description}${showTimeError ? ` ${id}-time-error` : ''}`}
             ref={(node) => {
               node?.setCustomValidity(timeError || error || '')
             }}
             className="h-10 min-w-0 w-full tabular-nums"
           />
-          {timeError && (
-            <p id={`${id}-time-error`} className="text-xs text-destructive">
+          {showTimeError && (
+            <p id={`${id}-time-error`} role="alert" className="text-xs text-destructive">
               {timeError}
             </p>
           )}

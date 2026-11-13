@@ -1,6 +1,6 @@
 import { useAuth } from '@/features/auth/AuthContext'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { toast } from 'sonner'
+import { toast } from '@/lib/notifications'
 import { getErrorMessage, type FetchParams } from '@/lib/api-client'
 import { useCursorLookup } from '@/lib/use-cursor-lookup'
 import { USER_ROLES, type UserRole } from '../auth/roles'

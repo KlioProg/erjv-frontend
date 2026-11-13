@@ -67,6 +67,7 @@ export function RegisterUserModal({ open, onClose }: RegisterUserModalProps) {
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
+  const [errorField, setErrorField] = useState<'email' | 'password' | 'confirm'>()
   const submitting = useRef(false)
 
   const selectedRole = registrationRoles.find((option) => option.value === role)
@@ -81,6 +82,7 @@ export function RegisterUserModal({ open, onClose }: RegisterUserModalProps) {
     setShowPassword(false)
     setShowConfirmPassword(false)
     setErrorMsg('')
+    setErrorField(undefined)
     onClose()
   }
 
@@ -88,23 +90,29 @@ export function RegisterUserModal({ open, onClose }: RegisterUserModalProps) {
     e.preventDefault()
     if (submitting.current || registerMutation.isPending) return
     setErrorMsg('')
+    setErrorField(undefined)
+    const reject = (field: 'email' | 'password' | 'confirm', message: string) => {
+      setErrorField(field)
+      setErrorMsg(message)
+      document.getElementById(`register-${field}`)?.focus()
+    }
 
     const cleanEmail = email.trim().toLowerCase()
 
     if (!cleanEmail) {
-      setErrorMsg('Please enter a work email address.')
+      reject('email', 'Please enter a work email address.')
       return
     }
 
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
-      setErrorMsg('Please enter a valid email address (e.g., name@business.com).')
+      reject('email', 'Please enter a valid email address (e.g., name@business.com).')
       return
     }
 
     // Client-side pre-validation: check for duplicate email
     const duplicateUser = existingUsers.find((u) => u.email.toLowerCase() === cleanEmail)
     if (duplicateUser) {
-      setErrorMsg(
+      reject('email',
         duplicateUser.isActive
           ? 'An account with this email address already exists in the system.'
           : 'An archived account with this email address already exists. You can reactivate it from Archived Accounts.',
@@ -113,17 +121,17 @@ export function RegisterUserModal({ open, onClose }: RegisterUserModalProps) {
     }
 
     if (!password) {
-      setErrorMsg('Please enter an initial password.')
+      reject('password', 'Please enter an initial password.')
       return
     }
 
     if (passwordError(password)) {
-      setErrorMsg(passwordError(password)!)
+      reject('password', passwordError(password)!)
       return
     }
 
     if (password !== confirmPassword) {
-      setErrorMsg('Passwords do not match. Please verify and try again.')
+      reject('confirm', 'Passwords do not match. Please verify and try again.')
       return
     }
 
@@ -155,7 +163,7 @@ export function RegisterUserModal({ open, onClose }: RegisterUserModalProps) {
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="flex min-w-0 flex-col gap-4">
-          {errorMsg && (
+          {errorMsg && !errorField && (
             <Alert variant="destructive" className="py-2.5 px-3">
               <AlertDescription className="text-xs">{errorMsg}</AlertDescription>
             </Alert>
@@ -164,12 +172,15 @@ export function RegisterUserModal({ open, onClose }: RegisterUserModalProps) {
           {/* Work Email */}
           <div className="flex min-w-0 flex-col gap-2">
             <Label htmlFor="register-email" className="text-ui font-medium text-foreground">
-              Work Email Address
+              Work Email Address <span aria-hidden="true">*</span>
             </Label>
             <div className="relative">
               <Mail className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
               <Input
                 id="register-email"
+                error={errorField === 'email' ? errorMsg : undefined}
+                aria-label="Work Email Address"
+                required
                 type="email"
                 placeholder="staff@business.com"
                 value={email}
@@ -241,12 +252,15 @@ export function RegisterUserModal({ open, onClose }: RegisterUserModalProps) {
           {/* Password */}
           <div className="flex min-w-0 flex-col gap-2">
             <Label htmlFor="register-password" className="text-ui font-medium text-foreground">
-              Initial Password
+              Initial Password <span aria-hidden="true">*</span>
             </Label>
             <div className="relative">
               <Lock className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
               <Input
                 id="register-password"
+                error={errorField === 'password' ? errorMsg : undefined}
+                aria-label="Initial Password"
+                required
                 type={showPassword ? 'text' : 'password'}
                 placeholder="Min. 8 characters"
                 value={password}
@@ -273,12 +287,15 @@ export function RegisterUserModal({ open, onClose }: RegisterUserModalProps) {
           {/* Confirm Password */}
           <div className="flex min-w-0 flex-col gap-2">
             <Label htmlFor="register-confirm" className="text-ui font-medium text-foreground">
-              Confirm Password
+              Confirm Password <span aria-hidden="true">*</span>
             </Label>
             <div className="relative">
               <Lock className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
               <Input
                 id="register-confirm"
+                error={errorField === 'confirm' ? errorMsg : undefined}
+                aria-label="Confirm Password"
+                required
                 type={showConfirmPassword ? 'text' : 'password'}
                 placeholder="Re-enter password"
                 value={confirmPassword}

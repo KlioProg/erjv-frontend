@@ -1,5 +1,5 @@
 import { useRef, useState, type FormEvent } from 'react'
-import { Building2, MapPin, Phone, RotateCcw } from 'lucide-react'
+import { Building2, MapPin, RotateCcw } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { PhoneInput } from '@/components/common/PhoneInput'
 import { Label } from '@/components/ui/label'
 import { Spinner } from '@/components/ui/spinner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -22,7 +23,7 @@ import {
 } from '@/features/logistics/warehouses.hooks'
 import type { Warehouse } from '@/features/logistics/warehouses.types'
 import { getApiError, getErrorMessage } from '@/lib/api-client'
-import { sanitizePhilippinePhone, validatePhilippinePhone } from '@/lib/phone-utils'
+import { normalizeContactPhone, validateContactPhone } from '@/lib/phone-utils'
 
 type WarehouseModalProps = {
   warehouse: Warehouse | null
@@ -75,7 +76,7 @@ function WarehouseFormContent({
       return
     }
 
-    const phoneError = validatePhilippinePhone(contactNumber, 'Contact number')
+    const phoneError = validateContactPhone(contactNumber)
     if (phoneError) {
       setErrorMsg(phoneError)
       return
@@ -84,7 +85,7 @@ function WarehouseFormContent({
     submitting.current = true
     setCheckingName(true)
     try {
-      const cleanContactNumber = sanitizePhilippinePhone(contactNumber) || null
+      const cleanContactNumber = normalizeContactPhone(contactNumber) || null
 
       if (isEditing && warehouse) {
         await updateMutation.mutateAsync({
@@ -199,12 +200,12 @@ function WarehouseFormContent({
       <form onSubmit={handleSubmit} className="flex flex-col gap-3.5 py-1">
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="wh-name" className="text-[13px] font-medium">
-            Warehouse Name <span className="text-primary">*</span>
+            Warehouse Name <span aria-hidden="true" className="text-primary">*</span>
           </Label>
           <div className="relative">
             <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
             <Input
-              id="wh-name"
+              id="wh-name" pattern=".*\S.*" title="Warehouse name is required."
               placeholder="e.g. Main Distribution Hub, Panabo Storage Facility"
               value={name}
               onChange={(e) => {
@@ -220,12 +221,12 @@ function WarehouseFormContent({
 
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="wh-address" className="text-[13px] font-medium">
-            Street Address / Location <span className="text-primary">*</span>
+            Street Address / Location <span aria-hidden="true" className="text-primary">*</span>
           </Label>
           <div className="relative">
             <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
             <Input
-              id="wh-address"
+              id="wh-address" pattern=".*\S.*" title="Warehouse address / location is required."
               placeholder="e.g. Km. 7 JP Laurel Ave, Lanang, Davao City"
               value={address}
               onChange={(e) => setAddress(e.target.value)}
@@ -240,30 +241,12 @@ function WarehouseFormContent({
             <Label htmlFor="wh-phone" className="text-[13px] font-medium">
               Contact Number / Hotline
             </Label>
-            {contactNumber && (
-              <span
-                className={`text-xs font-semibold ${
-                  contactNumber.length === 11 && contactNumber.startsWith('09')
-                    ? 'text-status-success-foreground'
-                    : 'text-status-warning-foreground'
-                }`}
-              >
-                {contactNumber.length}/11 digits
-              </span>
-            )}
           </div>
-          <div className="relative">
-            <Phone className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
-            <Input
+            <PhoneInput
               id="wh-phone"
-              type="tel"
-              placeholder="09171234567"
               value={contactNumber}
-              maxLength={11}
-              onChange={(e) => setContactNumber(sanitizePhilippinePhone(e.target.value))}
-              className="pl-9 transition-all duration-200"
+              onValueChange={setContactNumber}
             />
-          </div>
         </div>
 
         <DialogFooter className="gap-2 mt-4 pt-3 border-t">

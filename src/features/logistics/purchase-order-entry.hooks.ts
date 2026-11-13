@@ -198,9 +198,14 @@ export function usePurchaseOrderEntry({
       return
     }
     const selectedSupplier = suppliers.find((supplier) => String(supplier.id) === supplierId)
-    if (supplierId && !selectedSupplier)
+    if (supplierId && !selectedSupplier) {
+      setErrorFocusId('po-supplier')
       return setError('Choose a supplier that is available in the supplier list.')
-    if (confirm && !selectedSupplier?.isActive) return setError('Select an active supplier to confirm.')
+    }
+    if (confirm && !selectedSupplier?.isActive) {
+      setErrorFocusId('po-supplier')
+      return setError('Select an active supplier to confirm.')
+    }
     if (confirm && !lines.length) return setError('Add at least one product to confirm the purchase order.')
     const dateError = expectedDateError(expectedAt)
     if (dateError) return setError(dateError)

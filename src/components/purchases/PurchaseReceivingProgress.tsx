@@ -1,7 +1,7 @@
+import { ProductTableLabel, ProductTableQuantity } from '@/components/common/ProductTableCells'
 import { DataTable, type ColumnDef } from '@/components/ui/data-table'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { OverflowValue } from '@/components/ui/OverflowValue'
 import { useMediaQuery } from '@/lib/use-media-query'
 import type { InventoryItemResponse } from '@/features/products/products.types'
 import type { PurchaseOrderRecord } from '@/features/logistics/purchase-orders.types'
@@ -70,18 +70,14 @@ export function PurchaseReceivingProgress({
         const product = products.find((product) => product.id === row.item.inventoryItemId)
         return (
           <div className="flex min-w-0 flex-col gap-1">
-            <OverflowValue
-              value={product?.name ?? `Product #${row.item.inventoryItemId}`}
-              className="text-sm font-medium"
-            />
-            {product?.unit && <span className="text-xs text-muted-foreground">{product.unit}</span>}
+            <ProductTableLabel product={product} fallback={`Product #${row.item.inventoryItemId}`} />
             {!desktop && (
               <dl className="mt-2 grid grid-cols-3 gap-2 text-sm">
                 {quantities.map((key) => (
                   <div key={key} className="min-w-0">
                     <dt className="text-xs text-muted-foreground">{quantityLabels[key]}</dt>
                     <dd className="mt-1 tabular-nums">
-                      <OverflowValue value={formatStockCents(row[key])} />
+                      <ProductTableQuantity value={row[key] === null ? null : formatStockCents(row[key])} unit={products.find((product) => product.id === row.item.inventoryItemId)?.unit} />
                     </dd>
                   </div>
                 ))}
@@ -97,10 +93,7 @@ export function PurchaseReceivingProgress({
       width: '20%',
       align: 'right' as const,
       cell: ({ row }: { row: (typeof progress)[number] }) => (
-        <OverflowValue
-          value={formatStockCents(row[key])}
-          className="text-right text-sm tabular-nums"
-        />
+        <ProductTableQuantity value={row[key] === null ? null : formatStockCents(row[key])} unit={products.find((product) => product.id === row.item.inventoryItemId)?.unit} />
       ),
     })),
   ]
@@ -122,6 +115,7 @@ export function PurchaseReceivingProgress({
       ) : (
         <>
           <DataTable
+                density="compact"
             data={progress}
             columns={desktop ? columns : columns.slice(0, 1)}
             getRowKey={(row) => row.item.id}
@@ -139,18 +133,14 @@ export function PurchaseReceivingProgress({
                 Damaged goods do not reduce the remaining quantity.
               </p>
               <DataTable
+                density="compact"
                 data={progress}
                 columns={[
                   {
                     id: 'product',
                     header: 'Product',
                     cell: ({ row }) => (
-                      <OverflowValue
-                        value={
-                          products.find((product) => product.id === row.item.inventoryItemId)
-                            ?.name ?? `Product #${row.item.inventoryItemId}`
-                        }
-                      />
+                      <ProductTableLabel product={products.find((product) => product.id === row.item.inventoryItemId)} fallback={`Product #${row.item.inventoryItemId}`} />
                     ),
                   },
                   ...(['received', 'damaged'] as const).map((key) => ({
@@ -158,10 +148,7 @@ export function PurchaseReceivingProgress({
                     header: quantityLabels[key],
                     align: 'right' as const,
                     cell: ({ row }: { row: (typeof progress)[number] }) => (
-                      <OverflowValue
-                        value={formatStockCents(row[key])}
-                        className="text-right tabular-nums"
-                      />
+                      <ProductTableQuantity value={row[key] === null ? null : formatStockCents(row[key])} unit={products.find((product) => product.id === row.item.inventoryItemId)?.unit} />
                     ),
                   })),
                 ]}

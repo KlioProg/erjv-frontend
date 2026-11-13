@@ -1,10 +1,15 @@
-import { formatProductUnit } from '@/lib/product-unit'
+import { useRef, useState } from 'react'
+import { IncomingIssueCorrection } from '../IncomingIssueCorrection'
+import { DeliveryDetailFooter } from './DeliveryDetailFooter'
+import type { Warehouse } from '@/features/logistics/warehouses.types'
+import { ProductTableLabel, ProductTableQuantity } from '@/components/common/ProductTableCells'
 import { Button } from '@/components/ui/button'
 import { DataTable, type ColumnDef } from '@/components/ui/data-table'
+import { LifecycleProgress } from '@/components/ui/LifecycleProgress'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { incomingOrderSchedulingIssue } from '@/features/logistics/incoming-scheduling'
-import { Dialog, DialogContent, DialogFooter } from '@/components/ui/dialog'
+import { Dialog, DialogContent } from '@/components/ui/dialog'
 import type { DeliveryAction, DeliveryRow } from '@/features/logistics/delivery-workflow'
 import { DELIVERY_STATUS_LABELS, getDeliveryActions } from '@/features/logistics/delivery-workflow'
 import type { IncomingDeliveryRecord } from '@/features/logistics/incoming-deliveries.types'
@@ -21,7 +26,6 @@ export function IncomingDeliveryStatusBadge({
   return (
     <StatusBadge
       label={DELIVERY_STATUS_LABELS[status]}
-      appearance="emphasis"
       tone={
         status === 'COMPLETED'
           ? 'success'
@@ -41,39 +45,55 @@ export function IncomingDeliveryDetailModal({
   products,
   onClose,
   canManage = false,
+  canConfirmPurchaseOrder = false,
   onAction,
   onViewOrder,
   refreshing,
   refreshError,
+  workflowError,
   onRefresh,
+  warehouses = [],
+  operationalFallback = false,
 }: {
   row?: Extract<DeliveryRow, { type: 'Incoming' }>
   purchaseOrders: PurchaseOrderRecord[]
   products: InventoryItemResponse[]
   onClose: () => void
+  canConfirmPurchaseOrder?: boolean
   canManage?: boolean
   onAction?: (row: Extract<DeliveryRow, { type: 'Incoming' }>, action: DeliveryAction) => void
   onViewOrder?: (row: Extract<DeliveryRow, { type: 'Incoming' }>) => void
   refreshing?: boolean
   refreshError?: string
-  onRefresh?: () => void
+  workflowError?: string
+  onRefresh?: () => Promise<unknown> | void
+  warehouses?: Warehouse[]
+  operationalFallback?: boolean
 }) {
+  const [editContext, setEditContext] = useState<{
+    delivery: IncomingDeliveryRecord
+    target: 'warehouse' | 'schedule'
+  } | null>(null)
+  const editing = !!editContext
+  const [correctionPending, setCorrectionPending] = useState(false)
+  const [reviewError, setReviewError] = useState('')
+  async function recheck() {
+    setReviewError('')
+    try {
+      await onRefresh?.()
+    } catch {
+      setReviewError('The current delivery could not be refreshed. Recheck it before continuing.')
+    }
+  }
+  const issueRef = useRef<HTMLDivElement>(null)
   const delivery = row?.record
   const purchaseOrder = purchaseOrders.find((order) => order.id === delivery?.purchaseOrderId)
   const schedulingIssue =
     delivery?.status === 'DRAFT'
       ? (row?.schedulingIssue ?? incomingOrderSchedulingIssue(row?.purchaseOrderStatus))
       : null
-  const nextAction =
-    row && canManage && onAction
-      ? getDeliveryActions(row).find((action) => action === 'schedule' || action === 'receive')
-      : undefined
-  const nextActionLabel =
-    nextAction === 'schedule'
-      ? 'Continue Scheduling'
-      : nextAction === 'receive'
-        ? 'Receive Goods'
-        : undefined
+  const correctionTarget = schedulingIssue?.target
+  const editable = correctionTarget === 'warehouse' || correctionTarget === 'schedule'
   const showsReceipt = delivery?.status === 'COMPLETED' && delivery.outcome !== 'NO_RECEIPT'
   const detailItems = delivery
     ? purchaseOrder?.items.length
@@ -98,24 +118,14 @@ export function IncomingDeliveryDetailModal({
       header: 'Product',
       cell: ({ row: item }) => {
         const product = products.find((candidate) => candidate.id === item.inventoryItemId)
-        return (
-          <div className="flex min-w-0 flex-col gap-0.5 [overflow-wrap:anywhere]">
-            <p className="text-sm font-medium">
-              {product?.name || `Order Item #${item.purchaseOrderItemId}`}
-              {product?.variety ? ` · ${product.variety}` : ''}
-            </p>
-            <p className="text-xs text-muted-foreground">
-              {formatProductUnit(product?.unit, 'Unit unavailable')}
-            </p>
-          </div>
-        )
+        return <ProductTableLabel product={product} fallback={`Order Item #${item.purchaseOrderItemId}`} />
       },
     },
     {
       id: 'expected',
       header: 'Expected',
       align: 'right',
-      cell: ({ row: item }) => <span className="tabular-nums">{item.expectedQuantity ?? '—'}</span>,
+      cell: ({ row: item }) => <ProductTableQuantity value={item.expectedQuantity} unit={products.find((product) => product.id === item.inventoryItemId)?.unit} />,
     },
     ...(showsReceipt
       ? (
@@ -140,7 +150,7 @@ export function IncomingDeliveryDetailModal({
           id,
           header,
           align: 'right',
-          cell: ({ row: item }) => <span className="tabular-nums">{getQuantity(item) ?? '—'}</span>,
+          cell: ({ row: item }) => <ProductTableQuantity value={getQuantity(item)} unit={products.find((product) => product.id === item.inventoryItemId)?.unit} />,
         }))
       : []),
   ]
@@ -167,7 +177,12 @@ export function IncomingDeliveryDetailModal({
           },
           { label: 'Scheduled / expected', value: DeliveryUtils.formatDateTime(row.date) },
           ...(delivery.completedAt
-            ? [{ label: delivery.outcome === 'NO_RECEIPT' ? 'Outcome recorded at' : 'Received at', value: DeliveryUtils.formatDateTime(delivery.completedAt) }]
+            ? [
+                {
+                  label: delivery.outcome === 'NO_RECEIPT' ? 'Outcome recorded at' : 'Received at',
+                  value: DeliveryUtils.formatDateTime(delivery.completedAt),
+                },
+              ]
             : []),
           ...(delivery.supplierReference
             ? [{ label: 'Supplier reference', value: delivery.supplierReference }]
@@ -175,39 +190,140 @@ export function IncomingDeliveryDetailModal({
         ]
       : []
   return (
-    <Dialog open={row !== undefined} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="flex max-h-[min(880px,90dvh)] w-[calc(100vw-2rem)] max-w-3xl flex-col gap-0 overflow-hidden p-0 sm:max-w-3xl [&>button:last-child]:grid [&>button:last-child]:size-8 [&>button:last-child]:place-items-center pointer-coarse:[&>button:last-child]:size-11">
+    <Dialog
+      open={row !== undefined}
+      onOpenChange={(open) => !open && !correctionPending && onClose()}
+    >
+      <DialogContent
+        closeDisabled={correctionPending}
+        onOpenAutoFocus={(event) => {
+          if (schedulingIssue) {
+            event.preventDefault()
+            issueRef.current?.focus()
+          }
+        }}
+        className="flex max-h-[min(880px,90dvh)] w-[calc(100vw-2rem)] max-w-3xl flex-col gap-0 overflow-hidden p-0 sm:max-w-3xl [&>button:last-child]:grid [&>button:last-child]:size-8 [&>button:last-child]:place-items-center pointer-coarse:[&>button:last-child]:size-11"
+      >
         <MovementDetailHeader
           title={delivery?.deliveryNumber || 'Incoming Delivery'}
           description="Incoming delivery record"
           status={delivery && <IncomingDeliveryStatusBadge status={delivery.status} />}
-          className="px-5 py-5 pr-14 sm:pl-6"
+          className="px-5 py-4 pr-14 sm:pl-6"
         />
         <div className="min-h-0 min-w-0 flex-1 overflow-y-auto px-5 pb-5 sm:px-6">
           {delivery && (
-            <div className="flex flex-col gap-5">
-              {refreshing && <p role="status" className="text-sm text-muted-foreground">Refreshing incoming delivery…</p>}
-              {refreshError && <Alert variant="destructive"><AlertDescription>{refreshError} <Button variant="link" onClick={onRefresh}>Refresh delivery</Button></AlertDescription></Alert>}
-              {delivery.status === 'SCHEDULED' && <p className="text-sm text-muted-foreground">Arrival scheduled. Return here to Receive Goods when the supplier arrives.</p>}
-              {schedulingIssue && (
-                <Alert>
-                  <AlertTitle>{schedulingIssue.title}</AlertTitle>
+            <div className="flex flex-col gap-3">
+              {delivery.status !== 'CANCELLED' && <LifecycleProgress label="Incoming delivery progress" milestones={[
+                { id: 'draft', label: 'Draft', state: delivery.status === 'DRAFT' ? 'current' : 'complete' },
+                { id: 'arrival', label: 'Awaiting receipt', state: delivery.status === 'DRAFT' ? 'upcoming' : delivery.status === 'SCHEDULED' ? 'current' : 'complete' },
+                { id: 'receipt', label: 'Outcome recorded', state: delivery.status === 'COMPLETED' ? 'complete' : 'upcoming', detail: delivery.completedAt ? DeliveryUtils.formatDateTime(delivery.completedAt) : undefined },
+              ]} />}
+              {workflowError && <Alert variant="destructive"><AlertDescription>{workflowError}</AlertDescription></Alert>}
+              {operationalFallback && canManage && row && onAction && !schedulingIssue && (
+                <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                  <span>This record is outside the current table. Continue here.</span>
+                  {getDeliveryActions(row).filter((action) => action === 'schedule' || action === 'receive').map((action) => (
+                    <Button key={action} variant="outline" size="sm" disabled={refreshing || !!refreshError || editing} onClick={() => onAction(row, action)}>{action === 'schedule' ? 'Schedule Arrival' : 'Receive Goods'}</Button>
+                  ))}
+                </div>
+              )}
+              {refreshing && (
+                <p role="status" className="text-sm text-muted-foreground">
+                  Refreshing incoming delivery…
+                </p>
+              )}
+              {reviewError && (
+                <p role="alert" className="text-sm text-destructive">
+                  {reviewError}
+                </p>
+              )}
+              {refreshError && (
+                <Alert variant="destructive">
                   <AlertDescription>
-                    {schedulingIssue.message} This draft remains saved for record purposes.
+                    {refreshError}{' '}
+                    <Button variant="link" onClick={() => void recheck()}>
+                      Refresh delivery
+                    </Button>
                   </AlertDescription>
                 </Alert>
               )}
+              {delivery.status === 'SCHEDULED' && (
+                <p className="text-sm text-muted-foreground">
+                  Arrival scheduled. Use Receive Goods in the delivery table when the supplier arrives.
+                </p>
+              )}
+              {schedulingIssue && (
+                <Alert ref={issueRef} tabIndex={-1} aria-label="Delivery issue">
+                  <AlertTitle>{schedulingIssue.title}</AlertTitle>
+                  <AlertDescription>
+                    {schedulingIssue.message}
+                    {row?.purchaseOrderStatus === 'DRAFT' && canManage && !canConfirmPurchaseOrder && <p>An administrator must confirm this purchase order after its draft details are complete.</p>}
+                    {!canManage && (
+                      <p>
+                        Ask an administrator or manager to make corrections. Locked orders cannot be
+                        edited.
+                      </p>
+                    )}
+                    {canManage && editable && !editing && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={refreshing || !!refreshError}
+                        onClick={() =>
+                          delivery &&
+                          editable &&
+                          setEditContext({ delivery, target: correctionTarget })
+                        }
+                      >
+                        Correct {correctionTarget === 'warehouse' ? 'Warehouse' : 'Arrival Date'}
+                      </Button>
+                    )}
+                    {(correctionTarget === 'order' || correctionTarget === 'refresh') &&
+                      onViewOrder &&
+                      row && (
+                        <Button size="sm" variant="outline" onClick={() => onViewOrder(row)}>
+                          Review Purchase Order
+                        </Button>
+                      )}
+                    <Button
+                      size="sm"
+                      variant="link"
+                      disabled={refreshing || editing}
+                      onClick={() => {
+                        void recheck()
+                      }}
+                    >
+                      Recheck Issue
+                    </Button>
+                  </AlertDescription>
+                </Alert>
+              )}
+              {editContext && canManage && delivery && (
+                <IncomingIssueCorrection
+                  delivery={editContext.delivery}
+                  currentRevision={delivery.revision}
+                  target={editContext.target}
+                  warehouses={warehouses}
+                  onSaved={async () => {
+                    await onRefresh?.()
+                    setEditContext(null)
+                  }}
+                  onBusyChange={setCorrectionPending}
+                  onCancel={() => setEditContext(null)}
+                />
+              )}
               <section aria-label="Movement details">
-                <MovementDetailFields fields={detailFields} />
+                <MovementDetailFields fields={detailFields} className="gap-y-2" />
               </section>
               <section
                 aria-labelledby="incoming-items-heading"
-                className="border-t border-border pt-4"
+                className="border-t border-border pt-3"
               >
-                <h2 id="incoming-items-heading" className="mb-3 text-base font-semibold">
+                <h2 id="incoming-items-heading" className="mb-2 text-sm font-semibold">
                   {showsReceipt ? 'Receipt quantities' : 'Expected items'} ({detailItems.length})
                 </h2>
                 <DataTable
+                  density="compact"
                   data={detailItems}
                   getRowKey={(item) => item.id}
                   pagination={false}
@@ -220,7 +336,7 @@ export function IncomingDeliveryDetailModal({
               {delivery.status === 'COMPLETED' && (
                 <section
                   aria-labelledby="incoming-receipt-result-heading"
-                  className="border-t border-border pt-4"
+                  className="border-t border-border pt-3"
                 >
                   <h2 id="incoming-receipt-result-heading" className="mb-1 text-base font-semibold">
                     Receipt result
@@ -242,7 +358,7 @@ export function IncomingDeliveryDetailModal({
               {delivery.notes && (
                 <section
                   aria-labelledby="incoming-notes-heading"
-                  className="border-t border-border pt-4"
+                  className="border-t border-border pt-3"
                 >
                   <h2
                     id="incoming-notes-heading"
@@ -258,21 +374,9 @@ export function IncomingDeliveryDetailModal({
             </div>
           )}
         </div>
-        <DialogFooter className="shrink-0 flex-row justify-end border-t border-border px-5 py-3 sm:px-6">
-          {nextAction && nextActionLabel && row && (
-            <Button
-              size="sm"
-              className="pointer-coarse:min-h-11"
-              aria-label={`${nextActionLabel} ${row.reference}`}
-              onClick={() => onAction?.(row, nextAction)}
-            >
-              {nextActionLabel}
-            </Button>
-          )}
-          <Button variant="outline" size="sm" className="pointer-coarse:min-h-11" onClick={onClose}>
-            Close
-          </Button>
-        </DialogFooter>
+        <DeliveryDetailFooter onClose={onClose} busy={correctionPending || refreshing}
+          onCancel={row && canManage && !editing && !refreshError && onAction && getDeliveryActions(row).includes('cancel')
+            ? () => onAction(row, 'cancel') : undefined} />
       </DialogContent>
     </Dialog>
   )

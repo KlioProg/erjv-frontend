@@ -1,3 +1,4 @@
+import { normalizeContactPhone } from '@/lib/phone-utils'
 import { fetchCursorList } from '@/lib/cursor-pagination'
 import { apiClient, type FetchParams } from '@/lib/api-client'
 import type { CreateSupplierPayload, Supplier, UpdateSupplierPayload } from './suppliers.types'
@@ -23,7 +24,7 @@ export async function createSupplierApi(payload: CreateSupplierPayload): Promise
     code: payload.code.trim().toUpperCase(),
     name: payload.name.trim(),
     ...(payload.contactPerson?.trim() ? { contactPerson: payload.contactPerson.trim() } : {}),
-    ...(payload.phone?.trim() ? { phone: payload.phone.trim() } : {}),
+    ...(payload.phone?.trim() ? { phone: normalizeContactPhone(payload.phone) } : {}),
     ...(payload.email?.trim() ? { email: payload.email.trim() } : {}),
     address: payload.address.trim(),
   }
@@ -41,7 +42,7 @@ export async function updateSupplierApi(
     ...(payload.contactPerson !== undefined
       ? { contactPerson: payload.contactPerson?.trim() || null }
       : {}),
-    ...(payload.phone !== undefined ? { phone: payload.phone?.trim() || null } : {}),
+    ...(payload.phone !== undefined ? { phone: normalizeContactPhone(payload.phone ?? '') || null } : {}),
     ...(payload.email !== undefined ? { email: payload.email?.trim() || null } : {}),
     ...(payload.address !== undefined ? { address: payload.address.trim() } : {}),
   }

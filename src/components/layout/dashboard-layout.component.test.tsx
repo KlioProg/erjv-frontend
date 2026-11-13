@@ -134,6 +134,9 @@ it('keeps Delivery Trips active at the top level while Deliveries stays collapse
   expect(nav.getByRole('button', { name: 'Deliveries' }).getAttribute('aria-expanded')).toBe('false')
   expect(screen.getByRole('navigation', { name: 'Application breadcrumb' }).textContent).toContain('Delivery Trips')
   expect(screen.getByRole('navigation', { name: 'Application breadcrumb' }).textContent).not.toContain('Deliveries /')
+  const breadcrumb = within(screen.getByRole('navigation', { name: 'Application breadcrumb' }))
+  expect(breadcrumb.getByText('Logistics').tagName).toBe('SPAN')
+  expect(breadcrumb.queryByRole('link', { name: 'Logistics' })).toBeNull()
 })
 
 it.each(['dashboard', 'clients', 'inventory', 'financial-reports', 'delivery-runs'] as const)(

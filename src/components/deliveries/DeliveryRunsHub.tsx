@@ -1,12 +1,16 @@
+import { AddDeliveryToTrip } from './AddDeliveryToTrip'
+import { DeliveryOrderReview } from './DeliveryOrderReview'
+import { X } from 'lucide-react'
+import { TableLoadError } from '@/components/ui/TableLoadError'
 import { DateTimeField } from '@/components/common/DateTimeField'
 import { toManilaSchedule, manilaScheduleToIso } from '@/lib/manila-schedule'
 import { useResourcePage } from '@/lib/use-cursor-page'
 import { DataTableFilters, DataTableFilterChips, type DataTableFilter } from '@/components/ui/data-table-filters'
 import { DeliveryTableToolbar, DeliveryPageFooter } from './DeliveryTableToolbar'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { Link, useSearchParams } from 'react-router'
+import { Link, useNavigate, useSearchParams } from 'react-router'
 import { ROUTES } from '@/routes'
-import { toast } from 'sonner'
+import { toast } from '@/lib/notifications'
 import { useRecordsById } from '@/lib/use-records-by-id'
 import { RUN_STATUS_LABELS } from '@/features/logistics/delivery-workflow'
 import type { OutgoingDeliveryRecord } from '@/features/logistics/outgoing-deliveries.types'
@@ -24,7 +28,6 @@ import { Label } from '@/components/ui/label'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { DeliveryStatusBadge } from './shared/DeliveryStatusBadge'
 import { DeliveryDetailModal } from './shared/DeliveryDetailModal'
-import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   Dialog,
@@ -75,8 +78,7 @@ function RunStatusBadge({ status }: { status: DeliveryRunStatus }) {
   return (
     <StatusBadge
       label={RUN_STATUS_LABELS[status]}
-      appearance="emphasis"
-      tone={status === 'COMPLETED' ? 'success' : status === 'DISPATCHED' ? 'warning' : status === 'CANCELLED' ? 'destructive' : 'info'}
+      tone={status === 'COMPLETED' ? 'success' : status === 'DISPATCHED' ? 'warning' : status === 'CANCELLED' ? 'destructive' : 'neutral'}
     />
   )
 }
@@ -478,10 +480,6 @@ export function DeliveryRunsHub({ history = false }: { history?: boolean }) {
         )}
       </DeliveryTableToolbar>
       <DataTableFilterChips filters={Object.values(filterHeaders)} />
-      {!history && departedTrip && <Alert><AlertDescription>
-        {departedTrip.runNumber} has departed. Return when delivery outcomes are known.{' '}
-        <Button variant="link" size="sm" onClick={() => select(departedTrip.id)}>View Trip</Button>
-      </AlertDescription></Alert>}
       {invalidLink && (
         <Alert variant="destructive">
           <AlertDescription>
@@ -493,20 +491,11 @@ export function DeliveryRunsHub({ history = false }: { history?: boolean }) {
         </Alert>
       )}
       <div data-delivery-table className="min-w-0 overflow-hidden rounded-lg border bg-card">
-        {query.isError && (
-          <Alert variant="destructive">
-            <AlertDescription>
-              {hasTripData && 'Latest trip update could not be retrieved. Showing previously loaded trips. '}
-              {getErrorMessage(query.error)}{' '}
-              <Button variant="link" onClick={() => void query.refetch()}>
-                Refresh trips
-              </Button>
-            </AlertDescription>
-          </Alert>
-        )}
         {query.isFetching && hasTripData && <p role="status" className="px-3 py-1 text-xs text-muted-foreground">Updating trips...</p>}
+        {query.isError && runs.length > 0 && <TableLoadError compact message="Latest trip update could not be retrieved. Showing previously loaded trips." description={getErrorMessage(query.error)} onRetry={() => void query.refetch()} retrying={query.isFetching} />}
         {query.isError && !runs.length ? (
-          <p role="status">Delivery trips are unavailable. Refresh to try again.</p>
+          <TableLoadError message="Delivery trips could not be loaded." description={getErrorMessage(query.error)}
+            onRetry={() => void query.refetch()} retrying={query.isFetching} />
         ) : (
           <DataTable
             className="rounded-none border-0"
@@ -532,6 +521,7 @@ export function DeliveryRunsHub({ history = false }: { history?: boolean }) {
           />
         )}
         <DeliveryPageFooter query={query} count={runs.length} unit="trip" label="Trip" />
+        {!history && departedTrip && <div className="border-t px-3 py-2"><Button variant="link" size="sm" onClick={() => select(departedTrip.id)}>View Trip</Button></div>}
       </div>
       {!history && creating && (
         <RunEditor
@@ -617,7 +607,7 @@ function RunEditor({
   })
   let validDeparture = false
   try {
-    validDeparture = !!manilaScheduleToIso(departure) && !departure.startsWith('0000-')
+    validDeparture = !departure || (!!manilaScheduleToIso(departure) && !departure.startsWith('0000-'))
   } catch {
     validDeparture = false
   }
@@ -626,6 +616,18 @@ function RunEditor({
   const [review, setReview] = useState(false)
   const [savedTripId, setSavedTripId] = useState<number>()
   const selection = useRunDeliverySelection(Number(warehouseId) || undefined)
+  const [discardOpen, setDiscardOpen] = useState(false)
+  const initialSnapshot = useRef(JSON.stringify([
+    warehouseId, driverId, vehicleId, departure, notes, initialDelivery ? [initialDelivery.id] : [],
+  ]))
+  const snapshot = JSON.stringify([
+    warehouseId, driverId, vehicleId, departure, notes, selection.selected.map((delivery) => delivery.id),
+  ])
+  const requestClose = () => {
+    if (busy) return
+    if (snapshot !== initialSnapshot.current) setDiscardOpen(true)
+    else onClose()
+  }
   const warehouseLocked = !!run?.deliveries.length || !!run?.warehouseTransfers?.length || !!initialDelivery || !!initialTransfer
   const fixedWarehouse = useRecordsById<NamedRecord>(
     '/warehouses',
@@ -655,10 +657,11 @@ function RunEditor({
     if (submitting.current || busy || review) return
     if (!warehouseId) {
       setWarehouseError('Choose an active warehouse.')
+      document.getElementById('run-warehouse')?.focus()
       return
     }
     if (!validDeparture) {
-      setError('Choose a complete departure date and time before saving the trip.')
+      setError('Enter a complete departure date and time, or clear it to save an unscheduled draft.')
       return
     }
     submitting.current = true
@@ -740,7 +743,7 @@ function RunEditor({
     }
   }
   return (
-    <Dialog open onOpenChange={(open) => !open && !busy && onClose()}>
+    <Dialog open onOpenChange={(open) => !open && requestClose()}>
       <DialogContent
         closeDisabled={busy}
         className="flex h-auto min-h-0 max-h-[calc(100dvh-2rem)] flex-col gap-4 overflow-hidden sm:max-w-3xl"
@@ -748,7 +751,7 @@ function RunEditor({
         <DialogHeader>
           <DialogTitle>{run ? `Edit ${run.runNumber}` : 'Create Delivery Trip'}</DialogTitle>
           <DialogDescription>
-            Choose a warehouse, schedule, transport, and deliveries for this trip.
+            Choose a warehouse to save a draft. Set the departure, driver and vehicle before sending.
           </DialogDescription>
         </DialogHeader>
         <form
@@ -785,6 +788,7 @@ function RunEditor({
                       </output>
                     ) : (
                       <CursorLookup<NamedRecord>
+                        required
                         id="run-warehouse"
                         path="/warehouses"
                         value={warehouseId}
@@ -816,9 +820,8 @@ function RunEditor({
                       label="Scheduled Departure"
                       value={departure}
                       onChange={setDeparture}
-                      required
                       disabled={busy || review}
-                      helperText="Required · Manila time · 24-hour HH:mm"
+                      helperText="Optional for drafts; required before Send Trip. Manila time · 24-hour HH:mm"
                     />
                   </div>
                 </div>
@@ -916,20 +919,30 @@ function RunEditor({
                 Review Trip
               </Button>
             )}
-            <Button type="button" variant="outline" disabled={busy} onClick={onClose}>
+            <Button type="button" variant="outline" disabled={busy} onClick={requestClose}>
               Cancel
             </Button>
-            <Button disabled={busy || review || !warehouseId || !validDeparture || (!run && !selection.canSave)}>
+            <Button disabled={busy || review || (!run && !selection.canSave)}>
               {busy ? 'Saving…' : run ? 'Save Trip' : 'Create Trip'}
             </Button>
           </DialogFooter>
         </form>
+        <ConfirmDeleteModal
+          open={discardOpen}
+          title="Discard Changes?"
+          description="Your unsubmitted trip changes will be lost. The saved trip will stay unchanged."
+          confirmText="Discard Changes"
+          cancelText="Keep Editing"
+          onClose={() => setDiscardOpen(false)}
+          onConfirm={onClose}
+        />
       </DialogContent>
     </Dialog>
   )
 }
 
 function RunDetails({ id, onClose, onDeparted, readOnly = false }: { id: number; onClose: () => void; onDeparted: (run: DeliveryRunRecord) => void; readOnly?: boolean }) {
+  const navigate = useNavigate()
   const { isAdmin, isManager, isStaff } = useAuth()
   const canManage = !readOnly && (isAdmin || isManager)
   const canOperate = !readOnly && (isAdmin || isManager || isStaff)
@@ -939,6 +952,8 @@ function RunDetails({ id, onClose, onDeparted, readOnly = false }: { id: number;
   const orders = useRecordsById<{ id: number; clientId: number | null }>('/sales-orders', readOnly ? run?.deliveries.map((member) => member.salesOrderId) ?? [] : [])
   const clients = useRecordsById<NamedRecord>('/clients', orders.data.map((order) => order.clientId))
   const [viewDeliveryId, setViewDeliveryId] = useState<number>()
+  const [viewOrderId, setViewOrderId] = useState<number>()
+  const [adding, setAdding] = useState(false)
   const [viewTransferId, setViewTransferId] = useState<number>()
   const changeMembers = useChangeRunMembers()
   const changeTransfers = useChangeRunTransfers()
@@ -956,8 +971,6 @@ function RunDetails({ id, onClose, onDeparted, readOnly = false }: { id: number;
   const resultDelivery = unfinished.length === 1
     ? unfinished[0]
     : unfinished.find((member) => member.id === selectedResultId)
-  const existingIds = run?.deliveries.map((delivery) => delivery.id) ?? []
-  const selection = useRunDeliverySelection(run?.warehouseId, existingIds)
   const pendingAction = useRef(false)
   const [acting, setActing] = useState(false)
   const [error, setError] = useState('')
@@ -967,9 +980,10 @@ function RunDetails({ id, onClose, onDeparted, readOnly = false }: { id: number;
     expectedRunRevision: number
     action: 'remove' | 'reopen' | 'cancel' | 'cancel-run'
   }>()
-  const busy =
+  const memberBusy =
     acting ||
     [changeMembers, changeTransfers, reopen, cancelMember, cancelRun].some((mutation) => mutation.isPending)
+  const busy = memberBusy || adding
   const resultsBlocked = busy || review || query.isFetching || query.isError
   async function perform(action: () => Promise<unknown>) {
     if (readOnly || pendingAction.current || busy || review)
@@ -1012,6 +1026,10 @@ function RunDetails({ id, onClose, onDeparted, readOnly = false }: { id: number;
                 expectedRevision: confirmation.expectedRunRevision,
                 remove: [{ deliveryId: member!.id, expectedRevision: member!.revision }],
               },
+            }).then((saved) => {
+              if (saved.id !== run.id || saved.revision <= confirmation.expectedRunRevision ||
+                !Array.isArray(saved.deliveries) || saved.deliveries.some((entry) => entry.id === member!.id))
+                throw Error('Removal was not confirmed. Refresh and review this trip before trying again.')
             })
           : (confirmation.action === 'reopen' ? reopen : cancelMember).mutateAsync({
               id,
@@ -1019,27 +1037,21 @@ function RunDetails({ id, onClose, onDeparted, readOnly = false }: { id: number;
               payload: payload!,
             }),
     )
+    toast.success(confirmation.action === 'cancel-run' ? 'Trip cancelled.' : confirmation.action === 'cancel' ? 'Delivery cancelled.' : confirmation.action === 'reopen' ? 'Delivery reopened.' : 'Delivery removed from trip.')
   }
   const columns: ColumnDef<DeliveryRunMember>[] = [
     {
       header: 'Delivery',
       accessorKey: 'deliveryNumber',
-      cell: ({ row }) => unfinished.length > 1 && row.status === 'DISPATCHED' ? (
-        <Label className="flex min-h-10 cursor-pointer items-center gap-2 rounded px-2 has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-60">
-          <input
-            type="radio"
-            name="trip-result-delivery"
-            aria-label={`Select ${row.deliveryNumber} for results`}
-            aria-describedby="trip-results-selection"
-            checked={resultDelivery?.id === row.id}
-            disabled={resultsBlocked}
-            onChange={() => setSelectedResultId(row.id)}
-            className={deliveryFormStyles.outcomeRadio}
-          />
-          {row.deliveryNumber}
-        </Label>
-      ) : row.deliveryNumber,
+      cell: ({ row }) => <div className="flex items-center gap-2">
+        {unfinished.length > 1 && row.status === 'DISPATCHED' && <input type="radio" name="trip-result-delivery"
+          aria-label={`Select ${row.deliveryNumber} for results`} aria-describedby="trip-results-selection"
+          checked={resultDelivery?.id === row.id} disabled={resultsBlocked}
+          onChange={() => setSelectedResultId(row.id)} className={deliveryFormStyles.outcomeRadio} />}
+        <Button variant="link" size="sm" className="h-auto p-0 text-left" aria-label={`View delivery ${row.deliveryNumber}`} onClick={() => setViewDeliveryId(row.id)}>{row.deliveryNumber}</Button>
+      </div>,
     },
+    { id: 'order', header: 'Sales order', cell: ({ row }) => <Button variant="link" size="sm" className="h-auto p-0" aria-label={`View sales order #${row.salesOrderId}`} onClick={() => setViewOrderId(row.salesOrderId)}>#{row.salesOrderId}</Button> },
     {
       header: 'Status',
       accessorKey: 'status',
@@ -1049,46 +1061,18 @@ function RunDetails({ id, onClose, onDeparted, readOnly = false }: { id: number;
         {row.status === 'RECONCILED' && <span className="text-xs text-muted-foreground">Results recorded</span>}
       </div>,
     },
-    { id: 'order', header: 'Sales order', cell: ({ row }) => `#${row.salesOrderId}` },
     ...(readOnly ? [{ id: 'customer', header: 'Customer', cell: ({ row }: { row: DeliveryRunMember }) =>
       clients.data.find((client) => client.id === orders.data.find((order) => order.id === row.salesOrderId)?.clientId)?.name ?? 'Customer unavailable' }] : []),
-    ...(readOnly || run?.deliveries.some((member) => member.status !== 'DISPATCHED') ? [{
-      id: 'actions',
-      header: 'Actions',
-      cell: ({ row }: { row: DeliveryRunMember }) => (
-        <div className="flex flex-wrap gap-1">
-          {(readOnly || row.status !== 'DISPATCHED') && <Button variant="outline" size="sm" onClick={() => setViewDeliveryId(row.id)}>
-            {row.status === 'RECONCILED' ? 'View Results' : 'View Delivery'}
-          </Button>}
-          {canManage && run?.status === 'DRAFT' && row.status === 'READY' && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" disabled={busy || review} aria-label={`Manage ${row.deliveryNumber}`}>Manage</Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuGroup>
-                  {(['remove', 'reopen', 'cancel'] as const).map((action) => (
-                    <div key={action}>
-                      {action === 'cancel' && <DropdownMenuSeparator />}
-                      <DropdownMenuItem
-                        className={action === 'cancel' ? 'text-destructive' : undefined}
-                        onSelect={() => setConfirmation({ member: row, expectedRunRevision: run.revision, action })}
-                      >
-                        {action === 'remove' ? 'Remove from Trip' : action === 'reopen' ? 'Reopen draft' : 'Cancel delivery'}
-                      </DropdownMenuItem>
-                    </div>
-                  ))}
-                </DropdownMenuGroup>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
-        </div>
-      ),
+    ...(canManage && run?.status === 'DRAFT' ? [{
+      id: 'remove', header: 'Remove', align: 'right' as const,
+      cell: ({ row }: { row: DeliveryRunMember }) => row.status === 'READY' ? <Button type="button" variant="ghost" size="icon" className="size-8" disabled={resultsBlocked}
+        aria-label={`Remove delivery ${row.deliveryNumber} from trip`}
+        onClick={() => setConfirmation({ member: row, expectedRunRevision: run.revision, action: 'remove' })}><X aria-hidden="true" /></Button> : null,
     }] : []),
   ]
   return (
     <>
-      <Dialog open={!editing && !dispatching && !reconcileId && !viewDeliveryId && !viewTransferId} onOpenChange={(open) => !open && !busy && onClose()}>
+      <Dialog open={!editing && !dispatching && !reconcileId && !viewDeliveryId && !viewTransferId && !viewOrderId && !confirmation} onOpenChange={(open) => !open && !busy && onClose()}>
         <DialogContent
           closeDisabled={busy}
           className="flex max-h-[90dvh] flex-col overflow-hidden sm:max-w-5xl"
@@ -1099,7 +1083,7 @@ function RunDetails({ id, onClose, onDeparted, readOnly = false }: { id: number;
               {readOnly ? 'Review the saved trip and its member deliveries.' : run?.status === 'DRAFT' ? 'Review the deliveries and load before sending this trip.' : run?.status === 'DISPATCHED' ? 'Departure recorded. Return here to save each delivery result when its outcome is known.' : 'Review the saved trip and delivery information.'}
             </DialogDescription>
           </DialogHeader>
-          <div className="flex min-h-0 flex-col gap-4 overflow-y-auto">
+          <div className="flex min-h-0 flex-col gap-3 overflow-y-auto">
           {query.isPending && <p role="status">Loading trip…</p>}
           {(query.isError || error) && (
             <Alert variant="destructive">
@@ -1177,7 +1161,9 @@ function RunDetails({ id, onClose, onDeparted, readOnly = false }: { id: number;
               {resultsFeedback && <Alert><AlertDescription><p role="status">{resultsFeedback}</p></AlertDescription></Alert>}
               {run.notes && <p className="text-sm">{run.notes}</p>}
               <section aria-label="Deliveries in This Trip" className="flex flex-col gap-3">
-              <h2 className="font-semibold">Deliveries in This Trip</h2>
+              <div className="flex items-center justify-between gap-3"><h2 className="font-semibold">Deliveries in This Trip ({run.deliveries.length})</h2>
+                {canManage && run.status === 'DRAFT' && <AddDeliveryToTrip run={run} disabled={memberBusy || review || query.isError} onBusyChange={setAdding} onRefresh={() => query.refetch()} />}
+              </div>
               {unfinished.length > 1 && (
                 <p id="trip-results-selection" className="text-sm text-muted-foreground">
                   Select a delivery, then choose Record Results.
@@ -1190,6 +1176,7 @@ function RunDetails({ id, onClose, onDeparted, readOnly = false }: { id: number;
               <DataTable
                 data={run.deliveries}
                 columns={columns}
+                onRowClick={(member) => setViewDeliveryId(member.id)}
                 getRowKey={(member) => member.id}
                 rowClassName={(member) => resultDelivery?.id === member.id ? 'bg-primary-subtle hover:bg-primary-subtle focus-within:bg-primary-subtle' : ''}
                 pagination={false}
@@ -1211,63 +1198,6 @@ function RunDetails({ id, onClose, onDeparted, readOnly = false }: { id: number;
                   </div> },
                 ]} />
               </section>}
-              {canManage && run.status === 'DRAFT' && (
-                <section aria-label="Add Deliveries" className="flex flex-col gap-3 border-t pt-4">
-                  <h2 className="font-semibold">Add Deliveries</h2>
-                  <RunDeliveryPicker
-                    selection={selection}
-                    warehouseId={run.warehouseId}
-                    existingIds={existingIds}
-                    disabled={busy || review}
-                  />
-                  <Button
-                    variant="outline"
-                    className="self-start"
-                    disabled={
-                      !selection.selected.length ||
-                      !selection.canSave ||
-                      busy ||
-                      review ||
-                      run.deliveries.length + (run.warehouseTransfers?.length ?? 0) >= 100
-                    }
-                    onClick={() =>
-                      void perform(async () => {
-                        if (!(await selection.verify())) {
-                          setError('Review the selected deliveries before adding them.')
-                          return
-                        }
-                        const saved = await changeMembers.mutateAsync({
-                          id,
-                          payload: {
-                            expectedRevision: run.revision,
-                            add: selection.selected.map((delivery) => ({
-                              deliveryId: delivery.id,
-                              expectedRevision: delivery.revision,
-                            })),
-                          },
-                        })
-                        if (
-                          selection.selected.some(
-                            (delivery) =>
-                              !saved.deliveries?.some((member) => member.id === delivery.id),
-                          )
-                        )
-                          throw Error(
-                            'Trip membership was not confirmed. Refresh and review the trip before trying again.',
-                          )
-                        selection.clear()
-                        toast.success(
-                          selection.selected.length === 1
-                            ? 'Delivery added to trip.'
-                            : 'Deliveries added to trip.',
-                        )
-                      }).catch(() => undefined)
-                    }
-                  >
-                    Add to Trip
-                  </Button>
-                </section>
-              )}
               {((run.status === 'DRAFT' && (canManage || canOperate)) || unfinished.length > 0) && (
               <DialogFooter role="group" aria-label="Trip actions" className="sticky bottom-0 flex-wrap border-t bg-background py-3">
                 {canManage && run.status === 'DRAFT' && (
@@ -1320,7 +1250,17 @@ function RunDetails({ id, onClose, onDeparted, readOnly = false }: { id: number;
           </div>
         </DialogContent>
       </Dialog>
-      {viewDeliveryId && <DeliveryDetailModal deliveryId={viewDeliveryId} open onClose={() => setViewDeliveryId(undefined)} />}
+      {viewDeliveryId && <DeliveryDetailModal deliveryId={viewDeliveryId} open={!viewOrderId} canManage={canManage}
+        onViewOrder={setViewOrderId}
+        onViewTrip={(tripId) => { setViewDeliveryId(undefined); if (tripId !== id) navigate(`${ROUTES.deliveryRuns}?run=${tripId}`) }}
+        onClose={() => { setViewDeliveryId(undefined); void query.refetch() }}
+        onReopenDraft={run?.status === 'DRAFT' && canManage && run.deliveries.find((member) => member.id === viewDeliveryId)?.status === 'READY' ? () => {
+          setConfirmation({ member: run.deliveries.find((member) => member.id === viewDeliveryId), expectedRunRevision: run.revision, action: 'reopen' }); setViewDeliveryId(undefined)
+        } : undefined}
+        onCancelDelivery={run?.status === 'DRAFT' && canManage && run.deliveries.find((member) => member.id === viewDeliveryId)?.status === 'READY' ? () => {
+          setConfirmation({ member: run.deliveries.find((member) => member.id === viewDeliveryId), expectedRunRevision: run.revision, action: 'cancel' }); setViewDeliveryId(undefined)
+        } : undefined} />}
+      {viewOrderId && <DeliveryOrderReview type="Outgoing" orderId={viewOrderId} reference={run?.runNumber ?? 'Delivery Trip'} warehouses={[]} onClose={() => setViewOrderId(undefined)} />}
       {viewTransferId && <TransferDialog id={viewTransferId} canEdit={false} canOperate={canOperate}
         onOpen={() => undefined} onClose={() => { setViewTransferId(undefined); void query.refetch() }} />}
       {!readOnly && dispatching && (

@@ -151,6 +151,8 @@ export interface DataTableProps<T> {
   // --- Container & Table Styling ---
   /** Opt-in lighter separators, roomier cells and clearer neutral row hover. */
   appearance?: 'default' | 'subtle' | 'management'
+  /** Read-only record tables: compact padding without constraining content or controls. */
+  density?: 'default' | 'compact'
   className?: string
   tableClassName?: string
   /** Match order-identifier styling and keep table content on single lines. */
@@ -259,6 +261,7 @@ export function DataTable<T>({
   totalCount,
   manualPagination = false,
   appearance = 'default',
+  density = 'default',
   className,
   tableClassName,
   standardizeCells = true,
@@ -408,6 +411,7 @@ export function DataTable<T>({
         className={cn(
           'ui-typography rounded-lg border border-border overflow-hidden bg-card flex flex-col',
           appearance === 'management' && 'management-table shadow-none',
+          density === 'compact' && '[&_thead_th]:h-9 [&_thead_th]:px-3 [&_tbody_td]:px-3 [&_tbody_td]:py-2.5',
           className,
         )}
       >
@@ -502,6 +506,7 @@ export function DataTable<T>({
       className={cn(
         'ui-typography rounded-lg border border-border overflow-hidden bg-card flex flex-col',
         appearance === 'management' && 'management-table shadow-none',
+        density === 'compact' && '[&_thead_th]:h-9 [&_thead_th]:px-3 [&_tbody_td]:px-3 [&_tbody_td]:py-2.5',
         className,
       )}
     >

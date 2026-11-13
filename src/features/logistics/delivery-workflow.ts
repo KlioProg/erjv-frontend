@@ -1,3 +1,4 @@
+import { outgoingPreparationIssue } from './outgoing-issues.ts'
 import { incomingOrderSchedulingIssue, incomingSchedulingIssue } from './incoming-scheduling.ts'
 import type { IncomingDeliveryRecord } from './incoming-deliveries.types'
 import type { OutgoingDeliveryRecord } from './outgoing-deliveries.types'
@@ -16,7 +17,8 @@ export type DeliveryRow = {
   party: string
   relatedOrder: string
   purchaseOrderStatus?: PurchaseOrderRecord['status']
-  schedulingIssue?: ReturnType<typeof incomingSchedulingIssue>
+  schedulingIssue?:
+    ReturnType<typeof incomingSchedulingIssue> | ReturnType<typeof outgoingPreparationIssue>
   orderId: number
   method: 'To Be Confirmed' | 'Delivery'
   warehouse: string
@@ -45,9 +47,7 @@ export const RUN_STATUS_LABELS = {
   CANCELLED: 'Cancelled',
 } as const
 
-export function outgoingStatusLabel(
-  status: OutgoingDeliveryRecord['status'],
-) {
+export function outgoingStatusLabel(status: OutgoingDeliveryRecord['status']) {
   return DELIVERY_STATUS_LABELS[status] ?? status
 }
 
@@ -97,12 +97,18 @@ export function buildDeliveryRows({
         relatedOrder: order?.orderNumber || `PO #${record.purchaseOrderId}`,
         orderId: record.purchaseOrderId,
         purchaseOrderStatus,
-        schedulingIssue: record.status !== 'DRAFT' ? null : orderIssue ?? (
-          warehouse && order ? incomingSchedulingIssue({ delivery: record, order, warehouse }) : {
-            title: 'Receiving Warehouse Unavailable',
-            message: 'The receiving warehouse could not be verified. Review the delivery before scheduling.',
-          }
-        ),
+        schedulingIssue:
+          record.status !== 'DRAFT'
+            ? null
+            : (orderIssue ??
+              (warehouse && order
+                ? incomingSchedulingIssue({ delivery: record, order, warehouse })
+                : {
+                    target: 'warehouse' as const,
+                    title: 'Receiving Warehouse Unavailable',
+                    message:
+                      'The receiving warehouse could not be verified. Review the delivery before scheduling.',
+                  })),
         method: 'To Be Confirmed' as const,
         warehouse:
           warehouses.find((warehouse) => warehouse.id === record.warehouseId)?.name ||
@@ -120,6 +126,11 @@ export function buildDeliveryRows({
         reference: record.deliveryNumber,
         type: 'Outgoing' as const,
         record,
+        schedulingIssue: outgoingPreparationIssue(
+          record,
+          order?.status,
+          warehouses.find((warehouse) => warehouse.id === record.warehouseId)?.isActive,
+        ),
         party:
           clients.find((client) => client.id === order?.clientId)?.name ||
           `Customer #${order?.clientId ?? '—'}`,
@@ -188,7 +199,8 @@ export function deliveryBelongsToView(
 export function getDeliveryActions(
   row: Pick<DeliveryRow, 'type' | 'status'> & {
     purchaseOrderStatus?: PurchaseOrderRecord['status']
-    schedulingIssue?: ReturnType<typeof incomingSchedulingIssue>
+    schedulingIssue?:
+      ReturnType<typeof incomingSchedulingIssue> | ReturnType<typeof outgoingPreparationIssue>
     runId?: number | null
     record?: IncomingDeliveryRecord | OutgoingDeliveryRecord
   },
@@ -201,13 +213,13 @@ export function getDeliveryActions(
     if (row.status === 'READY')
       return (row.runId ?? (row.record && 'runId' in row.record ? row.record.runId : null)) != null
         ? ['run']
-        : ['reopen', 'run', 'cancel']
+        : row.schedulingIssue ? ['reopen', 'cancel'] : ['reopen', 'run', 'cancel']
     if (row.status === 'DISPATCHED') return ['reconcile']
   }
   return []
 }
 
-export function formatDeliverySchedule(value: string | null, history: boolean, scheduled = true) {
+export function formatDeliverySchedule(value: string | null, _history: boolean, scheduled = true) {
   const date = value ? new Date(value) : null
   if (!date || Number.isNaN(date.getTime())) return { date: 'Not scheduled', time: '', title: '' }
   return {
@@ -215,13 +227,14 @@ export function formatDeliverySchedule(value: string | null, history: boolean, s
       timeZone: 'Asia/Manila',
       day: 'numeric',
       month: 'short',
-      ...(history ? { year: 'numeric' as const } : {}),
+      year: 'numeric',
     }),
     time: scheduled
-      ? date.toLocaleTimeString('en-US', {
+      ? date.toLocaleTimeString('en-GB', {
           timeZone: 'Asia/Manila',
-          hour: 'numeric',
+          hour: '2-digit',
           minute: '2-digit',
+          hourCycle: 'h23',
         })
       : 'Expected',
     title: date.toLocaleString('en-GB', { timeZone: 'Asia/Manila' }),

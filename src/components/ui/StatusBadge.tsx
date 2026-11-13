@@ -42,7 +42,7 @@ export function StatusBadge({
     <Badge
       variant="outline"
       className={cn(
-        'w-max max-w-none shrink-0 gap-1.5 whitespace-nowrap leading-4',
+        'w-fit min-w-max shrink-0 gap-1.5 whitespace-nowrap leading-4',
         appearance === 'emphasis' ? tones[tone] : 'border-border bg-muted text-muted-foreground',
         className,
       )}

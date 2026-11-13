@@ -1,6 +1,6 @@
 import { useCursorPage } from '@/lib/use-cursor-page'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { toast } from 'sonner'
+import { toast } from '@/lib/notifications'
 import {
   cancelPurchaseOrderApi,
   confirmPurchaseOrderApi,

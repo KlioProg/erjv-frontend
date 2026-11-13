@@ -1,3 +1,4 @@
+import { formatContactPhone } from '@/lib/phone-utils'
 import { DataTableFooter, DataTableFrame } from '@/components/ui/DataTableFooter'
 import { PageHeader, PageToolbar } from '@/components/ui/ManagementPage'
 import { useState } from 'react'
@@ -85,7 +86,7 @@ export function ClientList() {
       header: 'Phone & Email',
       className: 'max-w-[220px] text-foreground',
       cell: ({ row }) => (
-        <OverflowValue value={[row.phone, row.email].filter(Boolean).join(' | ')} className="max-w-64" />
+        <OverflowValue value={[formatContactPhone(row.phone), row.email].filter(Boolean).join(' | ')} className="max-w-64" />
       ),
     },
     {
@@ -235,7 +236,7 @@ export function ClientList() {
         itemName={clientToDeactivate?.name}
         itemDetails={
           clientToDeactivate
-            ? `Contact: ${clientToDeactivate.contactPerson || 'N/A'} • ${clientToDeactivate.phone || 'No phone'}`
+            ? `Contact: ${clientToDeactivate.contactPerson || 'N/A'} • ${formatContactPhone(clientToDeactivate.phone) || 'No phone'}`
             : undefined
         }
         confirmText="Archive Customer"

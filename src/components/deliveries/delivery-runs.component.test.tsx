@@ -18,7 +18,7 @@ let requests: { url: string; method: string; body: Record<string, unknown>; para
 beforeEach(() => {
   auth.isAdmin = true; auth.isManager = false; auth.isStaff = false
   requests = []
-  deliveries = [8, 9, 10].map((id) => ({ id, deliveryNumber: `OUT-${id}`, revision: 3, status: 'READY', warehouseId: id === 10 ? 3 : 2, runId: null, salesOrderId: id + 3, plannedItems: [], items: [], notes: null, reconciledAt: null, reconciledByUserId: null, fulfillmentOutcome: null, hasDamage: false, hasMissing: false, cancelledAt: null, createdAt: '', updatedAt: '' }))
+  deliveries = [8, 9, 10].map((id) => ({ id, deliveryNumber: `OUT-${id}`, revision: 3, status: 'READY', warehouseId: id === 10 ? 3 : 2, runId: null, salesOrderId: id + 3, plannedItems: [{ id: 1, outgoingDeliveryId: id, salesOrderItemId: 1, plannedQuantity: '1.00', createdAt: '', updatedAt: '' }], items: [], notes: null, reconciledAt: null, reconciledByUserId: null, fulfillmentOutcome: null, hasDamage: false, hasMissing: false, cancelledAt: null, createdAt: '', updatedAt: '' }))
   run = { id: 1, runNumber: 'RUN-1', revision: 4, status: 'DRAFT', warehouseId: 2, driverEmployeeId: null, deliveryVehicleId: null,
     scheduledDepartureAt: '2026-10-29T02:00:00Z', dispatchedAt: null, completedAt: null, cancelledAt: null, departureConfirmedByUserId: null,
     loadedWeightKg: null, capacityKgAtDeparture: null, notes: 'Original notes', createdAt: '', updatedAt: '',
@@ -55,12 +55,26 @@ beforeEach(() => {
         })
         run = { ...run, ...(config.method === 'post' ? { warehouseId: body.warehouseId } : {}), deliveries: config.method === 'post' ? added : [...run.deliveries, ...added] }
       }
+      if (body.remove) {
+        const removed = (body.remove as { deliveryId: number }[]).map((member) => member.deliveryId)
+        run = { ...run, deliveries: run.deliveries.filter((member) => !removed.includes(member.id)) }
+        deliveries.forEach((delivery) => { if (removed.includes(delivery.id)) delivery.runId = null })
+      }
       data = structuredClone(run)
     }
     return { config, status: 200, statusText: 'OK', headers: {}, data: structuredClone(data) }
   }
 })
 afterEach(() => { apiClient.defaults.adapter = original })
+it('blocks direct assignment of an empty-plan Ready record without issuing mutations', async () => {
+  deliveries[0].plannedItems = []
+  mount('?assign=8')
+  const assignment = within(await screen.findByRole('dialog', { name: 'Add Delivery to Trip' }))
+  expect(await assignment.findByText(/needs a valid saved plan/)).toBeTruthy()
+  expect(assignment.queryByRole('button', { name: /Create New Trip|Add to Trip/ })).toBeNull()
+  expect(requests.filter((request) => request.method !== 'get')).toHaveLength(0)
+})
+
 function mount(selected: boolean | string = true) {
   function Location() { const location = useLocation(); return <output data-testid="run-location">{location.search}</output> }
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
@@ -139,7 +153,7 @@ it('uses a warning badge for an in-transit run in both the list and detail view'
   expect(screen.queryByRole('button', { name: 'Refresh trip for review' })).toBeNull()
   expect(statuses.length).toBeGreaterThanOrEqual(2)
   for (const status of statuses)
-    expect(status.closest('[data-slot="badge"]')?.classList.contains('bg-status-warning')).toBe(true)
+    expect(status.closest('[data-slot="badge"]')?.querySelector('[data-slot="status-dot"]')?.classList.contains('bg-status-warning-foreground')).toBe(true)
   client.clear()
 })
 
@@ -201,6 +215,8 @@ it('returns from cancelled creation to assignment without writing', async () => 
   expect(editor.getByLabelText('Warehouse').textContent).toBe('Main')
   expect(editor.getByText('Fixed by the selected outgoing delivery.')).toBeTruthy()
   await user.click(within(editor.getByRole('button', { name: 'Create Trip' }).closest('form')!).getByRole('button', { name: 'Cancel' }))
+  const discard = within(await screen.findByRole('dialog', { name: 'Discard Changes?' }))
+  await user.click(discard.getByRole('button', { name: 'Discard Changes' }))
   const assignment = within(await screen.findByRole('dialog', { name: 'Add Delivery to Trip' }))
   await assignment.findByText('OUT-8 \u00b7 Sales Order #11')
   await assignment.findByRole('button', { name: 'RUN-1' })
@@ -335,25 +351,45 @@ it('edits the reviewed draft revision without closing on a stale write', async (
   expect(within(editor).getByRole('button', { name: 'Save Trip' }).hasAttribute('disabled')).toBe(true)
 })
 
+it('keeps unsaved trip edits until dismissal is explicitly confirmed', async () => {
+  mount()
+  const user = userEvent.setup()
+  await user.click(await screen.findByRole('button', { name: 'Edit Trip' }))
+  const editor = await screen.findByRole('dialog', { name: 'Edit RUN-1' })
+  const notes = within(editor).getByLabelText(/Notes/)
+  await user.type(notes, 'Keep these loading instructions')
+  await user.keyboard('{Escape}')
+  const confirmation = await screen.findByRole('dialog', { name: 'Discard Changes?' })
+  await user.click(within(confirmation).getByRole('button', { name: 'Keep Editing' }))
+  expect((notes as HTMLTextAreaElement).value).toContain('Keep these loading instructions')
+  await waitFor(() => expect(editor.contains(document.activeElement)).toBe(true))
+  await user.click(within(editor).getByRole('button', { name: 'Cancel' }))
+  const discard = await screen.findByRole('dialog', { name: 'Discard Changes?' })
+  await user.click(within(discard).getByRole('button', { name: 'Discard Changes' }))
+  expect(await screen.findByRole('dialog', { name: 'Delivery Trip RUN-1' })).toBeTruthy()
+  expect(writes()).toHaveLength(0)
+})
+
 it('adds an eligible READY member using distinct run and delivery revisions', async () => {
   mount()
   const user = userEvent.setup()
-  await user.click(await screen.findByRole('button', { name: 'Choose ready delivery' }))
-  await user.click(await screen.findByRole('menuitemcheckbox', { name: 'OUT-8 · Sales Order #11' }))
-  await user.click(screen.getByRole('button', { name: 'Done selecting' }))
-  await waitFor(() => expect(screen.getByRole('button', { name: 'Add to Trip' }).hasAttribute('disabled')).toBe(false))
-  await user.click(screen.getByRole('button', { name: 'Add to Trip' }))
+  await user.click(await screen.findByRole('button', { name: 'Add Delivery' }))
+  await user.click(await screen.findByRole('menuitem', { name: /OUT-8/ }))
   await waitFor(() => expect(writes()).toHaveLength(1))
   expect(writes()[0]).toMatchObject({ url: '/delivery-runs/1/deliveries', body: { expectedRevision: 4, add: [{ deliveryId: 8, expectedRevision: 3 }] } })
   expect(requests.find((request) => request.url === '/outgoing-deliveries')?.params).toMatchObject({ statuses: ['READY'], warehouseId: 2, unassigned: 'true' })
 })
 
 it('reopens an assigned member with the reviewed paired revisions', async () => {
+  deliveries.push({ ...deliveries[0], id: 7, revision: 9, deliveryNumber: 'OUT-7', runId: 1 })
   mount()
   const user = userEvent.setup()
-  await user.click(await screen.findByRole('button', { name: 'Manage OUT-7' }))
-  await user.click(await screen.findByRole('menuitem', { name: 'Reopen draft' }))
-  await user.click(screen.getByRole('button', { name: 'Reopen Draft' }))
+  await user.click(await screen.findByRole('button', { name: 'View delivery OUT-7' }))
+  const reopen = await screen.findByRole('button', { name: 'Reopen Draft' })
+  await waitFor(() => expect(reopen.hasAttribute('disabled')).toBe(false))
+  await user.click(reopen)
+  const confirmation = within(await screen.findByRole('dialog', { name: 'Reopen Delivery Draft?' }))
+  await user.click(confirmation.getByRole('button', { name: 'Reopen Draft' }))
   await waitFor(() => expect(writes()).toHaveLength(1))
   expect(writes()[0]).toMatchObject({ url: '/delivery-runs/1/deliveries/7/reopen', body: { expectedRunRevision: 4, expectedDeliveryRevision: 9 } })
 })
@@ -367,7 +403,7 @@ it('does not expose draft mutation or dispatch actions on a completed run', asyn
   expect(screen.queryByRole('button', { name: 'Review Departure' })).toBeNull()
   expect(screen.queryByRole('button', { name: 'Cancel Trip' })).toBeNull()
   expect(screen.queryByRole('button', { name: 'Record Results' })).toBeNull()
-  expect(screen.getByRole('button', { name: 'View Results' })).toBeTruthy()
+  expect(screen.getByRole('button', { name: 'View delivery OUT-7' })).toBeTruthy()
   expect(writes()).toEqual([])
 })
 
@@ -414,7 +450,7 @@ it('selects a delivery by keyboard and clears a selection that is no longer elig
   run.deliveries[1].status = 'RECONCILED'
   await act(async () => { await client.invalidateQueries({ queryKey: ['delivery-runs'] }) })
   await waitFor(() => expect(trip.queryByRole('radio', { name: 'Select OUT-9 for results' })).toBeNull())
-  expect(trip.getByRole('button', { name: 'View Results' })).toBeTruthy()
+  expect(trip.getByRole('button', { name: 'View delivery OUT-8' })).toBeTruthy()
   expect(trip.getByRole('button', { name: 'Record Results' }).hasAttribute('disabled')).toBe(true)
   expect(trip.getAllByRole('radio').every((radio) => !(radio as HTMLInputElement).checked)).toBe(true)
   expect(writes()).toHaveLength(0)
@@ -425,7 +461,7 @@ it('automatically targets the only unfinished delivery alongside recorded result
   run.deliveries[0].status = 'RECONCILED'
   mount()
   const trip = within(await screen.findByRole('dialog', { name: 'Delivery Trip RUN-1' }))
-  await trip.findByRole('button', { name: 'View Results' })
+  await trip.findByRole('button', { name: 'View delivery OUT-8' })
   expect(trip.queryByRole('radio')).toBeNull()
   expect(trip.getByText('Delivery: OUT-9')).toBeTruthy()
   await userEvent.click(trip.getByRole('button', { name: 'Record Results' }))
@@ -439,7 +475,7 @@ it.each(['COMPLETED', 'CANCELLED'] as const)('keeps a %s trip read-only without 
   run.deliveries[0].status = status === 'COMPLETED' ? 'RECONCILED' : 'CANCELLED'
   mount()
   const trip = within(await screen.findByRole('dialog', { name: 'Delivery Trip RUN-1' }))
-  await trip.findByRole('button', { name: status === 'COMPLETED' ? 'View Results' : 'View Delivery' })
+  await trip.findByRole('button', { name: 'View delivery OUT-7' })
   expect(trip.queryByRole('group', { name: 'Trip actions' })).toBeNull()
   expect(trip.queryByRole('button', { name: 'Record Results' })).toBeNull()
   expect(trip.queryByRole('radio')).toBeNull()
@@ -459,41 +495,57 @@ it.each(['X', 'Escape'])('closes the trip summary using %s without recording res
   expect(writes()).toHaveLength(0)
 })
 
-it('blocks trip creation until a complete valid departure is entered', async () => {
+it('allows an unscheduled trip draft while rejecting partial or invalid departure values', async () => {
   mount(false)
   const user = userEvent.setup()
   await user.click(screen.getByRole('button', { name: 'Create Delivery Trip' }))
   const createTrip = screen.getByRole('button', { name: 'Create Trip' })
-  expect(createTrip.hasAttribute('disabled')).toBe(true)
+  expect(createTrip.hasAttribute('disabled')).toBe(false)
+  await user.click(createTrip)
+  expect(screen.getByText('Choose an active warehouse.')).toBeTruthy()
+  expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Choose warehouse' }))
+  expect(writes()).toHaveLength(0)
   await user.click(screen.getByRole('button', { name: 'Choose warehouse' }))
   await user.click(await screen.findByRole('menuitem', { name: 'Main' }))
-  expect(createTrip.hasAttribute('disabled')).toBe(true)
+  await waitFor(() => expect(createTrip.hasAttribute('disabled')).toBe(false))
   const date = screen.getByLabelText('Scheduled Departure Date') as HTMLInputElement
   const time = screen.getByLabelText('Scheduled Departure Time') as HTMLInputElement
-  expect(date.required).toBe(true)
-  expect(time.required).toBe(true)
-  fireEvent.submit(createTrip.closest('form')!)
-  expect(writes()).toHaveLength(0)
+  expect(date.required).toBe(false)
+  expect(time.required).toBe(false)
   fireEvent.change(date, { target: { value: '2026-12-01' } })
-  expect(createTrip.hasAttribute('disabled')).toBe(true)
+  expect(createTrip.hasAttribute('disabled')).toBe(false)
+  await user.click(createTrip)
+  expect(screen.getByText('Enter a time in HH:mm.')).toBeTruthy()
+  expect(writes()).toHaveLength(0)
   fireEvent.change(time, { target: { value: '25:00' } })
-  expect(createTrip.hasAttribute('disabled')).toBe(true)
+  expect(createTrip.hasAttribute('disabled')).toBe(false)
+  await user.click(createTrip)
+  expect(writes()).toHaveLength(0)
   fireEvent.change(time, { target: { value: '10:17' } })
   await waitFor(() => expect(createTrip.hasAttribute('disabled')).toBe(false))
   await user.click(screen.getByRole('button', { name: 'Clear scheduled departure' }))
-  expect(createTrip.hasAttribute('disabled')).toBe(true)
+  expect(createTrip.hasAttribute('disabled')).toBe(false)
   expect(writes()).toHaveLength(0)
+  await user.click(createTrip)
+  await waitFor(() => expect(writes()).toHaveLength(1))
+  expect(writes()[0].body).toMatchObject({ scheduledDepartureAt: null, driverEmployeeId: null, deliveryVehicleId: null })
+  expect(writes()[0].url).toBe('/delivery-runs')
 })
 
-it('keeps Save Trip disabled when a saved departure is cleared', async () => {
+it('rejects a partially cleared departure but allows clearing the whole draft schedule', async () => {
   mount()
   await userEvent.click(await screen.findByRole('button', { name: 'Edit Trip' }))
   const save = screen.getByRole('button', { name: 'Save Trip' })
   expect(save.hasAttribute('disabled')).toBe(false)
   fireEvent.change(screen.getByLabelText('Scheduled Departure Time'), { target: { value: '' } })
-  expect(save.hasAttribute('disabled')).toBe(true)
+  expect(save.hasAttribute('disabled')).toBe(false)
   fireEvent.submit(save.closest('form')!)
   expect(writes()).toHaveLength(0)
+  await userEvent.click(screen.getByRole('button', { name: 'Clear scheduled departure' }))
+  expect(save.hasAttribute('disabled')).toBe(false)
+  await userEvent.click(save)
+  await waitFor(() => expect(writes()).toHaveLength(1))
+  expect(writes()[0].body).toMatchObject({ expectedRevision: 4, scheduledDepartureAt: null })
 })
 
 it('creates an empty draft run without inventing deliveries or assignments', async () => {
@@ -567,13 +619,13 @@ it('shows inline clear actions only for selected assignments and saves cleared v
 it('keeps an open READY-delivery search mounted when the run revision refreshes', async () => {
   const client = mount()
   const user = userEvent.setup()
-  await user.click(await screen.findByRole('button', { name: 'Choose ready delivery' }))
-  const search = screen.getByRole('searchbox', { name: 'Search ready delivery' })
+  await user.click(await screen.findByRole('button', { name: 'Add Delivery' }))
+  const search = screen.getByRole('searchbox', { name: 'Search delivery, sales order or customer' })
   await user.type(search, 'OUT')
   run = { ...run, revision: run.revision + 1 }
   await act(async () => { await client.invalidateQueries({ queryKey: ['delivery-runs', 'id', run.id] }) })
   await user.type(search, '-8')
-  expect(screen.getByRole('searchbox', { name: 'Search ready delivery' })).toBe(search)
+  expect(screen.getByRole('searchbox', { name: 'Search delivery, sales order or customer' })).toBe(search)
   expect((search as HTMLInputElement).value).toBe('OUT-8')
 })
 
@@ -688,7 +740,7 @@ it('keeps changed selections visible after invalidation and requires explicit re
   expect(writes()[0].body.deliveries).toEqual([{ deliveryId: 8, expectedRevision: 4 }])
 })
 
-it('retains a selection and requires review after an uncertain membership response', async () => {
+it('keeps the assignment search usable after an uncertain membership response without automatic retry', async () => {
   const adapter = apiClient.defaults.adapter as AxiosAdapter
   let attempts = 0
   apiClient.defaults.adapter = async (config) => {
@@ -699,20 +751,15 @@ it('retains a selection and requires review after an uncertain membership respon
     return adapter(config)
   }
   mount()
-  const user = userEvent.setup()
-  await user.click(await screen.findByRole('button', { name: 'Choose ready delivery' }))
-  await user.click(await screen.findByRole('menuitemcheckbox', { name: /OUT-8/ }))
-  await user.click(screen.getByRole('button', { name: 'Done selecting' }))
-  await waitFor(() => expect(screen.getByRole('button', { name: 'Add to Trip' }).hasAttribute('disabled')).toBe(false))
-  await user.click(screen.getByRole('button', { name: 'Add to Trip' }))
+  await userEvent.click(await screen.findByRole('button', { name: 'Add Delivery' }))
+  const search = screen.getByRole('searchbox', { name: 'Search delivery, sales order or customer' })
+  await userEvent.type(search, 'OUT-8')
+  await userEvent.click(await screen.findByRole('menuitem', { name: /OUT-8/ }))
   await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('temporarily offline'))
-  expect(within(screen.getByRole('list', { name: 'Selected deliveries' })).getByText('OUT-8')).toBeTruthy()
-  expect(screen.getByRole('button', { name: 'Add to Trip' }).hasAttribute('disabled')).toBe(true)
-  await user.click(screen.getByRole('button', { name: 'Add to Trip' }))
   expect(attempts).toBe(1)
-  await waitFor(() => expect(screen.getByRole('button', { name: 'Refresh trip for review' }).hasAttribute('disabled')).toBe(false))
-  await user.click(screen.getByRole('button', { name: 'Refresh trip for review' }))
-  await waitFor(() => expect(screen.getByRole('button', { name: 'Add to Trip' }).hasAttribute('disabled')).toBe(false))
+  expect((search as HTMLInputElement).value).toBe('OUT-8')
+  expect(run.deliveries).toHaveLength(1)
+  expect(screen.getByRole('menu')).toBeTruthy()
 })
 
 it('keeps assignments and delivery selections for review after an uncertain create response', async () => {
@@ -743,28 +790,34 @@ it('keeps assignments and delivery selections for review after an uncertain crea
   const close = within(screen.getByRole('button', { name: 'Create Trip' }).closest('form')!).getByRole('button', { name: 'Cancel' })
   await waitFor(() => expect(close.hasAttribute('disabled')).toBe(false))
   await user.click(close)
+  const discard = within(await screen.findByRole('dialog', { name: 'Discard Changes?' }))
+  await user.click(discard.getByRole('button', { name: 'Discard Changes' }))
   await user.click(screen.getByRole('button', { name: 'Create Delivery Trip' }))
   fillDeparture()
   expect(within(screen.getByRole('list', { name: 'Selected deliveries' })).queryByRole('listitem')).toBeNull()
   expect((screen.getByLabelText(/Notes/) as HTMLTextAreaElement).value).toBe('')
 })
 
-it('adds multiple members in one revision-checked operation despite repeated clicks', async () => {
+it('adds multiple members with separate fresh revisions while keeping the compact menu open', async () => {
   mount()
-  const user = userEvent.setup()
-  await user.click(await screen.findByRole('button', { name: 'Choose ready delivery' }))
-  await user.click(await screen.findByRole('menuitemcheckbox', { name: /OUT-8/ }))
-  await user.click(screen.getByRole('button', { name: 'Load more results' }))
-  await user.click(await screen.findByRole('menuitemcheckbox', { name: /OUT-9/ }))
-  await user.click(screen.getByRole('button', { name: 'Done selecting' }))
-  const add = screen.getByRole('button', { name: 'Add to Trip' })
-  await waitFor(() => expect(add.hasAttribute('disabled')).toBe(false))
-  act(() => { fireEvent.click(add); fireEvent.click(add) })
+  await userEvent.click(await screen.findByRole('button', { name: 'Add Delivery' }))
+  const first = await screen.findByRole('menuitem', { name: /OUT-8/ })
+  act(() => { fireEvent.click(first); fireEvent.click(first) })
   await waitFor(() => expect(writes()).toHaveLength(1))
-  expect(writes()[0]).toMatchObject({ url: '/delivery-runs/1/deliveries', body: { expectedRevision: 4, add: [{ deliveryId: 8, expectedRevision: 3 }, { deliveryId: 9, expectedRevision: 3 }] } })
-  await screen.findByRole('cell', { name: 'OUT-8' })
+  // The refreshed available page starts with the remaining eligible delivery.
+  const second = await screen.findByRole('menuitem', { name: /OUT-9/ })
+  await waitFor(() => expect(second.getAttribute('aria-disabled')).not.toBe('true'))
+  await userEvent.click(second)
+  await waitFor(() => expect(writes()).toHaveLength(2))
+  expect(writes().map((request) => request.body)).toEqual([
+    { expectedRevision: 4, add: [{ deliveryId: 8, expectedRevision: 3 }] },
+    { expectedRevision: 5, add: [{ deliveryId: 9, expectedRevision: 3 }] },
+  ])
+  expect(run.deliveries).toHaveLength(3)
+  expect(screen.getByRole('menu')).toBeTruthy()
+  await userEvent.keyboard('{Escape}')
+  expect(screen.getByRole('cell', { name: 'OUT-8' })).toBeTruthy()
   expect(screen.getByRole('cell', { name: 'OUT-9' })).toBeTruthy()
-  await waitFor(() => expect(within(screen.getByRole('list', { name: 'Selected deliveries' })).queryByRole('listitem')).toBeNull())
 })
 
 it('checks authoritative availability immediately before creating a run', async () => {
@@ -950,12 +1003,17 @@ it('requires a READY delivery before showing assignment options', async () => {
   expect(writes()).toHaveLength(0)
 })
 
-it.each([['Remove from Trip', 'Remove from Trip'], ['Cancel delivery', 'Cancel Delivery']])('keeps %s behind a keyboard-accessible menu and confirmation', async (action, confirm) => {
+it.each([['Remove from Trip', 'Remove from Trip'], ['Cancel delivery', 'Cancel Delivery']])('keeps %s keyboard accessible and confirmed', async (action, confirm) => {
+  deliveries.push({ ...deliveries[0], id: 7, revision: 9, deliveryNumber: 'OUT-7', runId: 1 })
   mount()
-  const manage = await screen.findByRole('button', { name: 'Manage OUT-7' })
-  manage.focus()
+  const control = await screen.findByRole('button', { name: action === 'Remove from Trip' ? 'Remove delivery OUT-7 from trip' : 'View delivery OUT-7' })
+  control.focus()
   await userEvent.keyboard('{Enter}')
-  await userEvent.click(await screen.findByRole('menuitem', { name: action }))
+  if (action === 'Cancel delivery') {
+    const cancel = await screen.findByRole('button', { name: 'Cancel Delivery' })
+    await waitFor(() => expect(cancel.hasAttribute('disabled')).toBe(false))
+    await userEvent.click(cancel)
+  }
   expect(writes()).toHaveLength(0)
   await userEvent.click(screen.getByRole('button', { name: confirm }))
   await waitFor(() => expect(writes()).toHaveLength(1))
@@ -963,6 +1021,7 @@ it.each([['Remove from Trip', 'Remove from Trip'], ['Cancel delivery', 'Cancel D
     ? { url: '/delivery-runs/1/deliveries', body: { expectedRevision: 4, remove: [{ deliveryId: 7, expectedRevision: 9 }] } }
     : { url: '/delivery-runs/1/deliveries/7/cancel', body: { expectedRunRevision: 4, expectedDeliveryRevision: 9 } })
 })
+
 it('keeps stored departure precision when editing other trip information', async () => {
   run.scheduledDepartureAt = '2026-11-05T01:40:27.123Z'
   mount()
@@ -998,11 +1057,32 @@ it('saves a changed November 11 Manila schedule without substituting the creatio
 it('groups the draft workspace and uses an honest load explanation until departure review', async () => {
   mount()
   const trip = within(await screen.findByRole('dialog', { name: 'Delivery Trip RUN-1' }))
-  for (const section of ['Trip Summary', 'Deliveries in This Trip', 'Add Deliveries']) expect(trip.getByRole('region', { name: section })).toBeTruthy()
+  for (const section of ['Trip Summary', 'Deliveries in This Trip']) expect(trip.getByRole('region', { name: section })).toBeTruthy()
   expect(trip.getByText('Checked during departure review')).toBeTruthy()
   expect(trip.getByText('Preparing')).toBeTruthy()
   expect(trip.getByRole('button', { name: 'Review Departure' })).toBeTruthy()
-  expect(trip.getByRole('button', { name: 'Add to Trip' }).classList.contains('self-start')).toBe(true)
+  expect(trip.getByRole('button', { name: 'Add Delivery' })).toBeTruthy()
+  expect(trip.queryByRole('region', { name: 'Add Deliveries' })).toBeNull()
+  expect(trip.queryByRole('button', { name: /Manage/ })).toBeNull()
   expect(trip.queryByRole('button', { name: 'Remove from Trip' })).toBeNull()
+  expect(writes()).toHaveLength(0)
+})
+
+it.each(['DISPATCHED', 'COMPLETED'] as const)('does not offer assignment or member removal after %s', async (status) => {
+  run.status = status
+  mount()
+  await screen.findByRole('dialog', { name: 'Delivery Trip RUN-1' })
+  expect(screen.queryByRole('button', { name: 'Add Delivery' })).toBeNull()
+  expect(screen.queryByRole('button', { name: /Remove delivery .* from trip/ })).toBeNull()
+  expect(writes()).toHaveLength(0)
+})
+
+it('opens the related sales order through its identifier without changing trip membership', async () => {
+  mount()
+  const order = await screen.findByRole('button', { name: 'View sales order #10' })
+  order.focus()
+  await userEvent.keyboard('{Enter}')
+  await waitFor(() => expect(requests.some((request) => request.url === '/sales-orders/10')).toBe(true))
+  expect(screen.getAllByRole('dialog')).toHaveLength(1)
   expect(writes()).toHaveLength(0)
 })

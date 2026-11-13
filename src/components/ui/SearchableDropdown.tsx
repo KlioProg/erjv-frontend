@@ -30,6 +30,7 @@ type SearchableDropdownProps<T> = {
   emptyMessage: string
   ariaLabel: string
   error?: string
+  required?: boolean
   className?: string
   contentClassName?: string
   align?: 'start' | 'center' | 'end'
@@ -41,6 +42,8 @@ type SearchableDropdownProps<T> = {
   onSearchChange?: (query: string) => void
   selectedLabel?: string
   footer?: ReactNode
+  closeOnSelect?: boolean
+  getOptionDisabled?: (option: T) => boolean
 }
 
 export function SearchableDropdown<T>({
@@ -60,6 +63,7 @@ export function SearchableDropdown<T>({
   emptyMessage,
   ariaLabel,
   error,
+  required = false,
   className,
   contentClassName,
   align = 'start',
@@ -71,6 +75,8 @@ export function SearchableDropdown<T>({
   onOpenChange,
   selectedLabel: fallbackLabel,
   footer,
+  closeOnSelect = true,
+  getOptionDisabled,
 }: SearchableDropdownProps<T>) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
@@ -128,7 +134,9 @@ export function SearchableDropdown<T>({
       open={open && !disabled && !isLoading}
       onOpenChange={changeOpen}
     >
-      <OverflowValue asChild value={selectedLabel} describedBy={error ? fieldErrorId : undefined}>
+      <OverflowValue asChild value={selectedLabel} describedBy={
+        [required && `${fieldErrorId}-required`, error && fieldErrorId].filter(Boolean).join(' ') || undefined
+      }>
         <DropdownMenuTrigger asChild>
           <Button
             ref={triggerRef}
@@ -239,7 +247,11 @@ export function SearchableDropdown<T>({
                 return (
                   <DropdownMenuItem
                     key={optionValue}
-                    onSelect={() => selectOption(option)}
+                    disabled={getOptionDisabled?.(option)}
+                    onSelect={(event) => {
+                      if (!closeOnSelect) event.preventDefault()
+                      selectOption(option)
+                    }}
                     className="flex min-h-11 items-center justify-between gap-3"
                   >
                     <span className="min-w-0 flex-1 whitespace-normal [overflow-wrap:anywhere]">
@@ -266,6 +278,7 @@ export function SearchableDropdown<T>({
         {selectedValues && <Button type="button" variant="outline" size="sm" onClick={() => changeOpen(false)}>Done selecting</Button>}
       </DropdownMenuContent>
     </DropdownMenu>
+    {required && <span id={`${fieldErrorId}-required`} className="sr-only">Required.</span>}
     {error && <p id={fieldErrorId} role="alert" className="text-xs text-destructive">{error}</p>}
     </>
   )

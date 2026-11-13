@@ -23,7 +23,7 @@ export function StockStatusBadge({ stock }: { stock: StockItem }) {
     <StatusBadge
       label={labels[condition]}
       tone={tones[condition]}
-      appearance="emphasis"
+      appearance={condition === 'OUT' || condition === 'LOW' ? 'emphasis' : 'subtle'}
       showDot={false}
     />
   )

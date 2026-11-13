@@ -14,7 +14,11 @@ export async function fetchIncomingDeliveriesApi(
   signal?: AbortSignal,
 ): Promise<IncomingDeliveryRecord[]> {
   const { status, ...filters } = filter ?? {}
-  return fetchCursorList<IncomingDeliveryRecord>('/incoming-deliveries', { ...filters, ...(status ? { statuses: [status] } : {}) }, signal)
+  return fetchCursorList<IncomingDeliveryRecord>(
+    '/incoming-deliveries',
+    { ...filters, ...(status ? { statuses: [status] } : {}) },
+    signal,
+  )
 }
 
 export async function fetchIncomingDeliveryByIdApi(
@@ -53,11 +57,39 @@ export async function createIncomingDeliveryApi(
   return data
 }
 
-export async function scheduleIncomingDeliveryApi(id: number, expectedRevision: number): Promise<IncomingDeliveryRecord> {
+export async function scheduleIncomingDeliveryApi(
+  id: number,
+  expectedRevision: number,
+): Promise<IncomingDeliveryRecord> {
   const { data } = await apiClient.patch<IncomingDeliveryRecord>(
     `/incoming-deliveries/${id}/schedule`,
     { expectedRevision: requireRevision(expectedRevision) },
   )
+  return data
+}
+
+export async function updateIncomingDraftApi(
+  id: number,
+  payload: {
+    expectedRevision: number
+    warehouseId?: number
+    scheduledAt?: string
+  },
+): Promise<IncomingDeliveryRecord> {
+  const { data } = await apiClient.patch<IncomingDeliveryRecord>(
+    `/incoming-deliveries/${id}/draft`,
+    {
+      ...payload,
+      expectedRevision: requireRevision(payload.expectedRevision),
+    },
+  )
+  if (
+    data?.id !== id ||
+    data.status !== 'DRAFT' ||
+    !Number.isSafeInteger(data.revision) ||
+    data.revision <= payload.expectedRevision
+  )
+    throw Error('The correction was not confirmed. Refresh this delivery before trying again.')
   return data
 }
 
@@ -105,7 +137,10 @@ export async function completeIncomingDeliveryApi(
   return data
 }
 
-export async function cancelIncomingDeliveryApi(id: number, expectedRevision: number): Promise<IncomingDeliveryRecord> {
+export async function cancelIncomingDeliveryApi(
+  id: number,
+  expectedRevision: number,
+): Promise<IncomingDeliveryRecord> {
   const { data } = await apiClient.patch<IncomingDeliveryRecord>(
     `/incoming-deliveries/${id}/cancel`,
     { expectedRevision: requireRevision(expectedRevision) },

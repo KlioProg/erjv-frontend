@@ -25,6 +25,16 @@ function mount(onClose = vi.fn()) {
   return render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><RegisterUserModal open onClose={onClose} /></QueryClientProvider>)
 }
 
+it('marks required registration fields and explains an empty submission', async () => {
+  mount()
+  for (const label of ['Work Email Address', 'Initial Password', 'Confirm Password'])
+    expect((screen.getByLabelText(label) as HTMLInputElement).required).toBe(true)
+  await userEvent.click(screen.getByRole('button', { name: 'Register Account' }))
+  expect(screen.getByText('Work Email Address is required.')).toBeTruthy()
+  expect(document.activeElement).toBe(screen.getByLabelText('Work Email Address'))
+  expect(mutateAsync).not.toHaveBeenCalled()
+})
+
 it('keeps descriptions outside the collapsed role trigger and preserves keyboard selection', async () => {
   const user = userEvent.setup()
   mount()

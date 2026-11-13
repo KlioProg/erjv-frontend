@@ -64,7 +64,7 @@ export function ProductUnitField({
       </Select>
       {custom && (
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor={`${id}-custom`}>Custom Unit</Label>
+          <Label htmlFor={`${id}-custom`}>Custom Unit {required && <span aria-hidden="true">*</span>}</Label>
           <Input
             id={`${id}-custom`}
             value={value}

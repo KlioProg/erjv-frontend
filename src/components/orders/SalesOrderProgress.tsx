@@ -1,7 +1,8 @@
+import { ProductTableLabel, ProductTableQuantity } from '@/components/common/ProductTableCells'
+import { OverflowValue } from '@/components/ui/OverflowValue'
 import { DataTable, type ColumnDef } from '@/components/ui/data-table'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { OverflowValue } from '@/components/ui/OverflowValue'
 import { useMediaQuery } from '@/lib/use-media-query'
 import { salesDeliveryProgress } from '@/features/crm/sales-orders.presentation'
 import { formatStockCents } from '@/features/logistics/stock-display'
@@ -39,18 +40,14 @@ export function SalesOrderProgress({
         const product = products.find((product) => product.id === row.item.inventoryItemId)
         return (
           <div className="flex min-w-0 flex-col gap-1">
-            <OverflowValue
-              value={product?.name ?? `Product #${row.item.inventoryItemId}`}
-              className="text-sm font-medium"
-            />
-            {product?.unit && <span className="text-xs text-muted-foreground">{product.unit}</span>}
+            <ProductTableLabel product={product} fallback={`Product #${row.item.inventoryItemId}`} />
             {!wide && (
               <dl className="mt-2 grid grid-cols-3 gap-2 text-sm">
                 {(['ordered', 'delivered', 'remaining'] as const).map((key) => (
                   <div key={key} className="min-w-0">
                     <dt className="text-xs capitalize text-muted-foreground">{key}</dt>
                     <dd className="mt-1">
-                      <OverflowValue value={formatStockCents(row[key])} className="tabular-nums" />
+                      <ProductTableQuantity value={row[key] === null ? null : formatStockCents(row[key])} unit={products.find((product) => product.id === row.item.inventoryItemId)?.unit} />
                     </dd>
                   </div>
                 ))}
@@ -66,7 +63,7 @@ export function SalesOrderProgress({
       width: '20%',
       align: 'right' as const,
       cell: ({ row }: { row: (typeof progress)[number] }) => (
-        <OverflowValue value={formatStockCents(row[key])} className="text-right tabular-nums" />
+        <ProductTableQuantity value={row[key] === null ? null : formatStockCents(row[key])} unit={products.find((product) => product.id === row.item.inventoryItemId)?.unit} />
       ),
     })),
   ]
@@ -81,6 +78,7 @@ export function SalesOrderProgress({
       ) : (
         <>
           <DataTable
+                density="compact"
             data={progress}
             columns={wide ? columns : columns.slice(0, 1)}
             getRowKey={(row) => row.item.id}

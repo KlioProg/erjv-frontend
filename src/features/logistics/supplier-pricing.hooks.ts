@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { toast } from 'sonner'
+import { toast } from '@/lib/notifications'
 import { getErrorMessage } from '@/lib/api-client'
 import { fetchSupplierPricesApi, saveSupplierPriceApi, SUPPLIER_PRICING_SUPPORTED } from './supplier-pricing.api'
 

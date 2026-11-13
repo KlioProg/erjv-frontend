@@ -1,6 +1,6 @@
 import { useRef, useState, type FormEvent } from 'react'
 import { decimalLimitError } from '@/lib/decimal-limits'
-import { toast } from 'sonner'
+import { toast } from '@/lib/notifications'
 import {
   Dialog,
   DialogContent,

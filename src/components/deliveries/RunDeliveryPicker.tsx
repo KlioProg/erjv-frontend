@@ -52,6 +52,7 @@ export function RunDeliveryPicker({
         }
         accept={(delivery) =>
           delivery.status === 'READY' &&
+          hasValidOutgoingPlan(delivery) &&
           delivery.runId === null &&
           delivery.warehouseId === warehouseId &&
           !existingIds.includes(delivery.id)
@@ -103,3 +104,4 @@ export function RunDeliveryPicker({
     </section>
   )
 }
+import { hasValidOutgoingPlan } from '@/features/logistics/outgoing-issues'

@@ -6,6 +6,7 @@ export type LifecycleMilestone = {
   id: string
   label: string
   state: LifecycleMilestoneState
+  detail?: string
 }
 
 const stateLabels: Record<LifecycleMilestoneState, string> = {
@@ -66,6 +67,11 @@ export function LifecycleProgress({
               <span className="sr-only"> — {stateLabels[milestone.state]}</span>
             )}
           </span>
+          {milestone.detail && (
+            <span className="text-xs leading-4 text-muted-foreground [overflow-wrap:anywhere]">
+              {milestone.detail}
+            </span>
+          )}
         </li>
       ))}
     </ol>

@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { expect, it, vi } from 'vitest'
 import { OrderDetailDrawer } from './OrderDetailDrawer'
+import { apiClient } from '@/lib/api-client'
 import type { SalesOrderRecord } from '@/features/crm/sales-orders.types'
 import type { OutgoingDeliveryRecord } from '@/features/logistics/outgoing-deliveries.types'
 import type { InventoryItemResponse } from '@/features/products/products.types'
@@ -118,6 +119,19 @@ it.each([
   expect(body.classList.contains('overflow-y-auto')).toBe(true)
   expect(screen.queryByText(/What just happened|Ready for Logistics/)).toBeNull()
 })
+it('explains confirmation-only requirements before sending an incomplete saved sales draft', async () => {
+  const write = vi.spyOn(apiClient, 'patch').mockRejectedValue(Error('Unexpected request'))
+  try {
+    setup({ order: { ...order, status: 'DRAFT', items: [], deliveryAddress: '' } })
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm Order' }))
+    expect(write).not.toHaveBeenCalled()
+    expect(screen.getByRole('alert').textContent).toContain('delivery address and at least one item')
+    expect(screen.getByRole('dialog')).toBeTruthy()
+  } finally {
+    write.mockRestore()
+  }
+})
+
 it('uses an accurate compact summary for partial multi-delivery fulfillment', () => {
   setup({
     order: { ...order, status: 'PARTIALLY_DELIVERED' },
