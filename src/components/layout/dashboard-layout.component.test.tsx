@@ -8,7 +8,13 @@ import { SidebarActiveIndicator } from './SidebarActiveIndicator'
 
 const auth = vi.hoisted(() => ({ user: { role: 'ADMIN', fullName: 'Admin' }, isAdmin: true, isManager: false, logout: vi.fn() }))
 vi.mock('@/features/auth/AuthContext', () => ({ useAuth: () => auth }))
-afterEach(() => { auth.isAdmin = true; auth.isManager = false; vi.restoreAllMocks(); vi.useRealTimers() })
+afterEach(() => {
+  auth.isAdmin = true
+  auth.isManager = false
+  vi.restoreAllMocks()
+  vi.unstubAllGlobals()
+  vi.useRealTimers()
+})
 vi.mock('./StockNotifications', () => ({ StockNotifications: () => null }))
 
 function mountHeader(currentScreen: 'dashboard' | 'clients' | 'inventory' | 'financial-reports' | 'delivery-runs' = 'dashboard') {
@@ -71,6 +77,52 @@ it('ignores active links nested below the current navigation scope', () => {
   )
 
   expect(container.querySelector('[aria-hidden="true"]')).toBeNull()
+})
+
+it('repositions the active indicator without sliding when a navigation scope resizes', () => {
+  let resizeCallback: ResizeObserverCallback | undefined
+  let activeTop = 0
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      constructor(callback: ResizeObserverCallback) {
+        resizeCallback = callback
+      }
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    },
+  )
+  vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+    const top = this.tagName === 'A' ? activeTop : 0
+    const width = this.tagName === 'A' ? 100 : 200
+    return {
+      x: 0,
+      y: top,
+      left: 0,
+      top,
+      right: width,
+      bottom: top + 36,
+      width,
+      height: 36,
+      toJSON: () => ({}),
+    } as DOMRect
+  })
+
+  const { container } = render(
+    <SidebarActiveIndicator active routeKey="warehouses" className="gap-1">
+      <a href="/warehouses" aria-current="page">
+        Warehouses
+      </a>
+    </SidebarActiveIndicator>,
+  )
+
+  activeTop = 36
+  act(() => resizeCallback?.([], {} as ResizeObserver))
+
+  const indicator = container.querySelector('[aria-hidden="true"]')
+  expect(indicator?.getAttribute('style')).toContain('translate(0px, 36px)')
+  expect(indicator?.className).toContain('transition-none')
 })
 
 it('keeps Delivery Trips active at the top level while Deliveries stays collapsed', () => {

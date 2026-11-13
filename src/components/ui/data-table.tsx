@@ -153,6 +153,8 @@ export interface DataTableProps<T> {
   appearance?: 'default' | 'subtle' | 'management'
   className?: string
   tableClassName?: string
+  /** Match order-identifier styling and keep table content on single lines. */
+  standardizeCells?: boolean
 }
 
 /**
@@ -259,6 +261,7 @@ export function DataTable<T>({
   appearance = 'default',
   className,
   tableClassName,
+  standardizeCells = true,
 }: DataTableProps<T>) {
   const [internalSort, setInternalSort] = useState<SortConfig | null>(defaultSort ?? null)
   const [internalPage, setInternalPage] = useState<number>(1)
@@ -276,6 +279,11 @@ export function DataTable<T>({
       resolvedId: getColumnId(col, index),
     }))
   }, [columns])
+  const resolvedTableClassName = cn(
+    tableClassName,
+    standardizeCells &&
+      'table-auto min-w-max [&_th]:whitespace-nowrap [&_td]:whitespace-nowrap [&_th]:px-4 [&_td]:px-4',
+  )
 
   const handleSortToggle = (column: (typeof resolvedColumns)[number]) => {
     if (!column.sortable) return
@@ -410,7 +418,7 @@ export function DataTable<T>({
               appearance === 'management'
                 ? '[&_td]:px-4 [&_th]:px-4'
                 : '[&_td]:px-2 [&_th]:px-2 [&_td:first-child]:pl-3 [&_th:first-child]:pl-3 [&_td:last-child]:pr-3 [&_th:last-child]:pr-3',
-              tableClassName,
+              resolvedTableClassName,
             )}
           >
             <TableHeader className="bg-secondary">
@@ -505,7 +513,7 @@ export function DataTable<T>({
               : '[&_td]:px-2 [&_th]:px-2 [&_td:first-child]:pl-3 [&_th:first-child]:pl-3 [&_td:last-child]:pr-3 [&_th:last-child]:pr-3',
             // Keep controls compact even when feature renderers supply custom typography.
             '[&_tbody_td_button]:text-ui [&_tbody_td_button]:font-medium [&_tbody_td_button]:leading-4 [&_tbody_[data-slot=badge]]:text-xs [&_tbody_[data-slot=badge]]:font-medium [&_tbody_[data-slot=badge]]:leading-4 [&_tbody_[data-slot=badge]]:px-2 [&_tbody_[data-slot=badge]]:py-0.5 [&_tbody_[data-slot=badge]]:rounded-md [&_tbody_[data-slot=badge]]:gap-1.5',
-            tableClassName,
+            resolvedTableClassName,
           )}
         >
           <TableHeader className="bg-secondary">
@@ -634,7 +642,7 @@ export function DataTable<T>({
                         computedRowClass,
                       )}
                     >
-                      {resolvedColumns.map((column) => {
+                      {resolvedColumns.map((column, columnIndex) => {
                         const alignClass = getAlignmentClass(column.align)
                         const value = getCellValue(row, column)
                         const widthStyle =
@@ -653,6 +661,9 @@ export function DataTable<T>({
                             style={widthStyle}
                             className={cn(
                               'text-sm text-foreground',
+                              standardizeCells &&
+                                columnIndex === 0 &&
+                                'px-4 font-semibold text-primary',
                               appearance === 'subtle' && 'py-4',
                               alignClass,
                               column.className,

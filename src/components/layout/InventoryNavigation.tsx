@@ -28,18 +28,22 @@ export function InventoryNavigation({
         onClick={() => setExpanded(!expanded)}
         className={cn(
           'group ui-text flex h-9 w-full items-center justify-between rounded-md px-3 py-2 font-medium transition-[color,font-weight,background-color] duration-150 motion-reduce:transition-none hover:bg-muted/60 hover:text-foreground hover:font-semibold focus-visible:text-foreground focus-visible:font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-          view ? 'text-foreground font-semibold' : 'text-muted-foreground',
+          view ? 'text-foreground' : 'text-muted-foreground',
         )}
       >
         <span className="flex items-center gap-3">
-          <Boxes aria-hidden="true" className="size-4" />
+          <Boxes aria-hidden="true" className={cn('size-4', view && 'text-primary')} />
           <span className="transition-[font-weight] duration-100 ease-out motion-reduce:transition-none">
             Inventory
           </span>
         </span>
         <ChevronDown aria-hidden="true" className={cn('size-4', !expanded && '-rotate-90')} />
       </button>
-      <div id={id} hidden={!expanded} className="ml-7">
+      <div
+        id={id}
+        hidden={!expanded}
+        className="relative ml-7 before:absolute before:inset-y-1 before:-left-2 before:w-px before:bg-border"
+      >
         <SidebarActiveIndicator active={view !== null} routeKey={view ?? undefined} className="gap-1">
           {[
             { path: ROUTES.inventory, label: 'Products & Stock' },

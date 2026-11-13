@@ -31,7 +31,7 @@ export function SidebarActiveIndicator({
       return
     }
 
-    const updateIndicator = () => {
+    const updateIndicator = (animatePosition = animate) => {
       const itemsRect = items.getBoundingClientRect()
       const linkRect = activeLink.getBoundingClientRect()
       if (linkRect.width === 0 || linkRect.height === 0) {
@@ -44,24 +44,26 @@ export function SidebarActiveIndicator({
         top: linkRect.top - itemsRect.top,
         width: linkRect.width,
         height: linkRect.height,
-        animate,
+        animate: animatePosition,
       }
-      setIndicator((current) =>
-        current &&
-        current.left === next.left &&
-        current.top === next.top &&
-        current.width === next.width &&
-        current.height === next.height &&
-        current.animate === next.animate
-          ? current
-          : next,
-      )
+      setIndicator((current) => {
+        if (
+          current &&
+          current.left === next.left &&
+          current.top === next.top &&
+          current.width === next.width &&
+          current.height === next.height
+        ) {
+          return current
+        }
+        return next
+      })
     }
 
     updateIndicator()
     if (typeof ResizeObserver === 'undefined') return
 
-    const observer = new ResizeObserver(updateIndicator)
+    const observer = new ResizeObserver(() => updateIndicator(false))
     observer.observe(items)
     observer.observe(activeLink)
     return () => observer.disconnect()

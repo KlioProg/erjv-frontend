@@ -42,7 +42,7 @@ export function StatusBadge({
     <Badge
       variant="outline"
       className={cn(
-        'min-w-0 max-w-full gap-1.5 whitespace-normal leading-4',
+        'w-max max-w-none shrink-0 gap-1.5 whitespace-nowrap leading-4',
         appearance === 'emphasis' ? tones[tone] : 'border-border bg-muted text-muted-foreground',
         className,
       )}
@@ -55,7 +55,7 @@ export function StatusBadge({
           className={cn('size-1.5 shrink-0 rounded-full', dots[tone])}
         />
       )}
-      <span className="min-w-0 [overflow-wrap:anywhere]">{label}</span>
+      <span className="shrink-0 whitespace-nowrap">{label}</span>
     </Badge>
   )
 }

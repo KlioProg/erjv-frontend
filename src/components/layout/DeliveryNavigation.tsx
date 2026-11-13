@@ -36,7 +36,7 @@ export function DeliveryNavigation({
         onClick={() => setExpanded(!expanded)}
         className={cn(
           'group ui-text flex h-9 w-full items-center justify-between rounded-md px-3 py-2 font-medium transition-[color,font-weight,background-color] duration-150 motion-reduce:transition-none pointer-coarse:min-h-11 hover:bg-muted/60 hover:text-foreground hover:font-semibold focus-visible:text-foreground focus-visible:font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-          view ? 'text-foreground font-semibold' : 'text-muted-foreground',
+          view ? 'text-foreground' : 'text-muted-foreground',
         )}
       >
         <span className="flex items-center gap-3">
