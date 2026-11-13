@@ -42,6 +42,16 @@ it('keeps routine status labels readable independently of semantic dots and emph
   expect(screen.queryByRole('alert')).toBeNull()
 })
 
+it('keeps long status labels on one line for horizontally scrollable tables', () => {
+  render(<StatusBadge label="AwaitingReconciliationReview" />)
+
+  const label = screen.getByText('AwaitingReconciliationReview')
+  const badge = label.closest('[data-slot="badge"]')!
+  expect(badge.className).toContain('whitespace-nowrap')
+  expect(badge.className).toContain('w-max')
+  expect(label.className).toContain('whitespace-nowrap')
+})
+
 it('retains caller descriptions and node labels without duplicating status announcements', () => {
   render(
     <>

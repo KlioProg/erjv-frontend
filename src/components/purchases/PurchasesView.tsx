@@ -406,6 +406,7 @@ export function PurchasesView({
       id: 'number',
       header: 'Order',
       width: '18%',
+      className: '!px-0',
       cell: ({ row }) => (
         <OverflowValue
           value={row.po.orderNumber}

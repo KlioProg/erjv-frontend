@@ -197,7 +197,7 @@ export function WarehouseList({ onOpenWarehouse }: { onOpenWarehouse: (id: numbe
     {
       id: 'products',
       header: stockQuery.hasNextPage ? 'Loaded products' : 'Products',
-      width: '12%',
+      width: '16%',
       className: 'hidden sm:table-cell',
       headerClassName: 'hidden sm:table-cell',
       align: 'right',
@@ -220,11 +220,11 @@ export function WarehouseList({ onOpenWarehouse }: { onOpenWarehouse: (id: numbe
               })
             }}
           >
-            <span className="tabular-nums">
+            <span className="shrink-0 tabular-nums whitespace-nowrap">
               {count.toLocaleString()}
               {stockQuery.hasNextPage ? '+' : ''}
             </span>
-            <span className="hidden xl:inline">{count === 1 ? 'product' : 'products'}</span>
+            <span className="whitespace-nowrap">{count === 1 ? 'product' : 'products'}</span>
           </DataTableExpandToggle>
         )
       },
@@ -319,6 +319,7 @@ export function WarehouseList({ onOpenWarehouse }: { onOpenWarehouse: (id: numbe
         <DataTable
             pagination={false}
             manualSorting
+        standardizeCells={false}
         appearance="management"
         data={filteredWarehouses}
         columns={columns}

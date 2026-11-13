@@ -374,6 +374,8 @@ export function DeliveryRunsHub({ history = false }: { history?: boolean }) {
     {
       header: 'Warehouse',
       accessorKey: 'warehouseId',
+      className: 'whitespace-nowrap',
+      headerClassName: 'whitespace-nowrap',
       cell: ({ row }) => names.warehouse(row.warehouseId),
     },
     {
@@ -410,8 +412,8 @@ export function DeliveryRunsHub({ history = false }: { history?: boolean }) {
     {
       id: 'progress',
       header: history ? 'Deliveries' : 'Delivery Progress',
-      className: 'hidden sm:table-cell',
-      headerClassName: 'hidden sm:table-cell',
+      className: 'hidden whitespace-nowrap sm:table-cell',
+      headerClassName: 'hidden whitespace-nowrap sm:table-cell',
       cell: ({ row }) => (
         <div>
           <p className={history ? 'text-xs text-muted-foreground' : undefined}>

@@ -6,6 +6,45 @@ import { DataTable } from './data-table'
 import { OverflowValue } from './OverflowValue'
 
 describe('DataTable accessibility', () => {
+  it('uses the order identifier style and single-line scrolling by default', () => {
+    render(
+      <DataTable
+        appearance="management"
+        data={[{ id: 'SO-001' }]}
+        pagination={false}
+        columns={[{ header: 'Order', accessorKey: 'id' }]}
+      />,
+    )
+
+    const table = screen.getByRole('table')
+    const cell = screen.getByRole('cell')
+    expect(table.className).toContain('min-w-max')
+    expect(table.className).toContain('whitespace-nowrap')
+    expect(cell.className).toContain('font-semibold')
+    expect(cell.className).toContain('text-primary')
+    expect(cell.className).toContain('px-4')
+  })
+
+  it('allows the warehouse table to retain its custom wrapping and width', () => {
+    render(
+      <DataTable
+        appearance="management"
+        standardizeCells={false}
+        tableClassName="table-fixed min-w-[1100px]"
+        data={[{ id: 'Warehouse A' }]}
+        pagination={false}
+        columns={[{ header: 'Warehouse', accessorKey: 'id' }]}
+      />,
+    )
+
+    const table = screen.getByRole('table')
+    const cell = screen.getByRole('cell')
+    expect(table.className).toContain('table-fixed')
+    expect(table.className).toContain('min-w-[1100px]')
+    expect(table.className).not.toContain('min-w-max')
+    expect(cell.className).not.toContain('text-primary')
+  })
+
   it('preserves row quick actions inside focusable dialogs and on focusable read-only values', async () => {
     const user = userEvent.setup()
     const add = vi.fn()
